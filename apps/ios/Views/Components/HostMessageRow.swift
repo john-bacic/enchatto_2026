@@ -40,7 +40,7 @@ struct HostMessageRow: View {
     // MARK: - Bubble row (avatar + bubble + react button)
 
     private var bubbleRow: some View {
-        HStack(alignment: .bottom, spacing: 6) {
+        HStack(alignment: .bottom, spacing: 4) {
             if !isOwn {
                 avatarColumn
             }
@@ -53,12 +53,11 @@ struct HostMessageRow: View {
 
             if !isOwn {
                 Button { showActionSheet = true } label: {
-                    Text("😊")
-                        .font(.system(size: 14))
-                        .opacity(0.4)
+                    Image(systemName: "heart")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(.systemGray4))
                 }
                 .buttonStyle(.plain)
-                .frame(alignment: .center)
             }
         }
     }

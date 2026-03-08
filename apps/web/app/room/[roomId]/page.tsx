@@ -8,6 +8,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
 import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
+import { getAvatarById } from "@/lib/types";
 
 function RoomContent() {
   const params = useParams();
@@ -331,16 +332,42 @@ function RoomContent() {
           justifyContent: "space-between",
         }}
       >
-        <div>
-          <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Enchatto</h1>
-          {isClosed && (
-            <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>
-              Room closed
-            </span>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {(() => {
+            const me = participants.find((p) => p._id === participantId);
+            if (me) {
+              const av = getAvatarById(me.avatar.value);
+              return (
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    background: av.color,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1.1rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  {av.emoji}
+                </div>
+              );
+            }
+            return null;
+          })()}
+          <div>
+            <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Enchatto</h1>
+            {isClosed && (
+              <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>
+                Room closed
+              </span>
+            )}
+          </div>
         </div>
         <ParticipantList
-          participants={participants}
+          participants={participants.filter((p) => p._id !== participantId)}
           currentParticipantId={participantId}
           onLeave={() => setShowLeaveConfirm(true)}
         />
