@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+import { Id } from "../convex/_generated/dataModel";
 import { PRESET_AVATARS } from "@/lib/types";
 import { ReplyPreview } from "@/components/reply-preview";
 import { ReactionBar } from "@/components/reaction-bar";
@@ -54,6 +57,82 @@ function getAvatarColor(avatarValue: string): string {
 }
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
+function InlineReactions({
+  messageId,
+  currentParticipantId,
+  isOwn,
+  onToggleReaction,
+  onShowModal,
+}: {
+  messageId: string;
+  currentParticipantId: string;
+  isOwn: boolean;
+  onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
+  onShowModal: () => void;
+}) {
+  const summaryList = useQuery(api.reactions.getReactionSummary, {
+    messageId: messageId as Id<"messages">,
+  });
+
+  const reactions = (summaryList ?? []).filter((r) => r.count > 0);
+
+  if (reactions.length > 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+        {reactions.map((r) => (
+          <div
+            key={r.emoji}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "2px",
+              padding: "2px 6px",
+              borderRadius: "999px",
+              background: "var(--bg)",
+              border: "1px solid var(--border)",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              const isMine = r.participantIds.includes(currentParticipantId);
+              onToggleReaction?.(messageId, r.emoji, isMine);
+            }}
+          >
+            <span style={{ fontSize: "0.8rem" }}>{r.emoji}</span>
+            {r.count > 1 && (
+              <span style={{ fontSize: "0.65rem", color: "var(--muted)" }}>
+                {r.count}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!isOwn) {
+    return (
+      <button
+        onClick={onShowModal}
+        style={{
+          background: "none",
+          border: "none",
+          padding: "0.15rem",
+          cursor: "pointer",
+          fontSize: "0.85rem",
+          opacity: 0.4,
+          flexShrink: 0,
+        }}
+        title="React or reply"
+      >
+        😊
+      </button>
+    );
+  }
+
+  return null;
+}
 
 export function MessageItem({
   message,
@@ -265,25 +344,16 @@ export function MessageItem({
             )}
           </div>
 
-          {/* Reaction button on right middle (others only) */}
-          {!isOwn && (
-            <button
-              onClick={() => setShowModal(true)}
-              style={{
-                background: "none",
-                border: "none",
-                padding: "0.15rem",
-                cursor: "pointer",
-                fontSize: "0.85rem",
-                opacity: 0.4,
-                flexShrink: 0,
-                alignSelf: "center",
-              }}
-              title="React or reply"
-            >
-              😊
-            </button>
-          )}
+          {/* Reactions / trigger on right middle */}
+          <div style={{ alignSelf: "center", flexShrink: 0 }}>
+            <InlineReactions
+              messageId={message._id}
+              currentParticipantId={currentParticipantId}
+              isOwn={isOwn}
+              onToggleReaction={onToggleReaction}
+              onShowModal={() => setShowModal(true)}
+            />
+          </div>
         </div>
 
         {/* Suggestions */}

@@ -23,7 +23,6 @@ struct HostMessageRow: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
                 replyPreview
                 bubbleRow
-                reactionsRow
                 suggestionsRow
                 if isOwn { timestampRow }
             }
@@ -53,7 +52,9 @@ struct HostMessageRow: View {
                         if !isOwn { showActionSheet = true }
                     }
 
-                if !isOwn {
+                if !reactions.isEmpty {
+                    reactionChips
+                } else if !isOwn {
                     Button { showActionSheet = true } label: {
                         Image(systemName: "heart")
                             .font(.system(size: 12))
@@ -232,29 +233,25 @@ struct HostMessageRow: View {
         }
     }
 
-    // MARK: - Reactions display
+    // MARK: - Reaction chips (inline, next to bubble)
 
-    @ViewBuilder
-    private var reactionsRow: some View {
-        if !reactions.isEmpty {
-            HStack(spacing: 4) {
-                ForEach(reactions, id: \.emoji) { entry in
-                    HStack(spacing: 2) {
-                        Text(entry.emoji)
-                            .font(.system(size: 13))
-                        if entry.count > 1 {
-                            Text("\(entry.count)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
+    private var reactionChips: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(reactions, id: \.emoji) { entry in
+                HStack(spacing: 2) {
+                    Text(entry.emoji)
+                        .font(.system(size: 12))
+                    if entry.count > 1 {
+                        Text("\(entry.count)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color(.systemGray5))
-                    .clipShape(Capsule())
                 }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color(.systemGray5))
+                .clipShape(Capsule())
             }
-            .padding(.leading, isOwn ? 0 : 40)
         }
     }
 
