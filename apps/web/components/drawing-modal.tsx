@@ -1,14 +1,16 @@
 "use client";
 
 import { DrawingCanvas } from "@/components/drawing-canvas";
+import { t } from "@/lib/i18n";
 
 interface DrawingModalProps {
   isOpen: boolean;
   onSave: (dataUrl: string) => void;
   onClose: () => void;
+  lang?: string;
 }
 
-export function DrawingModal({ isOpen, onSave, onClose }: DrawingModalProps) {
+export function DrawingModal({ isOpen, onSave, onClose, lang }: DrawingModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -43,9 +45,9 @@ export function DrawingModal({ isOpen, onSave, onClose }: DrawingModalProps) {
             marginBottom: "0.75rem",
           }}
         >
-          Draw something
+          {t("Draw something", lang)}
         </h3>
-        <DrawingCanvas onSave={onSave} onCancel={onClose} />
+        <DrawingCanvas onSave={onSave} onCancel={onClose} lang={lang} />
       </div>
     </div>
   );

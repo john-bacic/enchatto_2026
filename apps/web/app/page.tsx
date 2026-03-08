@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { QrScanner } from "@/components/qr-scanner";
+import { t } from "@/lib/i18n";
 
 export default function HomePage() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState("");
   const [showScanner, setShowScanner] = useState(false);
+  const [lang, setLang] = useState("en");
+
+  useEffect(() => {
+    setLang(localStorage.getItem("enchatto_lastLanguage") ?? "en");
+  }, []);
 
   const handleJoin = () => {
     const code = joinCode.trim().toUpperCase();
@@ -48,10 +54,10 @@ export default function HomePage() {
       }}
     >
       <h1 style={{ fontSize: "2.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-        Enchatto
+        {t("Enchatto", lang)}
       </h1>
       <p style={{ color: "var(--muted)", fontSize: "1.1rem", maxWidth: "400px" }}>
-        Real-time multilingual conversation rooms.
+        {t("Real-time multilingual conversation rooms.", lang)}
       </p>
 
       <div
@@ -94,7 +100,7 @@ export default function HomePage() {
             <line x1="17" y1="21" x2="17" y2="21.01" />
             <line x1="21" y1="17" x2="21" y2="17.01" />
           </svg>
-          Scan QR Code
+          {t("Scan QR Code", lang)}
         </button>
 
         <div
@@ -108,7 +114,7 @@ export default function HomePage() {
           }}
         >
           <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
-          <span>or enter code</span>
+          <span>{t("or enter code", lang)}</span>
           <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
         </div>
 
@@ -119,7 +125,7 @@ export default function HomePage() {
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-            placeholder="e.g. ABC123"
+            placeholder={t("e.g. ABC123", lang)}
             maxLength={10}
             style={{
               flex: 1,
@@ -146,7 +152,7 @@ export default function HomePage() {
               cursor: joinCode.trim() ? "pointer" : "default",
             }}
           >
-            Join
+            {t("Join", lang)}
           </button>
         </div>
       </div>
@@ -155,6 +161,7 @@ export default function HomePage() {
         <QrScanner
           onScan={handleScan}
           onClose={() => setShowScanner(false)}
+          lang={lang}
         />
       )}
     </main>

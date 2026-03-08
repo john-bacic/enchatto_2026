@@ -1,6 +1,7 @@
 "use client";
 
 import { PRESET_AVATARS } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 interface TypingParticipant {
   _id: string;
@@ -11,13 +12,14 @@ interface TypingParticipant {
 
 interface TypingIndicatorProps {
   participants: TypingParticipant[];
+  lang?: string;
 }
 
 function getEmoji(avatarValue: string): string {
   return PRESET_AVATARS.find((a) => a.id === avatarValue)?.emoji ?? "👤";
 }
 
-export function TypingIndicator({ participants }: TypingIndicatorProps) {
+export function TypingIndicator({ participants, lang }: TypingIndicatorProps) {
   if (participants.length === 0) return null;
 
   return (
@@ -44,7 +46,7 @@ export function TypingIndicator({ participants }: TypingIndicatorProps) {
             }}
           >
             <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              {p.nickname} is {p.typingAction === "drawing" ? "drawing" : "typing"}
+              {p.nickname} {p.typingAction === "drawing" ? t("is drawing", lang) : t("is typing", lang)}
             </span>
             <span style={{ display: "inline-flex", gap: "2px", alignItems: "center" }}>
               <span className="typing-dot" style={{ animationDelay: "0ms" }} />

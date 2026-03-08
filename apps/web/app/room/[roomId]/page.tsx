@@ -9,6 +9,7 @@ import { ParticipantList } from "@/components/participant-list";
 import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
 import { getAvatarById } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 function RoomContent() {
   const params = useParams();
@@ -95,6 +96,9 @@ function RoomContent() {
 
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
+
+  const me = participants.find((p) => p._id === participantId);
+  const lang = me?.preferredLanguage ?? "en";
 
   const replyMessage = replyTo
     ? messageList.find((m) => m._id === replyTo)
@@ -245,7 +249,7 @@ function RoomContent() {
           color: "var(--muted)",
         }}
       >
-        Loading room...
+        {t("Loading room...", lang)}
       </div>
     );
   }
@@ -264,9 +268,9 @@ function RoomContent() {
           textAlign: "center",
         }}
       >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Room not found</h1>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>{t("Room not found", lang)}</h1>
         <p style={{ color: "var(--muted)", marginTop: "0.5rem" }}>
-          This room may have been closed.
+          {t("This room may have been closed.", lang)}
         </p>
       </div>
     );
@@ -287,9 +291,9 @@ function RoomContent() {
           textAlign: "center",
         }}
       >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Join Required</h1>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>{t("Join Required", lang)}</h1>
         <p style={{ color: "var(--muted)", marginTop: "0.5rem" }}>
-          You need to join this room first.
+          {t("You need to join this room first.", lang)}
         </p>
         <a
           href={`/join/${joinCode}`}
@@ -303,7 +307,7 @@ function RoomContent() {
             textDecoration: "none",
           }}
         >
-          Join Room
+          {t("Join Room", lang)}
         </a>
       </div>
     );
@@ -334,7 +338,6 @@ function RoomContent() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {(() => {
-            const me = participants.find((p) => p._id === participantId);
             if (me) {
               const av = getAvatarById(me.avatar.value);
               return (
@@ -358,10 +361,10 @@ function RoomContent() {
             return null;
           })()}
           <div>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Enchatto</h1>
+            <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{t("Enchatto", lang)}</h1>
             {isClosed && (
               <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>
-                Room closed
+                {t("Room closed", lang)}
               </span>
             )}
           </div>
@@ -370,18 +373,21 @@ function RoomContent() {
           participants={participants.filter((p) => p._id !== participantId)}
           currentParticipantId={participantId}
           onLeave={() => setShowLeaveConfirm(true)}
+          lang={lang}
         />
       </header>
 
       {/* Messages */}
-      <MessageErrorBoundary>
+      <MessageErrorBoundary lang={lang}>
         <MessageList
           messages={messageList}
           participants={participants}
           currentParticipantId={participantId}
+          preferredLanguage={lang}
           onReply={handleReply}
           onToggleReaction={handleToggleReaction}
           typingParticipants={typingParticipants}
+          lang={lang}
         />
       </MessageErrorBoundary>
 
@@ -394,6 +400,7 @@ function RoomContent() {
           replyTo={replyMessage ?? null}
           onCancelReply={handleCancelReply}
           onTypingChange={handleTypingChange}
+          lang={lang}
         />
       ) : (
         <div
@@ -406,7 +413,7 @@ function RoomContent() {
             fontSize: "0.85rem",
           }}
         >
-          This room has been closed by the host.
+          {t("This room has been closed by the host.", lang)}
         </div>
       )}
 
@@ -437,10 +444,10 @@ function RoomContent() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-              Leave room?
+              {t("Leave room?", lang)}
             </h2>
             <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "1.25rem" }}>
-              You can rejoin later with the same room code.
+              {t("You can rejoin later with the same room code.", lang)}
             </p>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
@@ -455,7 +462,7 @@ function RoomContent() {
                   cursor: "pointer",
                 }}
               >
-                Stay
+                {t("Stay", lang)}
               </button>
               <button
                 onClick={handleLeave}
@@ -469,7 +476,7 @@ function RoomContent() {
                   cursor: "pointer",
                 }}
               >
-                Leave
+                {t("Leave", lang)}
               </button>
             </div>
           </div>
@@ -495,10 +502,10 @@ function RoomContent() {
 }
 
 class MessageErrorBoundary extends Component<
-  { children: ReactNode },
+  { children: ReactNode; lang?: string },
   { hasError: boolean }
 > {
-  constructor(props: { children: ReactNode }) {
+  constructor(props: { children: ReactNode; lang?: string }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -520,12 +527,12 @@ class MessageErrorBoundary extends Component<
             textAlign: "center",
           }}
         >
-          Something went wrong displaying messages.{" "}
+          {t("Something went wrong displaying messages.", this.props.lang)}{" "}
           <button
             onClick={() => this.setState({ hasError: false })}
             style={{ color: "var(--primary)", textDecoration: "underline", background: "none" }}
           >
-            Try again
+            {t("Try again", this.props.lang)}
           </button>
         </div>
       );

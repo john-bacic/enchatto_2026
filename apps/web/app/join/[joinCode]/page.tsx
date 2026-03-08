@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { AvatarPicker } from "@/components/avatar-picker";
 import { LANGUAGES, PRESET_AVATARS, PresetAvatarId, LanguageCode } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export default function JoinPage() {
   const params = useParams();
@@ -22,8 +23,8 @@ export default function JoinPage() {
     return "cat";
   });
   const [language, setLanguage] = useState<LanguageCode>(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "en";
-    return "en";
+    if (typeof window !== "undefined") return (localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "ja";
+    return "ja";
   });
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,17 +61,17 @@ export default function JoinPage() {
 
   const handleJoin = async () => {
     if (!nickname.trim()) {
-      setError("Please enter a nickname");
+      setError(t("Please enter a nickname", language));
       return;
     }
 
     if (!room) {
-      setError("Room not found");
+      setError(t("Room not found", language));
       return;
     }
 
     if (room.status === "closed") {
-      setError("This room has been closed");
+      setError(t("This room has been closed", language));
       return;
     }
 
@@ -92,7 +93,7 @@ export default function JoinPage() {
 
       router.push(`/room/${room._id}?pid=${participantId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to join room");
+      setError(err instanceof Error ? err.message : t("Failed to join room", language));
       setJoining(false);
     }
   };
@@ -109,7 +110,7 @@ export default function JoinPage() {
           color: "var(--muted)",
         }}
       >
-        Looking up room...
+        {t("Looking up room...", language)}
       </main>
     );
   }
@@ -129,10 +130,10 @@ export default function JoinPage() {
         }}
       >
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Room not found
+          {t("Room not found", language)}
         </h1>
         <p style={{ color: "var(--muted)" }}>
-          The room code <strong>{joinCode}</strong> is invalid or has expired.
+          {t("The room code is invalid or has expired.", language)}
         </p>
       </main>
     );
@@ -153,10 +154,10 @@ export default function JoinPage() {
         }}
       >
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Room closed
+          {t("Room closed", language)}
         </h1>
         <p style={{ color: "var(--muted)" }}>
-          This conversation has ended. The host has closed the room.
+          {t("This conversation has ended. The host has closed the room.", language)}
         </p>
       </main>
     );
@@ -184,10 +185,10 @@ export default function JoinPage() {
         }}
       >
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-          Join Conversation
+          {t("Join Conversation", language)}
         </h1>
         <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-          Room code: <strong>{joinCode}</strong>
+          {t("Room code:", language)} <strong>{joinCode}</strong>
         </p>
 
         {/* Nickname */}
@@ -199,13 +200,13 @@ export default function JoinPage() {
             marginBottom: "0.25rem",
           }}
         >
-          Nickname
+          {t("Nickname", language)}
         </label>
         <input
           type="text"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          placeholder="Enter your name"
+          placeholder={t("Enter your name", language)}
           maxLength={20}
           style={{
             width: "100%",
@@ -226,7 +227,7 @@ export default function JoinPage() {
             marginBottom: "0.5rem",
           }}
         >
-          Choose an avatar
+          {t("Choose an avatar", language)}
         </label>
         <div style={{ marginBottom: "1.25rem" }}>
           <AvatarPicker selected={avatar} onSelect={setAvatar} takenAvatars={takenAvatars} />
@@ -241,7 +242,7 @@ export default function JoinPage() {
             marginBottom: "0.25rem",
           }}
         >
-          Your language
+          {t("Your language", language)}
         </label>
         <select
           value={language}
@@ -283,7 +284,7 @@ export default function JoinPage() {
             fontSize: "1rem",
           }}
         >
-          {joining ? "Joining..." : `Join as ${selectedEmoji} ${nickname || "..."}`}
+          {joining ? t("Joining...", language) : `${t("Join as", language)} ${selectedEmoji} ${nickname || "..."}`}
         </button>
       </div>
     </main>

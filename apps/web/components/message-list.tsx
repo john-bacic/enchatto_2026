@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { MessageItem } from "@/components/message-item";
 import { TypingIndicator } from "@/components/typing-indicator";
+import { t } from "@/lib/i18n";
 
 interface MessageData {
   _id: string;
@@ -39,18 +40,22 @@ interface MessageListProps {
   messages: MessageData[];
   participants: ParticipantData[];
   currentParticipantId: string;
+  preferredLanguage?: string;
   onReply: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
   typingParticipants?: TypingParticipant[];
+  lang?: string;
 }
 
 export function MessageList({
   messages,
   participants,
   currentParticipantId,
+  preferredLanguage,
   onReply,
   onToggleReaction,
   typingParticipants,
+  lang,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +81,7 @@ export function MessageList({
           padding: "2rem",
         }}
       >
-        No messages yet. Start the conversation!
+        {t("No messages yet. Start the conversation!", lang)}
       </div>
     );
   }
@@ -108,11 +113,13 @@ export function MessageList({
             onReply={onReply}
             onToggleReaction={onToggleReaction}
             currentParticipantId={currentParticipantId}
+            preferredLanguage={preferredLanguage}
+            lang={lang}
           />
         );
       })}
       {typingParticipants && typingParticipants.length > 0 && (
-        <TypingIndicator participants={typingParticipants} />
+        <TypingIndicator participants={typingParticipants} lang={lang} />
       )}
       <div ref={bottomRef} />
     </div>

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { ImageUploadButton } from "@/components/image-upload-button";
 import { DrawingModal } from "@/components/drawing-modal";
+import { t } from "@/lib/i18n";
 
 interface ReplyTo {
   _id: string;
@@ -18,6 +19,7 @@ interface MessageInputProps {
   replyTo: ReplyTo | null;
   onCancelReply: () => void;
   onTypingChange?: (action: "typing" | "drawing" | null) => void;
+  lang?: string;
 }
 
 export function MessageInput({
@@ -27,6 +29,7 @@ export function MessageInput({
   replyTo,
   onCancelReply,
   onTypingChange,
+  lang,
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
@@ -115,7 +118,7 @@ export function MessageInput({
               paddingLeft: "0.375rem",
             }}
           >
-            <ReplyPreview originalText={replyTo.text ?? ""} senderName="" />
+            <ReplyPreview originalText={replyTo.text ?? ""} senderName="" lang={lang} />
             <button
               onClick={onCancelReply}
               style={{
@@ -127,7 +130,7 @@ export function MessageInput({
                 cursor: "pointer",
               }}
             >
-              Cancel
+              {t("Cancel", lang)}
             </button>
           </div>
         )}
@@ -152,7 +155,7 @@ export function MessageInput({
                 handleSubmit();
               }
             }}
-            placeholder="Type a message..."
+            placeholder={t("Type a message...", lang)}
             rows={1}
             style={{
               width: "100%",
@@ -243,7 +246,7 @@ export function MessageInput({
                       color: "var(--fg)",
                     }}
                   >
-                    📷 Photo
+                    {t("📷 Photo", lang)}
                   </button>
                 </div>
               )}
@@ -277,7 +280,7 @@ export function MessageInput({
                 flexShrink: 0,
               }}
             >
-              ✏️ Draw
+              {t("✏️ Draw", lang)}
             </button>
 
             <div style={{ flex: 1 }} />
@@ -326,6 +329,7 @@ export function MessageInput({
           setShowDrawing(false);
           onTypingChange?.(null);
         }}
+        lang={lang}
       />
     </>
   );

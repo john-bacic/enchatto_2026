@@ -1,12 +1,14 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import { t } from "@/lib/i18n";
 
 interface DrawingCanvasProps {
   width?: number;
   height?: number;
   onSave: (dataUrl: string) => void;
   onCancel: () => void;
+  lang?: string;
 }
 
 const COLORS = ["#1a1a1a", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"];
@@ -17,6 +19,7 @@ export function DrawingCanvas({
   height = 240,
   onSave,
   onCancel,
+  lang,
 }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -192,7 +195,7 @@ export function DrawingCanvas({
             fontSize: "0.85rem",
           }}
         >
-          Clear
+          {t("Clear", lang)}
         </button>
         <button
           onClick={onCancel}
@@ -205,7 +208,7 @@ export function DrawingCanvas({
             fontSize: "0.85rem",
           }}
         >
-          Cancel
+          {t("Cancel", lang)}
         </button>
         <button
           onClick={handleSave}
@@ -219,7 +222,7 @@ export function DrawingCanvas({
             fontSize: "0.85rem",
           }}
         >
-          Send
+          {t("Send", lang)}
         </button>
       </div>
     </div>

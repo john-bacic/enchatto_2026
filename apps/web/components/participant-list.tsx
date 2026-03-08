@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AvatarPreview } from "@/components/avatar-preview";
+import { t } from "@/lib/i18n";
 
 interface Participant {
   _id: string;
@@ -16,9 +17,10 @@ interface ParticipantListProps {
   participants: Participant[];
   currentParticipantId?: string;
   onLeave?: () => void;
+  lang?: string;
 }
 
-export function ParticipantList({ participants, currentParticipantId, onLeave }: ParticipantListProps) {
+export function ParticipantList({ participants, currentParticipantId, onLeave, lang }: ParticipantListProps) {
   const [tooltip, setTooltip] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +45,7 @@ export function ParticipantList({ participants, currentParticipantId, onLeave }:
       <div ref={containerRef} style={{ display: "flex", gap: "0.15rem", position: "relative" }}>
         {activeParticipants.slice(0, 5).map((p) => {
           const isMe = p._id === currentParticipantId;
-          const label = `${p.nickname}${isMe ? " (you)" : ""}${p.role === "host" ? " · host" : ""}${(p.presence ?? "online") === "away" ? " · away" : ""}`;
+          const label = `${p.nickname}${isMe ? ` ${t("(you)", lang)}` : ""}${p.role === "host" ? ` ${t("· host", lang)}` : ""}${(p.presence ?? "online") === "away" ? ` ${t("· away", lang)}` : ""}`;
           return (
             <div
               key={p._id}
@@ -126,12 +128,12 @@ export function ParticipantList({ participants, currentParticipantId, onLeave }:
           whiteSpace: "nowrap",
         }}
       >
-        {onlineCount} online{awayCount > 0 ? `, ${awayCount} away` : ""}
+        {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
       </span>
       {onLeave && (
         <button
           onClick={onLeave}
-          title="Leave room"
+          title={t("Leave room", lang)}
           style={{
             background: "none",
             border: "none",

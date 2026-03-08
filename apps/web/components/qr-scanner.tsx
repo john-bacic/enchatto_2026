@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { t } from "@/lib/i18n";
 
 interface QrScannerProps {
   onScan: (result: string) => void;
   onClose: () => void;
+  lang?: string;
 }
 
-export function QrScanner({ onScan, onClose }: QrScannerProps) {
+export function QrScanner({ onScan, onClose, lang }: QrScannerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scannerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,7 @@ export function QrScanner({ onScan, onClose }: QrScannerProps) {
           setError(
             err instanceof Error
               ? err.message
-              : "Camera access denied. Please allow camera permissions."
+              : t("Camera access denied. Please allow camera permissions.", lang)
           );
         }
       }
@@ -84,7 +86,7 @@ export function QrScanner({ onScan, onClose }: QrScannerProps) {
             marginBottom: "1rem",
           }}
         >
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Scan QR Code</h2>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{t("Scan QR Code", lang)}</h2>
           <button
             onClick={onClose}
             style={{
@@ -114,7 +116,7 @@ export function QrScanner({ onScan, onClose }: QrScannerProps) {
                 fontWeight: 600,
               }}
             >
-              Close
+              {t("Close", lang)}
             </button>
           </div>
         ) : (

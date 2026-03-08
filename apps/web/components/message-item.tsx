@@ -10,6 +10,7 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { SuggestionChips } from "@/components/suggestion-chips";
 import { MessageImage } from "@/components/message-image";
 import { MessageDrawing } from "@/components/message-drawing";
+import { t } from "@/lib/i18n";
 
 interface ProcessingState {
   translatedText?: string;
@@ -46,6 +47,8 @@ interface MessageItemProps {
   onReply: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
   currentParticipantId: string;
+  preferredLanguage?: string;
+  lang?: string;
 }
 
 function getEmoji(avatarValue: string): string {
@@ -124,7 +127,7 @@ function InlineReactions({
           opacity: 0.4,
           flexShrink: 0,
         }}
-        title="React or reply"
+        title={t("React or reply")}
       >
         😊
       </button>
@@ -143,6 +146,8 @@ export function MessageItem({
   onReply,
   onToggleReaction,
   currentParticipantId,
+  preferredLanguage = "en",
+  lang,
 }: MessageItemProps) {
   const senderName = sender?.nickname ?? "Unknown";
   const senderEmoji = sender ? getEmoji(sender.avatar.value) : "👤";
@@ -191,6 +196,7 @@ export function MessageItem({
               senderName={replyToSender?.nickname ?? "Unknown"}
               senderAvatar={replyToSender?.avatar.value}
               messageKind={replyToMessage.kind}
+              lang={lang}
             />
           </div>
         )}
@@ -286,10 +292,18 @@ export function MessageItem({
             {message.kind === "drawing" && message.mediaUrl && (
               <MessageDrawing src={message.mediaUrl} />
             )}
-            {message.kind === "text" && message.text && (
-              <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
-                {message.text}
-              </p>
+            {message.kind === "text" && (
+              preferredLanguage === "ja" &&
+              message.status === "processed" &&
+              message.processing?.translatedText ? (
+                <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
+                  {message.processing.translatedText}
+                </p>
+              ) : message.text ? (
+                <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
+                  {message.text}
+                </p>
+              ) : null
             )}
             {message.kind === "system" && message.text && (
               <p
@@ -325,10 +339,18 @@ export function MessageItem({
                       {message.processing.romaji}
                     </p>
                   )}
-                  {message.processing.translatedText && (
-                    <p style={{ margin: 0, fontWeight: 500 }}>
-                      {message.processing.translatedText}
-                    </p>
+                  {preferredLanguage === "ja" ? (
+                    message.text && (
+                      <p style={{ margin: 0, opacity: 0.7 }}>
+                        {message.text}
+                      </p>
+                    )
+                  ) : (
+                    message.processing.translatedText && (
+                      <p style={{ margin: 0, fontWeight: 500 }}>
+                        {message.processing.translatedText}
+                      </p>
+                    )
                   )}
                 </div>
               )}
@@ -341,7 +363,7 @@ export function MessageItem({
                   fontStyle: "italic",
                 }}
               >
-                Processing...
+                {t("Processing...", lang)}
               </p>
             )}
             {isFailed && (
@@ -352,7 +374,7 @@ export function MessageItem({
                   color: "#ef4444",
                 }}
               >
-                {message.processing?.error ?? "Processing failed"}
+                {message.processing?.error ?? t("Processing failed", lang)}
               </p>
             )}
           </div>
@@ -473,7 +495,7 @@ export function MessageItem({
                 gap: "0.4rem",
               }}
             >
-              ↩ Reply
+              {t("↩ Reply", lang)}
             </button>
           </div>
         </div>
