@@ -107,20 +107,20 @@ struct HostStartRoomView: View {
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationDestination(item: $viewModel.createdJoinCode) { joinCode in
-                HostQRCodeRoomView(
-                    joinCode: joinCode,
-                    roomId: viewModel.createdRoomId ?? "",
-                    hostId: viewModel.createdHostId ?? ""
-                )
+            .navigationDestination(isPresented: Binding(
+                get: { viewModel.createdJoinCode != nil },
+                set: { if !$0 { viewModel.createdJoinCode = nil } }
+            )) {
+                if let joinCode = viewModel.createdJoinCode {
+                    HostQRCodeRoomView(
+                        joinCode: joinCode,
+                        roomId: viewModel.createdRoomId ?? "",
+                        hostId: viewModel.createdHostId ?? ""
+                    )
+                }
             }
         }
     }
-}
-
-// Make String work with navigationDestination(item:)
-extension String: @retroactive Identifiable {
-    public var id: String { self }
 }
 
 #Preview {

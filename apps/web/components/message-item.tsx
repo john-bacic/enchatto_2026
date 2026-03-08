@@ -73,33 +73,35 @@ export function MessageItem({
         marginBottom: "0.75rem",
       }}
     >
-      {/* Sender */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.25rem",
-          marginBottom: "0.2rem",
-          fontSize: "0.8rem",
-          color: "var(--muted)",
-        }}
-      >
-        <span>{senderEmoji}</span>
-        <span style={{ fontWeight: 600 }}>{senderName}</span>
-        {sender?.role === "host" && (
-          <span
-            style={{
-              fontSize: "0.65rem",
-              background: "var(--primary)",
-              color: "#fff",
-              padding: "0.1rem 0.35rem",
-              borderRadius: "4px",
-            }}
-          >
-            host
-          </span>
-        )}
-      </div>
+      {/* Sender (hide for own messages) */}
+      {!isOwn && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+            marginBottom: "0.2rem",
+            fontSize: "0.8rem",
+            color: "var(--muted)",
+          }}
+        >
+          <span>{senderEmoji}</span>
+          <span style={{ fontWeight: 600 }}>{senderName}</span>
+          {sender?.role === "host" && (
+            <span
+              style={{
+                fontSize: "0.65rem",
+                background: "var(--primary)",
+                color: "#fff",
+                padding: "0.1rem 0.35rem",
+                borderRadius: "4px",
+              }}
+            >
+              host
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Reply preview */}
       {replyToMessage && (
@@ -117,9 +119,9 @@ export function MessageItem({
           background: isMedia ? "transparent" : isOwn ? "var(--primary)" : "var(--surface)",
           color: isOwn && !isMedia ? "#fff" : "var(--fg)",
           border: isMedia ? "none" : isOwn ? "none" : "1px solid var(--border)",
-          borderRadius: "var(--radius)",
+          borderRadius: isOwn ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
           padding: isMedia ? "0" : "0.6rem 0.85rem",
-          maxWidth: "85%",
+          maxWidth: "75%",
           opacity: isPending ? 0.7 : 1,
         }}
       >
@@ -219,34 +221,36 @@ export function MessageItem({
           />
         )}
 
-      {/* Actions row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          marginTop: "0.2rem",
-        }}
-      >
-        <ReactionBar
-          messageId={message._id}
-          currentParticipantId={currentParticipantId}
-          onToggle={(emoji, hasReacted) => {
-            onToggleReaction?.(message._id, emoji, hasReacted);
-          }}
-        />
-        <button
-          onClick={() => onReply(message._id)}
+      {/* Actions row (hide for own messages) */}
+      {!isOwn && (
+        <div
           style={{
-            fontSize: "0.7rem",
-            color: "var(--muted)",
-            background: "none",
-            padding: "0.15rem 0.3rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginTop: "0.2rem",
           }}
         >
-          Reply
-        </button>
-      </div>
+          <ReactionBar
+            messageId={message._id}
+            currentParticipantId={currentParticipantId}
+            onToggle={(emoji, hasReacted) => {
+              onToggleReaction?.(message._id, emoji, hasReacted);
+            }}
+          />
+          <button
+            onClick={() => onReply(message._id)}
+            style={{
+              fontSize: "0.7rem",
+              color: "var(--muted)",
+              background: "none",
+              padding: "0.15rem 0.3rem",
+            }}
+          >
+            Reply
+          </button>
+        </div>
+      )}
     </div>
   );
 }

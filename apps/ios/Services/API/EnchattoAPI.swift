@@ -10,7 +10,7 @@ struct CreateRoomResult {
 /// Protocol defining all backend operations the host app needs
 protocol EnchattoAPI {
     /// Create a new room with the given settings
-    func createRoom(hostNickname: String, settings: RoomSettings) async throws -> CreateRoomResult
+    func createRoom(hostNickname: String, hostAvatarId: String, settings: RoomSettings) async throws -> CreateRoomResult
 
     /// Fetch the current room state (room + participants)
     func getRoomState(roomId: String) async throws -> (room: Room, participants: [Participant])
@@ -47,4 +47,7 @@ protocol EnchattoAPI {
 
     /// Remove a reaction
     func removeReaction(messageId: String, participantId: String, emoji: String) async throws
+
+    /// Update participant online/offline status (heartbeat)
+    func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws
 }

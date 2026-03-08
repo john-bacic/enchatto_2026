@@ -4,6 +4,7 @@ import { mutation, query } from "./_generated/server";
 export const createRoom = mutation({
   args: {
     hostNickname: v.string(),
+    hostAvatarId: v.optional(v.string()),
     settings: v.optional(
       v.object({
         sourceLanguage: v.string(),
@@ -49,7 +50,7 @@ export const createRoom = mutation({
       nickname,
       role: "host",
       platform: "ios",
-      avatar: { type: "preset", value: "default" },
+      avatar: { type: "preset", value: args.hostAvatarId ?? "default" },
       preferredLanguage: settings.sourceLanguage,
       online: true,
       lastSeenAt: now,

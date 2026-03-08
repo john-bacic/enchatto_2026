@@ -6,7 +6,7 @@ class MockEnchattoAPI: EnchattoAPI {
     private var participants: [String: [Participant]] = [:]
     private var messages: [String: [Message]] = [:]
 
-    func createRoom(hostNickname: String, settings: RoomSettings) async throws -> CreateRoomResult {
+    func createRoom(hostNickname: String, hostAvatarId: String, settings: RoomSettings) async throws -> CreateRoomResult {
         let roomId = UUID().uuidString
         let joinCode = String((0..<6).map { _ in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".randomElement()! })
         let hostId = UUID().uuidString
@@ -26,7 +26,7 @@ class MockEnchattoAPI: EnchattoAPI {
             nickname: hostNickname,
             role: .host,
             platform: .ios,
-            avatar: AvatarConfig(type: .preset, value: "fox"),
+            avatar: AvatarConfig(type: .preset, value: hostAvatarId),
             preferredLanguage: settings.sourceLanguage,
             online: true,
             lastSeenAt: Date(),
@@ -171,6 +171,10 @@ class MockEnchattoAPI: EnchattoAPI {
     }
 
     func removeReaction(messageId: String, participantId: String, emoji: String) async throws {
+        // Mock: no-op for now
+    }
+
+    func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws {
         // Mock: no-op for now
     }
 }

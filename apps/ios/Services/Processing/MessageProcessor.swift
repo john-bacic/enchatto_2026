@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 /// Configuration for which processing steps to run
 struct ProcessingConfig {
@@ -22,7 +23,7 @@ class MessageProcessor {
     private let suggestionService: SuggestionService
 
     init(
-        translationService: TranslationService = StubTranslationService(),
+        translationService: TranslationService = MyMemoryTranslationService(),
         romajiService: RomajiService = StubRomajiService(),
         suggestionService: SuggestionService = StubSuggestionService()
     ) {
@@ -37,6 +38,11 @@ class MessageProcessor {
     ///   - config: Processing configuration from room settings
     /// - Returns: Complete processing result
     func process(text: String, config: ProcessingConfig) async throws -> ProcessingState {
+        // Detect actual language of the text
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        let isJapanese = recognizer.dominantLanguage == .japanese
+
         // Run translation first since suggestions depend on it
         let translatedText = try await translationService.translate(
             text: text,
@@ -45,8 +51,11 @@ class MessageProcessor {
         )
 
         // Run romaji and suggestions concurrently
-        async let romajiResult = romajiEnabled(config)
-            ? romajiService.transliterateJapaneseToRomaji(text: text)
+        // If Japanese text: romaji of the original
+        // If English text: romaji of the Japanese translation
+        let romajiSource = isJapanese ? text : translatedText
+        async let romajiResult = config.romajiEnabled
+            ? romajiService.transliterateJapaneseToRomaji(text: romajiSource)
             : nil
 
         async let suggestionsResult = suggestionsEnabled(config)
@@ -61,11 +70,6 @@ class MessageProcessor {
             romaji: romaji,
             suggestions: suggestions
         )
-    }
-
-    /// Check if romaji should run (only for Japanese source)
-    private func romajiEnabled(_ config: ProcessingConfig) -> Bool {
-        config.romajiEnabled && config.sourceLanguage == "ja"
     }
 
     /// Check if suggestions should run

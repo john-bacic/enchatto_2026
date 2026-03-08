@@ -13,10 +13,10 @@ struct ParticipantAvatarView: View {
             Text(participant.avatarEmoji)
                 .font(.system(size: size * 0.55))
         }
-        .opacity(participant.online ? 1 : 0.5)
+        .opacity(participant.online ? (participant.isAway ? 0.7 : 1) : 0.5)
         .overlay(alignment: .bottomTrailing) {
             Circle()
-                .fill(participant.online ? Color.green : Color(.systemGray4))
+                .fill(participant.online ? (participant.isAway ? Color.orange : Color.green) : Color(.systemGray4))
                 .frame(width: size * 0.28, height: size * 0.28)
                 .overlay {
                     Circle()

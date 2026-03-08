@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import UIKit
 
 @MainActor
 class HostRoomViewModel: ObservableObject {
@@ -17,6 +19,7 @@ class HostRoomViewModel: ObservableObject {
     private let processor: MessageProcessor
     private var pollTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
+    private var heartbeatTask: Task<Void, Never>?
     /// Track message IDs currently being processed to avoid duplicates
     private var processingMessageIds: Set<String> = []
 
@@ -44,6 +47,17 @@ class HostRoomViewModel: ObservableObject {
             }
         }
 
+        // Heartbeat every 15 seconds to keep presence alive
+        heartbeatTask = Task { [weak self] in
+            guard let self else { return }
+            // Mark online immediately
+            try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+            }
+        }
+
         // Poll for pending messages and process them
         processingTask = Task { [weak self] in
             guard let self else { return }
@@ -59,6 +73,27 @@ class HostRoomViewModel: ObservableObject {
         pollTask = nil
         processingTask?.cancel()
         processingTask = nil
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+    }
+
+    func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            Task {
+                try? await api.setParticipantOnline(participantId: hostId, online: true, presence: "online")
+            }
+            if pollTask == nil {
+                startObserving()
+            }
+        case .background:
+            Task {
+                try? await api.setParticipantOnline(participantId: hostId, online: true, presence: "away")
+            }
+            stopObserving()
+        default:
+            break
+        }
     }
 
     func refresh() async {
@@ -231,7 +266,11 @@ class HostRoomViewModel: ObservableObject {
     }
 
     var onlineCount: Int {
-        participants.filter(\.online).count
+        participants.filter { $0.online && !$0.isAway }.count
+    }
+
+    var awayCount: Int {
+        participants.filter(\.isAway).count
     }
 
     var guestParticipants: [Participant] {

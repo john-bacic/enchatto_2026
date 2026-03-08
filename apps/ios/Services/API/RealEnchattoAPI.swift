@@ -10,7 +10,7 @@ class RealEnchattoAPI: EnchattoAPI {
 
     // MARK: - Rooms
 
-    func createRoom(hostNickname: String, settings: RoomSettings) async throws -> CreateRoomResult {
+    func createRoom(hostNickname: String, hostAvatarId: String, settings: RoomSettings) async throws -> CreateRoomResult {
         struct Response: Decodable {
             let roomId: String
             let joinCode: String
@@ -19,6 +19,7 @@ class RealEnchattoAPI: EnchattoAPI {
 
         let body: [String: Any] = [
             "hostNickname": hostNickname,
+            "hostAvatarId": hostAvatarId,
             "settings": [
                 "sourceLanguage": settings.sourceLanguage,
                 "targetLanguage": settings.targetLanguage,
@@ -153,5 +154,18 @@ class RealEnchattoAPI: EnchattoAPI {
             "participantId": participantId,
             "emoji": emoji,
         ])
+    }
+
+    // MARK: - Presence
+
+    func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws {
+        var body: [String: Any] = [
+            "participantId": participantId,
+            "online": online,
+        ]
+        if let presence {
+            body["presence"] = presence
+        }
+        try await client.postVoid("/api/participants/set-online", body: body)
     }
 }

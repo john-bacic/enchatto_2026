@@ -31,6 +31,7 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     return await ctx.runMutation(api.rooms.createRoom, {
       hostNickname: body.hostNickname,
+      hostAvatarId: body.hostAvatarId,
       settings: body.settings,
     });
   }),
@@ -53,6 +54,18 @@ http.route({
 });
 
 // --- Participants ---
+
+http.route({
+  path: "/api/participants/set-online",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.participants.setParticipantOnline, {
+      participantId: body.participantId,
+      online: body.online,
+      presence: body.presence,
+    });
+  }),
+});
 
 http.route({
   path: "/api/participants/kick",

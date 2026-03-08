@@ -21,6 +21,11 @@ struct AvatarConfig: Codable {
     let value: String
 }
 
+enum PresenceState: String, Codable {
+    case online
+    case away
+}
+
 struct Participant: Identifiable, Codable {
     let id: String
     let roomId: String
@@ -30,13 +35,18 @@ struct Participant: Identifiable, Codable {
     let avatar: AvatarConfig
     let preferredLanguage: String
     var online: Bool
+    var presence: PresenceState?
     var lastSeenAt: Date
     let joinedAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case roomId, nickname, role, platform, avatar
-        case preferredLanguage, online, lastSeenAt, joinedAt
+        case preferredLanguage, online, presence, lastSeenAt, joinedAt
+    }
+
+    var isAway: Bool {
+        online && (presence ?? .online) == .away
     }
 }
 

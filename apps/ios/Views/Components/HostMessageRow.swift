@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HostMessageRow: View {
     let message: Message
@@ -10,15 +11,34 @@ struct HostMessageRow: View {
     var onSuggestionTap: ((String) -> Void)?
     var onReact: ((String) -> Void)?
 
+    private let maxBubbleWidth = UIScreen.main.bounds.width * 0.75
+
     var body: some View {
-        VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
-            senderRow
-            replyPreview
-            messageBubble
-            suggestionsRow
-            actionsRow
+        HStack {
+            if isOwn { Spacer(minLength: 0) }
+
+            VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
+                if !isOwn { senderRow }
+                replyPreview
+                bubbleWrapper
+                suggestionsRow
+                if !isOwn { actionsRow }
+                if isOwn { timestampRow }
+            }
+
+            if !isOwn { Spacer(minLength: 0) }
         }
-        .frame(maxWidth: .infinity, alignment: isOwn ? .trailing : .leading)
+    }
+
+    private var bubbleWrapper: some View {
+        messageBubble
+            .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)
+    }
+
+    private var timestampRow: some View {
+        Text(message.createdAt, style: .time)
+            .font(.caption2)
+            .foregroundStyle(.quaternary)
     }
 
     // MARK: - Sender
@@ -52,7 +72,7 @@ struct HostMessageRow: View {
 
     @ViewBuilder
     private var replyPreview: some View {
-        if let replyTarget {
+        if replyTarget != nil {
             HStack(spacing: 4) {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(Color.accentColor.opacity(0.5))
@@ -99,6 +119,20 @@ struct HostMessageRow: View {
     // MARK: - Bubble
 
     private var messageBubble: some View {
+        bubbleContent
+            .padding(10)
+            .background(isOwn ? Color.accentColor.opacity(0.12) : Color(.systemGray6))
+            .clipShape(UnevenRoundedRectangle(
+                topLeadingRadius: isOwn ? 16 : 4,
+                bottomLeadingRadius: 16,
+                bottomTrailingRadius: isOwn ? 4 : 16,
+                topTrailingRadius: 16
+            ))
+            .opacity(message.status == .pending ? 0.7 : 1)
+    }
+
+    @ViewBuilder
+    private var bubbleContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             // Original text
             if let text = message.text {
@@ -127,19 +161,25 @@ struct HostMessageRow: View {
 
             // Processing results
             if message.status == .processed, let processing = message.processing {
-                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    if let romaji = processing.romaji, !romaji.isEmpty {
+                        Text(romaji)
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(.secondary)
+                    }
 
-                if let romaji = processing.romaji, !romaji.isEmpty {
-                    Text(romaji)
-                        .font(.caption)
-                        .italic()
-                        .foregroundStyle(.secondary)
+                    if let translated = processing.translatedText, !translated.isEmpty {
+                        Text(translated)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
                 }
-
-                if let translated = processing.translatedText, !translated.isEmpty {
-                    Text(translated)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                .padding(.top, 6)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(Color(.separator))
+                        .frame(height: 0.5)
                 }
             }
 
@@ -165,10 +205,6 @@ struct HostMessageRow: View {
                 .foregroundStyle(.red)
             }
         }
-        .padding(10)
-        .background(isOwn ? Color.accentColor.opacity(0.12) : Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .opacity(message.status == .pending ? 0.7 : 1)
     }
 
     // MARK: - Suggestions

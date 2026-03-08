@@ -1,12 +1,12 @@
 import Foundation
 
-/// Stub implementation that returns a placeholder romaji transliteration
+/// Converts Japanese text (hiragana/katakana/kanji) to romaji using CFStringTransform
 class StubRomajiService: RomajiService {
     func transliterateJapaneseToRomaji(text: String) async throws -> String {
-        // Simulate processing delay
-        try await Task.sleep(nanoseconds: 300_000_000)
-
-        // Return a placeholder
-        return "[Romaji] \(text)"
+        let mutable = NSMutableString(string: text)
+        // Convert kanji → hiragana first, then hiragana/katakana → latin
+        CFStringTransform(mutable, nil, kCFStringTransformToLatin, false)
+        CFStringTransform(mutable, nil, kCFStringTransformStripDiacritics, false)
+        return mutable as String
     }
 }

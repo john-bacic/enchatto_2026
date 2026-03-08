@@ -1,16 +1,19 @@
 import SwiftUI
+import CoreImage.CIFilterBuiltins
 
 struct HostConversationView: View {
     let roomId: String
     let hostId: String
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: HostRoomViewModel
     @State private var messageText = ""
     @State private var replyToId: String?
     @State private var showCloseConfirmation = false
     @State private var showDrawingComposer = false
     @State private var showCamera = false
+    @State private var showQRCode = false
 
     init(roomId: String, hostId: String) {
         self.roomId = roomId
@@ -46,6 +49,9 @@ struct HostConversationView: View {
         .navigationBarBackButtonHidden(true)
         .onAppear { viewModel.startObserving() }
         .onDisappear { viewModel.stopObserving() }
+        .onChange(of: scenePhase) { newPhase in
+            viewModel.handleScenePhase(newPhase)
+        }
         .alert("Error", isPresented: .init(
             get: { viewModel.error != nil },
             set: { if !$0 { viewModel.error = nil } }
@@ -64,6 +70,11 @@ struct HostConversationView: View {
         .sheet(isPresented: $viewModel.showParticipantSheet) {
             participantSheet
         }
+        .sheet(isPresented: $showQRCode) {
+            if let joinCode = viewModel.room?.joinCode {
+                QRCodeSheet(joinCode: joinCode)
+            }
+        }
     }
 
     // MARK: - Header
@@ -71,10 +82,15 @@ struct HostConversationView: View {
     private var headerView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Enchatto")
-                    .font(.headline)
+                Button {
+                    showQRCode = true
+                } label: {
+                    Text("Enchatto")
+                        .font(.headline)
+                }
+                .buttonStyle(.plain)
                 HStack(spacing: 4) {
-                    Text("\(viewModel.onlineCount) online")
+                    Text("\(viewModel.onlineCount) online\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) away" : "")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if viewModel.isProcessing {
@@ -241,9 +257,26 @@ struct HostConversationView: View {
                 }
 
                 // Text input
-                TextField("Type a message...", text: $messageText)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { sendCurrentMessage() }
+                TextEditor(text: $messageText)
+                    .frame(minHeight: 36, maxHeight: 100)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 0.5)
+                    )
+                    .overlay(alignment: .topLeading) {
+                        if messageText.isEmpty {
+                            Text("Type a message...")
+                                .foregroundColor(Color(.placeholderText))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 12)
+                                .allowsHitTesting(false)
+                        }
+                    }
 
                 Button(action: sendCurrentMessage) {
                     Image(systemName: "arrow.up.circle.fill")
@@ -255,7 +288,7 @@ struct HostConversationView: View {
             .padding(.vertical, 8)
         }
         .background(Color(.systemBackground))
-        .sheet(isPresented: $showDrawingComposer) {
+        .fullScreenCover(isPresented: $showDrawingComposer) {
             DrawingComposerView(
                 onSend: { image in
                     showDrawingComposer = false
@@ -263,7 +296,6 @@ struct HostConversationView: View {
                 },
                 onCancel: { showDrawingComposer = false }
             )
-            .presentationDetents([.medium, .large])
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPickerView(
@@ -321,9 +353,9 @@ struct HostConversationView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 3))
                                 }
                             }
-                            Text(participant.online ? "Online" : "Offline")
+                            Text(participant.online ? (participant.isAway ? "Away" : "Online") : "Offline")
                                 .font(.caption)
-                                .foregroundStyle(participant.online ? .green : .secondary)
+                                .foregroundStyle(participant.online ? (participant.isAway ? .orange : .green) : .secondary)
                         }
 
                         Spacer()
@@ -365,6 +397,80 @@ struct HostConversationView: View {
             messageText = ""
             replyToId = nil
         }
+    }
+}
+
+// MARK: - QR Code Sheet
+
+private struct QRCodeSheet: View {
+    let joinCode: String
+    @Environment(\.dismiss) private var dismiss
+
+    private var joinURL: String {
+        "https://enchatto.vercel.app/join/\(joinCode)"
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Spacer()
+
+                if let qrImage = generateQRCode(from: joinURL) {
+                    Image(uiImage: qrImage)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 220, height: 220)
+                        .padding()
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(radius: 4)
+                }
+
+                VStack(spacing: 4) {
+                    Text("Room Code")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(joinCode)
+                        .font(.system(.title, design: .monospaced))
+                        .fontWeight(.bold)
+                }
+
+                Text("Scan QR code or enter the room code to join")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Spacer()
+            }
+            .navigationTitle("Room QR Code")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func generateQRCode(from string: String) -> UIImage? {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+
+        guard let outputImage = filter.outputImage else { return nil }
+
+        let scale = 10.0
+        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
     }
 }
 

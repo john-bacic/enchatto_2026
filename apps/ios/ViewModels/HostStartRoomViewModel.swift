@@ -2,8 +2,12 @@ import Foundation
 
 @MainActor
 class HostStartRoomViewModel: ObservableObject {
-    @Published var hostNickname = ""
-    @Published var hostAvatarId = "fox"
+    @Published var hostNickname: String {
+        didSet { UserDefaults.standard.set(hostNickname, forKey: "enchatto_lastNickname") }
+    }
+    @Published var hostAvatarId: String {
+        didSet { UserDefaults.standard.set(hostAvatarId, forKey: "enchatto_lastAvatarId") }
+    }
     @Published var settings = RoomSettings.defaults
     @Published var isCreating = false
     @Published var error: String?
@@ -17,6 +21,8 @@ class HostStartRoomViewModel: ObservableObject {
 
     init(api: EnchattoAPI = AppConfig.makeAPI()) {
         self.api = api
+        self.hostNickname = UserDefaults.standard.string(forKey: "enchatto_lastNickname") ?? ""
+        self.hostAvatarId = UserDefaults.standard.string(forKey: "enchatto_lastAvatarId") ?? "fox"
     }
 
     var canCreate: Bool {
@@ -32,6 +38,7 @@ class HostStartRoomViewModel: ObservableObject {
         do {
             let result = try await api.createRoom(
                 hostNickname: hostNickname.trimmingCharacters(in: .whitespaces),
+                hostAvatarId: hostAvatarId,
                 settings: settings
             )
             createdRoomId = result.roomId

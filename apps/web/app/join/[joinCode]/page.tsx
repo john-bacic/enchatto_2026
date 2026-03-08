@@ -13,9 +13,18 @@ export default function JoinPage() {
   const router = useRouter();
   const joinCode = params.joinCode as string;
 
-  const [nickname, setNickname] = useState("");
-  const [avatar, setAvatar] = useState<PresetAvatarId>("cat");
-  const [language, setLanguage] = useState<LanguageCode>("en");
+  const [nickname, setNickname] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("enchatto_lastNickname") ?? "";
+    return "";
+  });
+  const [avatar, setAvatar] = useState<PresetAvatarId>(() => {
+    if (typeof window !== "undefined") return (localStorage.getItem("enchatto_lastAvatarId") as PresetAvatarId) ?? "cat";
+    return "cat";
+  });
+  const [language, setLanguage] = useState<LanguageCode>(() => {
+    if (typeof window !== "undefined") return (localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "en";
+    return "en";
+  });
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +77,10 @@ export default function JoinPage() {
         avatar: { type: "preset", value: avatar },
         preferredLanguage: language,
       });
+
+      localStorage.setItem("enchatto_lastNickname", nickname.trim());
+      localStorage.setItem("enchatto_lastAvatarId", avatar);
+      localStorage.setItem("enchatto_lastLanguage", language);
 
       router.push(`/room/${room._id}?pid=${participantId}`);
     } catch (err) {

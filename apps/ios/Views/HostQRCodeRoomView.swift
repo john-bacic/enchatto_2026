@@ -6,6 +6,7 @@ struct HostQRCodeRoomView: View {
     let roomId: String
     let hostId: String
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var navigateToConversation = false
     @State private var participantCount = 0
     @State private var showShareSheet = false
@@ -109,6 +110,9 @@ struct HostQRCodeRoomView: View {
         .navigationBarBackButtonHidden(true)
         .onAppear { viewModel.startObserving() }
         .onDisappear { viewModel.stopObserving() }
+        .onChange(of: scenePhase) { newPhase in
+            viewModel.handleScenePhase(newPhase)
+        }
         .navigationDestination(isPresented: $navigateToConversation) {
             HostConversationView(roomId: roomId, hostId: hostId)
         }

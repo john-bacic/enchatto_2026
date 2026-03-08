@@ -1,0 +1,489 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */; };
+		1ACE8467557F73FF17F0F58C /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8E05A49B6BA14F2CFC1285 /* Room.swift */; };
+		350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */; };
+		41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */; };
+		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
+		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
+		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
+		5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */; };
+		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
+		74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */; };
+		76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */; };
+		7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */; };
+		8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */; };
+		853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84049D72180662ED722A668 /* AppConfig.swift */; };
+		8BA0BE698453C835C3ADE54B /* SuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B6CE020D97A2019D833739 /* SuggestionService.swift */; };
+		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
+		AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */; };
+		B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC00ADF95392C392B69EB66 /* RomajiService.swift */; };
+		BA9DD8C7D397DD42561B6089 /* StubRomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AACB3B6A1340D1952C612D /* StubRomajiService.swift */; };
+		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
+		C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47566C0B30406CBDDDEAA04F /* Participant.swift */; };
+		CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */; };
+		D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EF9BF8694735A0B284D54A /* StubTranslationService.swift */; };
+		D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FEB11E5FF91BEBD77A223B /* TranslationService.swift */; };
+		D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */; };
+		DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9108C84B71431E861972 /* HostMessageRow.swift */; };
+		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
+		F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE91A5BA76409C309044A18 /* EnchattoApp.swift */; };
+		F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
+		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
+		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
+		190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostQRCodeRoomView.swift; sourceTree = "<group>"; };
+		1DC00ADF95392C392B69EB66 /* RomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RomajiService.swift; sourceTree = "<group>"; };
+		20FEB11E5FF91BEBD77A223B /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
+		3739F0B6F971461D3C5ECBCE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		47566C0B30406CBDDDEAA04F /* Participant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Participant.swift; sourceTree = "<group>"; };
+		56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomViewModel.swift; sourceTree = "<group>"; };
+		5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMemoryTranslationService.swift; sourceTree = "<group>"; };
+		5D4D07C9C52F8ADCC4EDD899 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
+		5EE91A5BA76409C309044A18 /* EnchattoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoApp.swift; sourceTree = "<group>"; };
+		6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingCanvasView.swift; sourceTree = "<group>"; };
+		82EF9BF8694735A0B284D54A /* StubTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTranslationService.swift; sourceTree = "<group>"; };
+		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
+		8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexHTTPClient.swift; sourceTree = "<group>"; };
+		96B6CE020D97A2019D833739 /* SuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionService.swift; sourceTree = "<group>"; };
+		96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockEnchattoAPI.swift; sourceTree = "<group>"; };
+		A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubSuggestionService.swift; sourceTree = "<group>"; };
+		A33DB151FE11D2A253A5C4DB /* Enchatto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchatto.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePickerView.swift; sourceTree = "<group>"; };
+		C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostConversationView.swift; sourceTree = "<group>"; };
+		C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingComposerView.swift; sourceTree = "<group>"; };
+		D4FC9108C84B71431E861972 /* HostMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostMessageRow.swift; sourceTree = "<group>"; };
+		D84049D72180662ED722A668 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantAvatarView.swift; sourceTree = "<group>"; };
+		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
+		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
+		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
+		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0CF9C4D2556E0EFA58A1B989 = {
+			isa = PBXGroup;
+			children = (
+				1DFD3746F3372B225BD65985 /* ios */,
+				C167CF9D2F2508F01F631F95 /* Models */,
+				EE49A2E446012BCA5D5244DB /* Services */,
+				96010C2279DB14ADC7C19F4B /* ViewModels */,
+				FEE9A055B89074B1C90DB0E8 /* Views */,
+				3A9C95F9F91E18B76595F0B1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1DFD3746F3372B225BD65985 /* ios */ = {
+			isa = PBXGroup;
+			children = (
+				3739F0B6F971461D3C5ECBCE /* Assets.xcassets */,
+				5EE91A5BA76409C309044A18 /* EnchattoApp.swift */,
+			);
+			name = ios;
+			path = .;
+			sourceTree = "<group>";
+		};
+		21F34644BA555D35385B9FE7 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				D84049D72180662ED722A668 /* AppConfig.swift */,
+				8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */,
+				FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */,
+				96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */,
+				F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		2FCFF422646FF1C4879C5DA6 /* Processing */ = {
+			isa = PBXGroup;
+			children = (
+				FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */,
+				5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */,
+				1DC00ADF95392C392B69EB66 /* RomajiService.swift */,
+				17AACB3B6A1340D1952C612D /* StubRomajiService.swift */,
+				A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */,
+				82EF9BF8694735A0B284D54A /* StubTranslationService.swift */,
+				96B6CE020D97A2019D833739 /* SuggestionService.swift */,
+				20FEB11E5FF91BEBD77A223B /* TranslationService.swift */,
+			);
+			path = Processing;
+			sourceTree = "<group>";
+		};
+		3A9C95F9F91E18B76595F0B1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A33DB151FE11D2A253A5C4DB /* Enchatto.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		96010C2279DB14ADC7C19F4B /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */,
+				56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		B31B444E0CDA0E640973C616 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */,
+				6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */,
+				C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */,
+				D4FC9108C84B71431E861972 /* HostMessageRow.swift */,
+				B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */,
+				E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		C167CF9D2F2508F01F631F95 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				5D4D07C9C52F8ADCC4EDD899 /* Message.swift */,
+				47566C0B30406CBDDDEAA04F /* Participant.swift */,
+				EB8E05A49B6BA14F2CFC1285 /* Room.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		EE49A2E446012BCA5D5244DB /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				21F34644BA555D35385B9FE7 /* API */,
+				2FCFF422646FF1C4879C5DA6 /* Processing */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		FEE9A055B89074B1C90DB0E8 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */,
+				190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */,
+				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
+				B31B444E0CDA0E640973C616 /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2A0E7D49294AE6A04C96CDD5 /* Enchatto */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3559C030B885164E4E195F8C /* Build configuration list for PBXNativeTarget "Enchatto" */;
+			buildPhases = (
+				71C4F326CE21B92EA485D735 /* Sources */,
+				6A8A6BBB7C4C66382A0A6C71 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Enchatto;
+			packageProductDependencies = (
+			);
+			productName = Enchatto;
+			productReference = A33DB151FE11D2A253A5C4DB /* Enchatto.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7E953F50FF084DDC243DDCF4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					2A0E7D49294AE6A04C96CDD5 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 606C7EB7FF2B1791F1CB0F92 /* Build configuration list for PBXProject "Enchatto" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0CF9C4D2556E0EFA58A1B989;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3A9C95F9F91E18B76595F0B1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2A0E7D49294AE6A04C96CDD5 /* Enchatto */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		6A8A6BBB7C4C66382A0A6C71 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		71C4F326CE21B92EA485D735 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */,
+				AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */,
+				CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */,
+				7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */,
+				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,
+				F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */,
+				F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */,
+				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
+				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
+				511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */,
+				8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */,
+				614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */,
+				D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */,
+				186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */,
+				56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */,
+				76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */,
+				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
+				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
+				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
+				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,
+				350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */,
+				B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */,
+				1ACE8467557F73FF17F0F58C /* Room.swift in Sources */,
+				BA9DD8C7D397DD42561B6089 /* StubRomajiService.swift in Sources */,
+				E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */,
+				D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */,
+				8BA0BE698453C835C3ADE54B /* SuggestionService.swift in Sources */,
+				D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		46E7330BDE99E7A768412B9F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.enchatto.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5497CB2E184580A400014B88 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = V823NAB7CT;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		A9457A011E2B7679128EE414 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.enchatto.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E8AF9AFBB2BE3E3BC5CDB5F8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = V823NAB7CT;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3559C030B885164E4E195F8C /* Build configuration list for PBXNativeTarget "Enchatto" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A9457A011E2B7679128EE414 /* Debug */,
+				46E7330BDE99E7A768412B9F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		606C7EB7FF2B1791F1CB0F92 /* Build configuration list for PBXProject "Enchatto" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5497CB2E184580A400014B88 /* Debug */,
+				E8AF9AFBB2BE3E3BC5CDB5F8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 7E953F50FF084DDC243DDCF4 /* Project object */;
+}
