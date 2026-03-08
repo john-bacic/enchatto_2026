@@ -1,0 +1,128 @@
+import SwiftUI
+
+struct HostStartRoomView: View {
+    @StateObject private var viewModel = HostStartRoomViewModel()
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Title
+                    VStack(spacing: 4) {
+                        Text("Enchatto")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                        Text("Create a conversation room")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 20)
+
+                    // Form
+                    VStack(spacing: 16) {
+                        // Nickname
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Your nickname")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            TextField("Enter your name", text: $viewModel.hostNickname)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        // Avatar
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Choose your avatar")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            AvatarPickerView(selectedAvatarId: $viewModel.hostAvatarId)
+                        }
+
+                        Divider()
+
+                        // Language settings
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Source language")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Picker("Source", selection: $viewModel.settings.sourceLanguage) {
+                                Text("Japanese").tag("ja")
+                                Text("English").tag("en")
+                            }
+                            .pickerStyle(.segmented)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Target language")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Picker("Target", selection: $viewModel.settings.targetLanguage) {
+                                Text("English").tag("en")
+                                Text("Japanese").tag("ja")
+                            }
+                            .pickerStyle(.segmented)
+                        }
+
+                        // Max participants
+                        Stepper(
+                            "Max participants: \(viewModel.settings.maxParticipants)",
+                            value: $viewModel.settings.maxParticipants,
+                            in: 2...20
+                        )
+                        .font(.subheadline)
+
+                        // Toggles
+                        Toggle("Romaji", isOn: $viewModel.settings.romajiEnabled)
+                        Toggle("Suggestions", isOn: $viewModel.settings.suggestionsEnabled)
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    // Error
+                    if let error = viewModel.error {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
+
+                    // Create button
+                    Button {
+                        Task { await viewModel.createRoom() }
+                    } label: {
+                        if viewModel.isCreating {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            HStack {
+                                Text(presetAvatar(for: viewModel.hostAvatarId).emoji)
+                                Text("Create Room")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(!viewModel.canCreate)
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationDestination(item: $viewModel.createdJoinCode) { joinCode in
+                HostQRCodeRoomView(
+                    joinCode: joinCode,
+                    roomId: viewModel.createdRoomId ?? "",
+                    hostId: viewModel.createdHostId ?? ""
+                )
+            }
+        }
+    }
+}
+
+// Make String work with navigationDestination(item:)
+extension String: @retroactive Identifiable {
+    public var id: String { self }
+}
+
+#Preview {
+    HostStartRoomView()
+}

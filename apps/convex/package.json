@@ -1,0 +1,14 @@
+{
+  "name": "@enchatto/convex",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "convex": "^1.17.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "npx convex dev"
+  }
+}
