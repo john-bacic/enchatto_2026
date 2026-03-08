@@ -13,59 +13,81 @@ struct HostMessageRow: View {
 
     private let maxBubbleWidth = UIScreen.main.bounds.width * 0.75
 
+    @State private var showActionSheet = false
+
     var body: some View {
         HStack {
             if isOwn { Spacer(minLength: 0) }
 
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
-                if !isOwn { senderRow }
                 replyPreview
-                bubbleWrapper
+                bubbleRow
                 suggestionsRow
-                if !isOwn { actionsRow }
                 if isOwn { timestampRow }
             }
 
             if !isOwn { Spacer(minLength: 0) }
         }
+        .confirmationDialog("", isPresented: $showActionSheet, titleVisibility: .hidden) {
+            ForEach(supportedReactions, id: \.self) { emoji in
+                Button(emoji) { onReact?(emoji) }
+            }
+            Button("Reply") { onReply() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
-    private var bubbleWrapper: some View {
-        messageBubble
-            .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)
+    // MARK: - Bubble row (avatar + bubble + react button)
+
+    private var bubbleRow: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            if !isOwn {
+                avatarColumn
+            }
+
+            messageBubble
+                .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)
+                .onLongPressGesture {
+                    if !isOwn { showActionSheet = true }
+                }
+
+            if !isOwn {
+                Button { showActionSheet = true } label: {
+                    Text("😊")
+                        .font(.system(size: 14))
+                        .opacity(0.4)
+                }
+                .buttonStyle(.plain)
+                .frame(alignment: .center)
+            }
+        }
+    }
+
+    // MARK: - Avatar column
+
+    private var avatarColumn: some View {
+        VStack(spacing: 2) {
+            if let sender {
+                ZStack {
+                    Circle()
+                        .fill(sender.avatarColor)
+                        .frame(width: 28, height: 28)
+                    Text(sender.avatarEmoji)
+                        .font(.system(size: 16))
+                }
+                Text(sender.nickname)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: 40)
+            }
+        }
     }
 
     private var timestampRow: some View {
         Text(message.createdAt, style: .time)
             .font(.caption2)
             .foregroundStyle(.quaternary)
-    }
-
-    // MARK: - Sender
-
-    private var senderRow: some View {
-        HStack(spacing: 4) {
-            if let sender {
-                ParticipantAvatarView(participant: sender, size: 20)
-                Text(sender.nickname)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                if sender.role == .host {
-                    Text("host")
-                        .font(.caption2)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.accentColor)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                }
-            } else {
-                Text("Unknown")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-            }
-        }
-        .foregroundStyle(.secondary)
     }
 
     // MARK: - Reply preview
@@ -92,7 +114,7 @@ struct HostMessageRow: View {
                 }
                 .foregroundStyle(.secondary)
             }
-            .padding(.leading, 4)
+            .padding(.leading, isOwn ? 0 : 40)
         }
     }
 
@@ -229,55 +251,7 @@ struct HostMessageRow: View {
                     }
                 }
             }
-        }
-    }
-
-    // MARK: - Actions
-
-    private var actionsRow: some View {
-        HStack(spacing: 8) {
-            // Reaction picker
-            Menu {
-                ForEach(supportedReactions, id: \.self) { emoji in
-                    Button(emoji) {
-                        onReact?(emoji)
-                    }
-                }
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "face.smiling")
-                    Text("+")
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color(.systemGray6))
-                .clipShape(Capsule())
-            }
-
-            // Reply button
-            Button {
-                onReply()
-            } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "arrowshape.turn.up.left")
-                    Text("Reply")
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color(.systemGray6))
-                .clipShape(Capsule())
-            }
-
-            Spacer()
-
-            // Timestamp
-            Text(message.createdAt, style: .time)
-                .font(.caption2)
-                .foregroundStyle(.quaternary)
+            .padding(.leading, isOwn ? 0 : 40)
         }
     }
 }
