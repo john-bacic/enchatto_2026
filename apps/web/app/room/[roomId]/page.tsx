@@ -448,6 +448,21 @@ function RoomContent() {
           </div>
         </div>
       )}
+
+      {/* Deployment indicator */}
+      {process.env.NEXT_PUBLIC_GIT_SHA && (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "0.6rem",
+            color: "var(--muted)",
+            opacity: 0.5,
+            padding: "0.15rem 0",
+          }}
+        >
+          v{process.env.NEXT_PUBLIC_GIT_SHA.slice(0, 7)}
+        </div>
+      )}
     </div>
   );
 }
