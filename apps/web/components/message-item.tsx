@@ -179,9 +179,7 @@ export function MessageItem({
               border: isMedia ? "none" : isOwn ? "none" : "1px solid var(--border)",
               borderRadius: isOwn ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
               padding: isMedia ? "0" : "0.6rem 0.85rem",
-              maxWidth: "75%",
               opacity: isPending ? 0.7 : 1,
-              cursor: isOwn ? "default" : "default",
               userSelect: "text",
               WebkitUserSelect: "text",
             }}
