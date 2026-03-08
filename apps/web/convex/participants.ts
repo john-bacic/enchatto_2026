@@ -27,7 +27,35 @@ export const joinRoom = mutation({
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    if (participants.length >= room.settings.maxParticipants) {
+    // Check for existing offline participant with same nickname + avatar
+    const existing = participants.find(
+      (p) =>
+        !p.online &&
+        p.nickname === nickname &&
+        p.avatar.value === args.avatar.value &&
+        p.role !== "host"
+    );
+
+    if (existing) {
+      const now = Date.now();
+      await ctx.db.patch(existing._id, {
+        online: true,
+        presence: "online",
+        lastSeenAt: now,
+        platform: args.platform,
+        preferredLanguage: args.preferredLanguage,
+      });
+
+      // Activate room if still waiting
+      if (room.status === "waiting") {
+        await ctx.db.patch(args.roomId, { status: "active" });
+      }
+
+      return existing._id;
+    }
+
+    const onlineCount = participants.filter((p) => p.online).length;
+    if (onlineCount >= room.settings.maxParticipants) {
       throw new Error("Room is full");
     }
 

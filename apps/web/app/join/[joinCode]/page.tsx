@@ -35,17 +35,25 @@ export default function JoinPage() {
   );
   const joinRoom = useMutation(api.participants.joinRoom);
 
-  const takenAvatars = (participants ?? []).filter((p) => p.online).map((p) => p.avatar.value);
+  // Avatars taken by OTHER online users (exclude own offline participant that would be reclaimed)
+  const takenAvatars = (participants ?? [])
+    .filter((p) => p.online)
+    .map((p) => p.avatar.value);
 
-  // Auto-select first available avatar
+  // Check if we have a returning participant (same name + avatar, offline)
+  const hasReturningParticipant = (participants ?? []).some(
+    (p) => !p.online && p.nickname === nickname.trim() && p.avatar.value === avatar
+  );
+
+  // Auto-select first available avatar (skip if we'd be reclaiming our old one)
   useEffect(() => {
-    if (takenAvatars.includes(avatar)) {
+    if (takenAvatars.includes(avatar) && !hasReturningParticipant) {
       const firstAvailable = PRESET_AVATARS.find((a) => !takenAvatars.includes(a.id));
       if (firstAvailable) {
         setAvatar(firstAvailable.id);
       }
     }
-  }, [takenAvatars.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [takenAvatars.join(","), hasReturningParticipant]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedEmoji =
     PRESET_AVATARS.find((a) => a.id === avatar)?.emoji ?? "🐱";
