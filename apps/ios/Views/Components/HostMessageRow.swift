@@ -47,20 +47,28 @@ struct HostMessageRow: View {
             }
 
             HStack(alignment: .center, spacing: 4) {
+                // Reactions to the left of own bubble
+                if isOwn && !reactions.isEmpty {
+                    reactionChips
+                }
+
                 messageBubble
                     .onLongPressGesture {
                         if !isOwn { showActionSheet = true }
                     }
 
-                if !reactions.isEmpty {
-                    reactionChips
-                } else if !isOwn {
-                    Button { showActionSheet = true } label: {
-                        Image(systemName: "heart")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color(.systemGray4))
+                // Reactions or heart to the right of others' bubble
+                if !isOwn {
+                    if !reactions.isEmpty {
+                        reactionChips
+                    } else {
+                        Button { showActionSheet = true } label: {
+                            Image(systemName: "heart")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color(.systemGray4))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)

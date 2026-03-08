@@ -246,6 +246,19 @@ export function MessageItem({
             </div>
           )}
 
+          {/* Reactions to the left of own bubble */}
+          {isOwn && (
+            <div style={{ alignSelf: "center", flexShrink: 0 }}>
+              <InlineReactions
+                messageId={message._id}
+                currentParticipantId={currentParticipantId}
+                isOwn={isOwn}
+                onToggleReaction={onToggleReaction}
+                onShowModal={() => setShowModal(true)}
+              />
+            </div>
+          )}
+
           {/* Bubble */}
           <div
             style={{
@@ -344,16 +357,18 @@ export function MessageItem({
             )}
           </div>
 
-          {/* Reactions / trigger on right middle */}
-          <div style={{ alignSelf: "center", flexShrink: 0 }}>
-            <InlineReactions
-              messageId={message._id}
-              currentParticipantId={currentParticipantId}
-              isOwn={isOwn}
-              onToggleReaction={onToggleReaction}
-              onShowModal={() => setShowModal(true)}
-            />
-          </div>
+          {/* Reactions / trigger on right of others' bubble */}
+          {!isOwn && (
+            <div style={{ alignSelf: "center", flexShrink: 0 }}>
+              <InlineReactions
+                messageId={message._id}
+                currentParticipantId={currentParticipantId}
+                isOwn={isOwn}
+                onToggleReaction={onToggleReaction}
+                onShowModal={() => setShowModal(true)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Suggestions */}
