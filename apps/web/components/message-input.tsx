@@ -30,8 +30,10 @@ export function MessageInput({
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearTyping = useCallback(() => {
     if (typingTimeoutRef.current) {
@@ -47,6 +49,14 @@ export function MessageInput({
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, []);
+
+  // Close plus menu on outside click
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handler = () => setShowPlusMenu(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showPlusMenu]);
 
   const handleTextChange = (value: string) => {
     setText(value);
@@ -74,9 +84,13 @@ export function MessageInput({
     }
   };
 
-
-  const handleImageUpload = (file: File) => {
-    onSendImage?.(file);
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onSendImage?.(file);
+      e.target.value = "";
+    }
+    setShowPlusMenu(false);
   };
 
   const handleDrawingSave = (dataUrl: string) => {
@@ -85,15 +99,11 @@ export function MessageInput({
     onSendDrawing?.(dataUrl);
   };
 
+  const hasText = text.trim().length > 0;
+
   return (
     <>
-      <div
-        style={{
-          borderTop: "1px solid var(--border)",
-          background: "var(--surface)",
-          padding: "0.5rem 1rem 0.75rem",
-        }}
-      >
+      <div style={{ background: "var(--surface)", padding: "0.5rem 0.625rem 0.5rem" }}>
         {/* Reply indicator */}
         {replyTo && (
           <div
@@ -102,6 +112,7 @@ export function MessageInput({
               alignItems: "center",
               justifyContent: "space-between",
               marginBottom: "0.5rem",
+              paddingLeft: "0.375rem",
             }}
           >
             <ReplyPreview originalText={replyTo.text ?? ""} senderName="" />
@@ -112,6 +123,8 @@ export function MessageInput({
                 fontSize: "0.8rem",
                 color: "var(--muted)",
                 padding: "0.2rem",
+                border: "none",
+                cursor: "pointer",
               }}
             >
               Cancel
@@ -119,69 +132,189 @@ export function MessageInput({
           </div>
         )}
 
-        {/* Input row */}
-        <div style={{ display: "flex", gap: "0.35rem", alignItems: "flex-end" }}>
-          {/* Media buttons */}
-          <div style={{ display: "flex", gap: "0.1rem", paddingBottom: "0.3rem" }}>
-            <ImageUploadButton onUpload={handleImageUpload} />
-            <button
-              onClick={() => { setShowDrawing(true); onTypingChange?.("drawing"); }}
-              title="Draw"
-              style={{
-                background: "none",
-                fontSize: "1.2rem",
-                padding: "0.3rem",
-                color: "var(--muted)",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              ✏️
-            </button>
-          </div>
-
-          {/* Text input */}
+        {/* Card container */}
+        <div
+          style={{
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            borderRadius: "20px",
+            overflow: "hidden",
+          }}
+        >
+          {/* Text area */}
           <textarea
             ref={inputRef}
             value={text}
             onChange={(e) => handleTextChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             placeholder="Type a message..."
             rows={1}
             style={{
-              flex: 1,
-              padding: "0.6rem 0.75rem",
-              borderRadius: "8px",
-              border: "1px solid var(--border)",
+              width: "100%",
+              padding: "0.75rem 0.875rem 0.25rem",
+              border: "none",
               outline: "none",
               resize: "none",
               fontFamily: "inherit",
               fontSize: "inherit",
               lineHeight: "1.4",
-              maxHeight: "6rem",
+              maxHeight: "7.5rem",
               overflowY: "auto",
+              background: "transparent",
+              color: "inherit",
             }}
             onInput={(e) => {
               const el = e.currentTarget;
               el.style.height = "auto";
-              el.style.height = Math.min(el.scrollHeight, 96) + "px";
+              el.style.height = Math.min(el.scrollHeight, 120) + "px";
             }}
           />
-          <button
-            onClick={handleSubmit}
-            disabled={!text.trim()}
+
+          {/* Bottom toolbar */}
+          <div
             style={{
-              padding: "0.6rem 1.25rem",
-              borderRadius: "8px",
-              background: text.trim() ? "var(--primary)" : "var(--border)",
-              color: text.trim() ? "#fff" : "var(--muted)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-              transition: "all 0.15s ease",
-              marginBottom: "0.05rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.25rem 0.625rem 0.625rem",
             }}
           >
-            Send
-          </button>
+            {/* Plus button */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPlusMenu((v) => !v);
+                }}
+                style={{
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "50%",
+                  background: "var(--border)",
+                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  color: "var(--muted)",
+                  flexShrink: 0,
+                }}
+              >
+                +
+              </button>
+
+              {/* Plus menu dropdown */}
+              {showPlusMenu && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute",
+                    bottom: "calc(100% + 6px)",
+                    left: 0,
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    padding: "0.25rem 0",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    zIndex: 50,
+                    minWidth: "140px",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      width: "100%",
+                      padding: "0.5rem 0.75rem",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      color: "var(--fg)",
+                    }}
+                  >
+                    📷 Photo
+                  </button>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: "none" }}
+              />
+            </div>
+
+            {/* Drawing pill */}
+            <button
+              onClick={() => {
+                setShowDrawing(true);
+                onTypingChange?.("drawing");
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.25rem",
+                padding: "0.35rem 0.625rem",
+                borderRadius: "999px",
+                background: "var(--border)",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                fontWeight: 500,
+                color: "var(--muted)",
+                flexShrink: 0,
+              }}
+            >
+              ✏️ Draw
+            </button>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Send button (circle arrow) */}
+            <button
+              onClick={handleSubmit}
+              disabled={!hasText}
+              style={{
+                width: "30px",
+                height: "30px",
+                borderRadius: "50%",
+                background: hasText ? "var(--primary)" : "var(--border)",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: hasText ? "pointer" : "default",
+                flexShrink: 0,
+                transition: "background 0.15s ease",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={hasText ? "#fff" : "var(--muted)"}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="19" x2="12" y2="5" />
+                <polyline points="5 12 12 5 19 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -189,7 +322,10 @@ export function MessageInput({
       <DrawingModal
         isOpen={showDrawing}
         onSave={handleDrawingSave}
-        onClose={() => { setShowDrawing(false); onTypingChange?.(null); }}
+        onClose={() => {
+          setShowDrawing(false);
+          onTypingChange?.(null);
+        }}
       />
     </>
   );

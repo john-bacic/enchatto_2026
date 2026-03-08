@@ -122,7 +122,8 @@ export function MessageItem({
             display: "flex",
             alignItems: "flex-end",
             gap: "0.5rem",
-            maxWidth: "85%",
+            maxWidth: isOwn ? "75%" : "85%",
+            marginLeft: isOwn ? "auto" : undefined,
           }}
         >
           {/* Avatar column (others only) */}
