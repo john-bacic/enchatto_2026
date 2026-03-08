@@ -30,7 +30,7 @@ export function MessageInput({
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTyping = useCallback(() => {
@@ -68,15 +68,12 @@ export function MessageInput({
     clearTyping();
     onSend(trimmed);
     setText("");
-    inputRef.current?.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.focus();
     }
   };
+
 
   const handleImageUpload = (file: File) => {
     onSendImage?.(file);
@@ -123,38 +120,50 @@ export function MessageInput({
         )}
 
         {/* Input row */}
-        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.35rem", alignItems: "flex-end" }}>
           {/* Media buttons */}
-          <ImageUploadButton onUpload={handleImageUpload} />
-          <button
-            onClick={() => { setShowDrawing(true); onTypingChange?.("drawing"); }}
-            title="Draw"
-            style={{
-              background: "none",
-              fontSize: "1.2rem",
-              padding: "0.3rem",
-              color: "var(--muted)",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            ✏️
-          </button>
+          <div style={{ display: "flex", gap: "0.1rem", paddingBottom: "0.3rem" }}>
+            <ImageUploadButton onUpload={handleImageUpload} />
+            <button
+              onClick={() => { setShowDrawing(true); onTypingChange?.("drawing"); }}
+              title="Draw"
+              style={{
+                background: "none",
+                fontSize: "1.2rem",
+                padding: "0.3rem",
+                color: "var(--muted)",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              ✏️
+            </button>
+          </div>
 
           {/* Text input */}
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={text}
             onChange={(e) => handleTextChange(e.target.value)}
-            onKeyDown={handleKeyDown}
             placeholder="Type a message..."
+            rows={1}
             style={{
               flex: 1,
               padding: "0.6rem 0.75rem",
               borderRadius: "8px",
               border: "1px solid var(--border)",
               outline: "none",
+              resize: "none",
+              fontFamily: "inherit",
+              fontSize: "inherit",
+              lineHeight: "1.4",
+              maxHeight: "6rem",
+              overflowY: "auto",
+            }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = Math.min(el.scrollHeight, 96) + "px";
             }}
           />
           <button
@@ -168,6 +177,7 @@ export function MessageInput({
               fontWeight: 600,
               fontSize: "0.9rem",
               transition: "all 0.15s ease",
+              marginBottom: "0.05rem",
             }}
           >
             Send

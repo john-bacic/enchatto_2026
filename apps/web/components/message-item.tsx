@@ -135,7 +135,7 @@ export function MessageItem({
 
         {/* Original text */}
         {message.kind === "text" && message.text && (
-          <p style={{ margin: 0, lineHeight: 1.4 }}>{message.text}</p>
+          <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{message.text}</p>
         )}
 
         {/* System message */}
