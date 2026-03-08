@@ -7,6 +7,7 @@ struct HostMessageRow: View {
     let isOwn: Bool
     let replyTarget: Message?
     let replyTargetSender: Participant?
+    var reactions: [ReactionSummaryEntry] = []
     var onReply: () -> Void
     var onSuggestionTap: ((String) -> Void)?
     var onReact: ((String) -> Void)?
@@ -22,6 +23,7 @@ struct HostMessageRow: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
                 replyPreview
                 bubbleRow
+                reactionsRow
                 suggestionsRow
                 if isOwn { timestampRow }
             }
@@ -45,20 +47,22 @@ struct HostMessageRow: View {
                 avatarColumn
             }
 
-            messageBubble
-                .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)
-                .onLongPressGesture {
-                    if !isOwn { showActionSheet = true }
-                }
+            HStack(alignment: .center, spacing: 4) {
+                messageBubble
+                    .onLongPressGesture {
+                        if !isOwn { showActionSheet = true }
+                    }
 
-            if !isOwn {
-                Button { showActionSheet = true } label: {
-                    Image(systemName: "heart")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color(.systemGray4))
+                if !isOwn {
+                    Button { showActionSheet = true } label: {
+                        Image(systemName: "heart")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(.systemGray4))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)
         }
     }
 
@@ -225,6 +229,32 @@ struct HostMessageRow: View {
                 }
                 .foregroundStyle(.red)
             }
+        }
+    }
+
+    // MARK: - Reactions display
+
+    @ViewBuilder
+    private var reactionsRow: some View {
+        if !reactions.isEmpty {
+            HStack(spacing: 4) {
+                ForEach(reactions, id: \.emoji) { entry in
+                    HStack(spacing: 2) {
+                        Text(entry.emoji)
+                            .font(.system(size: 13))
+                        if entry.count > 1 {
+                            Text("\(entry.count)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
+                }
+            }
+            .padding(.leading, isOwn ? 0 : 40)
         }
     }
 

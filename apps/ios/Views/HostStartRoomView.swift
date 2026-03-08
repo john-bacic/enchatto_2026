@@ -36,42 +36,6 @@ struct HostStartRoomView: View {
                             AvatarPickerView(selectedAvatarId: $viewModel.hostAvatarId)
                         }
 
-                        Divider()
-
-                        // Language settings
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Source language")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                            Picker("Source", selection: $viewModel.settings.sourceLanguage) {
-                                Text("Japanese").tag("ja")
-                                Text("English").tag("en")
-                            }
-                            .pickerStyle(.segmented)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Target language")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                            Picker("Target", selection: $viewModel.settings.targetLanguage) {
-                                Text("English").tag("en")
-                                Text("Japanese").tag("ja")
-                            }
-                            .pickerStyle(.segmented)
-                        }
-
-                        // Max participants
-                        Stepper(
-                            "Max participants: \(viewModel.settings.maxParticipants)",
-                            value: $viewModel.settings.maxParticipants,
-                            in: 2...20
-                        )
-                        .font(.subheadline)
-
-                        // Toggles
-                        Toggle("Romaji", isOn: $viewModel.settings.romajiEnabled)
-                        Toggle("Suggestions", isOn: $viewModel.settings.suggestionsEnabled)
                     }
                     .padding()
                     .background(Color(.systemBackground))
@@ -108,15 +72,11 @@ struct HostStartRoomView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationDestination(isPresented: Binding(
-                get: { viewModel.createdJoinCode != nil },
-                set: { if !$0 { viewModel.createdJoinCode = nil } }
+                get: { viewModel.createdRoomId != nil },
+                set: { if !$0 { viewModel.createdRoomId = nil } }
             )) {
-                if let joinCode = viewModel.createdJoinCode {
-                    HostQRCodeRoomView(
-                        joinCode: joinCode,
-                        roomId: viewModel.createdRoomId ?? "",
-                        hostId: viewModel.createdHostId ?? ""
-                    )
+                if let roomId = viewModel.createdRoomId, let hostId = viewModel.createdHostId {
+                    HostConversationView(roomId: roomId, hostId: hostId)
                 }
             }
         }

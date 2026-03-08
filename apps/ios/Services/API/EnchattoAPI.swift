@@ -48,6 +48,9 @@ protocol EnchattoAPI {
     /// Remove a reaction
     func removeReaction(messageId: String, participantId: String, emoji: String) async throws
 
+    /// Fetch reaction summaries for all messages in a room
+    func getRoomReactions(roomId: String) async throws -> [MessageReactionSummary]
+
     /// Update participant online/offline status (heartbeat)
     func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws
 }

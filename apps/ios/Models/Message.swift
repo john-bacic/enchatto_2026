@@ -56,3 +56,14 @@ struct Reaction: Identifiable, Codable {
         case messageId, participantId, emoji, createdAt
     }
 }
+
+struct ReactionSummaryEntry: Codable {
+    let emoji: String
+    let count: Int
+    let participantIds: [String]
+}
+
+struct MessageReactionSummary: Codable {
+    let messageId: String
+    let reactions: [ReactionSummaryEntry]
+}

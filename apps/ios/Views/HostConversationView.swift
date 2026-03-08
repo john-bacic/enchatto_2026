@@ -189,6 +189,7 @@ struct HostConversationView: View {
                             isOwn: message.senderId == hostId,
                             replyTarget: replyTarget,
                             replyTargetSender: replyTargetSender,
+                            reactions: viewModel.reactionSummaries[message.id] ?? [],
                             onReply: { replyToId = message.id },
                             onSuggestionTap: { messageText = $0 },
                             onReact: { emoji in
@@ -376,6 +377,8 @@ struct HostConversationView: View {
 
     // MARK: - Participant sheet
 
+    @State private var maxParticipants: Int = 10
+
     private var participantSheet: some View {
         NavigationStack {
             List {
@@ -417,6 +420,17 @@ struct HostConversationView: View {
                         }
                     }
                 }
+
+                Section {
+                    Stepper(
+                        "Max participants: \(maxParticipants)",
+                        value: $maxParticipants,
+                        in: 2...20
+                    )
+                    .font(.subheadline)
+                } header: {
+                    Text("Settings")
+                }
             }
             .navigationTitle("Participants")
             .navigationBarTitleDisplayMode(.inline)
@@ -427,8 +441,11 @@ struct HostConversationView: View {
                     }
                 }
             }
+            .onAppear {
+                maxParticipants = viewModel.room?.settings.maxParticipants ?? 10
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Helpers

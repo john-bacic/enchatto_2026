@@ -14,8 +14,8 @@ struct RoomSettings: Codable {
     var maxParticipants: Int
 
     static let defaults = RoomSettings(
-        sourceLanguage: "ja",
-        targetLanguage: "en",
+        sourceLanguage: "en",
+        targetLanguage: "ja",
         romajiEnabled: true,
         suggestionsEnabled: true,
         maxParticipants: 10

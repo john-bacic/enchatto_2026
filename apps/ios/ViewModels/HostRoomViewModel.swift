@@ -7,6 +7,7 @@ class HostRoomViewModel: ObservableObject {
     @Published var room: Room?
     @Published var participants: [Participant] = []
     @Published var messages: [Message] = []
+    @Published var reactionSummaries: [String: [ReactionSummaryEntry]] = [:]
     @Published var isLoading = true
     @Published var error: String?
     @Published var showParticipantSheet = false
@@ -100,10 +101,18 @@ class HostRoomViewModel: ObservableObject {
         do {
             let state = try await api.getRoomState(roomId: roomId)
             let msgs = try await api.getRoomMessages(roomId: roomId)
+            let rxSummaries = try await api.getRoomReactions(roomId: roomId)
 
             room = state.room
             participants = state.participants
             messages = msgs.sorted { $0.createdAt < $1.createdAt }
+
+            var map: [String: [ReactionSummaryEntry]] = [:]
+            for summary in rxSummaries {
+                map[summary.messageId] = summary.reactions
+            }
+            reactionSummaries = map
+
             isLoading = false
         } catch {
             self.error = error.localizedDescription
@@ -241,6 +250,7 @@ class HostRoomViewModel: ObservableObject {
     func addReaction(messageId: String, emoji: String) async {
         do {
             try await api.addReaction(messageId: messageId, participantId: hostId, emoji: emoji)
+            await refresh()
         } catch {
             self.error = error.localizedDescription
         }
@@ -249,6 +259,7 @@ class HostRoomViewModel: ObservableObject {
     func removeReaction(messageId: String, emoji: String) async {
         do {
             try await api.removeReaction(messageId: messageId, participantId: hostId, emoji: emoji)
+            await refresh()
         } catch {
             self.error = error.localizedDescription
         }

@@ -174,6 +174,10 @@ class MockEnchattoAPI: EnchattoAPI {
         // Mock: no-op for now
     }
 
+    func getRoomReactions(roomId: String) async throws -> [MessageReactionSummary] {
+        return []
+    }
+
     func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws {
         // Mock: no-op for now
     }

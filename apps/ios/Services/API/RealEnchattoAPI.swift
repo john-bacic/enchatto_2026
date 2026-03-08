@@ -156,6 +156,11 @@ class RealEnchattoAPI: EnchattoAPI {
         ])
     }
 
+    func getRoomReactions(roomId: String) async throws -> [MessageReactionSummary] {
+        let summaries: [MessageReactionSummary] = try await client.post("/api/reactions/room-summaries", body: ["roomId": roomId])
+        return summaries
+    }
+
     // MARK: - Presence
 
     func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws {

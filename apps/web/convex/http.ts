@@ -190,4 +190,14 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/api/reactions/room-summaries",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.reactions.getRoomReactionSummaries, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
 export default http;
