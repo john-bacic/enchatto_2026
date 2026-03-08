@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { QrScanner } from "@/components/qr-scanner";
 import { t } from "@/lib/i18n";
@@ -9,11 +9,10 @@ export default function HomePage() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState("");
   const [showScanner, setShowScanner] = useState(false);
-  const [lang, setLang] = useState("en");
-
-  useEffect(() => {
-    setLang(localStorage.getItem("enchatto_lastLanguage") ?? "en");
-  }, []);
+  const [lang] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("enchatto_lastLanguage") ?? "ja";
+    return "ja";
+  });
 
   const handleJoin = () => {
     const code = joinCode.trim().toUpperCase();

@@ -98,7 +98,7 @@ function RoomContent() {
   const messageList = messages ?? [];
 
   const me = participants.find((p) => p._id === participantId);
-  const lang = me?.preferredLanguage ?? "en";
+  const lang = me?.preferredLanguage ?? "ja";
 
   const replyMessage = replyTo
     ? messageList.find((m) => m._id === replyTo)
@@ -554,7 +554,7 @@ export default function RoomPage() {
             color: "var(--muted)",
           }}
         >
-          Loading room...
+          {t("Loading room...", typeof window !== "undefined" ? localStorage.getItem("enchatto_lastLanguage") ?? "ja" : "ja")}
         </div>
       }
     >
