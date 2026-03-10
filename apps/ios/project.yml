@@ -14,11 +14,14 @@ targets:
   Enchatto:
     type: application
     platform: iOS
-    preBuildScripts:
+    postBuildScripts:
       - name: Inject Git Commit SHA
         script: |
           SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
-          /usr/libexec/PlistBuddy -c "Set :GitCommitSHA $SHA" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :GitCommitSHA string $SHA" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}" 2>/dev/null || true
+          PLIST="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+          if [ -f "$PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Set :GitCommitSHA $SHA" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :GitCommitSHA string $SHA" "$PLIST"
+          fi
     sources:
       - path: .
         excludes:
