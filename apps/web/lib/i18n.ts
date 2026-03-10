@@ -109,6 +109,10 @@ const translations: Record<string, Record<string, string>> = {
   // Reply preview
   "Photo": { ja: "写真" },
   "Drawing": { ja: "お絵描き" },
+
+  // Offline mode
+  "You're offline": { ja: "オフラインです" },
+  "queued": { ja: "件待ち" },
 };
 
 /**

@@ -10,6 +10,16 @@ import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
+import { useNetworkStatus } from "@/hooks/use-network-status";
+
+interface QueuedMessage {
+  id: string;
+  kind: "text" | "image" | "drawing";
+  text?: string;
+  mediaUrl?: string;
+  replyToId?: string;
+  createdAt: number;
+}
 
 function RoomContent() {
   const params = useParams();
@@ -24,6 +34,11 @@ function RoomContent() {
   const [showEnglish, setShowEnglish] = useState(true);
   const [showJapanese, setShowJapanese] = useState(true);
   const [showRomaji, setShowRomaji] = useState(true);
+
+  // Network status & offline queue
+  const { isOnline } = useNetworkStatus();
+  const [offlineQueue, setOfflineQueue] = useState<QueuedMessage[]>([]);
+  const isFlushingRef = useRef(false);
 
   // Real-time subscriptions
   const roomState = useQuery(api.rooms.getRoomState, {
@@ -108,9 +123,27 @@ function RoomContent() {
     ? messageList.find((m) => m._id === replyTo)
     : null;
 
+  const enqueueMessage = useCallback(
+    (msg: Omit<QueuedMessage, "id" | "createdAt">) => {
+      const queued: QueuedMessage = {
+        ...msg,
+        id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        createdAt: Date.now(),
+      };
+      setOfflineQueue((q) => [...q, queued]);
+      return queued;
+    },
+    []
+  );
+
   const handleSend = useCallback(
     async (text: string) => {
       if (!participantId) return;
+      if (!isOnline) {
+        enqueueMessage({ kind: "text", text, replyToId: replyTo ?? undefined });
+        setReplyTo(null);
+        return;
+      }
       try {
         await sendTextMessage({
           roomId: roomId as Id<"rooms">,
@@ -122,15 +155,17 @@ function RoomContent() {
         });
         setReplyTo(null);
       } catch (err) {
-        console.error("Failed to send message:", err);
+        console.error("Failed to send message, queuing:", err);
+        enqueueMessage({ kind: "text", text, replyToId: replyTo ?? undefined });
+        setReplyTo(null);
       }
     },
-    [sendTextMessage, roomId, participantId, replyTo]
+    [sendTextMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
   );
 
   const handleToggleReaction = useCallback(
     async (messageId: string, emoji: string, hasReacted: boolean) => {
-      if (!participantId) return;
+      if (!participantId || !isOnline) return;
       try {
         if (hasReacted) {
           await removeReaction({
@@ -149,12 +184,22 @@ function RoomContent() {
         console.error("Failed to toggle reaction:", err);
       }
     },
-    [addReaction, removeReaction, participantId]
+    [addReaction, removeReaction, participantId, isOnline]
   );
 
   const handleSendImage = useCallback(
     async (file: File) => {
       if (!participantId) return;
+      if (!isOnline) {
+        // Convert to base64 data URL for offline queue
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          enqueueMessage({ kind: "image", mediaUrl: reader.result as string, replyToId: replyTo ?? undefined });
+          setReplyTo(null);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
       try {
         // Upload to Convex file storage
         const uploadUrl = await generateUploadUrl();
@@ -173,16 +218,26 @@ function RoomContent() {
         });
         setReplyTo(null);
       } catch (err) {
-        console.error("Failed to send image:", err);
+        console.error("Failed to send image, queuing:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          enqueueMessage({ kind: "image", mediaUrl: reader.result as string, replyToId: replyTo ?? undefined });
+          setReplyTo(null);
+        };
+        reader.readAsDataURL(file);
       }
     },
-    [generateUploadUrl, sendImageMessage, roomId, participantId, replyTo]
+    [generateUploadUrl, sendImageMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
   );
 
   const handleSendDrawing = useCallback(
     async (dataUrl: string) => {
       if (!participantId) return;
-      // TODO: Upload data URL to storage and get permanent URL
+      if (!isOnline) {
+        enqueueMessage({ kind: "drawing", mediaUrl: dataUrl, replyToId: replyTo ?? undefined });
+        setReplyTo(null);
+        return;
+      }
       try {
         await sendDrawingMessage({
           roomId: roomId as Id<"rooms">,
@@ -192,10 +247,12 @@ function RoomContent() {
         });
         setReplyTo(null);
       } catch (err) {
-        console.error("Failed to send drawing:", err);
+        console.error("Failed to send drawing, queuing:", err);
+        enqueueMessage({ kind: "drawing", mediaUrl: dataUrl, replyToId: replyTo ?? undefined });
+        setReplyTo(null);
       }
     },
-    [sendDrawingMessage, roomId, participantId, replyTo]
+    [sendDrawingMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
   );
 
   const lastTypingAction = useRef<string | null>(null);
@@ -229,6 +286,78 @@ function RoomContent() {
   const handleCancelReply = () => {
     setReplyTo(null);
   };
+
+  // Flush offline queue when back online
+  const flushQueue = useCallback(async () => {
+    if (isFlushingRef.current || offlineQueue.length === 0) return;
+    isFlushingRef.current = true;
+    const remaining = [...offlineQueue];
+    for (let i = 0; i < remaining.length; i++) {
+      const item = remaining[i];
+      try {
+        if (item.kind === "text" && item.text) {
+          await sendTextMessage({
+            roomId: roomId as Id<"rooms">,
+            senderId: participantId as Id<"participants">,
+            text: item.text,
+            replyToId: item.replyToId ? (item.replyToId as Id<"messages">) : undefined,
+          });
+        } else if (item.kind === "image" && item.mediaUrl) {
+          // Convert data URL back to blob for upload
+          const res = await fetch(item.mediaUrl);
+          const blob = await res.blob();
+          const uploadUrl = await generateUploadUrl();
+          const uploadResult = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": blob.type || "image/png" },
+            body: blob,
+          });
+          const { storageId } = await uploadResult.json();
+          await sendImageMessage({
+            roomId: roomId as Id<"rooms">,
+            senderId: participantId as Id<"participants">,
+            storageId,
+            replyToId: item.replyToId ? (item.replyToId as Id<"messages">) : undefined,
+          });
+        } else if (item.kind === "drawing" && item.mediaUrl) {
+          await sendDrawingMessage({
+            roomId: roomId as Id<"rooms">,
+            senderId: participantId as Id<"participants">,
+            mediaUrl: item.mediaUrl,
+            replyToId: item.replyToId ? (item.replyToId as Id<"messages">) : undefined,
+          });
+        }
+        // Remove successfully sent item
+        setOfflineQueue((q) => q.filter((m) => m.id !== item.id));
+      } catch (err) {
+        console.error("Flush failed at item, stopping:", item.id, err);
+        break; // Stop on first failure, retry next time
+      }
+    }
+    isFlushingRef.current = false;
+  }, [offlineQueue, roomId, participantId, sendTextMessage, generateUploadUrl, sendImageMessage, sendDrawingMessage]);
+
+  // Auto-flush when transitioning offline→online
+  const wasOnlineRef = useRef(isOnline);
+  useEffect(() => {
+    if (isOnline && !wasOnlineRef.current) {
+      flushQueue();
+    }
+    wasOnlineRef.current = isOnline;
+  }, [isOnline, flushQueue]);
+
+  // Merge queued messages into the display list
+  const queuedAsMessages = offlineQueue.map((q) => ({
+    _id: q.id,
+    senderId: participantId,
+    kind: q.kind,
+    status: "pending" as const,
+    text: q.text,
+    mediaUrl: q.mediaUrl,
+    replyToId: q.replyToId,
+    createdAt: q.createdAt,
+  }));
+  const displayMessages = [...messageList, ...queuedAsMessages];
 
   const handleLeave = async () => {
     if (!participantId) return;
@@ -392,15 +521,55 @@ function RoomContent() {
         />
       </header>
 
+      {/* Offline banner */}
+      {!isOnline && (
+        <div
+          style={{
+            background: "#f97316",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "0.5rem 1rem",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+            <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12.01" y2="20" />
+          </svg>
+          <span>{t("You're offline", lang)}</span>
+          {offlineQueue.length > 0 && (
+            <span
+              style={{
+                background: "rgba(255,255,255,0.25)",
+                borderRadius: "10px",
+                padding: "0.1rem 0.5rem",
+                fontSize: "0.75rem",
+              }}
+            >
+              {offlineQueue.length} {t("queued", lang)}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Messages */}
       <MessageErrorBoundary lang={lang}>
         <MessageList
-          messages={messageList}
+          messages={displayMessages}
           participants={participants}
           currentParticipantId={participantId}
           preferredLanguage={lang}
           onReply={handleReply}
-          onToggleReaction={handleToggleReaction}
+          onToggleReaction={isOnline ? handleToggleReaction : undefined}
           typingParticipants={typingParticipants}
           lang={lang}
           showEnglish={showEnglish}
