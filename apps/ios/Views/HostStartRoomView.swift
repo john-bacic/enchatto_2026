@@ -1,5 +1,14 @@
 import SwiftUI
 
+private enum GitInfo {
+    static let commitSHA: String = {
+        if let sha = Bundle.main.infoDictionary?["GitCommitSHA"] as? String, !sha.isEmpty {
+            return sha
+        }
+        return "dev"
+    }()
+}
+
 struct HostStartRoomView: View {
     @StateObject private var viewModel = HostStartRoomViewModel()
 
@@ -87,6 +96,11 @@ struct HostStartRoomView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(!viewModel.canCreate)
+
+                    // Commit hash
+                    Text("v\(GitInfo.commitSHA)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 }
                 .padding()
             }
