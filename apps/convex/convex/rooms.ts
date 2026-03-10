@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 
 export const createRoom = mutation({
   args: {
@@ -132,6 +132,58 @@ export const updateRoomSettings = mutation({
     if (room.status === "closed") throw new Error("Cannot update a closed room");
 
     await ctx.db.patch(args.roomId, { settings: args.settings });
+  },
+});
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+export const cleanupExpiredRooms = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS;
+
+    const expiredRooms = await ctx.db
+      .query("rooms")
+      .filter((q) => q.lt(q.field("createdAt"), cutoff))
+      .collect();
+
+    for (const room of expiredRooms) {
+      // Delete all messages and their reactions in this room
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
+        .collect();
+
+      for (const message of messages) {
+        const reactions = await ctx.db
+          .query("reactions")
+          .withIndex("by_messageId", (q) => q.eq("messageId", message._id))
+          .collect();
+
+        for (const reaction of reactions) {
+          await ctx.db.delete(reaction._id);
+        }
+
+        await ctx.db.delete(message._id);
+      }
+
+      // Delete all participants in this room
+      const participants = await ctx.db
+        .query("participants")
+        .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
+        .collect();
+
+      for (const participant of participants) {
+        await ctx.db.delete(participant._id);
+      }
+
+      // Delete the room itself
+      await ctx.db.delete(room._id);
+    }
+
+    if (expiredRooms.length > 0) {
+      console.log(`Cleaned up ${expiredRooms.length} expired room(s)`);
+    }
   },
 });
 
