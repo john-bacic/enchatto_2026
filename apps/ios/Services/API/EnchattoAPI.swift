@@ -30,8 +30,14 @@ protocol EnchattoAPI {
     /// Send a text message from the host
     func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?) async throws -> String
 
-    /// Send an image message
-    func sendImageMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String
+    /// Generate a presigned upload URL for Convex storage
+    func generateUploadUrl() async throws -> String
+
+    /// Upload raw data to a Convex storage upload URL, returns storageId
+    func uploadData(_ data: Data, to uploadUrl: String, contentType: String) async throws -> String
+
+    /// Send an image message (requires a Convex storageId from prior upload)
+    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?) async throws -> String
 
     /// Send a drawing message
     func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String

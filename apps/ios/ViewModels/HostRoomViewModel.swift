@@ -263,26 +263,26 @@ class HostRoomViewModel: ObservableObject {
     }
 
     func sendImage(_ image: UIImage, replyToId: String? = nil) async {
-        // TODO: Upload to storage, get permanent URL
-        // For now, convert to data URL placeholder
         guard let data = image.jpegData(compressionQuality: 0.7) else { return }
-        let base64 = data.base64EncodedString()
-        let mediaUrl = "data:image/jpeg;base64,\(base64)"
 
         guard networkMonitor.isConnected else {
-            enqueueMedia(kind: .image, mediaUrl: mediaUrl, replyToId: replyToId)
+            let base64 = data.base64EncodedString()
+            enqueueMedia(kind: .image, mediaUrl: "data:image/jpeg;base64,\(base64)", replyToId: replyToId)
             return
         }
         do {
+            let uploadUrl = try await api.generateUploadUrl()
+            let storageId = try await api.uploadData(data, to: uploadUrl, contentType: "image/jpeg")
             _ = try await api.sendImageMessage(
                 roomId: roomId,
                 senderId: hostId,
-                mediaUrl: mediaUrl,
+                storageId: storageId,
                 replyToId: replyToId
             )
             await refresh()
         } catch {
-            enqueueMedia(kind: .image, mediaUrl: mediaUrl, replyToId: replyToId)
+            let base64 = data.base64EncodedString()
+            enqueueMedia(kind: .image, mediaUrl: "data:image/jpeg;base64,\(base64)", replyToId: replyToId)
         }
     }
 
@@ -445,10 +445,18 @@ class HostRoomViewModel: ObservableObject {
                         try? await api.submitProcessedMessage(messageId: messageId, processing: processing)
                     }
                 case .image:
+                    // Decode base64 data URL back to raw data for Convex storage upload
+                    let base64 = (queued.mediaUrl ?? "")
+                        .replacingOccurrences(of: "data:image/jpeg;base64,", with: "")
+                        .replacingOccurrences(of: "data:image/png;base64,", with: "")
+                    guard let imageData = Data(base64Encoded: base64) else { break }
+                    let contentType = queued.mediaUrl?.contains("image/png") == true ? "image/png" : "image/jpeg"
+                    let uploadUrl = try await api.generateUploadUrl()
+                    let storageId = try await api.uploadData(imageData, to: uploadUrl, contentType: contentType)
                     _ = try await api.sendImageMessage(
                         roomId: roomId,
                         senderId: hostId,
-                        mediaUrl: queued.mediaUrl ?? "",
+                        storageId: storageId,
                         replyToId: queued.replyToId
                     )
                 case .drawing:

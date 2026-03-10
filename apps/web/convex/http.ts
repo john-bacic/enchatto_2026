@@ -89,6 +89,17 @@ http.route({
   }),
 });
 
+// --- Storage ---
+
+http.route({
+  path: "/api/storage/generate-upload-url",
+  method: "POST",
+  handler: jsonAction(async (ctx) => {
+    const uploadUrl = await ctx.runMutation(api.messages.generateUploadUrl);
+    return { uploadUrl };
+  }),
+});
+
 // --- Messages ---
 
 http.route({
@@ -112,7 +123,7 @@ http.route({
     const messageId = await ctx.runMutation(api.messages.sendImageMessage, {
       roomId: body.roomId,
       senderId: body.senderId,
-      mediaUrl: body.mediaUrl,
+      storageId: body.storageId,
       replyToId: body.replyToId,
     });
     return { messageId };
@@ -160,6 +171,16 @@ http.route({
     await ctx.runMutation(api.messages.submitProcessedMessage, {
       messageId: body.messageId,
       processing: body.processing,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/messages/delete",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.messages.deleteMessage, {
+      messageId: body.messageId,
     });
   }),
 });

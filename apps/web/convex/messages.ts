@@ -119,6 +119,27 @@ export const markMessageFailed = mutation({
   },
 });
 
+export const deleteMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+
+    // Delete associated reactions
+    const reactions = await ctx.db
+      .query("reactions")
+      .withIndex("by_messageId", (q) => q.eq("messageId", args.messageId))
+      .collect();
+    for (const reaction of reactions) {
+      await ctx.db.delete(reaction._id);
+    }
+
+    await ctx.db.delete(args.messageId);
+  },
+});
+
 export const getRoomMessages = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {

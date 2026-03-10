@@ -46,6 +46,17 @@ export const joinRoom = mutation({
         preferredLanguage: args.preferredLanguage,
       });
 
+      // Insert system message for rejoin
+      await ctx.db.insert("messages", {
+        roomId: args.roomId,
+        senderId: existing._id,
+        kind: "system",
+        status: "processed",
+        text: `join:${nickname}`,
+        createdAt: now,
+        processedAt: now,
+      });
+
       // Activate room if still waiting
       if (room.status === "waiting") {
         await ctx.db.patch(args.roomId, { status: "active" });
@@ -73,6 +84,17 @@ export const joinRoom = mutation({
       joinedAt: now,
     });
 
+    // Insert system message for join
+    await ctx.db.insert("messages", {
+      roomId: args.roomId,
+      senderId: participantId,
+      kind: "system",
+      status: "processed",
+      text: `join:${nickname}`,
+      createdAt: now,
+      processedAt: now,
+    });
+
     // Activate room if still waiting
     if (room.status === "waiting") {
       await ctx.db.patch(args.roomId, { status: "active" });
@@ -85,10 +107,25 @@ export const joinRoom = mutation({
 export const leaveRoom = mutation({
   args: { participantId: v.id("participants") },
   handler: async (ctx, args) => {
+    const participant = await ctx.db.get(args.participantId);
+    const now = Date.now();
     await ctx.db.patch(args.participantId, {
       online: false,
-      lastSeenAt: Date.now(),
+      lastSeenAt: now,
     });
+
+    // Insert system message for leave
+    if (participant && participant.online) {
+      await ctx.db.insert("messages", {
+        roomId: participant.roomId,
+        senderId: args.participantId,
+        kind: "system",
+        status: "processed",
+        text: `leave:${participant.nickname}`,
+        createdAt: now,
+        processedAt: now,
+      });
+    }
   },
 });
 
@@ -99,11 +136,39 @@ export const setParticipantOnline = mutation({
     presence: v.optional(v.union(v.literal("online"), v.literal("away"))),
   },
   handler: async (ctx, args) => {
+    const participant = await ctx.db.get(args.participantId);
+    const now = Date.now();
     await ctx.db.patch(args.participantId, {
       online: args.online,
-      lastSeenAt: Date.now(),
+      lastSeenAt: now,
       presence: args.online ? (args.presence ?? "online") : undefined,
     });
+
+    // Insert system message when going offline
+    if (participant && participant.online && !args.online) {
+      await ctx.db.insert("messages", {
+        roomId: participant.roomId,
+        senderId: args.participantId,
+        kind: "system",
+        status: "processed",
+        text: `leave:${participant.nickname}`,
+        createdAt: now,
+        processedAt: now,
+      });
+    }
+
+    // Insert system message when coming back online (rejoin)
+    if (participant && !participant.online && args.online) {
+      await ctx.db.insert("messages", {
+        roomId: participant.roomId,
+        senderId: args.participantId,
+        kind: "system",
+        status: "processed",
+        text: `join:${participant.nickname}`,
+        createdAt: now,
+        processedAt: now,
+      });
+    }
   },
 });
 
@@ -184,6 +249,15 @@ export const cleanupStaleParticipants = internalMutation({
       if (!p.online) continue;
       if (p.presence === "away" && p.lastSeenAt < awayOfflineCutoff) {
         await ctx.db.patch(p._id, { online: false, presence: undefined, typingAction: undefined });
+        await ctx.db.insert("messages", {
+          roomId: p.roomId,
+          senderId: p._id,
+          kind: "system",
+          status: "processed",
+          text: `leave:${p.nickname}`,
+          createdAt: now,
+          processedAt: now,
+        });
       } else if (p.presence !== "away" && p.lastSeenAt < onlineAwayCutoff) {
         await ctx.db.patch(p._id, { presence: "away", typingAction: undefined });
       }

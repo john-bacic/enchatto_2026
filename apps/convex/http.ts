@@ -89,6 +89,17 @@ http.route({
   }),
 });
 
+// --- Storage ---
+
+http.route({
+  path: "/api/storage/generate-upload-url",
+  method: "POST",
+  handler: jsonAction(async (ctx) => {
+    const uploadUrl = await ctx.runMutation(api.messages.generateUploadUrl);
+    return { uploadUrl };
+  }),
+});
+
 // --- Messages ---
 
 http.route({
@@ -112,7 +123,7 @@ http.route({
     const messageId = await ctx.runMutation(api.messages.sendImageMessage, {
       roomId: body.roomId,
       senderId: body.senderId,
-      mediaUrl: body.mediaUrl,
+      storageId: body.storageId,
       replyToId: body.replyToId,
     });
     return { messageId };

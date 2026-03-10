@@ -16,7 +16,7 @@ enum AvatarType: String, Codable {
     case custom
 }
 
-struct AvatarConfig: Codable {
+struct AvatarConfig: Codable, Equatable {
     let type: AvatarType
     let value: String
 }
@@ -26,7 +26,7 @@ enum PresenceState: String, Codable {
     case away
 }
 
-struct Participant: Identifiable, Codable {
+struct Participant: Identifiable, Codable, Equatable {
     let id: String
     let roomId: String
     let nickname: String

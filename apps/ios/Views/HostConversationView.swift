@@ -37,6 +37,7 @@ struct HostConversationView: View {
     @State private var showRomaji = true
     @State private var tooltipParticipant: Participant?
     @State private var fullScreenImage: (url: String, messageId: String)?
+    @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
@@ -80,6 +81,9 @@ struct HostConversationView: View {
         .onDisappear { viewModel.stopObserving() }
         .onChange(of: scenePhase) { newPhase in
             viewModel.handleScenePhase(newPhase)
+        }
+        .onChange(of: viewModel.participants) { participants in
+            updateHiddenOfflineIds(participants: participants)
         }
         .alert("Error", isPresented: .init(
             get: { viewModel.error != nil },
@@ -264,6 +268,27 @@ struct HostConversationView: View {
         }
     }
 
+    // MARK: - Offline fade-out
+
+    private func updateHiddenOfflineIds(participants: [Participant]) {
+        for p in participants {
+            guard p.id != hostId else { continue }
+            if !p.online && !hiddenOfflineIds.contains(p.id) {
+                let pid = p.id
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                    if let current = viewModel.participants.first(where: { $0.id == pid }),
+                       !current.online {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            _ = hiddenOfflineIds.insert(pid)
+                        }
+                    }
+                }
+            } else if p.online {
+                hiddenOfflineIds.remove(p.id)
+            }
+        }
+    }
+
     // MARK: - Header
 
     private var headerView: some View {
@@ -306,7 +331,7 @@ struct HostConversationView: View {
 
             // Other participant avatars — tap to show name tooltip
             ParticipantAvatarRow(
-                participants: viewModel.participants.filter { $0.id != hostId },
+                participants: viewModel.participants.filter { $0.id != hostId && !hiddenOfflineIds.contains($0.id) },
                 maxVisible: 5,
                 avatarSize: 28,
                 onTapParticipant: { participant in

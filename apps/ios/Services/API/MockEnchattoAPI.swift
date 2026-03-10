@@ -123,7 +123,15 @@ class MockEnchattoAPI: EnchattoAPI {
         return messageId
     }
 
-    func sendImageMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
+    func generateUploadUrl() async throws -> String {
+        return "https://mock-upload-url.example.com/upload"
+    }
+
+    func uploadData(_ data: Data, to uploadUrl: String, contentType: String) async throws -> String {
+        return "mock-storage-id-\(UUID().uuidString)"
+    }
+
+    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?) async throws -> String {
         let messageId = UUID().uuidString
         let message = Message(
             id: messageId,
@@ -131,7 +139,7 @@ class MockEnchattoAPI: EnchattoAPI {
             senderId: senderId,
             kind: .image,
             status: .processed,
-            mediaUrl: mediaUrl,
+            mediaUrl: "https://mock-image-url.example.com/\(storageId)",
             replyToId: replyToId,
             createdAt: Date(),
             processedAt: Date()

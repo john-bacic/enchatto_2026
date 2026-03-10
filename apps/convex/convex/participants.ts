@@ -27,7 +27,46 @@ export const joinRoom = mutation({
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    if (participants.length >= room.settings.maxParticipants) {
+    // Check for existing offline participant with same nickname + avatar
+    const existing = participants.find(
+      (p) =>
+        !p.online &&
+        p.nickname === nickname &&
+        p.avatar.value === args.avatar.value &&
+        p.role !== "host"
+    );
+
+    if (existing) {
+      const now = Date.now();
+      await ctx.db.patch(existing._id, {
+        online: true,
+        presence: "online",
+        lastSeenAt: now,
+        platform: args.platform,
+        preferredLanguage: args.preferredLanguage,
+      });
+
+      // Insert system message for rejoin
+      await ctx.db.insert("messages", {
+        roomId: args.roomId,
+        senderId: existing._id,
+        kind: "system",
+        status: "processed",
+        text: `join:${nickname}`,
+        createdAt: now,
+        processedAt: now,
+      });
+
+      // Activate room if still waiting
+      if (room.status === "waiting") {
+        await ctx.db.patch(args.roomId, { status: "active" });
+      }
+
+      return existing._id;
+    }
+
+    const onlineCount = participants.filter((p) => p.online).length;
+    if (onlineCount >= room.settings.maxParticipants) {
       throw new Error("Room is full");
     }
 
@@ -125,7 +164,7 @@ export const setParticipantOnline = mutation({
         senderId: args.participantId,
         kind: "system",
         status: "processed",
-        text: `${participant.nickname} has joined`,
+        text: `join:${participant.nickname}`,
         createdAt: now,
         processedAt: now,
       });
@@ -136,7 +175,7 @@ export const setParticipantOnline = mutation({
 export const setTypingAction = mutation({
   args: {
     participantId: v.id("participants"),
-    action: v.optional(v.union(v.literal("typing"), v.literal("drawing"))),
+    action: v.optional(v.union(v.literal("typing"), v.literal("drawing"), v.literal("voicing"))),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.participantId, {

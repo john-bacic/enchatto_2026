@@ -77,12 +77,38 @@ class RealEnchattoAPI: EnchattoAPI {
         return response.messageId
     }
 
-    func sendImageMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
+    func generateUploadUrl() async throws -> String {
+        struct Response: Decodable { let uploadUrl: String }
+        let response: Response = try await client.post("/api/storage/generate-upload-url", body: [:])
+        return response.uploadUrl
+    }
+
+    func uploadData(_ data: Data, to uploadUrl: String, contentType: String) async throws -> String {
+        guard let url = URL(string: uploadUrl) else {
+            throw APIError.serverError("Invalid upload URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError("Upload failed")
+        }
+        guard let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+              let storageId = json["storageId"] as? String else {
+            throw APIError.serverError("No storageId in upload response")
+        }
+        return storageId
+    }
+
+    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?) async throws -> String {
         struct Response: Decodable { let messageId: String }
         var body: [String: Any] = [
             "roomId": roomId,
             "senderId": senderId,
-            "mediaUrl": mediaUrl,
+            "storageId": storageId,
         ]
         if let replyToId { body["replyToId"] = replyToId }
         let response: Response = try await client.post("/api/messages/send-image", body: body)
