@@ -1,14 +1,5 @@
 import SwiftUI
 
-private enum GitInfo {
-    static let commitSHA: String = {
-        if let sha = Bundle.main.infoDictionary?["GitCommitSHA"] as? String, !sha.isEmpty {
-            return sha
-        }
-        return "dev"
-    }()
-}
-
 struct HostStartRoomView: View {
     @StateObject private var viewModel = HostStartRoomViewModel()
 

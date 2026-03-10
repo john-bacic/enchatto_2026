@@ -288,6 +288,17 @@ export default function JoinPage() {
           {joining ? t("Joining...", language) : `${t("Join as", language)} ${selectedEmoji} ${nickname || "..."}`}
         </button>
       </div>
+
+      <div
+        style={{
+          textAlign: "center",
+          fontSize: "0.65rem",
+          color: "#999",
+          marginTop: "0.75rem",
+        }}
+      >
+        v{(process.env.NEXT_PUBLIC_GIT_SHA || "dev").slice(0, 7)}
+      </div>
     </main>
   );
 }

@@ -156,26 +156,23 @@ export default function HomePage() {
         </div>
       </div>
 
+      <div
+        style={{
+          textAlign: "center",
+          fontSize: "0.65rem",
+          color: "#999",
+          marginTop: "0.75rem",
+        }}
+      >
+        v{(process.env.NEXT_PUBLIC_GIT_SHA || "dev").slice(0, 7)}
+      </div>
+
       {showScanner && (
         <QrScanner
           onScan={handleScan}
           onClose={() => setShowScanner(false)}
           lang={lang}
         />
-      )}
-
-      {process.env.NEXT_PUBLIC_GIT_SHA && (
-        <div
-          style={{
-            textAlign: "center",
-            fontSize: "0.6rem",
-            color: "var(--muted)",
-            opacity: 0.5,
-            padding: "0.15rem 0",
-          }}
-        >
-          v{process.env.NEXT_PUBLIC_GIT_SHA.slice(0, 7)}
-        </div>
       )}
     </main>
   );

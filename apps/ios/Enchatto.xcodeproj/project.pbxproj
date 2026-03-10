@@ -40,6 +40,7 @@
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
 		F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE91A5BA76409C309044A18 /* EnchattoApp.swift */; };
 		F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */; };
+		BB22CC33DD44EE55FF660011 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF66 /* GitInfo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -77,6 +78,7 @@
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
 		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF66 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -97,6 +99,7 @@
 			children = (
 				3739F0B6F971461D3C5ECBCE /* Assets.xcassets */,
 				5EE91A5BA76409C309044A18 /* EnchattoApp.swift */,
+				AA11BB22CC33DD44EE55FF66 /* GitInfo.swift */,
 				048A500F948FBFF3A696F580 /* Localization.swift */,
 				4C59768529F53DC71560987B /* SpeechRecognizer.swift */,
 			);
@@ -200,6 +203,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3559C030B885164E4E195F8C /* Build configuration list for PBXNativeTarget "Enchatto" */;
 			buildPhases = (
+				CC33DD44EE55FF6600112233 /* Inject Git SHA */,
 				71C4F326CE21B92EA485D735 /* Sources */,
 				6A8A6BBB7C4C66382A0A6C71 /* Resources */,
 			);
@@ -258,6 +262,24 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		CC33DD44EE55FF6600112233 /* Inject Git SHA */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			alwaysOutOfDate = 1;
+			name = "Inject Git SHA";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "SHA=$(git rev-parse --short HEAD 2>/dev/null || echo \"dev\")\necho \"enum GitInfo { static let commitSHA = \\\"${SHA}\\\" }\" > \"${SRCROOT}/GitInfo.swift\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		71C4F326CE21B92EA485D735 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -270,6 +292,7 @@
 				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,
 				F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */,
 				F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */,
+				BB22CC33DD44EE55FF660011 /* GitInfo.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
 				511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */,
