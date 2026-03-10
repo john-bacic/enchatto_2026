@@ -15,6 +15,7 @@
 		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
+		A1B2C3D4E5F60718192A3B4C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5C /* NetworkMonitor.swift */; };
 		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
 		5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */; };
 		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
@@ -62,6 +63,7 @@
 		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
 		8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexHTTPClient.swift; sourceTree = "<group>"; };
 		96B6CE020D97A2019D833739 /* SuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionService.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C60718293A4B5C /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockEnchattoAPI.swift; sourceTree = "<group>"; };
 		A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubSuggestionService.swift; sourceTree = "<group>"; };
 		A33DB151FE11D2A253A5C4DB /* Enchatto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchatto.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,6 +176,7 @@
 			isa = PBXGroup;
 			children = (
 				21F34644BA555D35385B9FE7 /* API */,
+				D1E2F3A4B5C60718293A4B5C /* NetworkMonitor.swift */,
 				2FCFF422646FF1C4879C5DA6 /* Processing */,
 			);
 			path = Services;
@@ -279,6 +282,7 @@
 				2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */,
 				76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */,
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
+				A1B2C3D4E5F60718192A3B4C /* NetworkMonitor.swift in Sources */,
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
 				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
 				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,

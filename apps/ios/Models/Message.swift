@@ -40,6 +40,53 @@ struct Message: Identifiable, Codable {
     }
 }
 
+// MARK: - Queued (offline) message
+
+struct QueuedMessage {
+    let id: String
+    let kind: MessageKind
+    let text: String?
+    let mediaUrl: String?
+    let replyToId: String?
+    let createdAt: Date
+    var processing: ProcessingState?
+    var processingAttempted: Bool = false
+
+    init(text: String, replyToId: String? = nil) {
+        self.id = "queued-\(UUID().uuidString)"
+        self.kind = .text
+        self.text = text
+        self.mediaUrl = nil
+        self.replyToId = replyToId
+        self.createdAt = Date()
+    }
+
+    init(kind: MessageKind, mediaUrl: String, replyToId: String? = nil) {
+        self.id = "queued-\(UUID().uuidString)"
+        self.kind = kind
+        self.text = nil
+        self.mediaUrl = mediaUrl
+        self.replyToId = replyToId
+        self.createdAt = Date()
+    }
+
+    func toPlaceholderMessage(roomId: String, senderId: String) -> Message {
+        Message(
+            id: id,
+            roomId: roomId,
+            senderId: senderId,
+            kind: kind,
+            status: (kind == .text && processing == nil) ? .pending : .processed,
+            text: text,
+            mediaUrl: mediaUrl,
+            processing: processing,
+            replyToId: replyToId,
+            createdAt: createdAt,
+            processedAt: nil
+        )
+    }
+}
+
 // MARK: - Reactions
 
 let supportedReactions: [String] = ["👍", "❤️", "😂", "😮", "🎉", "👀"]

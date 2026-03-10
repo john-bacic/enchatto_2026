@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import CoreImage.CIFilterBuiltins
+import Translation
 
 // PreferenceKey to capture message frames for context menu positioning
 private struct MessageFramePreferenceKey: PreferenceKey {
@@ -48,6 +49,10 @@ struct HostConversationView: View {
         VStack(spacing: 0) {
             headerView
 
+            if viewModel.isOffline {
+                offlineBanner
+            }
+
             if viewModel.isLoading {
                 Spacer()
                 ProgressView(L.t("Loading...", hostLanguage))
@@ -70,6 +75,7 @@ struct HostConversationView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .background { offlineTranslatorBridge }
         .onAppear { viewModel.startObserving() }
         .onDisappear { viewModel.stopObserving() }
         .onChange(of: scenePhase) { newPhase in
@@ -356,6 +362,38 @@ struct HostConversationView: View {
         .padding(.vertical, 10)
         .background(Color(.systemBackground))
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    // MARK: - Offline banner
+
+    private var offlineBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.subheadline)
+            Text(L.t("You're offline", hostLanguage))
+                .font(.subheadline)
+                .fontWeight(.medium)
+            if viewModel.pendingQueueCount > 0 {
+                Text("(\(viewModel.pendingQueueCount) \(L.t("queued", hostLanguage)))")
+                    .font(.caption)
+                    .opacity(0.8)
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.orange)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.3), value: viewModel.isOffline)
+    }
+
+    // MARK: - Offline translation bridge
+
+    @ViewBuilder
+    private var offlineTranslatorBridge: some View {
+        if #available(iOS 18.0, *) {
+            OfflineTranslator(viewModel: viewModel)
+        }
     }
 
     // MARK: - Empty state
@@ -724,6 +762,32 @@ struct HostConversationView: View {
                     .onChange(of: hostLanguage) { newValue in
                         UserDefaults.standard.set(newValue, forKey: "enchatto_lastLanguage")
                     }
+
+                    if !viewModel.translationPacksInstalled {
+                        Button {
+                            viewModel.requestTranslationDownload = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .foregroundStyle(.blue)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(L.t("Download Offline Translation", hostLanguage))
+                                        .font(.subheadline)
+                                    Text(L.t("Enables translation without internet", hostLanguage))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text(L.t("Offline translation ready", hostLanguage))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text(L.t("Settings", hostLanguage))
                 }
@@ -1047,6 +1111,84 @@ private struct QRCodeFloatingPanel: View {
         }
 
         return UIImage(cgImage: cgImage)
+    }
+}
+
+// MARK: - Offline translation via Apple Translation framework
+
+@available(iOS 18.0, *)
+private struct OfflineTranslator: View {
+    @ObservedObject var viewModel: HostRoomViewModel
+    @State private var enJaConfig: TranslationSession.Configuration?
+    @State private var jaEnConfig: TranslationSession.Configuration?
+    @State private var showDownloadPresentation = false
+
+    var body: some View {
+        ZStack {
+            // Each direction on its OWN view — two .translationTask modifiers
+            // on the same view can conflict and prevent sessions from starting.
+            Color.clear
+                .translationTask(enJaConfig) { session in
+                    print("[OfflineTranslator] en→ja session active, translating batch")
+                    await viewModel.translateQueueBatch(session: session, fromLang: "en")
+                }
+            Color.clear
+                .translationTask(jaEnConfig) { session in
+                    print("[OfflineTranslator] ja→en session active, translating batch")
+                    await viewModel.translateQueueBatch(session: session, fromLang: "ja")
+                }
+        }
+        .frame(width: 0, height: 0)
+        // Download prompt — Apple's translation overlay handles the download flow
+        .translationPresentation(isPresented: $showDownloadPresentation, text: "Hello")
+        // Re-trigger translation sessions when new messages are enqueued
+        .onChange(of: viewModel.offlineQueueVersion) { _, _ in
+            guard viewModel.translationPacksInstalled else { return }
+            enJaConfig?.invalidate()
+            jaEnConfig?.invalidate()
+        }
+        // React to user tapping the download button in participant sheet
+        .onChange(of: viewModel.requestTranslationDownload) { _, newValue in
+            if newValue {
+                showDownloadPresentation = true
+                viewModel.requestTranslationDownload = false
+            }
+        }
+        // Re-check after download presentation dismisses
+        .onChange(of: showDownloadPresentation) { _, isPresented in
+            if !isPresented {
+                Task { await checkAndStart() }
+            }
+        }
+        // Check on room open and initialize configs if packs are installed
+        .task {
+            await checkAndStart()
+        }
+    }
+
+    private func checkAndStart() async {
+        let availability = LanguageAvailability()
+        let enJa = await availability.status(
+            from: Locale.Language(identifier: "en"),
+            to: Locale.Language(identifier: "ja")
+        )
+        let jaEn = await availability.status(
+            from: Locale.Language(identifier: "ja"),
+            to: Locale.Language(identifier: "en")
+        )
+        viewModel.translationPacksInstalled = (enJa == .installed && jaEn == .installed)
+
+        // Initialize configs so .translationTask is ready to fire on invalidate()
+        if viewModel.translationPacksInstalled && enJaConfig == nil {
+            enJaConfig = .init(
+                source: Locale.Language(identifier: "en"),
+                target: Locale.Language(identifier: "ja")
+            )
+            jaEnConfig = .init(
+                source: Locale.Language(identifier: "ja"),
+                target: Locale.Language(identifier: "en")
+            )
+        }
     }
 }
 

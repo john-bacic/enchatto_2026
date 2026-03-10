@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 import UIKit
+import Combine
+import Network
+import NaturalLanguage
+import Translation
 
 @MainActor
 class HostRoomViewModel: ObservableObject {
@@ -24,6 +28,24 @@ class HostRoomViewModel: ObservableObject {
     /// Track message IDs currently being processed to avoid duplicates
     private var processingMessageIds: Set<String> = []
 
+    // MARK: - Offline support
+    let networkMonitor = NetworkMonitor()
+    @Published var isOffline: Bool = false
+    private var offlineQueue: [QueuedMessage] = []
+    private var isFlushing = false
+    private var cancellables = Set<AnyCancellable>()
+
+    var pendingQueueCount: Int { offlineQueue.count }
+
+    /// Incremented each time a text message is enqueued, so the
+    /// OfflineTranslator view can call `invalidate()` on its configs.
+    @Published var offlineQueueVersion = 0
+
+    /// Whether the on-device en↔ja translation packs are installed.
+    @Published var translationPacksInstalled = true
+    /// Set to true from the download banner; the OfflineTranslator observes this.
+    @Published var requestTranslationDownload = false
+
     init(
         roomId: String,
         hostId: String,
@@ -34,6 +56,18 @@ class HostRoomViewModel: ObservableObject {
         self.hostId = hostId
         self.api = api
         self.processor = processor
+
+        // Bind isOffline to inverse of networkMonitor.isConnected
+        networkMonitor.$isConnected
+            .map { !$0 }
+            .assign(to: &$isOffline)
+
+        // Fire reconnect handler
+        networkMonitor.onReconnect = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleReconnect()
+            }
+        }
     }
 
     // MARK: - Observation
@@ -52,9 +86,12 @@ class HostRoomViewModel: ObservableObject {
         heartbeatTask = Task { [weak self] in
             guard let self else { return }
             // Mark online immediately
-            try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+            if self.networkMonitor.isConnected {
+                try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+            }
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard self.networkMonitor.isConnected else { continue }
                 try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
             }
         }
@@ -63,7 +100,9 @@ class HostRoomViewModel: ObservableObject {
         processingTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                await self.processPendingMessages()
+                if self.networkMonitor.isConnected {
+                    await self.processPendingMessages()
+                }
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
             }
         }
@@ -98,6 +137,7 @@ class HostRoomViewModel: ObservableObject {
     }
 
     func refresh() async {
+        guard networkMonitor.isConnected else { return }
         do {
             let state = try await api.getRoomState(roomId: roomId)
             let msgs = try await api.getRoomMessages(roomId: roomId)
@@ -107,6 +147,11 @@ class HostRoomViewModel: ObservableObject {
             participants = state.participants
             messages = msgs.sorted { $0.createdAt < $1.createdAt }
 
+            // Re-merge any remaining queued messages so they stay visible
+            if !offlineQueue.isEmpty {
+                mergeQueueIntoMessages()
+            }
+
             var map: [String: [ReactionSummaryEntry]] = [:]
             for summary in rxSummaries {
                 map[summary.messageId] = summary.reactions
@@ -115,7 +160,10 @@ class HostRoomViewModel: ObservableObject {
 
             isLoading = false
         } catch {
-            self.error = error.localizedDescription
+            // Only show errors when online — offline failures are expected
+            if networkMonitor.isConnected {
+                self.error = error.localizedDescription
+            }
             isLoading = false
         }
     }
@@ -178,6 +226,10 @@ class HostRoomViewModel: ObservableObject {
     // MARK: - Actions
 
     func sendMessage(_ text: String, replyToId: String? = nil) async {
+        guard networkMonitor.isConnected else {
+            enqueueMessage(text: text, replyToId: replyToId)
+            return
+        }
         do {
             _ = try await api.sendTextMessage(
                 roomId: roomId,
@@ -187,7 +239,8 @@ class HostRoomViewModel: ObservableObject {
             )
             await refresh()
         } catch {
-            self.error = error.localizedDescription
+            // Network may have dropped mid-request — enqueue instead of showing error
+            enqueueMessage(text: text, replyToId: replyToId)
         }
     }
 
@@ -216,6 +269,10 @@ class HostRoomViewModel: ObservableObject {
         let base64 = data.base64EncodedString()
         let mediaUrl = "data:image/jpeg;base64,\(base64)"
 
+        guard networkMonitor.isConnected else {
+            enqueueMedia(kind: .image, mediaUrl: mediaUrl, replyToId: replyToId)
+            return
+        }
         do {
             _ = try await api.sendImageMessage(
                 roomId: roomId,
@@ -225,7 +282,7 @@ class HostRoomViewModel: ObservableObject {
             )
             await refresh()
         } catch {
-            self.error = error.localizedDescription
+            enqueueMedia(kind: .image, mediaUrl: mediaUrl, replyToId: replyToId)
         }
     }
 
@@ -234,6 +291,10 @@ class HostRoomViewModel: ObservableObject {
         let base64 = data.base64EncodedString()
         let mediaUrl = "data:image/png;base64,\(base64)"
 
+        guard networkMonitor.isConnected else {
+            enqueueMedia(kind: .drawing, mediaUrl: mediaUrl, replyToId: replyToId)
+            return
+        }
         do {
             _ = try await api.sendDrawingMessage(
                 roomId: roomId,
@@ -243,35 +304,170 @@ class HostRoomViewModel: ObservableObject {
             )
             await refresh()
         } catch {
-            self.error = error.localizedDescription
+            enqueueMedia(kind: .drawing, mediaUrl: mediaUrl, replyToId: replyToId)
         }
     }
 
     func addReaction(messageId: String, emoji: String) async {
+        guard networkMonitor.isConnected else { return }
         do {
             try await api.addReaction(messageId: messageId, participantId: hostId, emoji: emoji)
             await refresh()
         } catch {
-            self.error = error.localizedDescription
+            if networkMonitor.isConnected {
+                self.error = error.localizedDescription
+            }
         }
     }
 
     func removeReaction(messageId: String, emoji: String) async {
+        guard networkMonitor.isConnected else { return }
         do {
             try await api.removeReaction(messageId: messageId, participantId: hostId, emoji: emoji)
             await refresh()
         } catch {
-            self.error = error.localizedDescription
+            if networkMonitor.isConnected {
+                self.error = error.localizedDescription
+            }
         }
     }
 
     func deleteMessage(messageId: String) async {
+        guard networkMonitor.isConnected else { return }
         do {
             try await api.deleteMessage(messageId: messageId)
             await refresh()
         } catch {
-            self.error = error.localizedDescription
+            if networkMonitor.isConnected {
+                self.error = error.localizedDescription
+            }
         }
+    }
+
+    // MARK: - Offline queue
+
+    private func enqueueMessage(text: String, replyToId: String?) {
+        let queued = QueuedMessage(text: text, replyToId: replyToId)
+        offlineQueue.append(queued)
+        mergeQueueIntoMessages()
+        // Signal OfflineTranslator to re-trigger .translationTask via invalidate()
+        offlineQueueVersion += 1
+    }
+
+    private func enqueueMedia(kind: MessageKind, mediaUrl: String, replyToId: String?) {
+        let queued = QueuedMessage(kind: kind, mediaUrl: mediaUrl, replyToId: replyToId)
+        offlineQueue.append(queued)
+        mergeQueueIntoMessages()
+    }
+
+    private func mergeQueueIntoMessages() {
+        // Remove old placeholders
+        messages.removeAll { $0.id.hasPrefix("queued-") }
+        // Append current queue as placeholder messages
+        let placeholders = offlineQueue.map {
+            $0.toPlaceholderMessage(roomId: roomId, senderId: hostId)
+        }
+        messages.append(contentsOf: placeholders)
+        messages.sort { $0.createdAt < $1.createdAt }
+    }
+
+    /// Called by the view's `.translationTask` with the session for a given direction.
+    @available(iOS 18.0, *)
+    func translateQueueBatch(session: TranslationSession, fromLang: String) async {
+        var didTranslate = false
+        let romajiService = StubRomajiService()
+
+        for i in 0..<offlineQueue.count {
+            guard !offlineQueue[i].processingAttempted else { continue }
+            guard offlineQueue[i].kind == .text,
+                  let text = offlineQueue[i].text, !text.isEmpty else {
+                offlineQueue[i].processingAttempted = true
+                continue
+            }
+            let detected = detectLanguage(text)
+            guard detected == fromLang else { continue }
+
+            do {
+                let response = try await session.translate(text)
+                let translatedText = response.targetText
+                let isJapanese = (fromLang == "ja")
+                let romajiSource = isJapanese ? text : translatedText
+                let romaji = try? await romajiService.transliterateJapaneseToRomaji(text: romajiSource)
+
+                offlineQueue[i].processing = ProcessingState(
+                    translatedText: translatedText,
+                    romaji: romaji,
+                    suggestions: nil
+                )
+                offlineQueue[i].processingAttempted = true
+                didTranslate = true
+            } catch {
+                // Translation failed — leave processingAttempted false so it retries
+                print("Offline translation error: \(error)")
+            }
+        }
+        if didTranslate {
+            mergeQueueIntoMessages()
+        }
+    }
+
+    private func detectLanguage(_ text: String) -> String {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        return recognizer.dominantLanguage == .japanese ? "ja" : "en"
+    }
+
+    private func handleReconnect() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.flushQueue()
+            await self.refresh()
+        }
+    }
+
+    private func flushQueue() async {
+        guard !isFlushing else { return }
+        isFlushing = true
+        defer { isFlushing = false }
+
+        while !offlineQueue.isEmpty {
+            let queued = offlineQueue[0]
+            do {
+                switch queued.kind {
+                case .text:
+                    let messageId = try await api.sendTextMessage(
+                        roomId: roomId,
+                        senderId: hostId,
+                        text: queued.text ?? "",
+                        replyToId: queued.replyToId
+                    )
+                    if let processing = queued.processing {
+                        try? await api.submitProcessedMessage(messageId: messageId, processing: processing)
+                    }
+                case .image:
+                    _ = try await api.sendImageMessage(
+                        roomId: roomId,
+                        senderId: hostId,
+                        mediaUrl: queued.mediaUrl ?? "",
+                        replyToId: queued.replyToId
+                    )
+                case .drawing:
+                    _ = try await api.sendDrawingMessage(
+                        roomId: roomId,
+                        senderId: hostId,
+                        mediaUrl: queued.mediaUrl ?? "",
+                        replyToId: queued.replyToId
+                    )
+                case .system:
+                    break
+                }
+                offlineQueue.removeFirst()
+            } catch {
+                // Stop on first failure — will retry on next reconnect
+                break
+            }
+        }
+        mergeQueueIntoMessages()
     }
 
     // MARK: - Helpers
