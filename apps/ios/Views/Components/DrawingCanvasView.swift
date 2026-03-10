@@ -5,6 +5,7 @@ struct DrawingCanvasView: UIViewRepresentable {
     @Binding var lines: [DrawingLine]
     var strokeColor: Color
     var lineWidth: CGFloat
+    var onViewReady: ((DrawingUIView) -> Void)?
 
     func makeUIView(context: Context) -> DrawingUIView {
         let view = DrawingUIView()
@@ -12,13 +13,17 @@ struct DrawingCanvasView: UIViewRepresentable {
         view.delegate = context.coordinator
         view.strokeColor = UIColor(strokeColor)
         view.lineWidth = lineWidth
+        DispatchQueue.main.async { onViewReady?(view) }
         return view
     }
 
     func updateUIView(_ uiView: DrawingUIView, context: Context) {
         uiView.strokeColor = UIColor(strokeColor)
         uiView.lineWidth = lineWidth
-        uiView.lines = lines
+        if uiView.lines.count != lines.count {
+            uiView.lines = lines
+            uiView.setNeedsDisplay()
+        }
     }
 
     func makeCoordinator() -> Coordinator {

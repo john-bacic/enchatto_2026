@@ -8,13 +8,18 @@ struct HostMessageRow: View {
     let replyTarget: Message?
     let replyTargetSender: Participant?
     var reactions: [ReactionSummaryEntry] = []
+    var preferredLanguage: String = "en"
     var onReply: () -> Void
     var onSuggestionTap: ((String) -> Void)?
     var onReact: ((String) -> Void)?
+    var onLongPress: (() -> Void)?
+    var showEnglish: Bool = true
+    var showJapanese: Bool = true
+    var showRomaji: Bool = true
 
     private let maxBubbleWidth = UIScreen.main.bounds.width * 0.75
 
-    @State private var showActionSheet = false
+    @State private var showFullImage = false
 
     var body: some View {
         HStack {
@@ -24,17 +29,9 @@ struct HostMessageRow: View {
                 replyPreview
                 bubbleRow
                 suggestionsRow
-                if isOwn { timestampRow }
             }
 
             if !isOwn { Spacer(minLength: 0) }
-        }
-        .confirmationDialog("", isPresented: $showActionSheet, titleVisibility: .hidden) {
-            ForEach(supportedReactions, id: \.self) { emoji in
-                Button(emoji) { onReact?(emoji) }
-            }
-            Button("Reply") { onReply() }
-            Button("Cancel", role: .cancel) {}
         }
     }
 
@@ -54,7 +51,7 @@ struct HostMessageRow: View {
 
                 messageBubble
                     .onLongPressGesture {
-                        if !isOwn { showActionSheet = true }
+                        onLongPress?()
                     }
 
                 // Reactions or heart to the right of others' bubble
@@ -62,7 +59,7 @@ struct HostMessageRow: View {
                     if !reactions.isEmpty {
                         reactionChips
                     } else {
-                        Button { showActionSheet = true } label: {
+                        Button { onLongPress?() } label: {
                             Image(systemName: "heart")
                                 .font(.system(size: 12))
                                 .foregroundStyle(Color(.systemGray4))
@@ -94,12 +91,6 @@ struct HostMessageRow: View {
                     .frame(maxWidth: 40)
             }
         }
-    }
-
-    private var timestampRow: some View {
-        Text(message.createdAt, style: .time)
-            .font(.caption2)
-            .foregroundStyle(.quaternary)
     }
 
     // MARK: - Reply preview
@@ -135,11 +126,11 @@ struct HostMessageRow: View {
         if let replyTarget {
             switch replyTarget.kind {
             case .image:
-                Label("Photo", systemImage: "photo")
+                Label(L.t("Photo", preferredLanguage), systemImage: "photo")
                     .font(.caption2)
                     .italic()
             case .drawing:
-                Label("Drawing", systemImage: "pencil.tip")
+                Label(L.t("Drawing", preferredLanguage), systemImage: "pencil.tip")
                     .font(.caption2)
                     .italic()
             default:
@@ -157,63 +148,167 @@ struct HostMessageRow: View {
             .padding(10)
             .background(isOwn ? Color.accentColor.opacity(0.12) : Color(.systemGray6))
             .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: isOwn ? 16 : 4,
-                bottomLeadingRadius: 16,
+                topLeadingRadius: 16,
+                bottomLeadingRadius: isOwn ? 16 : 4,
                 bottomTrailingRadius: isOwn ? 4 : 16,
                 topTrailingRadius: 16
             ))
             .opacity(message.status == .pending ? 0.7 : 1)
     }
 
+    /// Determine if the original message text is Japanese
+    private var isOriginalJapanese: Bool {
+        guard let text = message.text, !text.isEmpty else { return false }
+        // Check if text contains any Japanese characters (Hiragana, Katakana, CJK)
+        return text.unicodeScalars.contains { scalar in
+            let v = scalar.value
+            return (0x3040...0x309F).contains(v) ||  // Hiragana
+                   (0x30A0...0x30FF).contains(v) ||  // Katakana
+                   (0x4E00...0x9FFF).contains(v)     // CJK
+        }
+    }
+
+    /// The English text (original or translated, whichever is English)
+    private var englishText: String? {
+        if isOriginalJapanese {
+            return message.processing?.translatedText
+        } else {
+            return message.text
+        }
+    }
+
+    /// The Japanese text (original or translated, whichever is Japanese)
+    private var japaneseText: String? {
+        if isOriginalJapanese {
+            return message.text
+        } else {
+            return message.processing?.translatedText
+        }
+    }
+
     @ViewBuilder
     private var bubbleContent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Original text
-            if let text = message.text {
-                Text(text)
-                    .font(.body)
-            }
-
-            // Media placeholder
-            if message.kind == .image || message.kind == .drawing {
-                if let url = message.mediaUrl {
-                    AsyncImage(url: URL(string: url)) { image in
-                        image.resizable().scaledToFit()
-                    } placeholder: {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemGray5))
-                            .frame(height: 120)
-                            .overlay {
-                                Image(systemName: message.kind == .image ? "photo" : "pencil.tip")
-                                    .foregroundStyle(.secondary)
-                            }
-                    }
-                    .frame(maxWidth: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-            }
-
-            // Processing results
-            if message.status == .processed, let processing = message.processing {
-                VStack(alignment: .leading, spacing: 4) {
-                    if let romaji = processing.romaji, !romaji.isEmpty {
+            // Primary text — show preferred language first
+            if preferredLanguage == "ja" {
+                if showJapanese, let jp = japaneseText, !jp.isEmpty {
+                    Text(jp).font(.body)
+                    // Romaji grouped with Japanese
+                    if message.status == .processed, showRomaji,
+                       let romaji = message.processing?.romaji, !romaji.isEmpty {
                         Text(romaji)
                             .font(.caption)
                             .italic()
                             .foregroundStyle(.secondary)
                     }
-
-                    if let translated = processing.translatedText, !translated.isEmpty {
-                        Text(translated)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                } else if showEnglish, let en = englishText, !en.isEmpty {
+                    Text(en).font(.body)
+                }
+            } else {
+                if showEnglish, let en = englishText, !en.isEmpty {
+                    Text(en).font(.body)
+                } else if showJapanese, let jp = japaneseText, !jp.isEmpty {
+                    Text(jp).font(.body)
+                    // Romaji grouped with Japanese (fallback)
+                    if message.status == .processed, showRomaji,
+                       let romaji = message.processing?.romaji, !romaji.isEmpty {
+                        Text(romaji)
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.top, 6)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Color(.separator))
-                        .frame(height: 0.5)
+            }
+
+            // Media
+            if message.kind == .image || message.kind == .drawing {
+                if let url = message.mediaUrl {
+                    let isDrawing = message.kind == .drawing
+                    let thumbWidth: CGFloat = 200
+
+                    AsyncImage(url: URL(string: url)) { phase in
+                        if let image = phase.image {
+                            image.resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: thumbWidth)
+                                .onTapGesture { showFullImage = true }
+                        } else {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.systemGray5))
+                                .frame(width: thumbWidth, height: 120)
+                                .overlay {
+                                    Image(systemName: isDrawing ? "pencil.tip" : "photo")
+                                        .foregroundStyle(.secondary)
+                                }
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .fullScreenCover(isPresented: $showFullImage) {
+                        FullImageView(url: url)
+                    }
+                }
+            }
+
+            // Secondary content — always: divider between English and Japanese/Romaji
+            if message.status == .processed, let processing = message.processing {
+                let hasSecondary: Bool = {
+                    if preferredLanguage == "ja" {
+                        let primaryShowedJapanese = showJapanese && !(japaneseText ?? "").isEmpty
+                        return primaryShowedJapanese && showEnglish && !(englishText ?? "").isEmpty
+                    } else {
+                        let primaryShowedEnglish = showEnglish && !(englishText ?? "").isEmpty
+                        return primaryShowedEnglish && showJapanese && !(japaneseText ?? "").isEmpty
+                    }
+                }()
+                // Romaji below divider only if not already shown with Japanese in primary
+                let romajiAvailable = showRomaji && !(processing.romaji ?? "").isEmpty
+                let romajiShownInPrimary: Bool = {
+                    if preferredLanguage == "ja" {
+                        return showJapanese && !(japaneseText ?? "").isEmpty
+                    } else {
+                        // Japanese was fallback primary (English not shown)
+                        let englishShown = showEnglish && !(englishText ?? "").isEmpty
+                        return !englishShown && showJapanese && !(japaneseText ?? "").isEmpty
+                    }
+                }()
+                let hasRomajiBelow = romajiAvailable && !romajiShownInPrimary
+
+                if hasSecondary || hasRomajiBelow {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if preferredLanguage == "ja" {
+                            // Romaji below divider if Japanese wasn't shown as primary
+                            if hasRomajiBelow {
+                                Text(processing.romaji!)
+                                    .font(.caption)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                            }
+                            if showEnglish, let en = englishText, !en.isEmpty {
+                                Text(en)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            // Romaji + Japanese grouped below divider
+                            if hasRomajiBelow {
+                                Text(processing.romaji!)
+                                    .font(.caption)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                            }
+                            if showJapanese, let jp = japaneseText, !jp.isEmpty {
+                                Text(jp)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                    }
+                    .padding(.top, 6)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(Color(.separator))
+                            .frame(height: 0.5)
+                    }
                 }
             }
 
@@ -222,7 +317,7 @@ struct HostMessageRow: View {
                 HStack(spacing: 4) {
                     ProgressView()
                         .controlSize(.mini)
-                    Text("Processing...")
+                    Text(L.t("Processing...", preferredLanguage))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -233,7 +328,7 @@ struct HostMessageRow: View {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2)
-                    Text(message.processing?.error ?? "Processing failed")
+                    Text(message.processing?.error ?? L.t("Processing failed", preferredLanguage))
                         .font(.caption2)
                 }
                 .foregroundStyle(.red)
@@ -246,19 +341,24 @@ struct HostMessageRow: View {
     private var reactionChips: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(reactions, id: \.emoji) { entry in
-                HStack(spacing: 2) {
-                    Text(entry.emoji)
-                        .font(.system(size: 12))
-                    if entry.count > 1 {
-                        Text("\(entry.count)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                Button {
+                    onLongPress?()
+                } label: {
+                    HStack(spacing: 2) {
+                        Text(entry.emoji)
+                            .font(.system(size: 12))
+                        if entry.count > 1 {
+                            Text("\(entry.count)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Color(.systemGray5))
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
             }
         }
     }
@@ -286,6 +386,38 @@ struct HostMessageRow: View {
                 }
             }
             .padding(.leading, isOwn ? 0 : 40)
+        }
+    }
+}
+
+// MARK: - Full-screen image viewer
+
+private struct FullImageView: View {
+    let url: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+
+            AsyncImage(url: URL(string: url)) { image in
+                image
+                    .resizable()
+                    .scaledToFit()
+            } placeholder: {
+                ProgressView()
+                    .tint(.white)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding()
+            }
         }
     }
 }

@@ -1,5 +1,15 @@
 import SwiftUI
+import PhotosUI
 import CoreImage.CIFilterBuiltins
+
+// PreferenceKey to capture message frames for context menu positioning
+private struct MessageFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
 
 struct HostConversationView: View {
     let roomId: String
@@ -9,11 +19,23 @@ struct HostConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: HostRoomViewModel
     @State private var messageText = ""
+    @FocusState private var isTextEditorFocused: Bool
     @State private var replyToId: String?
     @State private var showCloseConfirmation = false
     @State private var showDrawingComposer = false
     @State private var showCamera = false
+    @State private var showPhotoLibrary = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showQRCode = false
+    @State private var hostLanguage: String = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
+    @State private var contextMenuMessageId: String?
+    @State private var messageFrames: [String: CGRect] = [:]
+    @State private var messageToDelete: String?
+    @State private var showEnglish = true
+    @State private var showJapanese = true
+    @State private var showRomaji = true
+    @State private var tooltipParticipant: Participant?
+    @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
         self.roomId = roomId
@@ -27,7 +49,7 @@ struct HostConversationView: View {
 
             if viewModel.isLoading {
                 Spacer()
-                ProgressView("Loading...")
+                ProgressView(L.t("Loading...", hostLanguage))
                 Spacer()
             } else if viewModel.messages.isEmpty {
                 emptyStateView
@@ -60,20 +82,127 @@ struct HostConversationView: View {
         } message: {
             Text(viewModel.error ?? "")
         }
-        .confirmationDialog("Close this room?", isPresented: $showCloseConfirmation, titleVisibility: .visible) {
-            Button("Close Room", role: .destructive) {
+        .confirmationDialog(L.t("Close this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
+            Button(L.t("Close Room", hostLanguage), role: .destructive) {
                 Task { await viewModel.closeRoom() }
             }
         } message: {
-            Text("All participants will be disconnected. This cannot be undone.")
+            Text(L.t("All participants will be disconnected. This cannot be undone.", hostLanguage))
         }
         .sheet(isPresented: $viewModel.showParticipantSheet) {
             participantSheet
         }
+        .overlay { contextMenuOverlay }
+        .overlay { qrOverlay }
         .overlay {
-            if showQRCode, let joinCode = viewModel.room?.joinCode {
-                QRCodeFloatingPanel(joinCode: joinCode, isPresented: $showQRCode)
+            if let participant = tooltipParticipant {
+                Color.black.opacity(0.01)
+                    .onTapGesture {
+                        withAnimation { tooltipParticipant = nil }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        HStack(spacing: 4) {
+                            Text(participant.avatarEmoji)
+                                .font(.system(size: 12))
+                            Text(participant.nickname)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                            if participant.isAway {
+                                Text("·").foregroundStyle(.orange)
+                                Text(L.t("Away", hostLanguage))
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+                        .padding(.top, 54)
+                        .padding(.trailing, 44)
+                        .transition(.opacity)
+                    }
             }
+        }
+        .confirmationDialog(
+            L.t("Delete this message?", hostLanguage),
+            isPresented: Binding(
+                get: { messageToDelete != nil },
+                set: { if !$0 { messageToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(L.t("Delete", hostLanguage), role: .destructive) {
+                if let id = messageToDelete {
+                    Task { await viewModel.deleteMessage(messageId: id) }
+                }
+            }
+        } message: {
+            Text(L.t("This will remove the message for everyone.", hostLanguage))
+        }
+    }
+
+    // MARK: - QR Overlay
+
+    @ViewBuilder
+    private var qrOverlay: some View {
+        if showQRCode, let joinCode = viewModel.room?.joinCode {
+            QRCodeFloatingPanel(joinCode: joinCode, isPresented: $showQRCode, lang: hostLanguage)
+        }
+    }
+
+    // MARK: - Context menu overlay
+
+    @ViewBuilder
+    private var contextMenuOverlay: some View {
+        if let menuMessageId = contextMenuMessageId,
+           let message = viewModel.messages.first(where: { $0.id == menuMessageId }),
+           let frame = messageFrames[menuMessageId] {
+            let sender = viewModel.participant(for: message.senderId)
+            let replyTarget = viewModel.replyTarget(for: message)
+            let replyTargetSender = replyTarget.flatMap { viewModel.participant(for: $0.senderId) }
+
+            MessageContextMenuOverlay(
+                message: message,
+                sender: sender,
+                isOwn: message.senderId == hostId,
+                replyTarget: replyTarget,
+                replyTargetSender: replyTargetSender,
+                reactions: viewModel.reactionSummaries[message.id] ?? [],
+                hostId: hostId,
+                preferredLanguage: hostLanguage,
+                sourceFrame: frame,
+                showEnglish: showEnglish,
+                showJapanese: showJapanese,
+                showRomaji: showRomaji,
+                isPresented: Binding(
+                    get: { contextMenuMessageId != nil },
+                    set: { if !$0 { contextMenuMessageId = nil } }
+                ),
+                onReact: { emoji in
+                    Task {
+                        let summaries = viewModel.reactionSummaries[message.id] ?? []
+                        if let existing = summaries.first(where: { $0.participantIds.contains(hostId) }) {
+                            await viewModel.removeReaction(messageId: message.id, emoji: existing.emoji)
+                        }
+                        let tappedSame = summaries.contains { $0.emoji == emoji && $0.participantIds.contains(hostId) }
+                        if !tappedSame {
+                            await viewModel.addReaction(messageId: message.id, emoji: emoji)
+                        }
+                    }
+                },
+                onReply: {
+                    replyToId = message.id
+                },
+                onCopy: {
+                    UIPasteboard.general.string = message.text ?? ""
+                },
+                onDelete: {
+                    contextMenuMessageId = nil
+                    messageToDelete = message.id
+                }
+            )
         }
     }
 
@@ -96,16 +225,16 @@ struct HostConversationView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Enchatto")
+                        Text(L.t("Enchatto", hostLanguage))
                             .font(.headline)
                         HStack(spacing: 4) {
-                            Text("\(viewModel.onlineCount) online\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) away" : "")")
+                            Text("\(viewModel.onlineCount) \(L.t("online", hostLanguage))\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) \(L.t("away", hostLanguage))" : "")")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             if viewModel.isProcessing {
                                 ProgressView()
                                     .controlSize(.mini)
-                                Text("Processing...")
+                                Text(L.t("Processing...", hostLanguage))
                                     .font(.caption2)
                                     .foregroundStyle(.orange)
                             }
@@ -117,24 +246,43 @@ struct HostConversationView: View {
 
             Spacer()
 
-            // Other participant avatars — tap to show sheet
-            Button {
-                viewModel.showParticipantSheet = true
-            } label: {
-                ParticipantAvatarRow(
-                    participants: viewModel.participants.filter { $0.id != hostId },
-                    maxVisible: 5,
-                    avatarSize: 28
-                )
-            }
-            .buttonStyle(.plain)
+            // Other participant avatars — tap to show name tooltip
+            ParticipantAvatarRow(
+                participants: viewModel.participants.filter { $0.id != hostId },
+                maxVisible: 5,
+                avatarSize: 28,
+                onTapParticipant: { participant in
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        tooltipParticipant = tooltipParticipant?.id == participant.id ? nil : participant
+                    }
+                }
+            )
 
             // Menu
             Menu {
+                // Language display toggles
+                Button {
+                    showEnglish.toggle()
+                } label: {
+                    Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
+                }
+                Button {
+                    showJapanese.toggle()
+                } label: {
+                    Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
+                }
+                Button {
+                    showRomaji.toggle()
+                } label: {
+                    Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
+                }
+
+                Divider()
+
                 Button {
                     viewModel.showParticipantSheet = true
                 } label: {
-                    Label("Participants", systemImage: "person.2")
+                    Label(L.t("Participants", hostLanguage), systemImage: "person.2")
                 }
 
                 Divider()
@@ -142,11 +290,14 @@ struct HostConversationView: View {
                 Button(role: .destructive) {
                     showCloseConfirmation = true
                 } label: {
-                    Label("Close Room", systemImage: "xmark.circle")
+                    Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Image(systemName: "ellipsis")
                     .font(.title3)
+                    .rotationEffect(.degrees(90))
+                    .frame(width: 32, height: 44)
+                    .contentShape(Rectangle())
             }
         }
         .padding(.horizontal)
@@ -163,9 +314,9 @@ struct HostConversationView: View {
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 40))
                 .foregroundStyle(.quaternary)
-            Text("No messages yet")
+            Text(L.t("No messages yet", hostLanguage))
                 .foregroundStyle(.secondary)
-            Text("Waiting for participants to start chatting")
+            Text(L.t("Waiting for participants to start chatting", hostLanguage))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
@@ -179,29 +330,58 @@ struct HostConversationView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.messages) { message in
-                        let sender = viewModel.participant(for: message.senderId)
-                        let replyTarget = viewModel.replyTarget(for: message)
-                        let replyTargetSender = replyTarget.flatMap { viewModel.participant(for: $0.senderId) }
+                        if message.kind == .system {
+                            SystemMessageRow(text: message.text ?? "", lang: hostLanguage)
+                                .id(message.id)
+                        } else {
+                            let sender = viewModel.participant(for: message.senderId)
+                            let replyTarget = viewModel.replyTarget(for: message)
+                            let replyTargetSender = replyTarget.flatMap { viewModel.participant(for: $0.senderId) }
 
-                        HostMessageRow(
-                            message: message,
-                            sender: sender,
-                            isOwn: message.senderId == hostId,
-                            replyTarget: replyTarget,
-                            replyTargetSender: replyTargetSender,
-                            reactions: viewModel.reactionSummaries[message.id] ?? [],
-                            onReply: { replyToId = message.id },
-                            onSuggestionTap: { messageText = $0 },
-                            onReact: { emoji in
-                                Task { await viewModel.addReaction(messageId: message.id, emoji: emoji) }
-                            }
-                        )
-                        .id(message.id)
+                            HostMessageRow(
+                                message: message,
+                                sender: sender,
+                                isOwn: message.senderId == hostId,
+                                replyTarget: replyTarget,
+                                replyTargetSender: replyTargetSender,
+                                reactions: viewModel.reactionSummaries[message.id] ?? [],
+                                preferredLanguage: hostLanguage,
+                                onReply: { replyToId = message.id },
+                                onSuggestionTap: { messageText = $0 },
+                                onReact: nil,
+                                onLongPress: {
+                                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                                    impact.impactOccurred()
+                                    contextMenuMessageId = message.id
+                                },
+                                showEnglish: showEnglish,
+                                showJapanese: showJapanese,
+                                showRomaji: showRomaji
+                            )
+                            .id(message.id)
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: MessageFramePreferenceKey.self,
+                                        value: [message.id: geo.frame(in: .global)]
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    // Typing indicator bubbles
+                    ForEach(viewModel.typingParticipants) { participant in
+                        TypingBubble(participant: participant)
                     }
                 }
                 .padding()
             }
+            .onPreferenceChange(MessageFramePreferenceKey.self) { frames in
+                messageFrames = frames
+            }
             .onChange(of: viewModel.messages.count) { _ in
+                guard contextMenuMessageId == nil else { return }
                 if let lastId = viewModel.messages.last?.id {
                     withAnimation {
                         proxy.scrollTo(lastId, anchor: .bottom)
@@ -215,12 +395,12 @@ struct HostConversationView: View {
 
     private func replyIndicator(for message: Message) -> some View {
         let sender = viewModel.participant(for: message.senderId)
-        return HStack {
+        return HStack(spacing: 6) {
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(Color.accentColor)
-                .frame(width: 3)
+                .frame(width: 3, height: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Replying to \(sender?.nickname ?? "Unknown")")
+                Text("\(L.t("Replying to", hostLanguage)) \(sender?.nickname ?? L.t("Unknown", hostLanguage))")
                     .font(.caption)
                     .fontWeight(.medium)
                 Text(message.text?.prefix(40).description ?? "")
@@ -233,12 +413,12 @@ struct HostConversationView: View {
                 replyToId = nil
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.body)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .background(Color(.systemGray6))
     }
 
@@ -246,21 +426,105 @@ struct HostConversationView: View {
 
     @State private var showAttachMenu = false
 
+    private var voiceButton: some View {
+        Button {
+            if !speechRecognizer.isRecording {
+                isTextEditorFocused = false
+                viewModel.setTypingAction("voicing")
+            } else {
+                viewModel.setTypingAction(nil)
+            }
+            speechRecognizer.updateLocale(hostLanguage)
+            speechRecognizer.toggleRecording()
+        } label: {
+            let recording = speechRecognizer.isRecording
+            HStack(spacing: 4) {
+                Image(systemName: recording ? "mic.fill" : "mic")
+                    .font(.system(size: 14))
+                Text(L.t("Voice", hostLanguage))
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundStyle(recording ? .red : .secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(recording ? Color.red.opacity(0.15) : Color(.systemGray5))
+            .clipShape(Capsule())
+        }
+    }
+
+    private var inputToolbar: some View {
+        HStack(spacing: 10) {
+            // Plus menu (camera + photo library)
+            Menu {
+                Button {
+                    showCamera = true
+                } label: {
+                    Label(L.t("Camera", hostLanguage), systemImage: "camera")
+                }
+                Button {
+                    showPhotoLibrary = true
+                } label: {
+                    Label(L.t("Photo", hostLanguage), systemImage: "photo")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(Color(.systemGray5))
+                    .clipShape(Circle())
+            }
+
+            // Drawing button
+            Button {
+                showDrawingComposer = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "pencil.tip")
+                        .font(.system(size: 14))
+                    Text(L.t("Draw", hostLanguage))
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(.systemGray5))
+                .clipShape(Capsule())
+            }
+
+            voiceButton
+
+            Spacer()
+
+            // Send button
+            SendButton(
+                hasText: !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
+                action: sendCurrentMessage
+            )
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
+    }
+
     private var inputView: some View {
         VStack(spacing: 0) {
             // Card container
             VStack(spacing: 0) {
                 // Text area
                 TextEditor(text: $messageText)
+                    .focused($isTextEditorFocused)
                     .frame(minHeight: 36, maxHeight: 120)
                     .fixedSize(horizontal: false, vertical: true)
                     .scrollContentBackground(.hidden)
+                    .onChange(of: messageText) { text in
+                        viewModel.setTypingAction(text.isEmpty ? nil : "typing")
+                    }
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
                     .padding(.bottom, 4)
                     .overlay(alignment: .topLeading) {
                         if messageText.isEmpty {
-                            Text("Type a message...")
+                            Text(L.t("Type a message...", hostLanguage))
                                 .foregroundColor(Color(.placeholderText))
                                 .padding(.horizontal, 16)
                                 .padding(.top, 18)
@@ -268,60 +532,7 @@ struct HostConversationView: View {
                         }
                     }
 
-                // Bottom toolbar
-                HStack(spacing: 10) {
-                    // Plus menu
-                    Menu {
-                        Button {
-                            showCamera = true
-                        } label: {
-                            Label("Camera", systemImage: "camera")
-                        }
-                        ImagePickerView(isPresented: .constant(false)) { image in
-                            Task { await viewModel.sendImage(image, replyToId: replyToId); replyToId = nil }
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 30, height: 30)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                    }
-
-                    // Drawing button
-                    Button {
-                        showDrawingComposer = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "pencil.tip")
-                                .font(.system(size: 14))
-                            Text("Draw")
-                                .font(.system(size: 13, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(.systemGray5))
-                        .clipShape(Capsule())
-                    }
-
-                    Spacer()
-
-                    // Send button
-                    Button(action: sendCurrentMessage) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(
-                                messageText.trimmingCharacters(in: .whitespaces).isEmpty
-                                    ? Color(.systemGray4)
-                                    : Color.accentColor
-                            )
-                    }
-                    .disabled(messageText.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-                .padding(.horizontal, 10)
-                .padding(.bottom, 10)
+                inputToolbar
             }
             .background(Color(.systemGray6).opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -333,8 +544,19 @@ struct HostConversationView: View {
             .padding(.vertical, 8)
         }
         .background(Color(.systemBackground))
+        .onChange(of: speechRecognizer.transcript, perform: { newTranscript in
+            if !newTranscript.isEmpty {
+                messageText = newTranscript
+            }
+        })
+        .onChange(of: speechRecognizer.isRecording, perform: { recording in
+            if !recording && !speechRecognizer.transcript.isEmpty {
+                speechRecognizer.transcript = ""
+            }
+        })
         .fullScreenCover(isPresented: $showDrawingComposer) {
             DrawingComposerView(
+                lang: hostLanguage,
                 onSend: { image in
                     showDrawingComposer = false
                     Task { await viewModel.sendDrawing(image, replyToId: replyToId); replyToId = nil }
@@ -351,6 +573,18 @@ struct HostConversationView: View {
             )
             .ignoresSafeArea()
         }
+        .photosPicker(isPresented: $showPhotoLibrary, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { newItem in
+            guard let newItem else { return }
+            Task {
+                if let data = try? await newItem.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    await viewModel.sendImage(image, replyToId: replyToId)
+                    replyToId = nil
+                }
+                selectedPhotoItem = nil
+            }
+        }
     }
 
     // MARK: - Closed banner
@@ -360,11 +594,11 @@ struct HostConversationView: View {
             HStack {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(.secondary)
-                Text("This room has been closed")
+                Text(L.t("This room has been closed", hostLanguage))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Button("Back to Home") {
+            Button(L.t("Back to Home", hostLanguage)) {
                 dismiss()
             }
             .font(.subheadline)
@@ -391,7 +625,7 @@ struct HostConversationView: View {
                                 Text(participant.nickname)
                                     .fontWeight(.medium)
                                 if participant.role == .host {
-                                    Text("host")
+                                    Text(L.t("host", hostLanguage))
                                         .font(.caption2)
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 1)
@@ -400,7 +634,7 @@ struct HostConversationView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 3))
                                 }
                             }
-                            Text(participant.online ? (participant.isAway ? "Away" : "Online") : "Offline")
+                            Text(participant.online ? (participant.isAway ? L.t("Away", hostLanguage) : L.t("Online", hostLanguage)) : L.t("Offline", hostLanguage))
                                 .font(.caption)
                                 .foregroundStyle(participant.online ? (participant.isAway ? .orange : .green) : .secondary)
                         }
@@ -412,7 +646,7 @@ struct HostConversationView: View {
                             Button(role: .destructive) {
                                 Task { await viewModel.kickParticipant(participant.id) }
                             } label: {
-                                Text("Remove")
+                                Text(L.t("Remove", hostLanguage))
                                     .font(.caption)
                             }
                             .buttonStyle(.bordered)
@@ -423,20 +657,29 @@ struct HostConversationView: View {
 
                 Section {
                     Stepper(
-                        "Max participants: \(maxParticipants)",
+                        "\(L.t("Max participants:", hostLanguage)) \(maxParticipants)",
                         value: $maxParticipants,
                         in: 2...20
                     )
                     .font(.subheadline)
+
+                    Picker(L.t("Language", hostLanguage), selection: $hostLanguage) {
+                        Text("English").tag("en")
+                        Text("日本語").tag("ja")
+                    }
+                    .font(.subheadline)
+                    .onChange(of: hostLanguage) { newValue in
+                        UserDefaults.standard.set(newValue, forKey: "enchatto_lastLanguage")
+                    }
                 } header: {
-                    Text("Settings")
+                    Text(L.t("Settings", hostLanguage))
                 }
             }
-            .navigationTitle("Participants")
+            .navigationTitle(L.t("Participants", hostLanguage))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
+                    Button(L.t("Done", hostLanguage)) {
                         viewModel.showParticipantSheet = false
                     }
                 }
@@ -453,6 +696,10 @@ struct HostConversationView: View {
     private func sendCurrentMessage() {
         let text = messageText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
+        if speechRecognizer.isRecording {
+            speechRecognizer.toggleRecording()
+        }
+        viewModel.setTypingAction(nil)
         Task {
             await viewModel.sendMessage(text, replyToId: replyToId)
             messageText = ""
@@ -461,13 +708,166 @@ struct HostConversationView: View {
     }
 }
 
+// MARK: - Send button with pulse
+
+private struct SendButton: View {
+    let hasText: Bool
+    let action: () -> Void
+    @State private var pulsing = false
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if hasText {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 28, height: 28)
+                        .scaleEffect(pulsing ? 1.8 : 1)
+                        .opacity(pulsing ? 0 : 0.5)
+                        .animation(
+                            .easeOut(duration: 1.5).repeatForever(autoreverses: false),
+                            value: pulsing
+                        )
+                }
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(hasText ? Color.accentColor : Color(.systemGray4))
+            }
+        }
+        .disabled(!hasText)
+        .onChange(of: hasText) { active in
+            pulsing = active
+        }
+        .onAppear {
+            pulsing = hasText
+        }
+    }
+}
+
+// MARK: - System message (join/leave divider)
+
+private struct SystemMessageRow: View {
+    let text: String
+    var lang: String = "en"
+
+    private var localizedText: String {
+        let parts = text.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return text }
+        let action = String(parts[0])
+        let name = String(parts[1])
+        if action == "join" {
+            return lang == "ja" ? "\(name)\(L.t("has joined", lang))" : "\(name) \(L.t("has joined", lang))"
+        } else if action == "leave" {
+            return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
+        }
+        return text
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            line
+            Text(localizedText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            line
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(Color(.separator))
+            .frame(height: 0.5)
+    }
+}
+
+// MARK: - Typing bubble indicator
+
+private struct TypingBubble: View {
+    let participant: Participant
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 4) {
+            // Avatar
+            VStack(spacing: 2) {
+                ZStack {
+                    Circle()
+                        .fill(participant.avatarColor)
+                        .frame(width: 28, height: 28)
+                    Text(participant.avatarEmoji)
+                        .font(.system(size: 16))
+                }
+                Text(participant.nickname)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: 40)
+            }
+
+            // Bubble with 3 animated dots
+            HStack(spacing: 4) {
+                BouncingDot(delay: 0)
+                BouncingDot(delay: 0.15)
+                BouncingDot(delay: 0.3)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray6))
+            .clipShape(UnevenRoundedRectangle(
+                topLeadingRadius: 16,
+                bottomLeadingRadius: 4,
+                bottomTrailingRadius: 16,
+                topTrailingRadius: 16
+            ))
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// Single bouncing dot — matches web keyframes:
+/// 0%,60%,100%: y=0, opacity=0.4  |  30%: y=-4, opacity=1
+/// Total cycle: 1.2s, staggered by delay
+private struct BouncingDot: View {
+    let delay: Double
+    @State private var animating = false
+
+    var body: some View {
+        Circle()
+            .fill(Color(.systemGray3))
+            .frame(width: 7, height: 7)
+            .opacity(animating ? 1 : 0.4)
+            .offset(y: animating ? -4 : 0)
+            .onAppear {
+                withAnimation(
+                    .easeInOut(duration: 0.36)
+                    .repeatForever(autoreverses: true)
+                    .delay(delay)
+                ) {
+                    animating = true
+                }
+            }
+    }
+}
+
 // MARK: - QR Code Floating Panel
+
+private struct PressedDimButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.4 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
 
 private struct QRCodeFloatingPanel: View {
     let joinCode: String
     @Binding var isPresented: Bool
+    var lang: String = "en"
     @State private var dragOffset: CGFloat = 0
     @State private var appeared = false
+    @State private var copied = false
 
     private var joinURL: String {
         "https://enchatto.vercel.app/join/\(joinCode)"
@@ -500,16 +900,37 @@ private struct QRCodeFloatingPanel: View {
                         .shadow(radius: 2)
                 }
 
-                VStack(spacing: 3) {
-                    Text("Room Code")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(joinCode)
-                        .font(.system(.title2, design: .monospaced))
-                        .fontWeight(.bold)
+                Button {
+                    UIPasteboard.general.string = joinURL
+                    withAnimation { copied = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation { copied = false }
+                    }
+                } label: {
+                    VStack(spacing: 3) {
+                        Text(L.t("Room Code", lang))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(joinCode)
+                            .font(.system(.title2, design: .monospaced))
+                            .fontWeight(.bold)
+                            .foregroundStyle(copied ? .secondary : .primary)
+                        if copied {
+                            Label(L.t("Copied!", lang), systemImage: "checkmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
+                                .transition(.opacity)
+                        } else {
+                            Text(L.t("Tap to copy link", lang))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .transition(.opacity)
+                        }
+                    }
                 }
+                .buttonStyle(PressedDimButtonStyle())
 
-                Text("Scan or enter code to join")
+                Text(L.t("Scan or enter code to join", lang))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 16)

@@ -20,6 +20,10 @@ function RoomContent() {
 
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const [showEnglish, setShowEnglish] = useState(true);
+  const [showJapanese, setShowJapanese] = useState(true);
+  const [showRomaji, setShowRomaji] = useState(true);
 
   // Real-time subscriptions
   const roomState = useQuery(api.rooms.getRoomState, {
@@ -52,7 +56,7 @@ function RoomContent() {
 
     // Fire-and-forget "away" on page close via sendBeacon + fetch keepalive
     const markAwayBeacon = () => {
-      const url = `https://basic-ram-104.convex.cloud/api/mutation`;
+      const url = `https://helpful-bulldog-420.convex.cloud/api/mutation`;
       const body = JSON.stringify({
         path: "participants:setParticipantOnline",
         args: { participantId, online: true, presence: "away" },
@@ -196,7 +200,7 @@ function RoomContent() {
 
   const lastTypingAction = useRef<string | null>(null);
   const handleTypingChange = useCallback(
-    (action: "typing" | "drawing" | null) => {
+    (action: "typing" | "drawing" | "voicing" | null) => {
       if (!participantId) return;
       const key = action ?? "null";
       if (lastTypingAction.current === key) return;
@@ -215,7 +219,7 @@ function RoomContent() {
       _id: p._id,
       nickname: p.nickname,
       avatar: p.avatar,
-      typingAction: (p as any).typingAction as "typing" | "drawing",
+      typingAction: (p as any).typingAction as "typing" | "drawing" | "voicing",
     }));
 
   const handleReply = (messageId: string) => {
@@ -315,6 +319,11 @@ function RoomContent() {
 
   const isClosed = roomState.room.status === "closed";
 
+  const otherParticipants = participants.filter((p) => p._id !== participantId);
+  const activeOthers = otherParticipants.filter((p) => (p as any).online);
+  const onlineCount = activeOthers.filter((p) => ((p as any).presence ?? "online") === "online").length;
+  const awayCount = activeOthers.length - onlineCount;
+
   return (
     <div
       style={{
@@ -342,6 +351,7 @@ function RoomContent() {
               const av = getAvatarById(me.avatar.value);
               return (
                 <div
+                  onClick={() => setShowDisplaySettings(true)}
                   style={{
                     width: "32px",
                     height: "32px",
@@ -352,6 +362,7 @@ function RoomContent() {
                     justifyContent: "center",
                     fontSize: "1.1rem",
                     flexShrink: 0,
+                    cursor: "pointer",
                   }}
                 >
                   {av.emoji}
@@ -361,10 +372,14 @@ function RoomContent() {
             return null;
           })()}
           <div>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{t("Enchatto", lang)}</h1>
-            {isClosed && (
+            <h1 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>{t("Enchatto", lang)}</h1>
+            {isClosed ? (
               <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>
                 {t("Room closed", lang)}
+              </span>
+            ) : (
+              <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
+                {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
               </span>
             )}
           </div>
@@ -388,6 +403,9 @@ function RoomContent() {
           onToggleReaction={handleToggleReaction}
           typingParticipants={typingParticipants}
           lang={lang}
+          showEnglish={showEnglish}
+          showJapanese={showJapanese}
+          showRomaji={showRomaji}
         />
       </MessageErrorBoundary>
 
@@ -414,6 +432,80 @@ function RoomContent() {
           }}
         >
           {t("This room has been closed by the host.", lang)}
+        </div>
+      )}
+
+      {/* Language display settings modal */}
+      {showDisplaySettings && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => setShowDisplaySettings(false)}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              borderRadius: "var(--radius)",
+              padding: "1.5rem",
+              width: "100%",
+              maxWidth: "280px",
+              margin: "1rem",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>
+              {t("Display", lang)}
+            </h2>
+            {([
+              { label: t("English", lang), value: showEnglish, toggle: () => setShowEnglish((v) => !v) },
+              { label: t("Japanese", lang), value: showJapanese, toggle: () => setShowJapanese((v) => !v) },
+              { label: t("Romaji", lang), value: showRomaji, toggle: () => setShowRomaji((v) => !v) },
+            ] as const).map((item) => (
+              <label
+                key={item.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0.6rem 0",
+                  borderBottom: "1px solid var(--border)",
+                  cursor: "pointer",
+                  fontSize: "0.95rem",
+                }}
+              >
+                {item.label}
+                <input
+                  type="checkbox"
+                  checked={item.value}
+                  onChange={item.toggle}
+                  style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }}
+                />
+              </label>
+            ))}
+            <button
+              onClick={() => setShowDisplaySettings(false)}
+              style={{
+                marginTop: "1rem",
+                width: "100%",
+                padding: "0.6rem",
+                borderRadius: "8px",
+                background: "var(--primary)",
+                color: "#fff",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+              }}
+            >
+              {t("Done", lang)}
+            </button>
+          </div>
         </div>
       )}
 

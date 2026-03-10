@@ -49,6 +49,9 @@ interface MessageItemProps {
   currentParticipantId: string;
   preferredLanguage?: string;
   lang?: string;
+  showEnglish?: boolean;
+  showJapanese?: boolean;
+  showRomaji?: boolean;
 }
 
 function getEmoji(avatarValue: string): string {
@@ -57,6 +60,20 @@ function getEmoji(avatarValue: string): string {
 
 function getAvatarColor(avatarValue: string): string {
   return PRESET_AVATARS.find((a) => a.id === avatarValue)?.color ?? "#e5e7eb";
+}
+
+/** Check if text contains Japanese characters (Hiragana, Katakana, CJK) */
+function isJapaneseText(text: string): boolean {
+  return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text);
+}
+
+/** Get the English and Japanese text from a message, regardless of which field they're in */
+function getLanguageTexts(message: MessageData) {
+  const originalIsJapanese = message.text ? isJapaneseText(message.text) : false;
+  return {
+    english: originalIsJapanese ? message.processing?.translatedText : message.text,
+    japanese: originalIsJapanese ? message.text : message.processing?.translatedText,
+  };
 }
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
@@ -123,13 +140,15 @@ function InlineReactions({
           border: "none",
           padding: "0.15rem",
           cursor: "pointer",
-          fontSize: "0.85rem",
-          opacity: 0.4,
           flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
         }}
         title={t("React or reply")}
       >
-        😊
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3 }}>
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
       </button>
     );
   }
@@ -148,6 +167,9 @@ export function MessageItem({
   currentParticipantId,
   preferredLanguage = "en",
   lang,
+  showEnglish = true,
+  showJapanese = true,
+  showRomaji = true,
 }: MessageItemProps) {
   const senderName = sender?.nickname ?? "Unknown";
   const senderEmoji = sender ? getEmoji(sender.avatar.value) : "👤";
@@ -275,7 +297,7 @@ export function MessageItem({
                   : "var(--surface)",
               color: isOwn && !isMedia ? "#fff" : "var(--fg)",
               border: isMedia ? "none" : isOwn ? "none" : "1px solid var(--border)",
-              borderRadius: isOwn ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
+              borderRadius: isOwn ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
               padding: isMedia ? "0" : "0.6rem 0.85rem",
               opacity: isPending ? 0.7 : 1,
               userSelect: "text",
@@ -292,19 +314,31 @@ export function MessageItem({
             {message.kind === "drawing" && message.mediaUrl && (
               <MessageDrawing src={message.mediaUrl} />
             )}
-            {message.kind === "text" && (
-              preferredLanguage === "ja" &&
-              message.status === "processed" &&
-              message.processing?.translatedText ? (
-                <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
-                  {message.processing.translatedText}
-                </p>
-              ) : message.text ? (
-                <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
-                  {message.text}
-                </p>
-              ) : null
-            )}
+            {message.kind === "text" && (() => {
+              const { english, japanese } = getLanguageTexts(message);
+              const romaji = message.processing?.romaji;
+              // Primary: show preferred language first, fallback to other
+              const primaryText = preferredLanguage === "ja"
+                ? (showJapanese && japanese ? japanese : showEnglish && english ? english : null)
+                : (showEnglish && english ? english : showJapanese && japanese ? japanese : null);
+              // Romaji grouped with Japanese whenever Japanese is the displayed primary text
+              const japaneseIsPrimary = preferredLanguage === "ja"
+                ? (showJapanese && !!japanese)
+                : (!(showEnglish && !!english) && showJapanese && !!japanese);
+              const showRomajiWithPrimary = japaneseIsPrimary && showRomaji && !!romaji;
+              return primaryText ? (
+                <>
+                  <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
+                    {primaryText}
+                  </p>
+                  {showRomajiWithPrimary && (
+                    <p style={{ margin: "0.25rem 0 0", fontStyle: "italic", fontSize: "0.78rem", opacity: 0.8 }}>
+                      {romaji}
+                    </p>
+                  )}
+                </>
+              ) : null;
+            })()}
             {message.kind === "system" && message.text && (
               <p
                 style={{
@@ -319,41 +353,73 @@ export function MessageItem({
             )}
             {message.processing &&
               message.status === "processed" &&
-              message.kind === "text" && (
-                <div
-                  style={{
-                    marginTop: "0.5rem",
-                    paddingTop: "0.5rem",
-                    borderTop: `1px solid ${isOwn ? "rgba(255,255,255,0.2)" : "var(--border)"}`,
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  {message.processing.romaji && (
-                    <p
-                      style={{
-                        margin: "0 0 0.25rem",
-                        fontStyle: "italic",
-                        opacity: 0.8,
-                      }}
-                    >
-                      {message.processing.romaji}
-                    </p>
-                  )}
-                  {preferredLanguage === "ja" ? (
-                    message.text && (
-                      <p style={{ margin: 0, opacity: 0.7 }}>
-                        {message.text}
-                      </p>
-                    )
-                  ) : (
-                    message.processing.translatedText && (
-                      <p style={{ margin: 0, fontWeight: 500 }}>
-                        {message.processing.translatedText}
-                      </p>
-                    )
-                  )}
-                </div>
-              )}
+              message.kind === "text" && (() => {
+                const { english, japanese } = getLanguageTexts(message);
+                // Only show secondary if primary showed the preferred language (not a fallback)
+                const primaryShowedPreferred = preferredLanguage === "ja"
+                  ? showJapanese && !!japanese
+                  : showEnglish && !!english;
+                const hasSecondary = primaryShowedPreferred && (preferredLanguage === "ja"
+                  ? showEnglish && !!english
+                  : showJapanese && !!japanese);
+                // Romaji below divider only if not already shown with Japanese in primary
+                const romajiAvailable = showRomaji && !!message.processing!.romaji;
+                const japaneseWasPrimary = preferredLanguage === "ja"
+                  ? (showJapanese && !!japanese)
+                  : (!(showEnglish && !!english) && showJapanese && !!japanese);
+                const hasRomajiBelow = romajiAvailable && !japaneseWasPrimary;
+                if (!hasSecondary && !hasRomajiBelow) return null;
+                return (
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      paddingTop: "0.5rem",
+                      borderTop: `1px solid ${isOwn ? "rgba(255,255,255,0.2)" : "var(--border)"}`,
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {preferredLanguage === "ja" ? (
+                      <>
+                        {hasRomajiBelow && (
+                          <p
+                            style={{
+                              margin: "0 0 0.25rem",
+                              fontStyle: "italic",
+                              opacity: 0.8,
+                            }}
+                          >
+                            {message.processing!.romaji}
+                          </p>
+                        )}
+                        {hasSecondary && (
+                          <p style={{ margin: 0, opacity: 0.7 }}>
+                            {english}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {hasRomajiBelow && (
+                          <p
+                            style={{
+                              margin: "0 0 0.25rem",
+                              fontStyle: "italic",
+                              opacity: 0.8,
+                            }}
+                          >
+                            {message.processing!.romaji}
+                          </p>
+                        )}
+                        {hasSecondary && (
+                          <p style={{ margin: 0, fontWeight: 500 }}>
+                            {japanese}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             {isPending && (
               <p
                 style={{

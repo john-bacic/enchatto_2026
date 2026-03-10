@@ -166,6 +166,12 @@ class MockEnchattoAPI: EnchattoAPI {
         participants[roomId]?.removeAll { $0.id == participantId }
     }
 
+    func deleteMessage(messageId: String) async throws {
+        for roomId in messages.keys {
+            messages[roomId]?.removeAll { $0.id == messageId }
+        }
+    }
+
     func addReaction(messageId: String, participantId: String, emoji: String) async throws {
         // Mock: no-op for now
     }
@@ -180,6 +186,10 @@ class MockEnchattoAPI: EnchattoAPI {
 
     func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws {
         // Mock: no-op for now
+    }
+
+    func setTypingAction(participantId: String, action: String?) async throws {
+        // Mock: no-op
     }
 }
 

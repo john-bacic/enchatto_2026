@@ -191,6 +191,21 @@ export default function JoinPage() {
           {t("Room code:", language)} <strong>{joinCode}</strong>
         </p>
 
+        {/* Avatar */}
+        <label
+          style={{
+            display: "block",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            marginBottom: "0.5rem",
+          }}
+        >
+          {t("Choose an avatar", language)}
+        </label>
+        <div style={{ marginBottom: "1.25rem" }}>
+          <AvatarPicker selected={avatar} onSelect={setAvatar} takenAvatars={takenAvatars} />
+        </div>
+
         {/* Nickname */}
         <label
           style={{
@@ -215,23 +230,9 @@ export default function JoinPage() {
             border: "1px solid var(--border)",
             marginBottom: "1.25rem",
             outline: "none",
+            background: "rgba(255, 255, 0, 0.15)",
           }}
         />
-
-        {/* Avatar */}
-        <label
-          style={{
-            display: "block",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            marginBottom: "0.5rem",
-          }}
-        >
-          {t("Choose an avatar", language)}
-        </label>
-        <div style={{ marginBottom: "1.25rem" }}>
-          <AvatarPicker selected={avatar} onSelect={setAvatar} takenAvatars={takenAvatars} />
-        </div>
 
         {/* Language */}
         <label

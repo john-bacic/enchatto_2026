@@ -156,6 +156,12 @@ class RealEnchattoAPI: EnchattoAPI {
         ])
     }
 
+    func deleteMessage(messageId: String) async throws {
+        try await client.postVoid("/api/messages/delete", body: [
+            "messageId": messageId,
+        ])
+    }
+
     func getRoomReactions(roomId: String) async throws -> [MessageReactionSummary] {
         let summaries: [MessageReactionSummary] = try await client.post("/api/reactions/room-summaries", body: ["roomId": roomId])
         return summaries
@@ -172,5 +178,13 @@ class RealEnchattoAPI: EnchattoAPI {
             body["presence"] = presence
         }
         try await client.postVoid("/api/participants/set-online", body: body)
+    }
+
+    func setTypingAction(participantId: String, action: String?) async throws {
+        var body: [String: Any] = ["participantId": participantId]
+        if let action {
+            body["action"] = action
+        }
+        try await client.postVoid("/api/participants/set-typing", body: body)
     }
 }

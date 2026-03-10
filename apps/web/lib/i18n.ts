@@ -73,6 +73,8 @@ const translations: Record<string, Record<string, string>> = {
   "Type a message...": { ja: "メッセージを入力…" },
   "📷 Photo": { ja: "📷 写真" },
   "✏️ Draw": { ja: "✏️ 描く" },
+  "🎤 Voice": { ja: "🎤 音声" },
+  "Listening...": { ja: "聞いています…" },
 
   // Drawing
   "Draw something": { ja: "何か描いてみよう" },
@@ -90,6 +92,17 @@ const translations: Record<string, Record<string, string>> = {
   "online": { ja: "オンライン" },
   "away": { ja: "離席" },
   "Leave room": { ja: "ルームを退出" },
+
+  // Display settings
+  "Display": { ja: "表示" },
+  "English": { ja: "英語" },
+  "Japanese": { ja: "日本語" },
+  "Romaji": { ja: "ローマ字" },
+  "Done": { ja: "完了" },
+
+  // System messages
+  "has joined": { ja: "が参加しました" },
+  "has left": { ja: "が退出しました" },
 
   // Reply preview
   "Photo": { ja: "写真" },

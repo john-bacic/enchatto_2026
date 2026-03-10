@@ -8,6 +8,9 @@ class HostStartRoomViewModel: ObservableObject {
     @Published var hostAvatarId: String {
         didSet { UserDefaults.standard.set(hostAvatarId, forKey: "enchatto_lastAvatarId") }
     }
+    @Published var hostLanguage: String {
+        didSet { UserDefaults.standard.set(hostLanguage, forKey: "enchatto_lastLanguage") }
+    }
     @Published var settings = RoomSettings.defaults
     @Published var isCreating = false
     @Published var error: String?
@@ -23,6 +26,7 @@ class HostStartRoomViewModel: ObservableObject {
         self.api = api
         self.hostNickname = UserDefaults.standard.string(forKey: "enchatto_lastNickname") ?? ""
         self.hostAvatarId = UserDefaults.standard.string(forKey: "enchatto_lastAvatarId") ?? "fox"
+        self.hostLanguage = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
     }
 
     var canCreate: Bool {

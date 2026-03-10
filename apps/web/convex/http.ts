@@ -78,6 +78,17 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/api/participants/set-typing",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.participants.setTypingAction, {
+      participantId: body.participantId,
+      action: body.action,
+    });
+  }),
+});
+
 // --- Messages ---
 
 http.route({

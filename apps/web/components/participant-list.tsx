@@ -120,16 +120,6 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
           </div>
         )}
       </div>
-      <span
-        style={{
-          fontSize: "0.75rem",
-          color: "var(--muted)",
-          marginLeft: "0.15rem",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
-      </span>
       {onLeave && (
         <button
           onClick={onLeave}

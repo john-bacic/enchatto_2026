@@ -1,13 +1,12 @@
 "use client";
 
 import { PRESET_AVATARS } from "@/lib/types";
-import { t } from "@/lib/i18n";
 
 interface TypingParticipant {
   _id: string;
   nickname: string;
   avatar: { type: string; value: string };
-  typingAction: "typing" | "drawing";
+  typingAction: "typing" | "drawing" | "voicing";
 }
 
 interface TypingIndicatorProps {
@@ -19,47 +18,86 @@ function getEmoji(avatarValue: string): string {
   return PRESET_AVATARS.find((a) => a.id === avatarValue)?.emoji ?? "👤";
 }
 
-export function TypingIndicator({ participants, lang }: TypingIndicatorProps) {
+function getAvatarColor(avatarValue: string): string {
+  return PRESET_AVATARS.find((a) => a.id === avatarValue)?.color ?? "#e5e7eb";
+}
+
+export function TypingIndicator({ participants }: TypingIndicatorProps) {
   if (participants.length === 0) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginBottom: "0.5rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.5rem" }}>
       {participants.map((p) => (
         <div
           key={p._id}
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "0.4rem",
+            alignItems: "flex-end",
+            gap: "0.5rem",
           }}
         >
-          <span style={{ fontSize: "0.9rem" }}>{getEmoji(p.avatar.value)}</span>
+          {/* Avatar */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.15rem",
+              flexShrink: 0,
+            }}
+          >
+            <div
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                background: getAvatarColor(p.avatar.value),
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.9rem",
+              }}
+            >
+              {getEmoji(p.avatar.value)}
+            </div>
+            <span
+              style={{
+                fontSize: "0.6rem",
+                color: "var(--muted)",
+                maxWidth: "40px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                textAlign: "center",
+              }}
+            >
+              {p.nickname}
+            </span>
+          </div>
+
+          {/* Bubble with 3 dots */}
           <div
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
-              padding: "0.4rem 0.7rem",
+              borderRadius: "16px 16px 16px 4px",
+              padding: "0.6rem 0.85rem",
               display: "flex",
               alignItems: "center",
-              gap: "0.3rem",
+              gap: "3px",
             }}
           >
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              {p.nickname} {p.typingAction === "drawing" ? t("is drawing", lang) : t("is typing", lang)}
-            </span>
-            <span style={{ display: "inline-flex", gap: "2px", alignItems: "center" }}>
-              <span className="typing-dot" style={{ animationDelay: "0ms" }} />
-              <span className="typing-dot" style={{ animationDelay: "150ms" }} />
-              <span className="typing-dot" style={{ animationDelay: "300ms" }} />
-            </span>
+            <span className="typing-dot" style={{ animationDelay: "0ms" }} />
+            <span className="typing-dot" style={{ animationDelay: "150ms" }} />
+            <span className="typing-dot" style={{ animationDelay: "300ms" }} />
           </div>
           <style jsx>{`
             .typing-dot {
-              width: 5px;
-              height: 5px;
+              width: 7px;
+              height: 7px;
               border-radius: 50%;
               background: var(--muted);
+              display: inline-block;
               animation: typingBounce 1.2s infinite ease-in-out;
             }
             @keyframes typingBounce {

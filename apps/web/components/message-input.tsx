@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { ImageUploadButton } from "@/components/image-upload-button";
 import { DrawingModal } from "@/components/drawing-modal";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { t } from "@/lib/i18n";
 
 interface ReplyTo {
@@ -18,7 +19,7 @@ interface MessageInputProps {
   onSendDrawing?: (dataUrl: string) => void;
   replyTo: ReplyTo | null;
   onCancelReply: () => void;
-  onTypingChange?: (action: "typing" | "drawing" | null) => void;
+  onTypingChange?: (action: "typing" | "drawing" | "voicing" | null) => void;
   lang?: string;
 }
 
@@ -35,8 +36,24 @@ export function MessageInput({
   const [showDrawing, setShowDrawing] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const preVoiceTextRef = useRef("");
+  const { isListening, start: startVoice, stop: stopVoice, supported: voiceSupported } =
+    useSpeechRecognition({
+      onTranscript: (transcript) => {
+        const base = preVoiceTextRef.current;
+        setText(base ? `${base} ${transcript}` : transcript);
+      },
+    });
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-resize textarea when text changes (e.g. from voice input)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }, [text]);
 
   const clearTyping = useCallback(() => {
     if (typingTimeoutRef.current) {
@@ -78,12 +95,14 @@ export function MessageInput({
   const handleSubmit = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (isListening) stopVoice();
+    preVoiceTextRef.current = "";
     clearTyping();
     onSend(trimmed);
     setText("");
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
-      inputRef.current.focus();
+      if (!isListening) inputRef.current.focus();
     }
   };
 
@@ -148,6 +167,8 @@ export function MessageInput({
           <textarea
             ref={inputRef}
             value={text}
+            readOnly={isListening}
+            onFocus={(e) => { if (isListening) e.currentTarget.blur(); }}
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -155,7 +176,7 @@ export function MessageInput({
                 handleSubmit();
               }
             }}
-            placeholder={t("Type a message...", lang)}
+            placeholder={isListening ? t("Listening...", lang) : t("Type a message...", lang)}
             rows={1}
             style={{
               width: "100%",
@@ -170,6 +191,8 @@ export function MessageInput({
               overflowY: "auto",
               background: "transparent",
               color: "inherit",
+              wordBreak: "break-word",
+              overflowWrap: "break-word",
             }}
             onInput={(e) => {
               const el = e.currentTarget;
@@ -283,40 +306,94 @@ export function MessageInput({
               {t("✏️ Draw", lang)}
             </button>
 
+            {/* Voice pill */}
+            {voiceSupported && (
+              <button
+                onClick={() => {
+                  if (isListening) {
+                    stopVoice();
+                    onTypingChange?.(null);
+                  } else {
+                    preVoiceTextRef.current = text.trim();
+                    startVoice(lang);
+                    onTypingChange?.("voicing");
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.35rem 0.625rem",
+                  borderRadius: "999px",
+                  background: isListening ? "rgba(239,68,68,0.1)" : "var(--border)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                  color: isListening ? "#ef4444" : "var(--muted)",
+                  flexShrink: 0,
+                }}
+              >
+                {t("🎤 Voice", lang)}
+              </button>
+            )}
+
             <div style={{ flex: 1 }} />
 
             {/* Send button (circle arrow) */}
-            <button
-              onClick={handleSubmit}
-              disabled={!hasText}
-              style={{
-                width: "30px",
-                height: "30px",
-                borderRadius: "50%",
-                background: hasText ? "var(--primary)" : "var(--border)",
-                border: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: hasText ? "pointer" : "default",
-                flexShrink: 0,
-                transition: "background 0.15s ease",
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={hasText ? "#fff" : "var(--muted)"}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div style={{ position: "relative", width: "30px", height: "30px", flexShrink: 0 }}>
+              {hasText && (
+                <span
+                  className="send-pulse"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    background: "var(--primary)",
+                  }}
+                />
+              )}
+              <button
+                onClick={handleSubmit}
+                disabled={!hasText}
+                style={{
+                  position: "relative",
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "50%",
+                  background: hasText ? "var(--primary)" : "var(--border)",
+                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: hasText ? "pointer" : "default",
+                  transition: "background 0.15s ease",
+                }}
               >
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-              </svg>
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={hasText ? "#fff" : "var(--muted)"}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="19" x2="12" y2="5" />
+                  <polyline points="5 12 12 5 19 12" />
+                </svg>
+              </button>
+              <style jsx>{`
+                .send-pulse {
+                  animation: sendPulse 1.5s ease-out infinite;
+                }
+                @keyframes sendPulse {
+                  0% { transform: scale(1); opacity: 0.5; }
+                  100% { transform: scale(1.8); opacity: 0; }
+                }
+              `}</style>
+            </div>
           </div>
         </div>
       </div>

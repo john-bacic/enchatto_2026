@@ -9,8 +9,10 @@
 /* Begin PBXBuildFile section */
 		186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */; };
 		1ACE8467557F73FF17F0F58C /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8E05A49B6BA14F2CFC1285 /* Room.swift */; };
+		2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */; };
 		350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */; };
 		41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */; };
+		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
 		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
@@ -18,6 +20,7 @@
 		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
 		74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */; };
 		76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */; };
+		797CECA3D9D858A14248F705 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C59768529F53DC71560987B /* SpeechRecognizer.swift */; };
 		7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */; };
 		8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */; };
 		853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84049D72180662ED722A668 /* AppConfig.swift */; };
@@ -39,6 +42,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		048A500F948FBFF3A696F580 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
 		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
 		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
@@ -47,6 +51,8 @@
 		20FEB11E5FF91BEBD77A223B /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
 		3739F0B6F971461D3C5ECBCE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		47566C0B30406CBDDDEAA04F /* Participant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Participant.swift; sourceTree = "<group>"; };
+		4C59768529F53DC71560987B /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
+		4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageContextMenuOverlay.swift; sourceTree = "<group>"; };
 		56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomViewModel.swift; sourceTree = "<group>"; };
 		5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMemoryTranslationService.swift; sourceTree = "<group>"; };
 		5D4D07C9C52F8ADCC4EDD899 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
@@ -89,6 +95,8 @@
 			children = (
 				3739F0B6F971461D3C5ECBCE /* Assets.xcassets */,
 				5EE91A5BA76409C309044A18 /* EnchattoApp.swift */,
+				048A500F948FBFF3A696F580 /* Localization.swift */,
+				4C59768529F53DC71560987B /* SpeechRecognizer.swift */,
 			);
 			name = ios;
 			path = .;
@@ -146,6 +154,7 @@
 				C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */,
 				D4FC9108C84B71431E861972 /* HostMessageRow.swift */,
 				B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */,
+				4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */,
 				E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */,
 			);
 			path = Components;
@@ -209,7 +218,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					2A0E7D49294AE6A04C96CDD5 = {
 						ProvisioningStyle = Automatic;
@@ -265,7 +274,9 @@
 				614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */,
 				D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */,
 				186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */,
+				4FB2238E8286E511980A0C4E /* Localization.swift in Sources */,
 				56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */,
+				2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */,
 				76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */,
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
@@ -274,6 +285,7 @@
 				350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */,
 				B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */,
 				1ACE8467557F73FF17F0F58C /* Room.swift in Sources */,
+				797CECA3D9D858A14248F705 /* SpeechRecognizer.swift in Sources */,
 				BA9DD8C7D397DD42561B6089 /* StubRomajiService.swift in Sources */,
 				E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */,
 				D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */,
@@ -292,8 +304,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V823NAB7CT;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto needs microphone access for voice input";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchatto uses speech recognition to convert voice to text";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -345,10 +360,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = V823NAB7CT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -370,7 +383,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -384,8 +396,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V823NAB7CT;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto needs microphone access for voice input";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchatto uses speech recognition to convert voice to text";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -437,10 +452,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = V823NAB7CT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -455,7 +468,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;

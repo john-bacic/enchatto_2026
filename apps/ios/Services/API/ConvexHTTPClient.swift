@@ -31,6 +31,7 @@ class ConvexHTTPClient {
         }
 
         let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
         return try decoder.decode(T.self, from: data)
     }
 

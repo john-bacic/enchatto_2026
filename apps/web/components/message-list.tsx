@@ -33,7 +33,7 @@ interface TypingParticipant {
   _id: string;
   nickname: string;
   avatar: { type: string; value: string };
-  typingAction: "typing" | "drawing";
+  typingAction: "typing" | "drawing" | "voicing";
 }
 
 interface MessageListProps {
@@ -45,6 +45,9 @@ interface MessageListProps {
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
   typingParticipants?: TypingParticipant[];
   lang?: string;
+  showEnglish?: boolean;
+  showJapanese?: boolean;
+  showRomaji?: boolean;
 }
 
 export function MessageList({
@@ -56,6 +59,9 @@ export function MessageList({
   onToggleReaction,
   typingParticipants,
   lang,
+  showEnglish = true,
+  showJapanese = true,
+  showRomaji = true,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +101,43 @@ export function MessageList({
       }}
     >
       {messages.map((message) => {
+        if (message.kind === "system") {
+          let displayText = message.text ?? "";
+          const colonIdx = displayText.indexOf(":");
+          if (colonIdx > 0) {
+            const action = displayText.slice(0, colonIdx);
+            const name = displayText.slice(colonIdx + 1);
+            if (action === "join") {
+              displayText = lang === "ja" ? `${name}${t("has joined", lang)}` : `${name} ${t("has joined", lang)}`;
+            } else if (action === "leave") {
+              displayText = lang === "ja" ? `${name}${t("has left", lang)}` : `${name} ${t("has left", lang)}`;
+            }
+          }
+          return (
+            <div
+              key={message._id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                margin: "0.5rem 0",
+              }}
+            >
+              <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {displayText}
+              </span>
+              <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+            </div>
+          );
+        }
+
         const replyToMessage = message.replyToId
           ? findMessage(message.replyToId)
           : undefined;
@@ -115,6 +158,9 @@ export function MessageList({
             currentParticipantId={currentParticipantId}
             preferredLanguage={preferredLanguage}
             lang={lang}
+            showEnglish={showEnglish}
+            showJapanese={showJapanese}
+            showRomaji={showRomaji}
           />
         );
       })}

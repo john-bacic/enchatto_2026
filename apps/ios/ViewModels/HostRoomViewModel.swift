@@ -265,6 +265,15 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    func deleteMessage(messageId: String) async {
+        do {
+            try await api.deleteMessage(messageId: messageId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     // MARK: - Helpers
 
     func participant(for id: String) -> Participant? {
@@ -294,5 +303,21 @@ class HostRoomViewModel: ObservableObject {
 
     var isProcessing: Bool {
         processingCount > 0
+    }
+
+    /// Participants (other than host) who are currently typing or drawing
+    var typingParticipants: [Participant] {
+        participants.filter { $0.id != hostId && $0.typingAction != nil }
+    }
+
+    private var lastTypingAction: String?
+
+    func setTypingAction(_ action: String?) {
+        let key = action ?? "nil"
+        guard key != lastTypingAction else { return }
+        lastTypingAction = key
+        Task {
+            try? await api.setTypingAction(participantId: hostId, action: action)
+        }
     }
 }

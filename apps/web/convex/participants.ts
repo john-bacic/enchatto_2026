@@ -110,7 +110,7 @@ export const setParticipantOnline = mutation({
 export const setTypingAction = mutation({
   args: {
     participantId: v.id("participants"),
-    action: v.optional(v.union(v.literal("typing"), v.literal("drawing"))),
+    action: v.optional(v.union(v.literal("typing"), v.literal("drawing"), v.literal("voicing"))),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.participantId, {
