@@ -460,9 +460,12 @@ function RoomContent() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
               {t("Display", lang)}
             </h2>
+            <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
+              {t("Room", lang)}: <strong>{roomState.room.joinCode}</strong>
+            </p>
             {([
               { label: t("English", lang), value: showEnglish, toggle: () => setShowEnglish((v) => !v) },
               { label: t("Japanese", lang), value: showJapanese, toggle: () => setShowJapanese((v) => !v) },

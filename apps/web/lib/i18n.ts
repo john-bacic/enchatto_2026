@@ -95,6 +95,7 @@ const translations: Record<string, Record<string, string>> = {
   "Leave room": { ja: "ルームを退出" },
 
   // Display settings
+  "Room": { ja: "ルーム" },
   "Display": { ja: "表示" },
   "English": { ja: "英語" },
   "Japanese": { ja: "日本語" },
