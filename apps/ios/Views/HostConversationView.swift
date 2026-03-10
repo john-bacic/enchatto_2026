@@ -308,8 +308,13 @@ struct HostConversationView: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(L.t("Enchatto", hostLanguage))
-                            .font(.headline)
+                        HStack(spacing: 5) {
+                            Text(L.t("Enchatto", hostLanguage))
+                                .font(.headline)
+                            QRCodeIcon()
+                                .frame(width: 14, height: 14)
+                                .foregroundStyle(.secondary)
+                        }
                         HStack(spacing: 4) {
                             Text("\(viewModel.onlineCount) \(L.t("online", hostLanguage))\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) \(L.t("away", hostLanguage))" : "")")
                                 .font(.caption)
@@ -1214,6 +1219,15 @@ private struct OfflineTranslator: View {
                 target: Locale.Language(identifier: "en")
             )
         }
+    }
+}
+
+// MARK: - QR Code Icon (from Font Awesome qrcode-solid)
+private struct QRCodeIcon: View {
+    var body: some View {
+        Image(systemName: "qrcode")
+            .resizable()
+            .scaledToFit()
     }
 }
 
