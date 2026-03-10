@@ -35,6 +35,7 @@ struct HostConversationView: View {
     @State private var showJapanese = true
     @State private var showRomaji = true
     @State private var tooltipParticipant: Participant?
+    @State private var fullScreenImage: (url: String, messageId: String)?
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
@@ -94,6 +95,7 @@ struct HostConversationView: View {
         }
         .overlay { contextMenuOverlay }
         .overlay { qrOverlay }
+        .overlay { fullScreenImageOverlay }
         .overlay {
             if let participant = tooltipParticipant {
                 Color.black.opacity(0.01)
@@ -152,6 +154,41 @@ struct HostConversationView: View {
         }
     }
 
+    // MARK: - Full-screen image overlay
+
+    @ViewBuilder
+    private var fullScreenImageOverlay: some View {
+        if let info = fullScreenImage {
+            ZStack {
+                Color.black.opacity(0.85)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation { fullScreenImage = nil }
+                    }
+
+                AsyncImage(url: URL(string: info.url)) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .padding()
+                        .onLongPressGesture {
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                            withAnimation { fullScreenImage = nil }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                contextMenuMessageId = info.messageId
+                            }
+                        }
+                } placeholder: {
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
     // MARK: - Context menu overlay
 
     @ViewBuilder
@@ -198,9 +235,24 @@ struct HostConversationView: View {
                 onCopy: {
                     UIPasteboard.general.string = message.text ?? ""
                 },
+                onSave: (message.kind == .image || message.kind == .drawing) ? {
+                    guard let urlString = message.mediaUrl,
+                          let url = URL(string: urlString) else { return }
+                    Task {
+                        do {
+                            let (data, _) = try await URLSession.shared.data(from: url)
+                            if let uiImage = UIImage(data: data) {
+                                UIImageWriteToSavedPhotosAlbum(uiImage, nil, nil, nil)
+                            }
+                        } catch {}
+                    }
+                } : nil,
                 onDelete: {
+                    let idToDelete = message.id
                     contextMenuMessageId = nil
-                    messageToDelete = message.id
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        messageToDelete = idToDelete
+                    }
                 }
             )
         }
@@ -356,7 +408,8 @@ struct HostConversationView: View {
                                 },
                                 showEnglish: showEnglish,
                                 showJapanese: showJapanese,
-                                showRomaji: showRomaji
+                                showRomaji: showRomaji,
+                                onImageTap: { url in fullScreenImage = (url: url, messageId: message.id) }
                             )
                             .id(message.id)
                             .background(

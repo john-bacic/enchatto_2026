@@ -7,8 +7,10 @@ interface DrawingCanvasProps {
   onCancel: () => void;
 }
 
-const COLORS = ["#1a1a1a", "#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"];
-const SIZES = [2, 4, 8];
+const BW_COLORS = ["#000000", "#ffffff"];
+const RAINBOW_COLORS = ["#ef4444", "#ff8c00", "#facc15", "#22c55e", "#3b82f6", "#4f46e5", "#8b5cf6"];
+const MIN_WIDTH = 1;
+const MAX_WIDTH = 40;
 
 export function DrawingCanvas({
   onSave,
@@ -16,8 +18,8 @@ export function DrawingCanvas({
 }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState(COLORS[0]);
-  const [lineWidth, setLineWidth] = useState(SIZES[1]);
+  const [color, setColor] = useState(BW_COLORS[0]);
+  const [lineWidth, setLineWidth] = useState(4);
   const [hasDrawn, setHasDrawn] = useState(false);
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
 
@@ -114,6 +116,91 @@ export function DrawingCanvas({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      {/* Color and thickness picker */}
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "stretch" }}>
+        {/* Left: color rows + slider */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", flex: 1, minWidth: 0 }}>
+          {/* Black + white */}
+          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+            {BW_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                style={{
+                  width: "1.75rem",
+                  height: "1.75rem",
+                  borderRadius: "50%",
+                  background: c,
+                  border: color === c ? "2px solid var(--primary)" : c === "#ffffff" ? "2px solid var(--border)" : "2px solid transparent",
+                  outline: color === c ? "1px solid var(--primary-light)" : "none",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Rainbow colors */}
+          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+            {RAINBOW_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                style={{
+                  width: "1.75rem",
+                  height: "1.75rem",
+                  borderRadius: "50%",
+                  background: c,
+                  border: color === c ? "2px solid var(--primary)" : "2px solid transparent",
+                  outline: color === c ? "1px solid var(--primary-light)" : "none",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Thickness slider */}
+          <input
+            type="range"
+            min={MIN_WIDTH}
+            max={MAX_WIDTH}
+            value={lineWidth}
+            onChange={(e) => setLineWidth(Number(e.target.value))}
+            style={{
+              width: "100%",
+              padding: "0 0.5rem",
+              marginTop: "0.35rem",
+              accentColor: "var(--primary)",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {/* Right: thickness indicator spanning full height */}
+        <div
+          style={{
+            width: "3rem",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            background: "var(--border)",
+          }}
+        >
+          <span
+            style={{
+              width: `${lineWidth}px`,
+              height: `${lineWidth}px`,
+              borderRadius: "50%",
+              background: color,
+            }}
+          />
+        </div>
+      </div>
+
       {/* Canvas */}
       <canvas
         ref={canvasRef}
@@ -133,55 +220,6 @@ export function DrawingCanvas({
           cursor: "crosshair",
         }}
       />
-
-      {/* Color picker */}
-      <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}>
-        {COLORS.map((c) => (
-          <button
-            key={c}
-            onClick={() => setColor(c)}
-            style={{
-              width: "1.5rem",
-              height: "1.5rem",
-              borderRadius: "50%",
-              background: c,
-              border: color === c ? "2px solid var(--primary)" : "2px solid transparent",
-              outline: color === c ? "1px solid var(--primary-light)" : "none",
-              cursor: "pointer",
-            }}
-          />
-        ))}
-
-        <span style={{ margin: "0 0.3rem", color: "var(--border)" }}>|</span>
-
-        {/* Line width */}
-        {SIZES.map((s) => (
-          <button
-            key={s}
-            onClick={() => setLineWidth(s)}
-            style={{
-              width: "1.5rem",
-              height: "1.5rem",
-              borderRadius: "50%",
-              background: lineWidth === s ? "var(--bg)" : "transparent",
-              border: lineWidth === s ? "1px solid var(--primary)" : "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <span
-              style={{
-                width: `${s + 2}px`,
-                height: `${s + 2}px`,
-                borderRadius: "50%",
-                background: "var(--fg)",
-              }}
-            />
-          </button>
-        ))}
-      </div>
 
       {/* Bottom bar: Close (left) — Send (center) — Clear (right) */}
       <div

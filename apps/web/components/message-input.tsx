@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
-import { ImageUploadButton } from "@/components/image-upload-button";
 import { DrawingModal } from "@/components/drawing-modal";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { t } from "@/lib/i18n";
@@ -34,7 +33,6 @@ export function MessageInput({
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
-  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const preVoiceTextRef = useRef("");
   const { isListening, start: startVoice, stop: stopVoice, supported: voiceSupported } =
@@ -70,14 +68,6 @@ export function MessageInput({
     };
   }, []);
 
-  // Close plus menu on outside click
-  useEffect(() => {
-    if (!showPlusMenu) return;
-    const handler = () => setShowPlusMenu(false);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [showPlusMenu]);
-
   const handleTextChange = (value: string) => {
     setText(value);
     if (value.trim()) {
@@ -112,7 +102,6 @@ export function MessageInput({
       onSendImage?.(file);
       e.target.value = "";
     }
-    setShowPlusMenu(false);
   };
 
   const handleDrawingSave = (dataUrl: string) => {
@@ -160,7 +149,6 @@ export function MessageInput({
             background: "var(--bg)",
             border: "1px solid var(--border)",
             borderRadius: "20px",
-            overflow: "hidden",
           }}
         >
           {/* Text area */}
@@ -210,77 +198,33 @@ export function MessageInput({
               padding: "0.25rem 0.625rem 0.625rem",
             }}
           >
-            {/* Plus button */}
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowPlusMenu((v) => !v);
-                }}
-                style={{
-                  width: "30px",
-                  height: "30px",
-                  borderRadius: "50%",
-                  background: "var(--border)",
-                  border: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                  color: "var(--muted)",
-                  flexShrink: 0,
-                }}
-              >
-                +
-              </button>
-
-              {/* Plus menu dropdown */}
-              {showPlusMenu && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    position: "absolute",
-                    bottom: "calc(100% + 6px)",
-                    left: 0,
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "12px",
-                    padding: "0.25rem 0",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    zIndex: 50,
-                    minWidth: "140px",
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      width: "100%",
-                      padding: "0.5rem 0.75rem",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "0.85rem",
-                      color: "var(--fg)",
-                    }}
-                  >
-                    {t("📷 Photo", lang)}
-                  </button>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                style={{ display: "none" }}
-              />
-            </div>
+            {/* Plus button — directly opens native image picker */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                width: "30px",
+                height: "30px",
+                borderRadius: "50%",
+                background: "var(--border)",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                fontSize: "1rem",
+                color: "var(--muted)",
+                flexShrink: 0,
+              }}
+            >
+              +
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              style={{ display: "none" }}
+            />
 
             {/* Drawing pill */}
             <button

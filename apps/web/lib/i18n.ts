@@ -71,7 +71,8 @@ const translations: Record<string, Record<string, string>> = {
   // Message input
   "Cancel": { ja: "キャンセル" },
   "Type a message...": { ja: "メッセージを入力…" },
-  "📷 Photo": { ja: "📷 写真" },
+  "📷 Take Photo": { ja: "📷 写真を撮る" },
+  "🖼️ Photo Library": { ja: "🖼️ フォトライブラリ" },
   "✏️ Draw": { ja: "✏️ 描く" },
   "🎤 Voice": { ja: "🎤 音声" },
   "Listening...": { ja: "聞いています…" },

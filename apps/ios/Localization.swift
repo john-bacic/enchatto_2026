@@ -59,6 +59,7 @@ enum L {
 
         // Message row
         "Reply": ["ja": "返信"],
+        "Save": ["ja": "保存"],
         "Cancel": ["ja": "キャンセル"],
         "Photo": ["ja": "写真"],
         "Drawing": ["ja": "お絵描き"],

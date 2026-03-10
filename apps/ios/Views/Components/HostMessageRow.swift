@@ -19,7 +19,7 @@ struct HostMessageRow: View {
 
     private let maxBubbleWidth = UIScreen.main.bounds.width * 0.75
 
-    @State private var showFullImage = false
+    var onImageTap: ((String) -> Void)?
 
     var body: some View {
         HStack {
@@ -231,7 +231,7 @@ struct HostMessageRow: View {
                             image.resizable()
                                 .scaledToFit()
                                 .frame(maxWidth: thumbWidth)
-                                .onTapGesture { showFullImage = true }
+                                .onTapGesture { onImageTap?(url) }
                         } else {
                             RoundedRectangle(cornerRadius: 8)
                                 .fill(Color(.systemGray5))
@@ -243,9 +243,6 @@ struct HostMessageRow: View {
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .fullScreenCover(isPresented: $showFullImage) {
-                        FullImageView(url: url)
-                    }
                 }
             }
 
@@ -386,38 +383,6 @@ struct HostMessageRow: View {
                 }
             }
             .padding(.leading, isOwn ? 0 : 40)
-        }
-    }
-}
-
-// MARK: - Full-screen image viewer
-
-private struct FullImageView: View {
-    let url: String
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
-
-            AsyncImage(url: URL(string: url)) { image in
-                image
-                    .resizable()
-                    .scaledToFit()
-            } placeholder: {
-                ProgressView()
-                    .tint(.white)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title)
-                    .foregroundStyle(.white.opacity(0.8))
-                    .padding()
-            }
         }
     }
 }

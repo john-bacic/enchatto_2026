@@ -23,11 +23,7 @@ export const PRESET_AVATARS = [
 
 export const LANGUAGES = [
   { code: "en", label: "English" },
-  { code: "ja", label: "Japanese" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "zh", label: "Chinese" },
-  { code: "ko", label: "Korean" },
+  { code: "ja", label: "日本語" },
 ] as const;
 
 export type PresetAvatarId = (typeof PRESET_AVATARS)[number]["id"];

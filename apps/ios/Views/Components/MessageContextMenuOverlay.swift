@@ -18,6 +18,7 @@ struct MessageContextMenuOverlay: View {
     var onReact: (String) -> Void
     var onReply: () -> Void
     var onCopy: () -> Void
+    var onSave: (() -> Void)?
     var onDelete: () -> Void
 
     @State private var appeared = false
@@ -116,7 +117,8 @@ struct MessageContextMenuOverlay: View {
             onLongPress: nil,
             showEnglish: showEnglish,
             showJapanese: showJapanese,
-            showRomaji: showRomaji
+            showRomaji: showRomaji,
+            onImageTap: nil
         )
         .allowsHitTesting(false)
         .padding(.horizontal)
@@ -142,6 +144,18 @@ struct MessageContextMenuOverlay: View {
             ) {
                 onCopy()
                 dismiss()
+            }
+
+            if let onSave {
+                Divider().frame(height: 20)
+
+                actionButton(
+                    title: L.t("Save", preferredLanguage),
+                    icon: "square.and.arrow.down"
+                ) {
+                    onSave()
+                    dismiss()
+                }
             }
 
             Divider().frame(height: 20)

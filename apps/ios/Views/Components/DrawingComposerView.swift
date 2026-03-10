@@ -10,14 +10,77 @@ struct DrawingComposerView: View {
     @State private var lineWidth: CGFloat = 4
     @State private var canvasView: DrawingUIView?
 
-    private let colors: [Color] = [.black, .red, .blue, .green, .orange, .purple]
-    private let widths: [CGFloat] = [2, 4, 8]
+    private let bwColors: [Color] = [.black, .white]
+    private let rainbowColors: [Color] = [
+        Color(red: 0xef/255, green: 0x44/255, blue: 0x44/255), // #ef4444
+        Color(red: 0xff/255, green: 0x8c/255, blue: 0x00/255), // #ff8c00
+        Color(red: 0xfa/255, green: 0xcc/255, blue: 0x15/255), // #facc15
+        Color(red: 0x22/255, green: 0xc5/255, blue: 0x5e/255), // #22c55e
+        Color(red: 0x3b/255, green: 0x82/255, blue: 0xf6/255), // #3b82f6
+        Color(red: 0x4f/255, green: 0x46/255, blue: 0xe5/255), // #4f46e5
+        Color(red: 0x8b/255, green: 0x5c/255, blue: 0xf6/255), // #8b5cf6
+    ]
+    private let minWidth: CGFloat = 1
+    private let maxWidth: CGFloat = 40
 
     private var hasDrawing: Bool { !lines.isEmpty }
 
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
+
+                HStack(spacing: 12) {
+                    // Left: color rows + slider
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Black + white
+                        HStack(spacing: 10) {
+                            ForEach(bwColors, id: \.self) { color in
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(selectedColor == color ? Color.accentColor : color == .white ? Color(.systemGray4) : Color.clear, lineWidth: 2)
+                                            .padding(-2)
+                                    )
+                                    .onTapGesture { selectedColor = color }
+                            }
+                        }
+
+                        // Rainbow colors
+                        HStack(spacing: 10) {
+                            ForEach(rainbowColors, id: \.self) { color in
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(selectedColor == color ? Color.accentColor : Color.clear, lineWidth: 2)
+                                            .padding(-2)
+                                    )
+                                    .onTapGesture { selectedColor = color }
+                            }
+                        }
+
+                        // Thickness slider
+                        Slider(value: $lineWidth, in: minWidth...maxWidth)
+                            .tint(.accentColor)
+                            .padding(.horizontal, 4)
+                    }
+
+                    // Right: thickness indicator
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.systemGray6))
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                        Circle()
+                            .fill(selectedColor)
+                            .frame(width: lineWidth, height: lineWidth)
+                    }
+                    .frame(width: 48, height: 64)
+                }
+                .padding(.horizontal)
 
             // Canvas — centered
                 DrawingCanvasView(
@@ -32,37 +95,6 @@ struct DrawingComposerView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color(.systemGray4), lineWidth: 1)
                 )
-                .padding(.horizontal)
-
-                // Color picker
-                HStack(spacing: 10) {
-                    ForEach(colors, id: \.self) { color in
-                        Circle()
-                            .fill(color)
-                            .frame(width: 28, height: 28)
-                            .overlay(
-                                Circle()
-                                    .stroke(selectedColor == color ? Color.accentColor : Color.clear, lineWidth: 2)
-                                    .padding(-2)
-                            )
-                            .onTapGesture { selectedColor = color }
-                    }
-
-                    Spacer()
-
-                    // Line width
-                    ForEach(widths, id: \.self) { width in
-                        Circle()
-                            .fill(Color(.label))
-                            .frame(width: width + 4, height: width + 4)
-                            .padding(6)
-                            .background(
-                                Circle()
-                                    .stroke(lineWidth == width ? Color.accentColor : Color(.systemGray4), lineWidth: 1)
-                            )
-                            .onTapGesture { lineWidth = width }
-                    }
-                }
                 .padding(.horizontal)
 
                 Spacer()
