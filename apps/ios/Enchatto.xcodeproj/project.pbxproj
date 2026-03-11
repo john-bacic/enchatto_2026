@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		107EADF339940B99F1CB218F /* MeCabCasualizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */; };
 		186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */; };
 		1ACE8467557F73FF17F0F58C /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8E05A49B6BA14F2CFC1285 /* Room.swift */; };
 		2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */; };
@@ -15,10 +16,10 @@
 		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
-		A1B2C3D4E5F60718192A3B4C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5C /* NetworkMonitor.swift */; };
 		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
 		5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */; };
 		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
+		64DF9A8E52E5DF5AD5DCD6A5 /* Mecab-Swift in Frameworks */ = {isa = PBXBuildFile; productRef = 5AB41076CABAAB73BC39FC5F /* Mecab-Swift */; };
 		74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */; };
 		76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */; };
 		797CECA3D9D858A14248F705 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C59768529F53DC71560987B /* SpeechRecognizer.swift */; };
@@ -26,10 +27,13 @@
 		8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */; };
 		853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84049D72180662ED722A668 /* AppConfig.swift */; };
 		8BA0BE698453C835C3ADE54B /* SuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B6CE020D97A2019D833739 /* SuggestionService.swift */; };
+		9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0A2E1624785B94728152B /* NetworkMonitor.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
+		A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395063 /* GitInfo.swift */; };
 		AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */; };
 		B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC00ADF95392C392B69EB66 /* RomajiService.swift */; };
 		BA9DD8C7D397DD42561B6089 /* StubRomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AACB3B6A1340D1952C612D /* StubRomajiService.swift */; };
+		BF5A76945EF4EBFF68CE1CE5 /* IPADic in Frameworks */ = {isa = PBXBuildFile; productRef = E3BA5400A395C97C1F8F8E33 /* IPADic */; };
 		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
 		C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47566C0B30406CBDDDEAA04F /* Participant.swift */; };
 		CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */; };
@@ -40,7 +44,6 @@
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
 		F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE91A5BA76409C309044A18 /* EnchattoApp.swift */; };
 		F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */; };
-		BB22CC33DD44EE55FF660011 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF66 /* GitInfo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,10 +67,11 @@
 		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
 		8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexHTTPClient.swift; sourceTree = "<group>"; };
 		96B6CE020D97A2019D833739 /* SuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionService.swift; sourceTree = "<group>"; };
-		D1E2F3A4B5C60718293A4B5C /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockEnchattoAPI.swift; sourceTree = "<group>"; };
 		A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubSuggestionService.swift; sourceTree = "<group>"; };
 		A33DB151FE11D2A253A5C4DB /* Enchatto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchatto.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A3C0A2E1624785B94728152B /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeCabCasualizer.swift; sourceTree = "<group>"; };
 		B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePickerView.swift; sourceTree = "<group>"; };
 		C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostConversationView.swift; sourceTree = "<group>"; };
 		C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingComposerView.swift; sourceTree = "<group>"; };
@@ -75,11 +79,23 @@
 		D84049D72180662ED722A668 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantAvatarView.swift; sourceTree = "<group>"; };
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
+		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
 		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
-		AA11BB22CC33DD44EE55FF66 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CBE77285521FC51E29BACC70 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				64DF9A8E52E5DF5AD5DCD6A5 /* Mecab-Swift in Frameworks */,
+				BF5A76945EF4EBFF68CE1CE5 /* IPADic in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0CF9C4D2556E0EFA58A1B989 = {
@@ -99,7 +115,7 @@
 			children = (
 				3739F0B6F971461D3C5ECBCE /* Assets.xcassets */,
 				5EE91A5BA76409C309044A18 /* EnchattoApp.swift */,
-				AA11BB22CC33DD44EE55FF66 /* GitInfo.swift */,
+				EE1D049BC86D95C7FD395063 /* GitInfo.swift */,
 				048A500F948FBFF3A696F580 /* Localization.swift */,
 				4C59768529F53DC71560987B /* SpeechRecognizer.swift */,
 			);
@@ -122,6 +138,7 @@
 		2FCFF422646FF1C4879C5DA6 /* Processing */ = {
 			isa = PBXGroup;
 			children = (
+				B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */,
 				FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */,
 				5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */,
 				1DC00ADF95392C392B69EB66 /* RomajiService.swift */,
@@ -178,8 +195,8 @@
 		EE49A2E446012BCA5D5244DB /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A3C0A2E1624785B94728152B /* NetworkMonitor.swift */,
 				21F34644BA555D35385B9FE7 /* API */,
-				D1E2F3A4B5C60718293A4B5C /* NetworkMonitor.swift */,
 				2FCFF422646FF1C4879C5DA6 /* Processing */,
 			);
 			path = Services;
@@ -203,9 +220,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3559C030B885164E4E195F8C /* Build configuration list for PBXNativeTarget "Enchatto" */;
 			buildPhases = (
-				CC33DD44EE55FF6600112233 /* Inject Git SHA */,
 				71C4F326CE21B92EA485D735 /* Sources */,
 				6A8A6BBB7C4C66382A0A6C71 /* Resources */,
+				CBE77285521FC51E29BACC70 /* Frameworks */,
+				726D310D0C4080C39021ED6B /* Inject Git Commit SHA */,
 			);
 			buildRules = (
 			);
@@ -213,6 +231,8 @@
 			);
 			name = Enchatto;
 			packageProductDependencies = (
+				5AB41076CABAAB73BC39FC5F /* Mecab-Swift */,
+				E3BA5400A395C97C1F8F8E33 /* IPADic */,
 			);
 			productName = Enchatto;
 			productReference = A33DB151FE11D2A253A5C4DB /* Enchatto.app */;
@@ -241,6 +261,9 @@
 			);
 			mainGroup = 0CF9C4D2556E0EFA58A1B989;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6FA39F6514C20132E09A7E7E /* XCRemoteSwiftPackageReference "Mecab-Swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3A9C95F9F91E18B76595F0B1 /* Products */;
 			projectDirPath = "";
@@ -263,20 +286,23 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		CC33DD44EE55FF6600112233 /* Inject Git SHA */ = {
+		726D310D0C4080C39021ED6B /* Inject Git Commit SHA */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
+			inputFileListPaths = (
+			);
 			inputPaths = (
 			);
-			alwaysOutOfDate = 1;
-			name = "Inject Git SHA";
+			name = "Inject Git Commit SHA";
+			outputFileListPaths = (
+			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "SHA=$(git rev-parse --short HEAD 2>/dev/null || echo \"dev\")\necho \"enum GitInfo { static let commitSHA = \\\"${SHA}\\\" }\" > \"${SRCROOT}/GitInfo.swift\"\n";
+			shellScript = "SHA=$(git rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitSHA $SHA\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :GitCommitSHA string $SHA\" \"$PLIST\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -292,7 +318,7 @@
 				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,
 				F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */,
 				F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */,
-				BB22CC33DD44EE55FF660011 /* GitInfo.swift in Sources */,
+				A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
 				511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */,
@@ -301,12 +327,13 @@
 				D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */,
 				186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */,
 				4FB2238E8286E511980A0C4E /* Localization.swift in Sources */,
+				107EADF339940B99F1CB218F /* MeCabCasualizer.swift in Sources */,
 				56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */,
 				2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */,
 				76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */,
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
-				A1B2C3D4E5F60718192A3B4C /* NetworkMonitor.swift in Sources */,
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
+				9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */,
 				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
 				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,
 				350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */,
@@ -334,6 +361,7 @@
 				DEVELOPMENT_TEAM = V823NAB7CT;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto needs microphone access for voice input";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchatto uses speech recognition to convert voice to text";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -426,6 +454,7 @@
 				DEVELOPMENT_TEAM = V823NAB7CT;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto needs microphone access for voice input";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchatto uses speech recognition to convert voice to text";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -523,6 +552,30 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		6FA39F6514C20132E09A7E7E /* XCRemoteSwiftPackageReference "Mecab-Swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/shinjukunian/Mecab-Swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5AB41076CABAAB73BC39FC5F /* Mecab-Swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6FA39F6514C20132E09A7E7E /* XCRemoteSwiftPackageReference "Mecab-Swift" */;
+			productName = "Mecab-Swift";
+		};
+		E3BA5400A395C97C1F8F8E33 /* IPADic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6FA39F6514C20132E09A7E7E /* XCRemoteSwiftPackageReference "Mecab-Swift" */;
+			productName = IPADic;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7E953F50FF084DDC243DDCF4 /* Project object */;
 }

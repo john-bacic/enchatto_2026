@@ -59,6 +59,7 @@ final class SpeechRecognizer: ObservableObject {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        request.addsPunctuation = true
         if speechRecognizer.supportsOnDeviceRecognition {
             request.requiresOnDeviceRecognition = true
         }
@@ -87,17 +88,73 @@ final class SpeechRecognizer: ObservableObject {
 
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.isRecording else { return }
                 if let result {
-                    self.transcript = result.bestTranscription.formattedString
-                }
-                if error != nil || (result?.isFinal ?? false) {
+                    let text = result.bestTranscription.formattedString
+                    self.transcript = Self.ensurePunctuation(text)
+                    if result.isFinal {
+                        self.stopRecording()
+                    }
+                } else if error != nil {
                     self.stopRecording()
                 }
             }
         }
 
         isRecording = true
+    }
+
+    /// Ensure the transcript ends with punctuation (.  !  ?)
+    static func ensurePunctuation(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+
+        // Already has ending punctuation (English or Japanese)
+        let lastChar = trimmed.last!
+        let endPunctuation: Set<Character> = [".", "!", "?", "。", "！", "？", "…"]
+        if endPunctuation.contains(lastChar) { return trimmed }
+
+        // Check if text contains Japanese characters (for choosing full-width punctuation)
+        let isJapanese = trimmed.contains(where: { c in
+            guard let s = c.unicodeScalars.first else { return false }
+            return (s.value >= 0x3040 && s.value <= 0x9FFF) || (s.value >= 0x30A0 && s.value <= 0x30FF)
+        })
+
+        // Detect question patterns (English)
+        let lower = trimmed.lowercased()
+        let questionStarters = ["who ", "what ", "where ", "when ", "why ", "how ",
+                                "is ", "are ", "was ", "were ", "do ", "does ", "did ",
+                                "can ", "could ", "would ", "should ", "will ", "shall ",
+                                "have ", "has ", "had ", "don't ", "isn't ", "aren't "]
+        let isQuestion = questionStarters.contains(where: { lower.hasPrefix($0) })
+            || lower.hasSuffix(" right")
+            || lower.hasSuffix(" huh")
+
+        // Detect question patterns (Japanese)
+        let jpQuestion = trimmed.hasSuffix("か") || trimmed.hasSuffix("かな")
+            || trimmed.hasSuffix("でしょう") || trimmed.hasSuffix("ですか")
+
+        if isQuestion || jpQuestion {
+            return trimmed + (isJapanese ? "？" : "?")
+        }
+
+        // Detect exclamatory patterns (English)
+        let exclamStarters = ["wow", "oh", "yes", "no", "hey", "stop", "wait",
+                              "help", "nice", "awesome", "amazing", "great",
+                              "let's go", "come on", "hurry"]
+        let isExclaim = exclamStarters.contains(where: { lower.hasPrefix($0) })
+
+        // Detect exclamatory patterns (Japanese)
+        let jpExclaim = trimmed.hasSuffix("よ") || trimmed.hasSuffix("ぞ")
+            || trimmed.hasSuffix("ね") || trimmed.hasSuffix("なあ")
+            || trimmed.hasSuffix("すごい") || trimmed.hasSuffix("やばい")
+
+        if isExclaim || jpExclaim {
+            return trimmed + (isJapanese ? "！" : "!")
+        }
+
+        // Default: add a period
+        return trimmed + (isJapanese ? "。" : ".")
     }
 
     func stopRecording() {
@@ -107,6 +164,11 @@ final class SpeechRecognizer: ObservableObject {
         recognitionRequest = nil
         recognitionTask?.cancel()
         recognitionTask = nil
+        // Apply punctuation BEFORE clearing isRecording so onChange(of: transcript)
+        // propagates the punctuated text to messageText first
+        if !transcript.isEmpty {
+            transcript = Self.ensurePunctuation(transcript)
+        }
         isRecording = false
     }
 }

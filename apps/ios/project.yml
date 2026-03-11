@@ -5,6 +5,11 @@ options:
     iOS: "16.0"
   xcodeVersion: "15.0"
 
+packages:
+  Mecab-Swift:
+    url: https://github.com/shinjukunian/Mecab-Swift
+    from: "0.8.0"
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -14,6 +19,11 @@ targets:
   Enchatto:
     type: application
     platform: iOS
+    dependencies:
+      - package: Mecab-Swift
+        product: Mecab-Swift
+      - package: Mecab-Swift
+        product: IPADic
     postBuildScripts:
       - name: Inject Git Commit SHA
         script: |

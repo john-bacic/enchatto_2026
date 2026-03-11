@@ -841,10 +841,15 @@ struct HostConversationView: View {
     // MARK: - Helpers
 
     private func sendCurrentMessage() {
-        let text = messageText.trimmingCharacters(in: .whitespaces)
+        let wasRecording = speechRecognizer.isRecording
+        if wasRecording {
+            speechRecognizer.stopRecording()
+        }
+        var text = messageText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        if speechRecognizer.isRecording {
-            speechRecognizer.toggleRecording()
+        // Ensure punctuation for voice input (SwiftUI onChange may not have fired yet)
+        if wasRecording {
+            text = SpeechRecognizer.ensurePunctuation(text)
         }
         viewModel.setTypingAction(nil)
         Task {
