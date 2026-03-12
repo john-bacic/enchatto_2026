@@ -1,1 +1,7 @@
-enum GitInfo { static let commitSHA = "62bc428" }
+import Foundation
+
+enum GitInfo {
+    static let commitSHA: String = {
+        Bundle.main.infoDictionary?["GitCommitSHA"] as? String ?? "dev"
+    }()
+}
