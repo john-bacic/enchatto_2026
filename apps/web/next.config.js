@@ -1,9 +1,14 @@
 const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 
 function getGitSHA() {
-  // Vercel auto-populates this when connected to GitHub
+  // 1. Vercel auto-populates this when deploying from GitHub
   if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7);
-  // Fallback for local dev
+  // 2. Stamped by deploy script (CLI deploys have no .git on Vercel)
+  const shaFile = path.join(__dirname, ".git-sha");
+  if (fs.existsSync(shaFile)) return fs.readFileSync(shaFile, "utf-8").trim();
+  // 3. Local dev — read from git directly
   try {
     return execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
   } catch {

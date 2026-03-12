@@ -11,11 +11,18 @@ git push
 # 2. Deploy Convex functions
 echo "→ Deploying Convex..."
 cd apps/web
+
 npx convex dev --once
 
-# 3. Deploy web to Vercel
+# 3. Stamp git SHA for Vercel build (no .git on Vercel)
+echo "$SHA" > .git-sha
+
+# 4. Deploy web to Vercel
 echo "→ Deploying web to Vercel..."
-npx vercel --prod --build-env NEXT_PUBLIC_GIT_SHA="$SHA"
+npx vercel --prod
+
+# Clean up
+rm -f .git-sha
 
 echo ""
 echo "✓ Done! Deployed v$SHA to GitHub, Convex, and Vercel."
