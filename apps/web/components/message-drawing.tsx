@@ -4,9 +4,10 @@ import { useState } from "react";
 
 interface MessageDrawingProps {
   src: string;
+  onLoad?: () => void;
 }
 
-export function MessageDrawing({ src }: MessageDrawingProps) {
+export function MessageDrawing({ src, onLoad }: MessageDrawingProps) {
   const [fullscreen, setFullscreen] = useState(false);
 
   return (
@@ -25,6 +26,7 @@ export function MessageDrawing({ src }: MessageDrawingProps) {
         <img
           src={src}
           alt="Drawing"
+          onLoad={onLoad}
           style={{ width: "100%", display: "block" }}
         />
       </div>

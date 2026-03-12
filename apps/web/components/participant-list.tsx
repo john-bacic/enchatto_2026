@@ -10,6 +10,7 @@ interface Participant {
   role: "host" | "participant";
   avatar: { type: string; value: string };
   online: boolean;
+  departed?: boolean;
   presence?: "online" | "away";
 }
 
@@ -36,16 +37,24 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
     return () => document.removeEventListener("touchstart", handleTouchOutside);
   }, [tooltip]);
 
-  const activeParticipants = participants.filter((p) => p.online);
-  const onlineCount = activeParticipants.filter((p) => (p.presence ?? "online") === "online").length;
-  const awayCount = activeParticipants.length - onlineCount;
+  // Show all non-departed participants (online, away, AND offline)
+  const visibleParticipants = participants.filter((p) => !p.departed);
+  const onlineCount = visibleParticipants.filter((p) => p.online && (p.presence ?? "online") === "online").length;
+  const awayCount = visibleParticipants.filter((p) => p.online && (p.presence ?? "online") === "away").length;
+  const offlineCount = visibleParticipants.filter((p) => !p.online).length;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
       <div ref={containerRef} style={{ display: "flex", gap: "0.15rem", position: "relative" }}>
-        {activeParticipants.slice(0, 5).map((p) => {
+        {visibleParticipants.slice(0, 5).map((p) => {
           const isMe = p._id === currentParticipantId;
-          const label = `${p.nickname}${isMe ? ` ${t("(you)", lang)}` : ""}${p.role === "host" ? ` ${t("· host", lang)}` : ""}${(p.presence ?? "online") === "away" ? ` ${t("· away", lang)}` : ""}`;
+          const effectivePresence = p.online ? (p.presence ?? "online") : "offline";
+          const statusLabel = effectivePresence === "away"
+            ? ` ${t("· away", lang)}`
+            : effectivePresence === "offline"
+              ? ` ${t("· offline", lang)}`
+              : "";
+          const label = `${p.nickname}${isMe ? ` ${t("(you)", lang)}` : ""}${p.role === "host" ? ` ${t("· host", lang)}` : ""}${statusLabel}`;
           return (
             <div
               key={p._id}
@@ -58,7 +67,7 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
                 avatarId={p.avatar.value}
                 nickname={p.nickname}
                 size={26}
-                presence={p.presence ?? "online"}
+                presence={effectivePresence}
                 isMe={isMe}
               />
               {tooltip === p._id && (
@@ -100,7 +109,7 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
             </div>
           );
         })}
-        {activeParticipants.length > 5 && (
+        {visibleParticipants.length > 5 && (
           <div
             style={{
               width: "26px",
@@ -116,7 +125,7 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
               color: "var(--muted)",
             }}
           >
-            +{activeParticipants.length - 5}
+            +{visibleParticipants.length - 5}
           </div>
         )}
       </div>

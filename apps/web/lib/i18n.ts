@@ -92,11 +92,14 @@ const translations: Record<string, Record<string, string>> = {
   "· away": { ja: "· 離席中" },
   "online": { ja: "オンライン" },
   "away": { ja: "離席" },
+  "offline": { ja: "オフライン" },
+  "· offline": { ja: "· オフライン" },
   "Leave room": { ja: "ルームを退出" },
 
   // Display settings
   "Room": { ja: "ルーム" },
   "Display": { ja: "表示" },
+  "Display for": { ja: "表示設定：" },
   "English": { ja: "英語" },
   "Japanese": { ja: "日本語" },
   "Romaji": { ja: "ローマ字" },
@@ -105,6 +108,8 @@ const translations: Record<string, Record<string, string>> = {
   // System messages
   "has joined": { ja: "が参加しました" },
   "has left": { ja: "が退出しました" },
+  "is away": { ja: "は離席中です" },
+  "is back": { ja: "が戻りました" },
 
   // Reply preview
   "Photo": { ja: "写真" },

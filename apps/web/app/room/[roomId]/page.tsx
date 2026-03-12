@@ -357,7 +357,14 @@ function RoomContent() {
     replyToId: q.replyToId,
     createdAt: q.createdAt,
   }));
-  const displayMessages = [...messageList, ...queuedAsMessages];
+  // Filter out all host system messages (join/leave/away/back)
+  const roomHostId = roomState?.room?.hostId;
+  const displayMessages = [...messageList, ...queuedAsMessages].filter((m) => {
+    if (m.kind === "system" && roomHostId && m.senderId === roomHostId) {
+      return false;
+    }
+    return true;
+  });
 
   const handleLeave = async () => {
     if (!participantId) return;
@@ -448,10 +455,10 @@ function RoomContent() {
 
   const isClosed = roomState.room.status === "closed";
 
-  const otherParticipants = participants.filter((p) => p._id !== participantId);
-  const activeOthers = otherParticipants.filter((p) => (p as any).online);
-  const onlineCount = activeOthers.filter((p) => ((p as any).presence ?? "online") === "online").length;
-  const awayCount = activeOthers.length - onlineCount;
+  // Count ALL participants (including self) to match iOS header
+  const allVisible = participants.filter((p) => !(p as any).departed);
+  const onlineCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "online").length;
+  const awayCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "away").length;
 
   return (
     <div
@@ -500,14 +507,35 @@ function RoomContent() {
             }
             return null;
           })()}
-          <div>
-            <h1 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>{t("Enchatto", lang)}</h1>
+          <div style={{ lineHeight: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <h1 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, lineHeight: 1 }}>{t("Enchatto", lang)}</h1>
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                title={t("Leave room", lang)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: "0.15rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  color: "var(--muted)",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+            </div>
             {isClosed ? (
               <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>
                 {t("Room closed", lang)}
               </span>
             ) : (
-              <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
+              <span style={{ fontSize: "0.7rem", color: "var(--muted)", lineHeight: 1, marginTop: "1px", display: "block" }}>
                 {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
               </span>
             )}
@@ -516,7 +544,6 @@ function RoomContent() {
         <ParticipantList
           participants={participants.filter((p) => p._id !== participantId)}
           currentParticipantId={participantId}
-          onLeave={() => setShowLeaveConfirm(true)}
           lang={lang}
         />
       </header>
@@ -630,7 +657,7 @@ function RoomContent() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-              {t("Display", lang)}
+              {t("Display for", lang)} {me?.nickname ?? ""}
             </h2>
             <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
               {t("Room", lang)}: <strong>{roomState.room.joinCode}</strong>
@@ -677,6 +704,11 @@ function RoomContent() {
             >
               {t("Done", lang)}
             </button>
+            <p style={{ marginTop: "0.75rem", fontSize: "0.65rem", color: "var(--muted)", textAlign: "center", opacity: 0.6, lineHeight: 1.4 }}>
+              {process.env.NEXT_PUBLIC_CONVEX_URL?.replace("https://", "").replace(".convex.cloud", "") ?? ""} · web v0.1.0
+              {process.env.NEXT_PUBLIC_GIT_SHA && process.env.NEXT_PUBLIC_GIT_SHA !== "dev" ? (<><br />github: {process.env.NEXT_PUBLIC_GIT_SHA}</>) : null}
+              {process.env.NEXT_PUBLIC_VERCEL_URL ? (<><br />vercel: {process.env.NEXT_PUBLIC_VERCEL_URL}</>) : null}
+            </p>
           </div>
         </div>
       )}

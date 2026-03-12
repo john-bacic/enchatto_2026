@@ -84,7 +84,7 @@ export const closeRoom = mutation({
 
     await Promise.all(
       participants.map((p) =>
-        ctx.db.patch(p._id, { online: false, lastSeenAt: Date.now() })
+        ctx.db.patch(p._id, { online: false, departed: true, lastSeenAt: Date.now() })
       )
     );
   },

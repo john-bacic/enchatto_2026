@@ -33,7 +33,7 @@ export function AvatarPreview({
     effectivePresence === "online"
       ? "#22c55e"
       : effectivePresence === "away"
-        ? "#eab308"
+        ? "#f97316"
         : "#9ca3af";
 
   return (
@@ -56,7 +56,7 @@ export function AvatarPreview({
           justifyContent: "center",
           fontSize: `${size * 0.55}px`,
           position: "relative",
-          opacity: effectivePresence === "away" ? 0.7 : 1,
+          opacity: effectivePresence === "offline" ? 0.5 : effectivePresence === "away" ? 0.7 : 1,
           outline: isMe ? "2px solid var(--primary)" : "none",
           outlineOffset: "2px",
         }}

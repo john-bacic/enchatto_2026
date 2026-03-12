@@ -5,9 +5,10 @@ import { useState } from "react";
 interface MessageImageProps {
   src: string;
   alt?: string;
+  onLoad?: () => void;
 }
 
-export function MessageImage({ src, alt = "Shared image" }: MessageImageProps) {
+export function MessageImage({ src, alt = "Shared image", onLoad }: MessageImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -42,7 +43,7 @@ export function MessageImage({ src, alt = "Shared image" }: MessageImageProps) {
         <img
           src={src}
           alt={alt}
-          onLoad={() => setLoaded(true)}
+          onLoad={() => { setLoaded(true); onLoad?.(); }}
           style={{
             width: "100%",
             display: loaded ? "block" : "none",

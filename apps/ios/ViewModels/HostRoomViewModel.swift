@@ -68,42 +68,58 @@ class HostRoomViewModel: ObservableObject {
                 self?.handleReconnect()
             }
         }
+
+        // Close room when app is terminated (swipe-up to kill)
+        NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                let roomId = self.roomId
+                let api = self.api
+                Task { try? await api.closeRoom(roomId: roomId) }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Observation
 
     func startObserving() {
         // Poll for room state and messages
-        pollTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                await self.refresh()
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+        if pollTask == nil {
+            pollTask = Task { [weak self] in
+                guard let self else { return }
+                while !Task.isCancelled {
+                    await self.refresh()
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                }
             }
         }
 
         // Heartbeat every 15 seconds to keep presence alive
-        heartbeatTask = Task { [weak self] in
-            guard let self else { return }
-            // Mark online immediately
-            if self.networkMonitor.isConnected {
-                try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
-            }
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
-                guard self.networkMonitor.isConnected else { continue }
-                try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+        if heartbeatTask == nil {
+            heartbeatTask = Task { [weak self] in
+                guard let self else { return }
+                // Mark online immediately
+                if self.networkMonitor.isConnected {
+                    try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+                }
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 15_000_000_000)
+                    guard self.networkMonitor.isConnected else { continue }
+                    try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+                }
             }
         }
 
         // Poll for pending messages and process them
-        processingTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                if self.networkMonitor.isConnected {
-                    await self.processPendingMessages()
+        if processingTask == nil {
+            processingTask = Task { [weak self] in
+                guard let self else { return }
+                while !Task.isCancelled {
+                    if self.networkMonitor.isConnected {
+                        await self.processPendingMessages()
+                    }
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
                 }
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
             }
         }
     }
@@ -121,6 +137,8 @@ class HostRoomViewModel: ObservableObject {
         switch phase {
         case .active:
             Task {
+                // Brief delay to let the network reconnect after backgrounding
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 try? await api.setParticipantOnline(participantId: hostId, online: true, presence: "online")
             }
             if pollTask == nil {
@@ -130,7 +148,12 @@ class HostRoomViewModel: ObservableObject {
             Task {
                 try? await api.setParticipantOnline(participantId: hostId, online: true, presence: "away")
             }
-            stopObserving()
+            // Stop polling and processing but keep heartbeat alive
+            // so the server doesn't mark host as offline/left
+            pollTask?.cancel()
+            pollTask = nil
+            processingTask?.cancel()
+            processingTask = nil
         default:
             break
         }
@@ -160,9 +183,18 @@ class HostRoomViewModel: ObservableObject {
 
             isLoading = false
         } catch {
-            // Only show errors when online — offline failures are expected
-            if networkMonitor.isConnected {
-                self.error = error.localizedDescription
+            // Only show errors when online and not a transient network issue
+            if networkMonitor.isConnected && !isLoading {
+                let desc = error.localizedDescription
+                // Suppress transient connection errors (e.g. resuming from background)
+                let transient = desc.contains("cancelled")
+                    || desc.contains("canceled")
+                    || desc.contains("network connection was lost")
+                    || desc.contains("not connected to the internet")
+                    || desc.contains("timed out")
+                if !transient {
+                    self.error = desc
+                }
             }
             isLoading = false
         }

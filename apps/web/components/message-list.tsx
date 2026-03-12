@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { MessageItem } from "@/components/message-item";
 import { TypingIndicator } from "@/components/typing-indicator";
 import { t } from "@/lib/i18n";
@@ -65,9 +65,19 @@ export function MessageList({
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Count messages that have translations to detect when new translations arrive
+  const translationCount = messages.filter((m) => m.processing?.translatedText).length;
+  // Count media messages to detect when images/drawings arrive
+  const mediaCount = messages.filter((m) => m.mediaUrl).length;
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, translationCount, mediaCount]);
+
+  // Also scroll when an image/drawing finishes loading (async render)
+  const handleImageLoad = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   const findParticipant = (id: string) =>
     participants.find((p) => p._id === id);
@@ -111,6 +121,10 @@ export function MessageList({
               displayText = lang === "ja" ? `${name}${t("has joined", lang)}` : `${name} ${t("has joined", lang)}`;
             } else if (action === "leave") {
               displayText = lang === "ja" ? `${name}${t("has left", lang)}` : `${name} ${t("has left", lang)}`;
+            } else if (action === "away") {
+              displayText = lang === "ja" ? `${name}${t("is away", lang)}` : `${name} ${t("is away", lang)}`;
+            } else if (action === "back") {
+              displayText = lang === "ja" ? `${name}${t("is back", lang)}` : `${name} ${t("is back", lang)}`;
             }
           }
           return (
@@ -161,6 +175,7 @@ export function MessageList({
             showEnglish={showEnglish}
             showJapanese={showJapanese}
             showRomaji={showRomaji}
+            onImageLoad={handleImageLoad}
           />
         );
       })}

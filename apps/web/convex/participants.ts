@@ -40,6 +40,7 @@ export const joinRoom = mutation({
       const now = Date.now();
       await ctx.db.patch(existing._id, {
         online: true,
+        departed: undefined,
         presence: "online",
         lastSeenAt: now,
         platform: args.platform,
@@ -111,6 +112,7 @@ export const leaveRoom = mutation({
     const now = Date.now();
     await ctx.db.patch(args.participantId, {
       online: false,
+      departed: true,
       lastSeenAt: now,
     });
 
@@ -144,30 +146,35 @@ export const setParticipantOnline = mutation({
       presence: args.online ? (args.presence ?? "online") : undefined,
     });
 
-    // Insert system message when going offline
-    if (participant && participant.online && !args.online) {
-      await ctx.db.insert("messages", {
-        roomId: participant.roomId,
-        senderId: args.participantId,
-        kind: "system",
-        status: "processed",
-        text: `leave:${participant.nickname}`,
-        createdAt: now,
-        processedAt: now,
-      });
-    }
+    if (participant) {
+      const isHost = participant.role === "host";
 
-    // Insert system message when coming back online (rejoin)
-    if (participant && !participant.online && args.online) {
-      await ctx.db.insert("messages", {
-        roomId: participant.roomId,
-        senderId: args.participantId,
-        kind: "system",
-        status: "processed",
-        text: `join:${participant.nickname}`,
-        createdAt: now,
-        processedAt: now,
-      });
+      // Host: no system messages for presence changes
+      if (!isHost) {
+        // Non-host: keep existing leave/join messages
+        if (participant.online && !args.online) {
+          await ctx.db.insert("messages", {
+            roomId: participant.roomId,
+            senderId: args.participantId,
+            kind: "system",
+            status: "processed",
+            text: `leave:${participant.nickname}`,
+            createdAt: now,
+            processedAt: now,
+          });
+        }
+        if (!participant.online && args.online) {
+          await ctx.db.insert("messages", {
+            roomId: participant.roomId,
+            senderId: args.participantId,
+            kind: "system",
+            status: "processed",
+            text: `join:${participant.nickname}`,
+            createdAt: now,
+            processedAt: now,
+          });
+        }
+      }
     }
   },
 });
@@ -248,16 +255,9 @@ export const cleanupStaleParticipants = internalMutation({
     for (const p of allParticipants) {
       if (!p.online) continue;
       if (p.presence === "away" && p.lastSeenAt < awayOfflineCutoff) {
+        // Mark offline but do NOT create a "leave" system message.
+        // "leave" messages are only created when the room is explicitly closed.
         await ctx.db.patch(p._id, { online: false, presence: undefined, typingAction: undefined });
-        await ctx.db.insert("messages", {
-          roomId: p.roomId,
-          senderId: p._id,
-          kind: "system",
-          status: "processed",
-          text: `leave:${p.nickname}`,
-          createdAt: now,
-          processedAt: now,
-        });
       } else if (p.presence !== "away" && p.lastSeenAt < onlineAwayCutoff) {
         await ctx.db.patch(p._id, { presence: "away", typingAction: undefined });
       }

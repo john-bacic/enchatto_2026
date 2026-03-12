@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import CoreImage.CIFilterBuiltins
 import Translation
+import AudioToolbox
 
 // PreferenceKey to capture message frames for context menu positioning
 private struct MessageFramePreferenceKey: PreferenceKey {
@@ -293,44 +294,79 @@ struct HostConversationView: View {
 
     private var headerView: some View {
         HStack {
-            // Host's own avatar + title
-            Button {
-                showQRCode = true
-            } label: {
-                HStack(spacing: 8) {
-                    if let host = viewModel.participant(for: hostId) {
-                        ZStack {
-                            Circle()
-                                .fill(host.avatarColor)
-                                .frame(width: 32, height: 32)
-                            Text(host.avatarEmoji)
-                                .font(.system(size: 18))
-                        }
+            // Host's own avatar — tap to show settings menu
+            if let host = viewModel.participant(for: hostId) {
+                Menu {
+                    // Language display toggles
+                    Button {
+                        showEnglish.toggle()
+                    } label: {
+                        Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 5) {
-                            Text(L.t("Enchatto", hostLanguage))
-                                .font(.headline)
-                            QRCodeIcon()
-                                .frame(width: 14, height: 14)
-                                .foregroundStyle(.secondary)
-                        }
-                        HStack(spacing: 4) {
-                            Text("\(viewModel.onlineCount) \(L.t("online", hostLanguage))\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) \(L.t("away", hostLanguage))" : "")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if viewModel.isProcessing {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                Text(L.t("Processing...", hostLanguage))
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                            }
-                        }
+                    Button {
+                        showJapanese.toggle()
+                    } label: {
+                        Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
+                    }
+                    Button {
+                        showRomaji.toggle()
+                    } label: {
+                        Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
+                    }
+
+                    Divider()
+
+                    Button {
+                        viewModel.showParticipantSheet = true
+                    } label: {
+                        Label(L.t("Participants", hostLanguage), systemImage: "person.2")
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        showCloseConfirmation = true
+                    } label: {
+                        Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(host.avatarColor)
+                            .frame(width: 32, height: 32)
+                        Text(host.avatarEmoji)
+                            .font(.system(size: 18))
                     }
                 }
             }
-            .buttonStyle(.plain)
+
+            // Title + QR code — tap QR icon to show QR panel
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(L.t("Enchatto", hostLanguage))
+                        .font(.headline)
+                    Button {
+                        showQRCode = true
+                    } label: {
+                        QRCodeIcon()
+                            .frame(width: 14, height: 14)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                HStack(spacing: 4) {
+                    Text("\(viewModel.onlineCount) \(L.t("online", hostLanguage))\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) \(L.t("away", hostLanguage))" : "")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if viewModel.isProcessing {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text(L.t("Processing...", hostLanguage))
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
 
             Spacer()
 
@@ -345,48 +381,6 @@ struct HostConversationView: View {
                     }
                 }
             )
-
-            // Menu
-            Menu {
-                // Language display toggles
-                Button {
-                    showEnglish.toggle()
-                } label: {
-                    Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
-                }
-                Button {
-                    showJapanese.toggle()
-                } label: {
-                    Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
-                }
-                Button {
-                    showRomaji.toggle()
-                } label: {
-                    Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
-                }
-
-                Divider()
-
-                Button {
-                    viewModel.showParticipantSheet = true
-                } label: {
-                    Label(L.t("Participants", hostLanguage), systemImage: "person.2")
-                }
-
-                Divider()
-
-                Button(role: .destructive) {
-                    showCloseConfirmation = true
-                } label: {
-                    Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.title3)
-                    .rotationEffect(.degrees(90))
-                    .frame(width: 32, height: 44)
-                    .contentShape(Rectangle())
-            }
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -445,11 +439,22 @@ struct HostConversationView: View {
 
     // MARK: - Message list
 
+    /// Tracks how many messages have translations so we can auto-scroll when new translations arrive.
+    private var translationFingerprint: Int {
+        viewModel.messages.reduce(0) { count, msg in
+            count
+                + (msg.processing?.translatedText != nil ? 1 : 0)
+                + (msg.processing?.romaji != nil ? 1 : 0)
+        }
+    }
+
     private var messageListView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(viewModel.messages) { message in
+                    ForEach(viewModel.messages.filter { msg in
+                        !(msg.kind == .system && (msg.text?.hasPrefix("away:") == true || msg.text?.hasPrefix("back:") == true))
+                    }) { message in
                         if message.kind == .system {
                             SystemMessageRow(text: message.text ?? "", lang: hostLanguage)
                                 .id(message.id)
@@ -509,6 +514,14 @@ struct HostConversationView: View {
                     }
                 }
             }
+            .onChange(of: translationFingerprint) { _ in
+                guard contextMenuMessageId == nil else { return }
+                if let lastId = viewModel.messages.last?.id {
+                    withAnimation {
+                        proxy.scrollTo(lastId, anchor: .bottom)
+                    }
+                }
+            }
         }
     }
 
@@ -546,32 +559,6 @@ struct HostConversationView: View {
     // MARK: - Input
 
     @State private var showAttachMenu = false
-
-    private var voiceButton: some View {
-        Button {
-            if !speechRecognizer.isRecording {
-                isTextEditorFocused = false
-                viewModel.setTypingAction("voicing")
-            } else {
-                viewModel.setTypingAction(nil)
-            }
-            speechRecognizer.updateLocale(hostLanguage)
-            speechRecognizer.toggleRecording()
-        } label: {
-            let recording = speechRecognizer.isRecording
-            HStack(spacing: 4) {
-                Image(systemName: recording ? "mic.fill" : "mic")
-                    .font(.system(size: 14))
-                Text(L.t("Voice", hostLanguage))
-                    .font(.system(size: 13, weight: .medium))
-            }
-            .foregroundStyle(recording ? .red : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(recording ? Color.red.opacity(0.15) : Color(.systemGray5))
-            .clipShape(Capsule())
-        }
-    }
 
     private var inputToolbar: some View {
         HStack(spacing: 10) {
@@ -613,18 +600,72 @@ struct HostConversationView: View {
                 .clipShape(Capsule())
             }
 
-            voiceButton
-
             Spacer()
 
-            // Send button
-            SendButton(
-                hasText: !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
-                action: sendCurrentMessage
-            )
+            // Voice/send toggle
+            if speechRecognizer.isRecording {
+                HStack(spacing: 6) {
+                    voiceRecordingButton
+                    SendButton(
+                        hasText: !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
+                        action: sendCurrentMessage,
+                        pulsate: false
+                    )
+                }
+                .transition(.scale.combined(with: .opacity))
+            } else if !messageText.trimmingCharacters(in: .whitespaces).isEmpty {
+                SendButton(
+                    hasText: true,
+                    action: sendCurrentMessage
+                )
+                .transition(.scale.combined(with: .opacity))
+            } else {
+                voiceMicButton
+                    .transition(.scale.combined(with: .opacity))
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: !messageText.trimmingCharacters(in: .whitespaces).isEmpty)
+        .animation(.easeInOut(duration: 0.2), value: speechRecognizer.isRecording)
         .padding(.horizontal, 10)
         .padding(.bottom, 10)
+    }
+
+    private var voiceMicButton: some View {
+        Button {
+            AudioServicesPlaySystemSound(1113)
+            isTextEditorFocused = false
+            viewModel.setTypingAction("voicing")
+            speechRecognizer.updateLocale(hostLanguage)
+            speechRecognizer.toggleRecording()
+        } label: {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 15))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(Color(.systemGray3))
+                .clipShape(Circle())
+        }
+    }
+
+    private var voiceRecordingButton: some View {
+        Button {
+            viewModel.setTypingAction(nil)
+            speechRecognizer.toggleRecording()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.5))
+                    .frame(width: 28, height: 28)
+                    .scaleEffect(1.0 + speechRecognizer.audioLevel * 2.5)
+                    .animation(.interpolatingSpring(stiffness: 200, damping: 12), value: speechRecognizer.audioLevel)
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.orange)
+                    .frame(width: 28, height: 28)
+                    .background(Color(.systemGray6).opacity(0.6))
+                    .clipShape(Circle())
+            }
+        }
     }
 
     private var inputView: some View {
@@ -639,6 +680,12 @@ struct HostConversationView: View {
                     .scrollContentBackground(.hidden)
                     .onChange(of: messageText) { text in
                         viewModel.setTypingAction(text.isEmpty ? nil : "typing")
+                    }
+                    .onChange(of: isTextEditorFocused) { focused in
+                        if focused && speechRecognizer.isRecording {
+                            speechRecognizer.stopRecording()
+                            viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 10)
@@ -820,6 +867,18 @@ struct HostConversationView: View {
                     }
                 } header: {
                     Text(L.t("Settings", hostLanguage))
+                } footer: {
+                    let deployment = AppConfig.convexDeploymentURL
+                        .replacingOccurrences(of: "https://", with: "")
+                        .replacingOccurrences(of: ".convex.site", with: "")
+                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                    VStack(spacing: 2) {
+                        Text("\(deployment) · iOS v\(version)")
+                        Text("github: \(GitInfo.commitSHA)")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
                 }
             }
             .navigationTitle(L.t("Participants", hostLanguage))
@@ -865,12 +924,13 @@ struct HostConversationView: View {
 private struct SendButton: View {
     let hasText: Bool
     let action: () -> Void
+    var pulsate: Bool = true
     @State private var pulsing = false
 
     var body: some View {
         Button(action: action) {
             ZStack {
-                if hasText {
+                if hasText && pulsate {
                     Circle()
                         .fill(Color.accentColor)
                         .frame(width: 28, height: 28)
@@ -888,10 +948,10 @@ private struct SendButton: View {
         }
         .disabled(!hasText)
         .onChange(of: hasText) { active in
-            pulsing = active
+            pulsing = pulsate && active
         }
         .onAppear {
-            pulsing = hasText
+            pulsing = pulsate && hasText
         }
     }
 }

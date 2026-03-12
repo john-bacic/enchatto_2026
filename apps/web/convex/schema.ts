@@ -30,6 +30,7 @@ export default defineSchema({
     }),
     preferredLanguage: v.string(),
     online: v.boolean(),
+    departed: v.optional(v.boolean()),
     presence: v.optional(v.union(v.literal("online"), v.literal("away"))),
     typingAction: v.optional(v.union(v.literal("typing"), v.literal("drawing"), v.literal("voicing"))),
     lastSeenAt: v.number(),

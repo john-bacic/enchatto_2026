@@ -52,6 +52,7 @@ interface MessageItemProps {
   showEnglish?: boolean;
   showJapanese?: boolean;
   showRomaji?: boolean;
+  onImageLoad?: () => void;
 }
 
 function getEmoji(avatarValue: string): string {
@@ -170,6 +171,7 @@ export function MessageItem({
   showEnglish = true,
   showJapanese = true,
   showRomaji = true,
+  onImageLoad,
 }: MessageItemProps) {
   const senderName = sender?.nickname ?? "Unknown";
   const senderEmoji = sender ? getEmoji(sender.avatar.value) : "👤";
@@ -302,6 +304,9 @@ export function MessageItem({
               opacity: isPending ? 0.7 : 1,
               userSelect: "text",
               WebkitUserSelect: "text",
+              wordBreak: "break-word",
+              overflowWrap: "break-word",
+              minWidth: 0,
             }}
             onPointerDown={handlePointerDown}
             onPointerUp={handlePointerUp}
@@ -309,10 +314,10 @@ export function MessageItem({
             onContextMenu={handleContextMenu}
           >
             {message.kind === "image" && message.mediaUrl && (
-              <MessageImage src={message.mediaUrl} />
+              <MessageImage src={message.mediaUrl} onLoad={onImageLoad} />
             )}
             {message.kind === "drawing" && message.mediaUrl && (
-              <MessageDrawing src={message.mediaUrl} />
+              <MessageDrawing src={message.mediaUrl} onLoad={onImageLoad} />
             )}
             {message.kind === "text" && (() => {
               const { english, japanese } = getLanguageTexts(message);

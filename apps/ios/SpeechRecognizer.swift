@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Accelerate
 
 #if os(iOS)
 import Speech
@@ -10,11 +11,17 @@ import AVFoundation
 final class SpeechRecognizer: ObservableObject {
     @Published var transcript = ""
     @Published var isRecording = false
+    /// Normalized audio level (0...1) representing current mic input volume.
+    @Published var audioLevel: CGFloat = 0
 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    /// Text from previous finalized recognition segments, accumulated across pauses.
+    private var committedText = ""
+    /// Timestamp of last audio level update (throttle to ~20fps).
+    private var lastLevelUpdate: CFAbsoluteTime = 0
 
     init(locale: Locale = Locale(identifier: "en-US")) {
         speechRecognizer = SFSpeechRecognizer(locale: locale)
@@ -75,8 +82,22 @@ final class SpeechRecognizer: ObservableObject {
 
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             request.append(buffer)
+            // Throttle level updates to ~20fps to avoid flooding the main thread
+            let now = CFAbsoluteTimeGetCurrent()
+            guard let self, now - self.lastLevelUpdate > 0.05 else { return }
+            self.lastLevelUpdate = now
+            // Calculate RMS using Accelerate
+            guard let channelData = buffer.floatChannelData?[0] else { return }
+            let frameLength = UInt(buffer.frameLength)
+            var rms: Float = 0
+            vDSP_rmsqv(channelData, 1, &rms, frameLength)
+            // Normalize: speech RMS is typically 0.01–0.3, scale up aggressively and clamp
+            let normalized = min(CGFloat(rms) * 10.0, 1.0)
+            DispatchQueue.main.async { [weak self] in
+                self?.audioLevel = normalized
+            }
         }
 
         audioEngine.prepare()
@@ -86,14 +107,20 @@ final class SpeechRecognizer: ObservableObject {
             return
         }
 
+        committedText = ""
+
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
                 guard let self, self.isRecording else { return }
                 if let result {
-                    let text = result.bestTranscription.formattedString
-                    self.transcript = Self.ensurePunctuation(text)
+                    let segment = result.bestTranscription.formattedString
+                    let full = self.committedText.isEmpty
+                        ? segment
+                        : self.committedText + "\n" + segment
+                    self.transcript = Self.ensurePunctuation(full)
                     if result.isFinal {
-                        self.stopRecording()
+                        // Commit finalized text; keep recording for more speech
+                        self.committedText = Self.ensurePunctuation(full)
                     }
                 } else if error != nil {
                     self.stopRecording()
@@ -158,6 +185,7 @@ final class SpeechRecognizer: ObservableObject {
     }
 
     func stopRecording() {
+        audioLevel = 0
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
@@ -169,6 +197,7 @@ final class SpeechRecognizer: ObservableObject {
         if !transcript.isEmpty {
             transcript = Self.ensurePunctuation(transcript)
         }
+        committedText = ""
         isRecording = false
     }
 }
