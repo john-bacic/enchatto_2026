@@ -1,1 +1,1 @@
-enum GitInfo { static let commitSHA = "e244f41" }
+enum GitInfo { static let commitSHA = "1c73967" }
