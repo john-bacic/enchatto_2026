@@ -85,6 +85,7 @@ const translations: Record<string, Record<string, string>> = {
   // Typing indicator
   "is typing": { ja: "が入力中" },
   "is drawing": { ja: "が描画中" },
+  "is speaking": { ja: "が話し中" },
 
   // Participant list
   "(you)": { ja: "(あなた)" },

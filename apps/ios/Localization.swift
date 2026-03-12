@@ -82,6 +82,11 @@ enum L {
         // Language toggles
         "Romaji": ["ja": "ローマ字"],
 
+        // Typing indicator
+        "is typing": ["ja": "が入力中"],
+        "is drawing": ["ja": "が描画中"],
+        "is speaking": ["ja": "が話し中"],
+
         // Drawing composer
         "Clear": ["ja": "消去"],
         "Send": ["ja": "送信"],

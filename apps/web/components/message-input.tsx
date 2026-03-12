@@ -97,7 +97,7 @@ export function MessageInput({
 
   const handleTextChange = (value: string) => {
     setText(value);
-    if (value.trim()) {
+    if (value.trim() && !isListening) {
       onTypingChange?.("typing");
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {

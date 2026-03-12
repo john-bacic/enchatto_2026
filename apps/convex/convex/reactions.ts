@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-const SUPPORTED_REACTIONS = ["👍", "❤️", "😂", "😮", "🎉", "👀"];
+const SUPPORTED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
 export const addReaction = mutation({
   args: {

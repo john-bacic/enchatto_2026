@@ -89,7 +89,7 @@ struct QueuedMessage {
 
 // MARK: - Reactions
 
-let supportedReactions: [String] = ["👍", "❤️", "😂", "😮", "🎉", "👀"]
+let supportedReactions: [String] = ["👍", "❤️", "😂", "😮", "😢", "🔥"]
 
 struct Reaction: Identifiable, Codable {
     let id: String

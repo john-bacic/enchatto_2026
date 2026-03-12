@@ -70,9 +70,11 @@ export function MessageList({
   // Count media messages to detect when images/drawings arrive
   const mediaCount = messages.filter((m) => m.mediaUrl).length;
 
+  const typingCount = typingParticipants?.length ?? 0;
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, translationCount, mediaCount]);
+  }, [messages.length, translationCount, mediaCount, typingCount]);
 
   // Also scroll when an image/drawing finishes loading (async render)
   const handleImageLoad = useCallback(() => {

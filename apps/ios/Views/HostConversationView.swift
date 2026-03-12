@@ -498,8 +498,11 @@ struct HostConversationView: View {
 
                     // Typing indicator bubbles
                     ForEach(viewModel.typingParticipants) { participant in
-                        TypingBubble(participant: participant)
+                        TypingBubble(participant: participant, lang: hostLanguage)
                     }
+
+                    // Scroll anchor
+                    Color.clear.frame(height: 1).id("bottom-anchor")
                 }
                 .padding()
             }
@@ -508,18 +511,20 @@ struct HostConversationView: View {
             }
             .onChange(of: viewModel.messages.count) { _ in
                 guard contextMenuMessageId == nil else { return }
-                if let lastId = viewModel.messages.last?.id {
-                    withAnimation {
-                        proxy.scrollTo(lastId, anchor: .bottom)
-                    }
+                withAnimation {
+                    proxy.scrollTo("bottom-anchor", anchor: .bottom)
                 }
             }
             .onChange(of: translationFingerprint) { _ in
                 guard contextMenuMessageId == nil else { return }
-                if let lastId = viewModel.messages.last?.id {
-                    withAnimation {
-                        proxy.scrollTo(lastId, anchor: .bottom)
-                    }
+                withAnimation {
+                    proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                }
+            }
+            .onChange(of: viewModel.typingParticipants.count) { _ in
+                guard contextMenuMessageId == nil else { return }
+                withAnimation {
+                    proxy.scrollTo("bottom-anchor", anchor: .bottom)
                 }
             }
         }
@@ -586,6 +591,7 @@ struct HostConversationView: View {
             // Drawing button
             Button {
                 showDrawingComposer = true
+                viewModel.setTypingAction("drawing")
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "pencil.tip")
@@ -632,11 +638,17 @@ struct HostConversationView: View {
 
     private var voiceMicButton: some View {
         Button {
+            let haptic = UIImpactFeedbackGenerator(style: .medium)
+            haptic.prepare()
+            haptic.impactOccurred()
             AudioServicesPlaySystemSound(1113)
             isTextEditorFocused = false
             viewModel.setTypingAction("voicing")
             speechRecognizer.updateLocale(hostLanguage)
-            speechRecognizer.toggleRecording()
+            // Delay recording start so haptic/audio play before audio session is claimed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                self.speechRecognizer.toggleRecording()
+            }
         } label: {
             Image(systemName: "mic.fill")
                 .font(.system(size: 15))
@@ -649,6 +661,8 @@ struct HostConversationView: View {
 
     private var voiceRecordingButton: some View {
         Button {
+            AudioServicesPlaySystemSound(1114)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             viewModel.setTypingAction(nil)
             speechRecognizer.toggleRecording()
         } label: {
@@ -662,7 +676,7 @@ struct HostConversationView: View {
                     .font(.system(size: 15))
                     .foregroundStyle(Color.orange)
                     .frame(width: 28, height: 28)
-                    .background(Color(.systemGray6).opacity(0.6))
+                    .background(Color.white)
                     .clipShape(Circle())
             }
         }
@@ -679,7 +693,9 @@ struct HostConversationView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .scrollContentBackground(.hidden)
                     .onChange(of: messageText) { text in
-                        viewModel.setTypingAction(text.isEmpty ? nil : "typing")
+                        if !speechRecognizer.isRecording {
+                            viewModel.setTypingAction(text.isEmpty ? nil : "typing")
+                        }
                     }
                     .onChange(of: isTextEditorFocused) { focused in
                         if focused && speechRecognizer.isRecording {
@@ -727,9 +743,13 @@ struct HostConversationView: View {
                 lang: hostLanguage,
                 onSend: { image in
                     showDrawingComposer = false
+                    viewModel.setTypingAction(nil)
                     Task { await viewModel.sendDrawing(image, replyToId: replyToId); replyToId = nil }
                 },
-                onCancel: { showDrawingComposer = false }
+                onCancel: {
+                    showDrawingComposer = false
+                    viewModel.setTypingAction(nil)
+                }
             )
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -928,7 +948,12 @@ private struct SendButton: View {
     @State private var pulsing = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            if hasText {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+            action()
+        } label: {
             ZStack {
                 if hasText && pulsate {
                     Circle()
@@ -998,6 +1023,7 @@ private struct SystemMessageRow: View {
 
 private struct TypingBubble: View {
     let participant: Participant
+    var lang: String = "en"
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -1017,11 +1043,32 @@ private struct TypingBubble: View {
                     .frame(maxWidth: 40)
             }
 
-            // Bubble with 3 animated dots
-            HStack(spacing: 4) {
-                BouncingDot(delay: 0)
-                BouncingDot(delay: 0.15)
-                BouncingDot(delay: 0.3)
+            // Bubble with action-specific animation
+            Group {
+                if participant.typingAction == "drawing" {
+                    // Pencil wiggle + label
+                    HStack(spacing: 6) {
+                        DrawingPencil()
+                        Text(L.t("is drawing", lang))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if participant.typingAction == "voicing" {
+                    // Orange pulsing bars + label
+                    HStack(spacing: 6) {
+                        VoiceBars()
+                        Text(L.t("is speaking", lang))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    // Bouncing dots for typing
+                    HStack(spacing: 4) {
+                        BouncingDot(delay: 0)
+                        BouncingDot(delay: 0.15)
+                        BouncingDot(delay: 0.3)
+                    }
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -1038,9 +1085,7 @@ private struct TypingBubble: View {
     }
 }
 
-/// Single bouncing dot — matches web keyframes:
-/// 0%,60%,100%: y=0, opacity=0.4  |  30%: y=-4, opacity=1
-/// Total cycle: 1.2s, staggered by delay
+/// Single bouncing dot for typing indicator
 private struct BouncingDot: View {
     let delay: Double
     @State private var animating = false
@@ -1060,6 +1105,48 @@ private struct BouncingDot: View {
                     animating = true
                 }
             }
+    }
+}
+
+/// Orange pulsing bars for voice indicator
+private struct VoiceBars: View {
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<4) { i in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color.orange)
+                    .frame(width: 3, height: animating ? 14 : 4)
+                    .opacity(animating ? 1 : 0.5)
+                    .animation(
+                        .easeInOut(duration: 0.4)
+                        .repeatForever(autoreverses: true)
+                        .delay(Double(i) * 0.15),
+                        value: animating
+                    )
+            }
+        }
+        .frame(height: 16)
+        .onAppear { animating = true }
+    }
+}
+
+/// Wiggling pencil for drawing indicator
+private struct DrawingPencil: View {
+    @State private var animating = false
+
+    var body: some View {
+        Text("✏️")
+            .font(.system(size: 14))
+            .rotationEffect(.degrees(animating ? 8 : -10))
+            .offset(y: animating ? -2 : 0)
+            .animation(
+                .easeInOut(duration: 0.4)
+                .repeatForever(autoreverses: true),
+                value: animating
+            )
+            .onAppear { animating = true }
     }
 }
 
