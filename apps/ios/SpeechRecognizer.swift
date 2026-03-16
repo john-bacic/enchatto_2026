@@ -7,6 +7,11 @@ import Speech
 import AVFoundation
 
 /// Wraps Apple's Speech framework for on-device speech-to-text.
+///
+/// Architecture: each pause between utterances creates a full session boundary.
+/// When Apple finalizes a result or silence is detected, the current session is
+/// torn down completely and a fresh one starts. Committed text from prior sessions
+/// is preserved and new speech appears on a new line.
 @MainActor
 final class SpeechRecognizer: ObservableObject {
     @Published var transcript = ""
@@ -17,9 +22,18 @@ final class SpeechRecognizer: ObservableObject {
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private let audioEngine = AVAudioEngine()
-    /// Text from previous finalized recognition segments, accumulated across pauses.
+    private var audioEngine = AVAudioEngine()
+
+    /// Accumulated text from completed sessions (each line is one utterance).
     private var committedText = ""
+    /// The latest partial text from the current active session.
+    private var currentSessionText = ""
+    /// Prevents re-entrant session restarts.
+    private var isRestarting = false
+    /// Timer: if no new results for 1.5s, force-end the session to commit.
+    private var silenceTimer: Timer?
+    /// Unique ID for the current session — callbacks from old sessions are ignored.
+    private var sessionId: UUID = UUID()
     /// Timestamp of last audio level update (throttle to ~20fps).
     private var lastLevelUpdate: CFAbsoluteTime = 0
 
@@ -40,29 +54,57 @@ final class SpeechRecognizer: ObservableObject {
         }
     }
 
+    // MARK: - Public start/stop
+
     func startRecording() {
         recognitionTask?.cancel()
         recognitionTask = nil
+        committedText = ""
+        currentSessionText = ""
+        transcript = ""
 
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
                 guard status == .authorized else { return }
-                self?.requestMicAndBegin()
+                self?.requestMicPermission()
             }
         }
     }
 
-    private func requestMicAndBegin() {
+    private func requestMicPermission() {
         AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
             Task { @MainActor in
                 guard granted else { return }
-                self?.beginRecording()
+                self?.isRecording = true
+                self?.beginSession()
             }
         }
     }
 
-    private func beginRecording() {
-        guard let speechRecognizer, speechRecognizer.isAvailable else { return }
+    func stopRecording() {
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        isRecording = false
+        tearDownSession()
+        // Final punctuation
+        if !currentSessionText.isEmpty {
+            let full = buildFullTranscript(currentSession: currentSessionText)
+            transcript = Self.ensurePunctuation(full)
+        } else if !committedText.isEmpty {
+            transcript = committedText
+        }
+        committedText = ""
+        currentSessionText = ""
+        audioLevel = 0
+        // Release audio session so keyboard dictation and other apps can use the mic
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - Session lifecycle
+
+    /// Start a fresh recognition session (request + audio tap + task).
+    private func beginSession() {
+        guard let speechRecognizer, speechRecognizer.isAvailable, isRecording else { return }
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -72,6 +114,7 @@ final class SpeechRecognizer: ObservableObject {
         }
         recognitionRequest = request
 
+        // Configure audio session
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
@@ -80,20 +123,20 @@ final class SpeechRecognizer: ObservableObject {
             return
         }
 
+        // Use a fresh audio engine to avoid stale tap issues
+        audioEngine = AVAudioEngine()
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             request.append(buffer)
-            // Throttle level updates to ~20fps to avoid flooding the main thread
+            // Throttle level updates
             let now = CFAbsoluteTimeGetCurrent()
             guard let self, now - self.lastLevelUpdate > 0.05 else { return }
             self.lastLevelUpdate = now
-            // Calculate RMS using Accelerate
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = UInt(buffer.frameLength)
             var rms: Float = 0
             vDSP_rmsqv(channelData, 1, &rms, frameLength)
-            // Normalize: speech RMS is typically 0.01–0.3, scale up aggressively and clamp
             let normalized = min(CGFloat(rms) * 10.0, 1.0)
             DispatchQueue.main.async { [weak self] in
                 self?.audioLevel = normalized
@@ -107,98 +150,147 @@ final class SpeechRecognizer: ObservableObject {
             return
         }
 
-        committedText = ""
+        currentSessionText = ""
+        let activeSessionId = UUID()
+        sessionId = activeSessionId
 
+        // Start recognition task
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                guard let self, self.isRecording else { return }
+                guard let self, self.isRecording, self.sessionId == activeSessionId else { return }
+
                 if let result {
-                    let segment = result.bestTranscription.formattedString
-                    let full = self.committedText.isEmpty
-                        ? segment
-                        : self.committedText + "\n" + segment
-                    self.transcript = Self.ensurePunctuation(full)
+                    // Apple's formattedString is cumulative within THIS session only
+                    self.currentSessionText = result.bestTranscription.formattedString
+                    self.transcript = self.buildFullTranscript(currentSession: self.currentSessionText)
+
+                    // Reset silence timer on each result
+                    self.silenceTimer?.invalidate()
+                    self.silenceTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+                        Task { @MainActor in
+                            guard self.sessionId == activeSessionId else { return }
+                            // Force-end this session to commit text
+                            self.recognitionRequest?.endAudio()
+                        }
+                    }
+
                     if result.isFinal {
-                        // Commit finalized text; keep recording for more speech
-                        self.committedText = Self.ensurePunctuation(full)
+                        self.silenceTimer?.invalidate()
+                        self.handleSessionEnd()
                     }
                 } else if error != nil {
-                    self.stopRecording()
+                    self.silenceTimer?.invalidate()
+                    self.handleSessionEnd()
                 }
             }
         }
-
-        isRecording = true
     }
 
-    /// Ensure the transcript ends with punctuation (.  !  ?)
+    /// Tear down current audio engine + request + task without touching committed state.
+    private func tearDownSession() {
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        audioEngine.inputNode.removeTap(onBus: 0)
+        // Cancel task first, then nil out — sessionId is already invalidated
+        // so any callbacks triggered by cancel will be ignored.
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+    }
+
+    /// Called when the current session ends (isFinal or error). Commits text and restarts.
+    private func handleSessionEnd() {
+        guard isRecording, !isRestarting else { return }
+        isRestarting = true
+
+        // Invalidate session ID IMMEDIATELY so any stale callbacks from the
+        // old task are ignored — even during the 0.3s restart delay.
+        sessionId = UUID()
+
+        // Commit current session text
+        if !currentSessionText.isEmpty {
+            let full = buildFullTranscript(currentSession: currentSessionText)
+            committedText = Self.ensurePunctuation(full)
+            transcript = committedText
+            currentSessionText = ""
+        }
+
+        // Tear down and restart after a brief delay to let audio system settle
+        tearDownSession()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self, self.isRecording else {
+                self?.isRestarting = false
+                return
+            }
+            self.isRestarting = false
+            self.beginSession()
+        }
+    }
+
+    /// Build the full display transcript from committed lines + current session.
+    private func buildFullTranscript(currentSession: String) -> String {
+        if committedText.isEmpty {
+            return currentSession
+        }
+        if currentSession.isEmpty {
+            return committedText
+        }
+        return committedText + "\n" + currentSession
+    }
+
+    // MARK: - Punctuation
+
+    /// Ensure the last line of the transcript ends with punctuation.
     static func ensurePunctuation(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return trimmed }
+        let lines = text.components(separatedBy: "\n")
+        guard var lastLine = lines.last else { return text }
+        let prefix = lines.dropLast().joined(separator: "\n")
 
-        // Already has ending punctuation (English or Japanese)
-        let lastChar = trimmed.last!
+        lastLine = lastLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lastLine.isEmpty else { return text }
+
         let endPunctuation: Set<Character> = [".", "!", "?", "。", "！", "？", "…"]
-        if endPunctuation.contains(lastChar) { return trimmed }
+        if endPunctuation.contains(lastLine.last!) {
+            return prefix.isEmpty ? lastLine : prefix + "\n" + lastLine
+        }
 
-        // Check if text contains Japanese characters (for choosing full-width punctuation)
-        let isJapanese = trimmed.contains(where: { c in
+        let isJapanese = lastLine.contains(where: { c in
             guard let s = c.unicodeScalars.first else { return false }
             return (s.value >= 0x3040 && s.value <= 0x9FFF) || (s.value >= 0x30A0 && s.value <= 0x30FF)
         })
 
-        // Detect question patterns (English)
-        let lower = trimmed.lowercased()
+        let lower = lastLine.lowercased()
+
         let questionStarters = ["who ", "what ", "where ", "when ", "why ", "how ",
                                 "is ", "are ", "was ", "were ", "do ", "does ", "did ",
                                 "can ", "could ", "would ", "should ", "will ", "shall ",
                                 "have ", "has ", "had ", "don't ", "isn't ", "aren't "]
         let isQuestion = questionStarters.contains(where: { lower.hasPrefix($0) })
-            || lower.hasSuffix(" right")
-            || lower.hasSuffix(" huh")
-
-        // Detect question patterns (Japanese)
-        let jpQuestion = trimmed.hasSuffix("か") || trimmed.hasSuffix("かな")
-            || trimmed.hasSuffix("でしょう") || trimmed.hasSuffix("ですか")
+            || lower.hasSuffix(" right") || lower.hasSuffix(" huh")
+        let jpQuestion = lastLine.hasSuffix("か") || lastLine.hasSuffix("かな")
+            || lastLine.hasSuffix("でしょう") || lastLine.hasSuffix("ですか")
 
         if isQuestion || jpQuestion {
-            return trimmed + (isJapanese ? "？" : "?")
+            lastLine += isJapanese ? "？" : "?"
+            return prefix.isEmpty ? lastLine : prefix + "\n" + lastLine
         }
 
-        // Detect exclamatory patterns (English)
         let exclamStarters = ["wow", "oh", "yes", "no", "hey", "stop", "wait",
                               "help", "nice", "awesome", "amazing", "great",
                               "let's go", "come on", "hurry"]
         let isExclaim = exclamStarters.contains(where: { lower.hasPrefix($0) })
-
-        // Detect exclamatory patterns (Japanese)
-        let jpExclaim = trimmed.hasSuffix("よ") || trimmed.hasSuffix("ぞ")
-            || trimmed.hasSuffix("ね") || trimmed.hasSuffix("なあ")
-            || trimmed.hasSuffix("すごい") || trimmed.hasSuffix("やばい")
+        let jpExclaim = lastLine.hasSuffix("よ") || lastLine.hasSuffix("ぞ")
+            || lastLine.hasSuffix("ね") || lastLine.hasSuffix("なあ")
+            || lastLine.hasSuffix("すごい") || lastLine.hasSuffix("やばい")
 
         if isExclaim || jpExclaim {
-            return trimmed + (isJapanese ? "！" : "!")
+            lastLine += isJapanese ? "！" : "!"
+            return prefix.isEmpty ? lastLine : prefix + "\n" + lastLine
         }
 
-        // Default: add a period
-        return trimmed + (isJapanese ? "。" : ".")
-    }
-
-    func stopRecording() {
-        audioLevel = 0
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
-        recognitionRequest?.endAudio()
-        recognitionRequest = nil
-        recognitionTask?.cancel()
-        recognitionTask = nil
-        // Apply punctuation BEFORE clearing isRecording so onChange(of: transcript)
-        // propagates the punctuated text to messageText first
-        if !transcript.isEmpty {
-            transcript = Self.ensurePunctuation(transcript)
-        }
-        committedText = ""
-        isRecording = false
+        lastLine += isJapanese ? "。" : "."
+        return prefix.isEmpty ? lastLine : prefix + "\n" + lastLine
     }
 }
 

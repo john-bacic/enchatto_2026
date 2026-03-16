@@ -87,6 +87,10 @@ const translations: Record<string, Record<string, string>> = {
   "is drawing": { ja: "が描画中" },
   "is speaking": { ja: "が話し中" },
 
+  // Game status bar
+  "Guessing": { ja: "推測中" },
+  "Starting": { ja: "開始中" },
+
   // Participant list
   "(you)": { ja: "(あなた)" },
   "· host": { ja: "· ホスト" },
@@ -119,6 +123,64 @@ const translations: Record<string, Record<string, string>> = {
   // Offline mode
   "You're offline": { ja: "オフラインです" },
   "queued": { ja: "件待ち" },
+
+  // Game
+  "🎮 Game": { ja: "🎮 ゲーム" },
+  "Games": { ja: "ゲーム" },
+  "Only the host can start a game.": { ja: "ゲームを開始できるのはホストだけです。" },
+  "Got it": { ja: "了解" },
+  "Lost in Translation": { ja: "ロスト・イン・トランスレーション" },
+  "players": { ja: "人のプレイヤー" },
+  "Need at least 2 players to start.": { ja: "開始するには2人以上のプレイヤーが必要です。" },
+  "Start Game": { ja: "ゲーム開始" },
+  "Step": { ja: "ステップ" },
+  "of": { ja: "/" },
+  "Draw this phrase:": { ja: "このフレーズを描いてください：" },
+  "What is this drawing?": { ja: "この絵は何ですか？" },
+  "Type your guess...": { ja: "答えを入力…" },
+  "Submit": { ja: "送信" },
+  "Game Results": { ja: "ゲーム結果" },
+  "Chain": { ja: "チェーン" },
+  "Original:": { ja: "元のフレーズ：" },
+  "drew": { ja: "が描いた" },
+  "guessed": { ja: "が当てた" },
+  "Game complete! View Results": { ja: "ゲーム完了！結果を見る" },
+  "Game Started: Lost in Translation": { ja: "ゲーム開始：ロスト・イン・トランスレーション" },
+  "Game ended": { ja: "ゲーム終了" },
+  "End Game": { ja: "ゲーム終了" },
+  "End game?": { ja: "ゲームを終了しますか？" },
+  "This will end the game for all players and show results.": { ja: "全プレイヤーのゲームを終了し、結果を表示します。" },
+  "🛑 End Game": { ja: "🛑 ゲーム終了" },
+  "Quit game?": { ja: "ゲームをやめますか？" },
+  "Are you sure you want to quit the game?": { ja: "本当にゲームをやめますか？" },
+  "Quit": { ja: "やめる" },
+  "can we play \"Lost in Translation\"? 🎮": { ja: "「ロスト・イン・トランスレーション」やりませんか？🎮" },
+  "Ask to play!": { ja: "遊ぼう！" },
+  "Waiting for other players...": { ja: "他のプレイヤーを待っています…" },
+
+  // Game levels
+  "Level": { ja: "レベル" },
+  "Hint:": { ja: "ヒント：" },
+  "Next Level": { ja: "次のレベル" },
+  "1 word with hint": { ja: "1単語＋ヒント" },
+  "2 words": { ja: "2単語" },
+  "words": { ja: "単語" },
+
+  // Dynamic game flow
+  "Round": { ja: "ラウンド" },
+  "guessed correctly!": { ja: "正解！" },
+  "guessed wrong": { ja: "不正解" },
+
+  // Multiple-choice game
+  "Correct!": { ja: "正解!" },
+  "Wrong!": { ja: "不正解!" },
+  "Scores": { ja: "スコア" },
+  "picked": { ja: "を選んだ" },
+  "10 rounds": { ja: "10ラウンド" },
+  "A drawing guessing game: one player draws, everyone else picks from 4 choices. 10 rounds, rotating drawer!": {
+    ja: "お絵描き当てゲーム：1人が描き、他の全員が4択から選ぶ。10ラウンド、描く人は交代！",
+  },
+  "correct": { ja: "正解" },
 };
 
 /**

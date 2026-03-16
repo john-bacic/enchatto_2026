@@ -38,6 +38,11 @@ struct HostConversationView: View {
     @State private var showRomaji = true
     @State private var tooltipParticipant: Participant?
     @State private var fullScreenImage: (url: String, messageId: String)?
+    @State private var showGamePicker = false
+    @State private var showGameReplay = false
+    @State private var showGameTask = false
+    @State private var showQuitGameConfirm = false
+    @State private var showEndGameConfirm = false
     @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
@@ -50,6 +55,8 @@ struct HostConversationView: View {
     var body: some View {
         VStack(spacing: 0) {
             headerView
+
+            gameStatusBarSection
 
             if viewModel.isOffline {
                 offlineBanner
@@ -290,6 +297,15 @@ struct HostConversationView: View {
         }
     }
 
+    // MARK: - Game Status Bar
+
+    @ViewBuilder
+    private var gameStatusBarSection: some View {
+        if let gameStatus = viewModel.gameStatus {
+            GameStatusBarView(status: gameStatus, lang: hostLanguage, drawTimeLeft: viewModel.drawCountdownTimeLeft)
+        }
+    }
+
     // MARK: - Header
 
     private var headerView: some View {
@@ -448,13 +464,30 @@ struct HostConversationView: View {
         }
     }
 
+    private var filteredMessages: [Message] {
+        viewModel.messages.filter { msg in
+            !(msg.kind == .system && (msg.text?.hasPrefix("away:") == true || msg.text?.hasPrefix("back:") == true))
+        }
+    }
+
+    /// ID of the first message after game completedAt, or nil if bubble goes at end
+    private var gameCompleteInsertBeforeId: String? {
+        guard let completedAt = viewModel.latestGameSession?.completedAt else { return nil }
+        return filteredMessages.first(where: { $0.createdAt > completedAt })?.id
+    }
+
     private var messageListView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(viewModel.messages.filter { msg in
-                        !(msg.kind == .system && (msg.text?.hasPrefix("away:") == true || msg.text?.hasPrefix("back:") == true))
-                    }) { message in
+                    ForEach(filteredMessages) { message in
+                        // Game complete bubble before first message after completedAt
+                        if viewModel.isGameComplete,
+                           let insertId = gameCompleteInsertBeforeId,
+                           message.id == insertId {
+                            gameCompleteBubble
+                        }
+
                         if message.kind == .system {
                             SystemMessageRow(text: message.text ?? "", lang: hostLanguage)
                                 .id(message.id)
@@ -496,13 +529,18 @@ struct HostConversationView: View {
                         }
                     }
 
-                    // Typing indicator bubbles
-                    ForEach(viewModel.typingParticipants) { participant in
-                        TypingBubble(participant: participant, lang: hostLanguage)
+                    // Game complete bubble at end if no messages came after it
+                    if viewModel.isGameComplete && gameCompleteInsertBeforeId == nil {
+                        gameCompleteBubble
                     }
 
-                    // Scroll anchor
-                    Color.clear.frame(height: 1).id("bottom-anchor")
+                    // Typing indicator bubbles
+                    ForEach(viewModel.typingParticipants) { participant in
+                        TypingBubble(participant: participant, lang: hostLanguage, timerSeconds: viewModel.latestGameSession?.timerEnabled ?? viewModel.myActiveStep?.timerEnabled ?? 20)
+                    }
+
+                    // Scroll anchor — extra height so last item isn't clipped
+                    Color.clear.frame(height: 16).id("bottom-anchor")
                 }
                 .padding()
             }
@@ -528,6 +566,35 @@ struct HostConversationView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Game complete bubble
+
+    private var gameCompleteBubble: some View {
+        Button {
+            showGameReplay = true
+        } label: {
+            HStack(spacing: 6) {
+                Text("🎮")
+                Text(L.t("Game complete! View Results", hostLanguage))
+                    .fontWeight(.semibold)
+            }
+            .font(.system(size: 14))
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                LinearGradient(
+                    colors: [.accentColor, .purple],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Reply indicator
@@ -604,6 +671,41 @@ struct HostConversationView: View {
                 .padding(.vertical, 6)
                 .background(Color(.systemGray5))
                 .clipShape(Capsule())
+            }
+
+            // Game button — End Game when active, Start Game otherwise
+            if viewModel.activeGameSession != nil {
+                Button {
+                    showEndGameConfirm = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 12))
+                        Text(L.t("End Game", hostLanguage))
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.85))
+                    .clipShape(Capsule())
+                }
+            } else {
+                Button {
+                    showGamePicker = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "gamecontroller.fill")
+                            .font(.system(size: 14))
+                        Text(L.t("Game", hostLanguage))
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
+                }
             }
 
             Spacer()
@@ -729,13 +831,17 @@ struct HostConversationView: View {
         }
         .background(Color(.systemBackground))
         .onChange(of: speechRecognizer.transcript, perform: { newTranscript in
-            if !newTranscript.isEmpty {
+            if speechRecognizer.isRecording && !newTranscript.isEmpty {
                 messageText = newTranscript
             }
         })
         .onChange(of: speechRecognizer.isRecording, perform: { recording in
-            if !recording && !speechRecognizer.transcript.isEmpty {
-                speechRecognizer.transcript = ""
+            if !recording {
+                // Apply final transcript then clear so it doesn't interfere with keyboard
+                if !speechRecognizer.transcript.isEmpty {
+                    messageText = speechRecognizer.transcript
+                    speechRecognizer.transcript = ""
+                }
             }
         })
         .fullScreenCover(isPresented: $showDrawingComposer) {
@@ -749,7 +855,8 @@ struct HostConversationView: View {
                 onCancel: {
                     showDrawingComposer = false
                     viewModel.setTypingAction(nil)
-                }
+                },
+                triggerAutoSubmit: .constant(false)
             )
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -772,6 +879,91 @@ struct HostConversationView: View {
                 }
                 selectedPhotoItem = nil
             }
+        }
+        .sheet(isPresented: $showGamePicker) {
+            GamePickerView(
+                isHost: true,
+                playerCount: viewModel.participants.filter { $0.online }.count,
+                nextLevel: (viewModel.latestGameSession?.status == .complete && viewModel.latestGameSession?.cancelled != true ? (viewModel.latestGameSession?.level ?? 1) + 1 : 1),
+                lang: hostLanguage,
+                onStartGame: { gameType, level, timerSeconds in
+                    showGamePicker = false
+                    Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds) }
+                },
+                onDismiss: { showGamePicker = false }
+            )
+            .presentationDetents([.height(260)])
+            .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(isPresented: $showGameTask) {
+            if let step = viewModel.myActiveStep {
+                GameTaskOverlayView(
+                    step: step,
+                    lang: hostLanguage,
+                    onSubmitDrawing: { image in
+                        guard let data = image.pngData() else { return }
+                        let base64 = data.base64EncodedString()
+                        let mediaUrl = "data:image/png;base64,\(base64)"
+                        Task {
+                            await viewModel.submitGameStep(stepId: step.id, outputText: nil, outputDrawingUrl: mediaUrl)
+                            // Don't set showGameTask = false here — .onChange handles it.
+                            // Setting it here would race with .onChange and override
+                            // showGameTask = true when the next step is immediately available.
+                        }
+                    },
+                    onSubmitGuess: { selectedOption in
+                        Task {
+                            await viewModel.submitGameStep(stepId: step.id, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
+                            // Don't set showGameTask = false here — .onChange handles it.
+                        }
+                    },
+                    onQuit: {
+                        showQuitGameConfirm = true
+                    }
+                )
+                .id(step.id)
+                .alert(L.t("Quit game?", hostLanguage), isPresented: $showQuitGameConfirm) {
+                    Button(L.t("Cancel", hostLanguage), role: .cancel) {}
+                    Button(L.t("Quit", hostLanguage), role: .destructive) {
+                        showGameTask = false
+                        Task {
+                            await viewModel.cancelGame()
+                        }
+                    }
+                } message: {
+                    Text(L.t("Are you sure you want to quit the game?", hostLanguage))
+                }
+            }
+        }
+        .sheet(isPresented: $showGameReplay) {
+            if let replay = viewModel.gameReplay {
+                GameReplayView(
+                    replay: replay,
+                    lang: hostLanguage,
+                    onDismiss: { showGameReplay = false },
+                    onNextLevel: { timerSeconds in
+                        let nextLevel = (viewModel.latestGameSession?.level ?? 1) + 1
+                        showGameReplay = false
+                        Task { await viewModel.startGame(gameType: "lost-in-translation", level: nextLevel, timerSeconds: timerSeconds) }
+                    }
+                )
+            }
+        }
+        .onChange(of: viewModel.myActiveStep?.id) { newStepId in
+            showGameTask = newStepId != nil
+        }
+        .onChange(of: viewModel.isGameComplete) { complete in
+            if complete {
+                showGameReplay = true
+            }
+        }
+        .alert(L.t("End game?", hostLanguage), isPresented: $showEndGameConfirm) {
+            Button(L.t("Cancel", hostLanguage), role: .cancel) {}
+            Button(L.t("End Game", hostLanguage), role: .destructive) {
+                Task { await viewModel.cancelGame() }
+            }
+        } message: {
+            Text(L.t("This will end the game for all players and show results.", hostLanguage))
         }
     }
 
@@ -996,17 +1188,37 @@ private struct SystemMessageRow: View {
             return lang == "ja" ? "\(name)\(L.t("has joined", lang))" : "\(name) \(L.t("has joined", lang))"
         } else if action == "leave" {
             return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
+        } else if action == "game" {
+            // name is like "Lost in Translation Level 2"
+            if let range = name.range(of: "Level "), let levelNum = Int(name[range.upperBound...].trimmingCharacters(in: .whitespaces)) {
+                return "🎮 \(L.t("Game Started: Lost in Translation", lang)) — \(L.t("Level", lang)) \(levelNum)"
+            }
+            return "🎮 \(L.t("Game Started: Lost in Translation", lang))"
+        } else if action == "game_cancelled" {
+            return "🎮 \(L.t("Game ended", lang))"
+        } else if action == "game_correct" {
+            let parts = name.split(separator: "|", maxSplits: 1)
+            let guesserName = parts.count > 0 ? String(parts[0]) : "?"
+            let prompt = parts.count > 1 ? String(parts[1]) : ""
+            return "🎉 \(guesserName) \(L.t("guessed correctly!", lang)) (\(prompt))"
+        } else if action == "game_wrong" {
+            let parts = name.split(separator: "|", maxSplits: 1)
+            let guesserName = parts.count > 0 ? String(parts[0]) : "?"
+            let prompt = parts.count > 1 ? String(parts[1]) : ""
+            return "❌ \(guesserName) \(L.t("guessed wrong", lang)) (\(prompt))"
         }
         return text
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             line
             Text(localizedText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
             line
         }
         .padding(.vertical, 4)
@@ -1015,7 +1227,7 @@ private struct SystemMessageRow: View {
     private var line: some View {
         Rectangle()
             .fill(Color(.separator))
-            .frame(height: 0.5)
+            .frame(minWidth: 8, maxWidth: 40, maxHeight: 0.5)
     }
 }
 
@@ -1024,6 +1236,7 @@ private struct SystemMessageRow: View {
 private struct TypingBubble: View {
     let participant: Participant
     var lang: String = "en"
+    var timerSeconds: Int = 20
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
@@ -1046,12 +1259,14 @@ private struct TypingBubble: View {
             // Bubble with action-specific animation
             Group {
                 if participant.typingAction == "drawing" {
-                    // Pencil wiggle + label
+                    // Pencil wiggle + label + countdown
                     HStack(spacing: 6) {
                         DrawingPencil()
-                        Text(L.t("is drawing", lang))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        DrawingCountdownLabel(
+                            drawingStartedAt: participant.drawingStartedAt,
+                            lang: lang,
+                            timeLimit: timerSeconds
+                        )
                     }
                 } else if participant.typingAction == "voicing" {
                     // Orange pulsing bars + label
@@ -1082,6 +1297,44 @@ private struct TypingBubble: View {
 
             Spacer(minLength: 0)
         }
+    }
+}
+
+/// Drawing countdown label that updates every second
+private struct DrawingCountdownLabel: View {
+    let drawingStartedAt: Double?
+    var lang: String = "en"
+    var timeLimit: Int = 20
+
+    @State private var secondsLeft: Int? = nil
+    @State private var timer: Timer? = nil
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(L.t("is drawing", lang))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let secondsLeft {
+                Text("\(secondsLeft)s")
+                    .font(.caption.bold())
+                    .foregroundStyle(secondsLeft <= 3 ? .red : .secondary)
+            }
+        }
+        .onAppear { startTimer() }
+        .onDisappear { timer?.invalidate(); timer = nil }
+    }
+
+    private func startTimer() {
+        updateCountdown()
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in updateCountdown() }
+        }
+    }
+
+    private func updateCountdown() {
+        guard let startedAt = drawingStartedAt else { secondsLeft = nil; return }
+        let elapsed = Int((Date().timeIntervalSince1970 * 1000 - startedAt) / 1000)
+        secondsLeft = max(0, timeLimit - elapsed)
     }
 }
 

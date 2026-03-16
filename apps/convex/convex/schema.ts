@@ -32,7 +32,8 @@ export default defineSchema({
     online: v.boolean(),
     departed: v.optional(v.boolean()),
     presence: v.optional(v.union(v.literal("online"), v.literal("away"))),
-    typingAction: v.optional(v.union(v.literal("typing"), v.literal("drawing"))),
+    typingAction: v.optional(v.union(v.literal("typing"), v.literal("drawing"), v.literal("voicing"))),
+    drawingStartedAt: v.optional(v.number()),
     lastSeenAt: v.number(),
     joinedAt: v.number(),
   })
@@ -79,4 +80,60 @@ export default defineSchema({
   })
     .index("by_messageId", ["messageId"])
     .index("by_messageId_participantId", ["messageId", "participantId"]),
+
+  gameSessions: defineTable({
+    roomId: v.id("rooms"),
+    gameType: v.string(),
+    status: v.union(v.literal("active"), v.literal("complete")),
+    createdByParticipantId: v.id("participants"),
+    playerIds: v.array(v.id("participants")),
+    chainCount: v.number(),
+    level: v.optional(v.number()),
+    timerEnabled: v.optional(v.union(v.boolean(), v.number())),
+    customPrompts: v.optional(v.array(v.object({
+      text: v.string(),
+      ja: v.string(),
+      hint: v.optional(v.string()),
+      hintJa: v.optional(v.string()),
+    }))),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelled: v.optional(v.boolean()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_roomId_status", ["roomId", "status"]),
+
+  gameChains: defineTable({
+    gameSessionId: v.id("gameSessions"),
+    chainIndex: v.number(),
+    originalPrompt: v.string(),
+    options: v.optional(v.array(v.string())),
+    drawerParticipantId: v.optional(v.id("participants")),
+    status: v.union(v.literal("active"), v.literal("complete")),
+    currentStepIndex: v.number(),
+    maxSteps: v.number(),
+  })
+    .index("by_gameSessionId", ["gameSessionId"]),
+
+  gameSteps: defineTable({
+    gameSessionId: v.id("gameSessions"),
+    chainId: v.id("gameChains"),
+    stepIndex: v.number(),
+    stepType: v.union(v.literal("draw"), v.literal("guess")),
+    assignedParticipantId: v.id("participants"),
+    inputText: v.optional(v.string()),
+    hintText: v.optional(v.string()),
+    inputDrawingUrl: v.optional(v.string()),
+    outputText: v.optional(v.string()),
+    translatedOutputText: v.optional(v.string()),
+    outputDrawingUrl: v.optional(v.string()),
+    selectedOption: v.optional(v.string()),
+    correct: v.optional(v.boolean()),
+    status: v.union(v.literal("waiting"), v.literal("active"), v.literal("submitted")),
+    createdAt: v.number(),
+    submittedAt: v.optional(v.number()),
+  })
+    .index("by_gameSessionId", ["gameSessionId"])
+    .index("by_chainId", ["chainId"])
+    .index("by_assignedParticipantId_status", ["assignedParticipantId", "status"]),
 });

@@ -206,11 +206,97 @@ class RealEnchattoAPI: EnchattoAPI {
         try await client.postVoid("/api/participants/set-online", body: body)
     }
 
-    func setTypingAction(participantId: String, action: String?) async throws {
+    func setTypingAction(participantId: String, action: String?, drawingStartedAt: Double? = nil) async throws {
         var body: [String: Any] = ["participantId": participantId]
         if let action {
             body["action"] = action
         }
+        if let drawingStartedAt {
+            body["drawingStartedAt"] = drawingStartedAt
+        }
         try await client.postVoid("/api/participants/set-typing", body: body)
     }
+
+    // MARK: - Games
+
+    func cancelGame(roomId: String, participantId: String) async throws {
+        try await client.postVoid("/api/games/cancel", body: [
+            "roomId": roomId,
+            "participantId": participantId,
+        ])
+    }
+
+    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int = 20, customPrompts: [[String: Any]]? = nil) async throws -> String {
+        struct Response: Decodable { let sessionId: String }
+        var body: [String: Any] = [
+            "roomId": roomId,
+            "participantId": participantId,
+            "gameType": gameType,
+            "level": level,
+            "timerEnabled": timerSeconds,
+        ]
+        if let customPrompts {
+            body["customPrompts"] = customPrompts
+        }
+        let response: Response = try await client.post("/api/games/start", body: body)
+        return response.sessionId
+    }
+
+    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws {
+        var body: [String: Any] = [
+            "stepId": stepId,
+            "participantId": participantId,
+        ]
+        if let outputText { body["outputText"] = outputText }
+        if let outputDrawingUrl { body["outputDrawingUrl"] = outputDrawingUrl }
+        if let selectedOption { body["selectedOption"] = selectedOption }
+        try await client.postVoid("/api/games/submit-step", body: body)
+    }
+
+    func getActiveGameSession(roomId: String) async throws -> GameSession? {
+        // Query returns null → jsonAction sends {"ok":true}; catch decode error → nil
+        do {
+            let session: GameSession = try await client.post("/api/games/active-session", body: ["roomId": roomId])
+            return session
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func getMyActiveStep(participantId: String) async throws -> GameStep? {
+        do {
+            let step: GameStep = try await client.post("/api/games/my-active-step", body: ["participantId": participantId])
+            return step
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func getLatestGameSession(roomId: String) async throws -> GameSession? {
+        do {
+            let session: GameSession = try await client.post("/api/games/latest-session", body: ["roomId": roomId])
+            return session
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func getGameReplay(gameSessionId: String) async throws -> GameReplay? {
+        do {
+            let replay: GameReplay = try await client.post("/api/games/replay", body: ["gameSessionId": gameSessionId])
+            return replay
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func getGameStatus(roomId: String) async throws -> GameStatus? {
+        do {
+            let status: GameStatus = try await client.post("/api/games/status", body: ["roomId": roomId])
+            return status
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
 }

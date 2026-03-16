@@ -8,6 +8,10 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
 import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
+import { GamePickerModal } from "@/components/game-picker-modal";
+import { GameTaskOverlay } from "@/components/game-task-overlay";
+import { GameReplayModal } from "@/components/game-replay-modal";
+import { GameStatusBar } from "@/components/game-status-bar";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -34,6 +38,9 @@ function RoomContent() {
   const [showEnglish, setShowEnglish] = useState(true);
   const [showJapanese, setShowJapanese] = useState(true);
   const [showRomaji, setShowRomaji] = useState(true);
+  const [showGamePicker, setShowGamePicker] = useState(false);
+  const [showGameReplay, setShowGameReplay] = useState(false);
+  const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
 
   // Network status & offline queue
   const { isOnline } = useNetworkStatus();
@@ -47,12 +54,51 @@ function RoomContent() {
   const messages = useQuery(api.messages.getRoomMessages, {
     roomId: roomId as Id<"rooms">,
   });
+  const activeGameSession = useQuery(api.games.getActiveGameSession, {
+    roomId: roomId as Id<"rooms">,
+  });
+  const myActiveStep = useQuery(
+    api.games.getMyActiveStep,
+    participantId ? { participantId: participantId as Id<"participants"> } : "skip"
+  );
+  // Debug: trace game step changes
+  useEffect(() => {
+    console.log("[GAME] myActiveStep:", myActiveStep ? { id: myActiveStep._id, type: myActiveStep.stepType, round: myActiveStep.round, chain: (myActiveStep as any).chainId } : null);
+  }, [myActiveStep]);
+
+  const latestGameSession = useQuery(api.games.getLatestGameSession, {
+    roomId: roomId as Id<"rooms">,
+  });
+  const gameReplay = useQuery(
+    api.games.getGameReplay,
+    latestGameSession && latestGameSession.status === "complete"
+      ? { gameSessionId: latestGameSession._id }
+      : "skip"
+  );
+  const gameStatus = useQuery(
+    api.games.getGameStatus,
+    activeGameSession ? { roomId: roomId as Id<"rooms"> } : "skip"
+  );
+
+  // Auto-show game replay when a game completes or is cancelled
+  const prevActiveGameRef = useRef(activeGameSession);
+  useEffect(() => {
+    const wasActive = prevActiveGameRef.current != null;
+    const nowInactive = activeGameSession == null;
+    const hasCompleteGame = latestGameSession?.status === "complete";
+    if (wasActive && nowInactive && hasCompleteGame) {
+      setShowGameReplay(true);
+    }
+    prevActiveGameRef.current = activeGameSession;
+  }, [activeGameSession, latestGameSession?.status]);
 
   // Mutations
   const sendTextMessage = useMutation(api.messages.sendTextMessage);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
   const sendImageMessage = useMutation(api.messages.sendImageMessage);
   const setParticipantOnline = useMutation(api.participants.setParticipantOnline);
+  const startGameMutation = useMutation(api.games.startGame);
+  const submitGameStepMutation = useMutation(api.games.submitGameStep);
 
   // Mark online on mount, heartbeat, offline on leave
   useEffect(() => {
@@ -113,11 +159,43 @@ function RoomContent() {
   const removeReaction = useMutation(api.reactions.removeReaction);
   const setTypingAction = useMutation(api.participants.setTypingAction);
 
+  // Set typing action to "drawing" while on a draw step so other players see pencil indicator
+  useEffect(() => {
+    if (!participantId) return;
+    if (myActiveStep?.stepType === "draw") {
+      setTypingAction({
+        participantId: participantId as Id<"participants">,
+        action: "drawing",
+        drawingStartedAt: (typeof myActiveStep?.timerEnabled === "number" ? myActiveStep.timerEnabled > 0 : myActiveStep?.timerEnabled !== false) ? Date.now() : undefined,
+      }).catch(() => {});
+      return () => {
+        setTypingAction({
+          participantId: participantId as Id<"participants">,
+          action: undefined,
+        }).catch(() => {});
+      };
+    }
+  }, [myActiveStep?.stepType, myActiveStep?._id, participantId, setTypingAction]);
+
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
 
   const me = participants.find((p) => p._id === participantId);
   const lang = me?.preferredLanguage ?? "ja";
+
+  // Redirect to join screen if participant was removed (kicked)
+  useEffect(() => {
+    if (participantId && roomState && roomState.participants.length > 0 && !me) {
+      router.replace(`/join/${roomState.room.joinCode}`);
+    }
+  }, [participantId, roomState, me, router]);
+
+  // Redirect to home screen if room is closed
+  useEffect(() => {
+    if (roomState?.room.status === "closed") {
+      router.replace("/");
+    }
+  }, [roomState?.room.status, router]);
 
   const replyMessage = replyTo
     ? messageList.find((m) => m._id === replyTo)
@@ -270,6 +348,14 @@ function RoomContent() {
     [setTypingAction, participantId]
   );
 
+  // Compute timer seconds from active game SESSION (not step — watchers don't have
+  // an active step during the draw phase, so myActiveStep would be null for them,
+  // causing timerSeconds to always default to 20).
+  const sessionTimer = activeGameSession?.timerEnabled ?? myActiveStep?.timerEnabled;
+  const activeTimerSeconds = typeof sessionTimer === "number"
+    ? sessionTimer
+    : (sessionTimer !== false ? 20 : 0);
+
   const typingParticipants = participants
     .filter((p) => p._id !== participantId && (p as any).typingAction)
     .map((p) => ({
@@ -277,6 +363,8 @@ function RoomContent() {
       nickname: p.nickname,
       avatar: p.avatar,
       typingAction: (p as any).typingAction as "typing" | "drawing" | "voicing",
+      drawingStartedAt: (p as any).drawingStartedAt as number | undefined,
+      timerSeconds: activeTimerSeconds,
     }));
 
   const handleReply = (messageId: string) => {
@@ -286,6 +374,52 @@ function RoomContent() {
   const handleCancelReply = () => {
     setReplyTo(null);
   };
+
+  const cancelGameMutation = useMutation(api.games.cancelGame);
+  const handleStartGame = useCallback(
+    async (gameType: string, level: number = 1, timerSeconds: number = 20) => {
+      if (!participantId) return;
+      try {
+        // Cancel any lingering active game first
+        await cancelGameMutation({
+          roomId: roomId as Id<"rooms">,
+          participantId: participantId as Id<"participants">,
+        });
+        await startGameMutation({
+          roomId: roomId as Id<"rooms">,
+          participantId: participantId as Id<"participants">,
+          gameType,
+          level,
+          timerEnabled: timerSeconds,
+        });
+        setShowGamePicker(false);
+      } catch (err) {
+        console.error("Failed to start game:", err);
+      }
+    },
+    [cancelGameMutation, startGameMutation, roomId, participantId]
+  );
+
+  const handleSubmitGameStep = useCallback(
+    async (stepId: string, outputText?: string, outputDrawingUrl?: string, selectedOption?: string) => {
+      if (!participantId) return;
+      try {
+        // Call mutation directly (not via action) for reliable Convex reactivity
+        const args: any = {
+          stepId: stepId as Id<"gameSteps">,
+          participantId: participantId as Id<"participants">,
+        };
+        if (outputText !== undefined) args.outputText = outputText;
+        if (outputDrawingUrl !== undefined) args.outputDrawingUrl = outputDrawingUrl;
+        if (selectedOption !== undefined) args.selectedOption = selectedOption;
+        await submitGameStepMutation(args);
+      } catch (err: any) {
+        console.error("Failed to submit game step:", err);
+        alert("Game step error: " + (err?.message ?? err?.data ?? String(err)));
+      }
+    },
+    [submitGameStepMutation, participantId]
+  );
 
   // Flush offline queue when back online
   const flushQueue = useCallback(async () => {
@@ -357,10 +491,12 @@ function RoomContent() {
     replyToId: q.replyToId,
     createdAt: q.createdAt,
   }));
-  // Filter out all host system messages (join/leave/away/back)
+  // Filter out host's own join/leave/away/back system messages (keep game messages)
   const roomHostId = roomState?.room?.hostId;
   const displayMessages = [...messageList, ...queuedAsMessages].filter((m) => {
     if (m.kind === "system" && roomHostId && m.senderId === roomHostId) {
+      const text = m.text ?? "";
+      if (text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:")) return true;
       return false;
     }
     return true;
@@ -588,6 +724,9 @@ function RoomContent() {
         </div>
       )}
 
+      {/* Game status bar */}
+      {gameStatus && <GameStatusBar status={gameStatus} lang={lang} />}
+
       {/* Messages */}
       <MessageErrorBoundary lang={lang}>
         <MessageList
@@ -602,6 +741,9 @@ function RoomContent() {
           showEnglish={showEnglish}
           showJapanese={showJapanese}
           showRomaji={showRomaji}
+          isGameComplete={latestGameSession?.status === "complete" && !activeGameSession}
+          gameCompletedAt={latestGameSession?.completedAt}
+          onViewGameResults={() => setShowGameReplay(true)}
         />
       </MessageErrorBoundary>
 
@@ -611,6 +753,13 @@ function RoomContent() {
           onSend={handleSend}
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
+          onGameTap={() => setShowGamePicker(true)}
+          isGameActive={activeGameSession != null && me?.role === "host"}
+          onEndGame={me?.role === "host" ? async () => {
+            if (confirm(t("This will end the game for all players and show results.", lang))) {
+              await cancelGameMutation({ roomId: roomId as Id<"rooms">, participantId: participantId as Id<"participants"> });
+            }
+          } : undefined}
           replyTo={replyMessage ?? null}
           onCancelReply={handleCancelReply}
           onTypingChange={handleTypingChange}
@@ -712,6 +861,58 @@ function RoomContent() {
           </div>
         </div>
       )}
+
+      {/* Game task overlay */}
+      {myActiveStep && myActiveStep._id !== dismissedGameStepId && (
+        <GameTaskOverlay
+          key={myActiveStep._id}
+          step={myActiveStep}
+          onSubmit={handleSubmitGameStep}
+          onQuit={async () => {
+            setDismissedGameStepId(myActiveStep._id);
+            if (me?.role === "host") {
+              try {
+                await cancelGameMutation({
+                  roomId: roomId as Id<"rooms">,
+                  participantId: participantId as Id<"participants">,
+                });
+              } catch (err) {
+                console.error("Failed to cancel game:", err);
+              }
+            }
+          }}
+          lang={lang}
+        />
+      )}
+
+      {/* Game picker modal */}
+      <GamePickerModal
+        isOpen={showGamePicker}
+        isHost={me?.role === "host"}
+        playerCount={participants.filter((p) => (p as any).online && !(p as any).departed).length}
+        hostName={participants.find((p) => p.role === "host")?.nickname ?? ""}
+        nextLevel={(latestGameSession?.status === "complete" && latestGameSession?.level && !latestGameSession?.cancelled) ? (latestGameSession.level as number) + 1 : 1}
+        onStartGame={handleStartGame}
+        onRequestGame={(msg) => handleSend(msg)}
+        onClose={() => setShowGamePicker(false)}
+        lang={lang}
+      />
+
+      {/* Game replay modal */}
+      <GameReplayModal
+        isOpen={showGameReplay}
+        replay={gameReplay ?? null}
+        isHost={me?.role === "host"}
+        prevTimerSeconds={typeof latestGameSession?.timerEnabled === "number"
+          ? latestGameSession.timerEnabled
+          : (latestGameSession?.timerEnabled !== false ? 20 : 0)}
+        onNextLevel={(timerSeconds) => {
+          const nextLevel = (latestGameSession?.level as number ?? 1) + 1;
+          handleStartGame("lost-in-translation", nextLevel, timerSeconds);
+        }}
+        onClose={() => setShowGameReplay(false)}
+        lang={lang}
+      />
 
       {/* Leave confirmation */}
       {showLeaveConfirm && (

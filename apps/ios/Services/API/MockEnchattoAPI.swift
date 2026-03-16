@@ -196,9 +196,44 @@ class MockEnchattoAPI: EnchattoAPI {
         // Mock: no-op for now
     }
 
-    func setTypingAction(participantId: String, action: String?) async throws {
+    func setTypingAction(participantId: String, action: String?, drawingStartedAt: Double? = nil) async throws {
         // Mock: no-op
     }
+
+    // MARK: - Games
+
+    func cancelGame(roomId: String, participantId: String) async throws {
+        // Mock: no-op
+    }
+
+    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int = 20, customPrompts: [[String: Any]]? = nil) async throws -> String {
+        return UUID().uuidString
+    }
+
+    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws {
+        // Mock: no-op
+    }
+
+    func getActiveGameSession(roomId: String) async throws -> GameSession? {
+        return nil
+    }
+
+    func getMyActiveStep(participantId: String) async throws -> GameStep? {
+        return nil
+    }
+
+    func getLatestGameSession(roomId: String) async throws -> GameSession? {
+        return nil
+    }
+
+    func getGameReplay(gameSessionId: String) async throws -> GameReplay? {
+        return nil
+    }
+
+    func getGameStatus(roomId: String) async throws -> GameStatus? {
+        return nil
+    }
+
 }
 
 enum APIError: LocalizedError {

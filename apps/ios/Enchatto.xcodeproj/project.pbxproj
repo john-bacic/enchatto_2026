@@ -12,6 +12,7 @@
 		1ACE8467557F73FF17F0F58C /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8E05A49B6BA14F2CFC1285 /* Room.swift */; };
 		2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */; };
 		350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */; };
+		388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */; };
 		41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */; };
 		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
@@ -24,14 +25,18 @@
 		76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */; };
 		797CECA3D9D858A14248F705 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C59768529F53DC71560987B /* SpeechRecognizer.swift */; };
 		7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */; };
+		80F720C82F67972500DD6EE9 /* GameStatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80F720C72F67972500DD6EE9 /* GameStatusBarView.swift */; };
 		8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */; };
 		853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84049D72180662ED722A668 /* AppConfig.swift */; };
+		87DBB652730A51EF7C4DCA19 /* GamePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4143DC78BEF5E819A44A8A /* GamePickerView.swift */; };
 		8BA0BE698453C835C3ADE54B /* SuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B6CE020D97A2019D833739 /* SuggestionService.swift */; };
+		8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048E186B7C0C18591A0D86D4 /* GameReplayView.swift */; };
 		9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0A2E1624785B94728152B /* NetworkMonitor.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
 		A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395063 /* GitInfo.swift */; };
 		AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */; };
 		B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC00ADF95392C392B69EB66 /* RomajiService.swift */; };
+		B2F1A3E7D4C8923FA1B0C5D9 /* PromptGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A2B1C8F5D9034AB2C1D6EA /* PromptGenerator.swift */; };
 		BA9DD8C7D397DD42561B6089 /* StubRomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AACB3B6A1340D1952C612D /* StubRomajiService.swift */; };
 		BF5A76945EF4EBFF68CE1CE5 /* IPADic in Frameworks */ = {isa = PBXBuildFile; productRef = E3BA5400A395C97C1F8F8E33 /* IPADic */; };
 		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
@@ -40,6 +45,7 @@
 		D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EF9BF8694735A0B284D54A /* StubTranslationService.swift */; };
 		D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FEB11E5FF91BEBD77A223B /* TranslationService.swift */; };
 		D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */; };
+		DAA475AB846CF28C659A87D4 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0373DCCC2C38FB107E44A1 /* Game.swift */; };
 		DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9108C84B71431E861972 /* HostMessageRow.swift */; };
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
 		F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE91A5BA76409C309044A18 /* EnchattoApp.swift */; };
@@ -48,6 +54,7 @@
 
 /* Begin PBXFileReference section */
 		048A500F948FBFF3A696F580 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		048E186B7C0C18591A0D86D4 /* GameReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameReplayView.swift; sourceTree = "<group>"; };
 		0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
 		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
 		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
@@ -63,8 +70,11 @@
 		5D4D07C9C52F8ADCC4EDD899 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		5EE91A5BA76409C309044A18 /* EnchattoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoApp.swift; sourceTree = "<group>"; };
 		6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingCanvasView.swift; sourceTree = "<group>"; };
+		7D4143DC78BEF5E819A44A8A /* GamePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePickerView.swift; sourceTree = "<group>"; };
+		80F720C72F67972500DD6EE9 /* GameStatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStatusBarView.swift; sourceTree = "<group>"; };
 		82EF9BF8694735A0B284D54A /* StubTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTranslationService.swift; sourceTree = "<group>"; };
 		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
+		8B0373DCCC2C38FB107E44A1 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
 		8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexHTTPClient.swift; sourceTree = "<group>"; };
 		96B6CE020D97A2019D833739 /* SuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionService.swift; sourceTree = "<group>"; };
 		96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockEnchattoAPI.swift; sourceTree = "<group>"; };
@@ -77,9 +87,11 @@
 		C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingComposerView.swift; sourceTree = "<group>"; };
 		D4FC9108C84B71431E861972 /* HostMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostMessageRow.swift; sourceTree = "<group>"; };
 		D84049D72180662ED722A668 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		E4A2B1C8F5D9034AB2C1D6EA /* PromptGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptGenerator.swift; sourceTree = "<group>"; };
 		E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantAvatarView.swift; sourceTree = "<group>"; };
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
+		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
 		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
@@ -171,9 +183,13 @@
 		B31B444E0CDA0E640973C616 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				80F720C72F67972500DD6EE9 /* GameStatusBarView.swift */,
 				0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */,
 				6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */,
 				C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */,
+				7D4143DC78BEF5E819A44A8A /* GamePickerView.swift */,
+				048E186B7C0C18591A0D86D4 /* GameReplayView.swift */,
+				F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */,
 				D4FC9108C84B71431E861972 /* HostMessageRow.swift */,
 				B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */,
 				4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */,
@@ -185,6 +201,7 @@
 		C167CF9D2F2508F01F631F95 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8B0373DCCC2C38FB107E44A1 /* Game.swift */,
 				5D4D07C9C52F8ADCC4EDD899 /* Message.swift */,
 				47566C0B30406CBDDDEAA04F /* Participant.swift */,
 				EB8E05A49B6BA14F2CFC1285 /* Room.swift */,
@@ -196,6 +213,7 @@
 			isa = PBXGroup;
 			children = (
 				A3C0A2E1624785B94728152B /* NetworkMonitor.swift */,
+				E4A2B1C8F5D9034AB2C1D6EA /* PromptGenerator.swift */,
 				21F34644BA555D35385B9FE7 /* API */,
 				2FCFF422646FF1C4879C5DA6 /* Processing */,
 			);
@@ -245,7 +263,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					2A0E7D49294AE6A04C96CDD5 = {
 						ProvisioningStyle = Automatic;
@@ -311,6 +329,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				80F720C82F67972500DD6EE9 /* GameStatusBarView.swift in Sources */,
 				853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */,
 				AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */,
 				CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */,
@@ -318,6 +337,10 @@
 				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,
 				F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */,
 				F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */,
+				DAA475AB846CF28C659A87D4 /* Game.swift in Sources */,
+				87DBB652730A51EF7C4DCA19 /* GamePickerView.swift in Sources */,
+				8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */,
+				388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */,
 				A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
@@ -334,6 +357,7 @@
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
 				9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */,
+				B2F1A3E7D4C8923FA1B0C5D9 /* PromptGenerator.swift in Sources */,
 				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
 				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,
 				350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */,
@@ -358,7 +382,6 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V823NAB7CT;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto needs microphone access for voice input";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
@@ -415,8 +438,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = V823NAB7CT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -438,6 +463,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -451,7 +477,6 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V823NAB7CT;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto needs microphone access for voice input";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
@@ -508,8 +533,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = V823NAB7CT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -524,6 +551,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;

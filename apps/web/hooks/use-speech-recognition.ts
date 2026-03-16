@@ -72,6 +72,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   const recognitionRef = useRef<any>(null);
   const listeningRef = useRef(false);
   const lastTranscriptRef = useRef("");
+  const committedTextRef = useRef(""); // finalized text from previous recognition sessions
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
   const onEndRef = useRef(onEnd);
@@ -91,8 +92,10 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     if (lastTranscriptRef.current) {
       const punctuated = ensurePunctuation(lastTranscriptRef.current);
       lastTranscriptRef.current = "";
+      committedTextRef.current = "";
       onTranscriptRef.current?.(punctuated);
     }
+    committedTextRef.current = "";
     onEndRef.current?.();
   }, []);
 
@@ -113,15 +116,22 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         if (!listeningRef.current) return;
-        let transcript = "";
+        let sessionTranscript = "";
         for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+          sessionTranscript += event.results[i][0].transcript;
         }
-        lastTranscriptRef.current = transcript;
-        onTranscriptRef.current?.(transcript);
+        const prefix = committedTextRef.current;
+        const full = prefix ? prefix + sessionTranscript : sessionTranscript;
+        lastTranscriptRef.current = full;
+        onTranscriptRef.current?.(full);
       };
 
       recognition.onend = () => {
+        // Commit punctuated transcript before restarting — the caller adds punctuation + space,
+        // so we store the raw version here and let the next session append naturally
+        if (listeningRef.current && lastTranscriptRef.current) {
+          committedTextRef.current = ensurePunctuation(lastTranscriptRef.current) + " ";
+        }
         // Auto-restart if user hasn't explicitly stopped
         if (listeningRef.current) {
           try {
@@ -140,6 +150,8 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
 
       recognitionRef.current = recognition;
       listeningRef.current = true;
+      committedTextRef.current = "";
+      lastTranscriptRef.current = "";
       setIsListening(true);
       recognition.start();
     },

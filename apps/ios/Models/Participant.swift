@@ -37,13 +37,14 @@ struct Participant: Identifiable, Codable, Equatable {
     var online: Bool
     var presence: PresenceState?
     var typingAction: String?
+    var drawingStartedAt: Double?
     var lastSeenAt: Date
     let joinedAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case roomId, nickname, role, platform, avatar
-        case preferredLanguage, online, presence, typingAction, lastSeenAt, joinedAt
+        case preferredLanguage, online, presence, typingAction, drawingStartedAt, lastSeenAt, joinedAt
     }
 
     var isAway: Bool {

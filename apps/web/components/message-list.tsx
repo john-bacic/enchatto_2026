@@ -34,6 +34,7 @@ interface TypingParticipant {
   nickname: string;
   avatar: { type: string; value: string };
   typingAction: "typing" | "drawing" | "voicing";
+  drawingStartedAt?: number;
 }
 
 interface MessageListProps {
@@ -48,6 +49,9 @@ interface MessageListProps {
   showEnglish?: boolean;
   showJapanese?: boolean;
   showRomaji?: boolean;
+  isGameComplete?: boolean;
+  gameCompletedAt?: number;
+  onViewGameResults?: () => void;
 }
 
 export function MessageList({
@@ -62,6 +66,9 @@ export function MessageList({
   showEnglish = true,
   showJapanese = true,
   showRomaji = true,
+  isGameComplete,
+  gameCompletedAt,
+  onViewGameResults,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +119,49 @@ export function MessageList({
         padding: "1rem",
       }}
     >
-      {messages.map((message) => {
+      {messages.map((message, index) => {
+        const elements: React.ReactNode[] = [];
+
+        // Insert game complete bubble at chronological position
+        if (isGameComplete && onViewGameResults && gameCompletedAt) {
+          const prevMessage = index > 0 ? messages[index - 1] : null;
+          const isInsertPoint =
+            (prevMessage && prevMessage.createdAt <= gameCompletedAt && message.createdAt > gameCompletedAt) ||
+            (index === 0 && message.createdAt > gameCompletedAt);
+          if (isInsertPoint) {
+            elements.push(
+              <div
+                key="game-complete"
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  margin: "0.75rem 0",
+                }}
+              >
+                <button
+                  onClick={onViewGameResults}
+                  style={{
+                    background: "linear-gradient(135deg, var(--primary), #7c3aed)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "1rem",
+                    padding: "0.6rem 1.25rem",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  🎮 {t("Game complete! View Results", lang)}
+                </button>
+              </div>
+            );
+          }
+        }
+
         if (message.kind === "system") {
           let displayText = message.text ?? "";
           const colonIdx = displayText.indexOf(":");
@@ -127,9 +176,22 @@ export function MessageList({
               displayText = lang === "ja" ? `${name}${t("is away", lang)}` : `${name} ${t("is away", lang)}`;
             } else if (action === "back") {
               displayText = lang === "ja" ? `${name}${t("is back", lang)}` : `${name} ${t("is back", lang)}`;
+            } else if (action === "game") {
+              // name is like "Lost in Translation Level 2"
+              const levelMatch = name.match(/Level (\d+)/);
+              const levelStr = levelMatch ? ` — ${t("Level", lang)} ${levelMatch[1]}` : "";
+              displayText = `🎮 ${t("Game Started: Lost in Translation", lang)}${levelStr}`;
+            } else if (action === "game_cancelled") {
+              displayText = `🎮 ${t("Game ended", lang)}`;
+            } else if (action === "game_correct") {
+              const [guesserName, prompt] = name.split("|");
+              displayText = `🎉 ${guesserName} ${t("guessed correctly!", lang)} (${prompt})`;
+            } else if (action === "game_wrong") {
+              const [guesserName, prompt] = name.split("|");
+              displayText = `❌ ${guesserName} ${t("guessed wrong", lang)} (${prompt})`;
             }
           }
-          return (
+          elements.push(
             <div
               key={message._id}
               style={{
@@ -152,6 +214,7 @@ export function MessageList({
               <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
             </div>
           );
+          return elements;
         }
 
         const replyToMessage = message.replyToId
@@ -161,7 +224,7 @@ export function MessageList({
           ? findParticipant(replyToMessage.senderId)
           : undefined;
 
-        return (
+        elements.push(
           <MessageItem
             key={message._id}
             message={message}
@@ -180,11 +243,43 @@ export function MessageList({
             onImageLoad={handleImageLoad}
           />
         );
+        return elements;
       })}
+      {/* Game complete bubble at end if no messages came after it */}
+      {isGameComplete && onViewGameResults && (!gameCompletedAt || messages[messages.length - 1]?.createdAt <= gameCompletedAt) && (
+        <div
+          key="game-complete"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            margin: "0.75rem 0",
+          }}
+        >
+          <button
+            onClick={onViewGameResults}
+            style={{
+              background: "linear-gradient(135deg, var(--primary), #7c3aed)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "1rem",
+              padding: "0.6rem 1.25rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}
+          >
+            🎮 {t("Game complete! View Results", lang)}
+          </button>
+        </div>
+      )}
       {typingParticipants && typingParticipants.length > 0 && (
         <TypingIndicator participants={typingParticipants} lang={lang} />
       )}
-      <div ref={bottomRef} />
+      <div ref={bottomRef} style={{ height: "1rem" }} />
     </div>
   );
 }

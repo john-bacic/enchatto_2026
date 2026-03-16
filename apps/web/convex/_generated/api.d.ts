@@ -9,6 +9,7 @@
  */
 
 import type * as crons from "../crons.js";
+import type * as games from "../games.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as participants from "../participants.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
+  games: typeof games;
   http: typeof http;
   messages: typeof messages;
   participants: typeof participants;

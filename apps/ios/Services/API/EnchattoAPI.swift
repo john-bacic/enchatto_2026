@@ -64,5 +64,31 @@ protocol EnchattoAPI {
     func setParticipantOnline(participantId: String, online: Bool, presence: String?) async throws
 
     /// Update typing action (typing, drawing, or nil to clear)
-    func setTypingAction(participantId: String, action: String?) async throws
+    func setTypingAction(participantId: String, action: String?, drawingStartedAt: Double?) async throws
+
+    // MARK: - Games
+
+    /// Cancel any active game in a room (host only)
+    func cancelGame(roomId: String, participantId: String) async throws
+
+    /// Start a game in a room (host only)
+    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int, customPrompts: [[String: Any]]?) async throws -> String
+
+    /// Submit a game step result
+    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws
+
+    /// Get the active game session for a room
+    func getActiveGameSession(roomId: String) async throws -> GameSession?
+
+    /// Get the current active step for a participant
+    func getMyActiveStep(participantId: String) async throws -> GameStep?
+
+    /// Get the latest game session for a room
+    func getLatestGameSession(roomId: String) async throws -> GameSession?
+
+    /// Get the replay data for a completed game
+    func getGameReplay(gameSessionId: String) async throws -> GameReplay?
+
+    /// Get live game status for the status bar
+    func getGameStatus(roomId: String) async throws -> GameStatus?
 }

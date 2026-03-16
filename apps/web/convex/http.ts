@@ -85,6 +85,7 @@ http.route({
     await ctx.runMutation(api.participants.setTypingAction, {
       participantId: body.participantId,
       action: body.action,
+      drawingStartedAt: body.drawingStartedAt,
     });
   }),
 });
@@ -227,6 +228,100 @@ http.route({
   method: "POST",
   handler: jsonAction(async (ctx, body) => {
     return await ctx.runQuery(api.reactions.getRoomReactionSummaries, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
+// --- Games ---
+
+http.route({
+  path: "/api/games/start",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const sessionId = await ctx.runMutation(api.games.startGame, {
+      roomId: body.roomId,
+      participantId: body.participantId,
+      gameType: body.gameType,
+      level: body.level,
+      timerEnabled: body.timerEnabled,
+      customPrompts: body.customPrompts,
+    });
+    return { sessionId };
+  }),
+});
+
+http.route({
+  path: "/api/games/submit-step",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const args: Record<string, unknown> = {
+      stepId: body.stepId,
+      participantId: body.participantId,
+    };
+    if (body.outputText) args.outputText = body.outputText;
+    if (body.outputDrawingUrl) args.outputDrawingUrl = body.outputDrawingUrl;
+    if (body.selectedOption) args.selectedOption = body.selectedOption;
+    await ctx.runAction(api.games.submitGameStepWithTranslation, args as any);
+  }),
+});
+
+http.route({
+  path: "/api/games/cancel",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.games.cancelGame, {
+      roomId: body.roomId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/games/active-session",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.games.getActiveGameSession, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/games/my-active-step",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.games.getMyActiveStep, {
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/games/latest-session",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.games.getLatestGameSession, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/games/replay",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.games.getGameReplay, {
+      gameSessionId: body.gameSessionId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/games/status",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.games.getGameStatus, {
       roomId: body.roomId,
     });
   }),

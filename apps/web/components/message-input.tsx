@@ -16,6 +16,9 @@ interface MessageInputProps {
   onSend: (text: string) => void;
   onSendImage?: (file: File) => void;
   onSendDrawing?: (dataUrl: string) => void;
+  onGameTap?: () => void;
+  isGameActive?: boolean;
+  onEndGame?: () => void;
   replyTo: ReplyTo | null;
   onCancelReply: () => void;
   onTypingChange?: (action: "typing" | "drawing" | "voicing" | null) => void;
@@ -26,6 +29,9 @@ export function MessageInput({
   onSend,
   onSendImage,
   onSendDrawing,
+  onGameTap,
+  isGameActive,
+  onEndGame,
   replyTo,
   onCancelReply,
   onTypingChange,
@@ -44,7 +50,7 @@ export function MessageInput({
       onTranscript: (transcript) => {
         const base = preVoiceTextRef.current;
         const punctuated = ensurePunctuation(transcript);
-        setText(base ? `${base} ${punctuated}` : punctuated);
+        setText(base ? `${base} ${punctuated} ` : `${punctuated} `);
         // Detect speech activity from transcript changes
         if (transcript !== lastTranscriptRef.current) {
           lastTranscriptRef.current = transcript;
@@ -313,6 +319,49 @@ export function MessageInput({
             >
               {t("✏️ Draw", lang)}
             </button>
+
+            {/* Game pill — End Game when active, Game otherwise */}
+            {isGameActive && onEndGame ? (
+              <button
+                onClick={onEndGame}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.35rem 0.625rem",
+                  borderRadius: "999px",
+                  background: "rgba(239, 68, 68, 0.85)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  color: "#fff",
+                  flexShrink: 0,
+                }}
+              >
+                {t("🛑 End Game", lang)}
+              </button>
+            ) : onGameTap ? (
+              <button
+                onClick={onGameTap}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.35rem 0.625rem",
+                  borderRadius: "999px",
+                  background: "var(--border)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                  color: "var(--muted)",
+                  flexShrink: 0,
+                }}
+              >
+                {t("🎮 Game", lang)}
+              </button>
+            ) : null}
 
             <div style={{ flex: 1 }} />
 

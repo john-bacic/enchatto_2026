@@ -46,15 +46,15 @@ export default function JoinPage() {
     (p) => !p.online && p.nickname === nickname.trim() && p.avatar.value === avatar
   );
 
-  // Auto-select first available avatar (skip if we'd be reclaiming our old one)
+  // Auto-select first available avatar (skip if we'd be reclaiming our old one, or already joining)
   useEffect(() => {
-    if (takenAvatars.includes(avatar) && !hasReturningParticipant) {
+    if (!joining && takenAvatars.includes(avatar) && !hasReturningParticipant) {
       const firstAvailable = PRESET_AVATARS.find((a) => !takenAvatars.includes(a.id));
       if (firstAvailable) {
         setAvatar(firstAvailable.id);
       }
     }
-  }, [takenAvatars.join(","), hasReturningParticipant]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [takenAvatars.join(","), hasReturningParticipant, joining]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedEmoji =
     PRESET_AVATARS.find((a) => a.id === avatar)?.emoji ?? "🐱";
@@ -234,35 +234,47 @@ export default function JoinPage() {
           }}
         />
 
-        {/* Language */}
+        {/* Language toggle */}
         <label
           style={{
             display: "block",
             fontSize: "0.85rem",
             fontWeight: 600,
-            marginBottom: "0.25rem",
+            marginBottom: "0.5rem",
           }}
         >
           {t("Your language", language)}
         </label>
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as LanguageCode)}
+        <div
           style={{
-            width: "100%",
-            padding: "0.6rem 0.75rem",
+            display: "flex",
             borderRadius: "8px",
             border: "1px solid var(--border)",
+            overflow: "hidden",
             marginBottom: "1.5rem",
-            background: "var(--surface)",
           }}
         >
           {LANGUAGES.map((lang) => (
-            <option key={lang.code} value={lang.code}>
+            <button
+              key={lang.code}
+              type="button"
+              onClick={() => setLanguage(lang.code)}
+              style={{
+                flex: 1,
+                padding: "0.6rem 0.75rem",
+                border: "none",
+                background: language === lang.code ? "var(--primary)" : "var(--surface)",
+                color: language === lang.code ? "#fff" : "var(--foreground)",
+                fontWeight: language === lang.code ? 700 : 400,
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                transition: "background 0.15s ease, color 0.15s ease",
+              }}
+            >
               {lang.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
 
         {/* Error */}
         {error && (

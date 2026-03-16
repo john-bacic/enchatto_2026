@@ -5,6 +5,7 @@ import Combine
 import Network
 import NaturalLanguage
 import Translation
+import AVFoundation
 
 @MainActor
 class HostRoomViewModel: ObservableObject {
@@ -17,6 +18,18 @@ class HostRoomViewModel: ObservableObject {
     @Published var showParticipantSheet = false
     @Published var selectedParticipant: Participant?
     @Published var processingCount = 0
+    @Published var activeGameSession: GameSession?
+    @Published var myActiveStep: GameStep?
+    @Published var latestGameSession: GameSession?
+    @Published var gameReplay: GameReplay?
+    @Published var gameStatus: GameStatus?
+    @Published var drawCountdownTimeLeft: Int = -1
+
+    // MARK: - Draw countdown beep state
+    private var drawCountdownTimer: Timer?
+    private var trackedDrawStartMs: Double?
+    /// Holds strong reference to AVAudioPlayer so it doesn't deallocate mid-playback.
+    private var beepPlayer: AVAudioPlayer?
 
     let roomId: String
     let hostId: String
@@ -180,6 +193,31 @@ class HostRoomViewModel: ObservableObject {
                 map[summary.messageId] = summary.reactions
             }
             reactionSummaries = map
+
+            // Poll game state
+            activeGameSession = try? await api.getActiveGameSession(roomId: roomId)
+            gameStatus = activeGameSession != nil ? (try? await api.getGameStatus(roomId: roomId)) : nil
+            updateDrawCountdown()
+            let previousStepType = myActiveStep?.stepType
+            myActiveStep = try? await api.getMyActiveStep(participantId: hostId)
+            latestGameSession = try? await api.getLatestGameSession(roomId: roomId)
+
+            // Set typing action to "drawing" while on a draw step
+            let currentStepType = myActiveStep?.stepType
+            if currentStepType != previousStepType {
+                if currentStepType == .draw {
+                    let timerSecs = myActiveStep?.timerEnabled ?? 20
+                    let startedAt: Double? = timerSecs > 0 ? Date().timeIntervalSince1970 * 1000 : nil
+                    try? await api.setTypingAction(participantId: hostId, action: "drawing", drawingStartedAt: startedAt)
+                } else if previousStepType == .draw {
+                    try? await api.setTypingAction(participantId: hostId, action: nil, drawingStartedAt: nil)
+                }
+            }
+            if let latest = latestGameSession, latest.status == .complete {
+                gameReplay = try? await api.getGameReplay(gameSessionId: latest.id)
+            } else {
+                gameReplay = nil
+            }
 
             isLoading = false
         } catch {
@@ -376,6 +414,54 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Games
+
+    func startGame(gameType: String, level: Int = 1, timerSeconds: Int = 20) async {
+        guard networkMonitor.isConnected else { return }
+        do {
+            // Cancel any lingering active game first
+            try? await api.cancelGame(roomId: roomId, participantId: hostId)
+
+            // Generate unique prompts from word banks on the iOS device
+            let generated = PromptGenerator.generate(count: 40, level: level)
+            let customPrompts: [[String: Any]] = generated.map { p in
+                var dict: [String: Any] = ["text": p.text, "ja": p.ja]
+                if let hint = p.hint { dict["hint"] = hint }
+                if let hintJa = p.hintJa { dict["hintJa"] = hintJa }
+                return dict
+            }
+
+            _ = try await api.startGame(roomId: roomId, participantId: hostId, gameType: gameType, level: level, timerSeconds: timerSeconds, customPrompts: customPrompts)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func submitGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String? = nil) async {
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.submitGameStep(stepId: stepId, participantId: hostId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func cancelGame() async {
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.cancelGame(roomId: roomId, participantId: hostId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    var isGameComplete: Bool {
+        latestGameSession?.status == .complete && activeGameSession == nil
+    }
+
     // MARK: - Offline queue
 
     private func enqueueMessage(text: String, replyToId: String?) {
@@ -548,12 +634,118 @@ class HostRoomViewModel: ObservableObject {
 
     private var lastTypingAction: String?
 
-    func setTypingAction(_ action: String?) {
+    func setTypingAction(_ action: String?, drawingStartedAt: Double? = nil) {
         let key = action ?? "nil"
         guard key != lastTypingAction else { return }
         lastTypingAction = key
         Task {
-            try? await api.setTypingAction(participantId: hostId, action: action)
+            try? await api.setTypingAction(participantId: hostId, action: action, drawingStartedAt: drawingStartedAt)
         }
+    }
+
+    // MARK: - Draw countdown beeps
+
+    /// Called after each poll to start/stop the countdown timer for draw phase beeps.
+    private func updateDrawCountdown() {
+        guard let status = gameStatus,
+              status.phase == "drawing",
+              let startMs = status.drawStartedAt,
+              let timerSecs = status.timerSeconds,
+              timerSecs > 0 else {
+            stopDrawCountdown()
+            return
+        }
+
+        // Already tracking this exact draw step
+        if trackedDrawStartMs == startMs { return }
+
+        // New draw step — start fresh countdown
+        stopDrawCountdown()
+        trackedDrawStartMs = startMs
+
+        let startDate = Date(timeIntervalSince1970: startMs / 1000)
+
+        // Compute initial time left (ceil so 3.1s shows as 4, beep fires when truly ≤3)
+        let elapsed = Date().timeIntervalSince(startDate)
+        let remaining = max(0, Int(ceil(Double(timerSecs) - elapsed)))
+        drawCountdownTimeLeft = remaining
+
+        drawCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let elapsed = Date().timeIntervalSince(startDate)
+                let remaining = max(0, Int(ceil(Double(timerSecs) - elapsed)))
+                let previous = self.drawCountdownTimeLeft
+                self.drawCountdownTimeLeft = remaining
+
+                // Play chimes as we cross each second: 3, 2, 1, 0
+                if remaining != previous {
+                    if remaining == 3 || remaining == 2 || remaining == 1 {
+                        self.playBeep(frequency: 523, duration: 0.25) // C5 soft chime
+                    } else if remaining == 0 {
+                        self.playBeep(frequency: 784, duration: 0.5)  // G5 higher final chime
+                        self.stopDrawCountdown()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Play a generated tone at the given frequency/duration through AVAudioPlayer,
+    /// so the volume is controlled by the device's media volume buttons.
+    private func playBeep(frequency: Double, duration: Double) {
+        let sampleRate: Double = 44100
+        let frameCount = Int(sampleRate * duration)
+
+        // Build a 16-bit PCM WAV in memory
+        let dataSize = frameCount * 2 // 16-bit mono
+        let headerSize = 44
+        var wav = Data(count: headerSize + dataSize)
+
+        // WAV header
+        wav.replaceSubrange(0..<4, with: "RIFF".data(using: .ascii)!)
+        var fileSize = UInt32(headerSize + dataSize - 8)
+        wav.replaceSubrange(4..<8, with: Data(bytes: &fileSize, count: 4))
+        wav.replaceSubrange(8..<12, with: "WAVE".data(using: .ascii)!)
+        wav.replaceSubrange(12..<16, with: "fmt ".data(using: .ascii)!)
+        var fmtSize: UInt32 = 16; wav.replaceSubrange(16..<20, with: Data(bytes: &fmtSize, count: 4))
+        var audioFormat: UInt16 = 1; wav.replaceSubrange(20..<22, with: Data(bytes: &audioFormat, count: 2))
+        var channels: UInt16 = 1; wav.replaceSubrange(22..<24, with: Data(bytes: &channels, count: 2))
+        var sr: UInt32 = UInt32(sampleRate); wav.replaceSubrange(24..<28, with: Data(bytes: &sr, count: 4))
+        var byteRate: UInt32 = UInt32(sampleRate) * 2; wav.replaceSubrange(28..<32, with: Data(bytes: &byteRate, count: 4))
+        var blockAlign: UInt16 = 2; wav.replaceSubrange(32..<34, with: Data(bytes: &blockAlign, count: 2))
+        var bitsPerSample: UInt16 = 16; wav.replaceSubrange(34..<36, with: Data(bytes: &bitsPerSample, count: 2))
+        wav.replaceSubrange(36..<40, with: "data".data(using: .ascii)!)
+        var ds: UInt32 = UInt32(dataSize); wav.replaceSubrange(40..<44, with: Data(bytes: &ds, count: 4))
+
+        // Generate soft chime tone: exponential decay envelope with gentle amplitude
+        for i in 0..<frameCount {
+            let t = Double(i) / sampleRate
+            let progress = Double(i) / Double(frameCount)
+            // Smooth attack (first 5%) + exponential decay — sounds like a soft chime
+            let attack = min(1.0, progress / 0.05)
+            let decay = exp(-4.0 * progress)
+            let envelope = attack * decay
+            let sample = sin(2.0 * .pi * frequency * t) * 0.2 * envelope
+            var s = Int16(max(-32767, min(32767, sample * 32767)))
+            wav.replaceSubrange((headerSize + i * 2)..<(headerSize + i * 2 + 2), with: Data(bytes: &s, count: 2))
+        }
+
+        do {
+            // Use .ambient so it mixes with other audio and follows media volume
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            let player = try AVAudioPlayer(data: wav)
+            player.volume = 1.0 // Full volume — actual loudness controlled by system media volume
+            player.play()
+            beepPlayer = player // keep strong reference
+        } catch {}
+    }
+
+    private func stopDrawCountdown() {
+        drawCountdownTimer?.invalidate()
+        drawCountdownTimer = nil
+        drawCountdownTimeLeft = -1
+        trackedDrawStartMs = nil
     }
 }

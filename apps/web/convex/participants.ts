@@ -183,10 +183,12 @@ export const setTypingAction = mutation({
   args: {
     participantId: v.id("participants"),
     action: v.optional(v.union(v.literal("typing"), v.literal("drawing"), v.literal("voicing"))),
+    drawingStartedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.participantId, {
       typingAction: args.action,
+      drawingStartedAt: args.action === "drawing" ? args.drawingStartedAt : undefined,
     });
   },
 });
