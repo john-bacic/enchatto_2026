@@ -104,7 +104,7 @@ struct PromptGenerator {
         let shuffledAdj = adjectives.shuffled()
         let shuffledNouns = nouns.shuffled()
         let shuffledActions = actions.shuffled()
-        var      qqqadjIdx = 0
+        var adjIdx = 0
         var nounIdx = 0
         var actionIdx = 0
 
