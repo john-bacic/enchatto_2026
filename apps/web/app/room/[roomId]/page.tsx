@@ -12,6 +12,7 @@ import { GamePickerModal } from "@/components/game-picker-modal";
 import { GameTaskOverlay } from "@/components/game-task-overlay";
 import { GameReplayModal } from "@/components/game-replay-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
+import { EmojifyrGameScreen } from "@/components/emojifyr-game-screen";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -79,6 +80,15 @@ function RoomContent() {
     api.games.getGameStatus,
     activeGameSession ? { roomId: roomId as Id<"rooms"> } : "skip"
   );
+
+  // Emojifyr real-time subscriptions
+  const emojifyrState = useQuery(api.games.getEmojifyrGameState, {
+    roomId: roomId as Id<"rooms">,
+  });
+  const emojifyrSession = emojifyrState?.session ?? null;
+  const emojifyrRound = emojifyrState?.currentRound ?? null;
+  const emojifyrGuesses = emojifyrState?.guesses ?? [];
+
 
   // Auto-show game replay when a game completes or is cancelled
   const prevActiveGameRef = useRef(activeGameSession);
@@ -375,6 +385,14 @@ function RoomContent() {
     setReplyTo(null);
   };
 
+  // Emojifyr mutations
+  const startEmojifyrMutation = useMutation(api.games.startEmojifyr);
+  const submitEmojifyrSentenceMutation = useMutation(api.games.submitEmojifyrSentence);
+  const submitEmojifyrGuessMutation = useMutation(api.games.submitEmojifyrGuess);
+  const revealEmojifyrRoundMutation = useMutation(api.games.revealEmojifyrRound);
+  const advanceEmojifyrRoundMutation = useMutation(api.games.advanceEmojifyrRound);
+  const cancelEmojifyrMutation = useMutation(api.games.cancelEmojifyr);
+
   const cancelGameMutation = useMutation(api.games.cancelGame);
   const handleStartGame = useCallback(
     async (gameType: string, level: number = 1, timerSeconds: number = 20) => {
@@ -398,6 +416,104 @@ function RoomContent() {
       }
     },
     [cancelGameMutation, startGameMutation, roomId, participantId]
+  );
+
+  const handleStartEmojifyr = useCallback(
+    async () => {
+      if (!participantId) return;
+      try {
+        // Cancel any lingering active game first (ignore errors if no active game)
+        try {
+          await cancelGameMutation({
+            roomId: roomId as Id<"rooms">,
+            participantId: participantId as Id<"participants">,
+          });
+        } catch {
+          // No active game to cancel — that's fine
+        }
+        await startEmojifyrMutation({
+          roomId: roomId as Id<"rooms">,
+          createdByParticipantId: participantId as Id<"participants">,
+        });
+        setShowGamePicker(false);
+      } catch (err) {
+        console.error("Failed to start Emojifyr:", err);
+      }
+    },
+    [cancelGameMutation, startEmojifyrMutation, roomId, participantId]
+  );
+
+  const handleSubmitEmojifyrSentence = useCallback(
+    async (sentence: string) => {
+      if (!emojifyrRound) return;
+      try {
+        await submitEmojifyrSentenceMutation({
+          roundId: emojifyrRound._id,
+          sentence,
+        });
+      } catch (err) {
+        console.error("Failed to submit Emojifyr sentence:", err);
+      }
+    },
+    [submitEmojifyrSentenceMutation, emojifyrRound]
+  );
+
+  const handleSubmitEmojifyrGuess = useCallback(
+    async (guess: string) => {
+      if (!emojifyrRound || !participantId) return;
+      try {
+        await submitEmojifyrGuessMutation({
+          roundId: emojifyrRound._id,
+          participantId: participantId as Id<"participants">,
+          guessText: guess,
+        });
+      } catch (err) {
+        console.error("Failed to submit Emojifyr guess:", err);
+      }
+    },
+    [submitEmojifyrGuessMutation, emojifyrRound, participantId]
+  );
+
+  const handleEmojifyrNextRound = useCallback(
+    async () => {
+      if (!emojifyrSession) return;
+      try {
+        await advanceEmojifyrRoundMutation({
+          gameSessionId: emojifyrSession._id as Id<"gameSessions">,
+        });
+      } catch (err) {
+        console.error("Failed to advance Emojifyr round:", err);
+      }
+    },
+    [advanceEmojifyrRoundMutation, emojifyrSession, emojifyrRound]
+  );
+
+  const handleCancelEmojifyr = useCallback(
+    async () => {
+      if (!emojifyrSession) return;
+      try {
+        await cancelEmojifyrMutation({
+          gameSessionId: emojifyrSession._id as Id<"gameSessions">,
+        });
+      } catch (err) {
+        console.error("Failed to cancel Emojifyr:", err);
+      }
+    },
+    [cancelEmojifyrMutation, emojifyrSession]
+  );
+
+  const handleRevealEmojifyr = useCallback(
+    async () => {
+      if (!emojifyrRound) return;
+      try {
+        await revealEmojifyrRoundMutation({
+          roundId: emojifyrRound._id,
+        });
+      } catch (err) {
+        console.error("Failed to reveal Emojifyr round:", err);
+      }
+    },
+    [revealEmojifyrRoundMutation, emojifyrRound]
   );
 
   const handleSubmitGameStep = useCallback(
@@ -754,10 +870,14 @@ function RoomContent() {
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
           onGameTap={() => setShowGamePicker(true)}
-          isGameActive={activeGameSession != null && me?.role === "host"}
+          isGameActive={(activeGameSession != null || emojifyrSession != null) && me?.role === "host"}
           onEndGame={me?.role === "host" ? async () => {
             if (confirm(t("This will end the game for all players and show results.", lang))) {
-              await cancelGameMutation({ roomId: roomId as Id<"rooms">, participantId: participantId as Id<"participants"> });
+              if (emojifyrSession) {
+                await cancelEmojifyrMutation({ gameSessionId: emojifyrSession._id as Id<"gameSessions"> });
+              } else {
+                await cancelGameMutation({ roomId: roomId as Id<"rooms">, participantId: participantId as Id<"participants"> });
+              }
             }
           } : undefined}
           replyTo={replyMessage ?? null}
@@ -862,6 +982,24 @@ function RoomContent() {
         </div>
       )}
 
+      {/* Emojifyr full-screen game */}
+      {emojifyrSession && emojifyrSession.status === "active" && (
+        <EmojifyrGameScreen
+          session={emojifyrSession}
+          currentRound={emojifyrRound}
+          guesses={emojifyrGuesses}
+          participants={participants}
+          myParticipantId={participantId}
+          isHost={me?.role === "host"}
+          lang={lang}
+          onSubmitSentence={handleSubmitEmojifyrSentence}
+          onSubmitGuess={handleSubmitEmojifyrGuess}
+          onReveal={handleRevealEmojifyr}
+          onNextRound={handleEmojifyrNextRound}
+          onEndGame={handleCancelEmojifyr}
+        />
+      )}
+
       {/* Game task overlay */}
       {myActiveStep && myActiveStep._id !== dismissedGameStepId && (
         <GameTaskOverlay
@@ -893,6 +1031,7 @@ function RoomContent() {
         hostName={participants.find((p) => p.role === "host")?.nickname ?? ""}
         nextLevel={(latestGameSession?.status === "complete" && latestGameSession?.level && !latestGameSession?.cancelled) ? (latestGameSession.level as number) + 1 : 1}
         onStartGame={handleStartGame}
+        onStartEmojifyr={handleStartEmojifyr}
         onRequestGame={(msg) => handleSend(msg)}
         onClose={() => setShowGamePicker(false)}
         lang={lang}

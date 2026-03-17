@@ -44,6 +44,7 @@ struct HostConversationView: View {
     @State private var showQuitGameConfirm = false
     @State private var showEndGameConfirm = false
     @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
+    @State private var showEmojifyrGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
@@ -890,9 +891,16 @@ struct HostConversationView: View {
                     showGamePicker = false
                     Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds) }
                 },
+                onStartEmojifyr: {
+                    showGamePicker = false
+                    Task {
+                        await viewModel.startEmojifyr()
+                        showEmojifyrGame = true
+                    }
+                },
                 onDismiss: { showGamePicker = false }
             )
-            .presentationDetents([.height(260)])
+            .presentationDetents([.height(300)])
             .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showGameTask) {
@@ -964,6 +972,19 @@ struct HostConversationView: View {
             }
         } message: {
             Text(L.t("This will end the game for all players and show results.", hostLanguage))
+        }
+        // MARK: - Emojifyr full-screen game
+        .fullScreenCover(isPresented: $showEmojifyrGame) {
+            EmojifyrGameView(
+                viewModel: viewModel,
+                lang: hostLanguage,
+                onDismiss: { showEmojifyrGame = false }
+            )
+        }
+        .onChange(of: viewModel.activeEmojifyrSession) { session in
+            if session != nil && !showEmojifyrGame {
+                showEmojifyrGame = true
+            }
         }
     }
 
@@ -1189,7 +1210,10 @@ private struct SystemMessageRow: View {
         } else if action == "leave" {
             return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
         } else if action == "game" {
-            // name is like "Lost in Translation Level 2"
+            // name is like "Lost in Translation Level 2" or "Emojifyr"
+            if name.hasPrefix("Emojifyr") {
+                return "🔥 \(L.t("Game Started: Emojifyr", lang))"
+            }
             if let range = name.range(of: "Level "), let levelNum = Int(name[range.upperBound...].trimmingCharacters(in: .whitespaces)) {
                 return "🎮 \(L.t("Game Started: Lost in Translation", lang)) — \(L.t("Level", lang)) \(levelNum)"
             }

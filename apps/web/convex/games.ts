@@ -465,7 +465,9 @@ export const cancelGame = mutation({
       .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
       .collect();
 
-    for (const session of activeSessions) {
+    // Only cancel non-emojifyr sessions (Emojifyr has its own cancel)
+    const litSessions = activeSessions.filter((s) => s.gameType !== "emojifyr");
+    for (const session of litSessions) {
       await ctx.db.patch(session._id, {
         status: "complete",
         completedAt: Date.now(),
@@ -494,7 +496,7 @@ export const cancelGame = mutation({
     }
 
     // Post system message that game was cancelled
-    if (activeSessions.length > 0) {
+    if (litSessions.length > 0) {
       await ctx.db.insert("messages", {
         roomId: args.roomId,
         senderId: args.participantId,
@@ -514,7 +516,9 @@ export const getActiveGameSession = query({
       .query("gameSessions")
       .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
       .collect();
-    return sessions[0] ?? null;
+    // Only return non-emojifyr sessions (Emojifyr has its own query)
+    const litSession = sessions.find((s) => s.gameType !== "emojifyr");
+    return litSession ?? null;
   },
 });
 
@@ -597,13 +601,13 @@ export const getMyActiveStep = query({
 export const getGameStatus = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
-    // Find active game session
+    // Find active non-emojifyr game session
     const sessions = await ctx.db
       .query("gameSessions")
       .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
       .collect();
-    if (sessions.length === 0) return null;
-    const session = sessions[0];
+    const session = sessions.find((s) => s.gameType !== "emojifyr");
+    if (!session) return null;
 
     // Get all chains and steps
     const chains = await ctx.db
@@ -722,10 +726,11 @@ export const getLatestGameSession = query({
       .query("gameSessions")
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
-    if (sessions.length === 0) return null;
-    // Sort by createdAt descending, return most recent
-    sessions.sort((a, b) => b.createdAt - a.createdAt);
-    return sessions[0];
+    // Only return non-emojifyr sessions (Emojifyr has its own queries)
+    const litSessions = sessions.filter((s) => s.gameType !== "emojifyr");
+    if (litSessions.length === 0) return null;
+    litSessions.sort((a, b) => b.createdAt - a.createdAt);
+    return litSessions[0];
   },
 });
 
@@ -747,14 +752,14 @@ export const getGameReplay = query({
       .collect();
 
     // Get all participants for this game
-    const participantIds = [...new Set([
-      ...allSteps.map((s) => s.assignedParticipantId),
-      ...chains.map((c) => c.drawerParticipantId).filter(Boolean) as Id<"participants">[],
-    ])];
+    const pidSet = new Set<string>();
+    for (const s of allSteps) pidSet.add(s.assignedParticipantId);
+    for (const c of chains) if (c.drawerParticipantId) pidSet.add(c.drawerParticipantId);
+    const participantIds = Array.from(pidSet);
     const participants: Record<string, { nickname: string; avatar: { type: string; value: string } }> = {};
     for (const pid of participantIds) {
-      const p = await ctx.db.get(pid);
-      if (p) participants[pid] = { nickname: p.nickname, avatar: p.avatar };
+      const p = await ctx.db.get(pid as Id<"participants">);
+      if (p && "nickname" in p) participants[pid] = { nickname: (p as any).nickname, avatar: (p as any).avatar };
     }
 
     // Collect chain IDs that were actually played (have a drawing)
@@ -819,5 +824,346 @@ export const getGameReplay = query({
     }
 
     return { session, chains: chainData, participants, scores, promptTranslations };
+  },
+});
+
+// ============================================================
+// Emojifyr — sentence-to-emoji guessing game
+// ============================================================
+
+export const startEmojifyr = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    createdByParticipantId: v.id("participants"),
+  },
+  handler: async (ctx, args) => {
+    // Verify room exists and is active
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
+
+    // Verify participant is host
+    const participant = await ctx.db.get(args.createdByParticipantId);
+    if (!participant) throw new Error("Participant not found");
+    if (participant.role !== "host") throw new Error("Only the host can start a game");
+
+    // Check no active game
+    const activeGames = await ctx.db
+      .query("gameSessions")
+      .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
+      .collect();
+    if (activeGames.length > 0) throw new Error("A game is already in progress");
+
+    // Get online, non-departed participants
+    const allParticipants = await ctx.db
+      .query("participants")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    const players = allParticipants.filter((p) => p.online && !p.departed);
+    if (players.length < 2) throw new Error("Need at least 2 players");
+
+    const playerIds = players.map((p) => p._id);
+    // Host (creator) always goes first, then shuffle the rest
+    const otherIds = playerIds.filter((id) => id !== args.createdByParticipantId);
+    const playerOrder = [args.createdByParticipantId, ...shuffleArray(otherIds)];
+
+    // Create game session
+    const sessionId = await ctx.db.insert("gameSessions", {
+      roomId: args.roomId,
+      gameType: "emojifyr",
+      status: "active",
+      createdByParticipantId: args.createdByParticipantId,
+      playerIds,
+      playerOrder,
+      chainCount: 0,
+      createdAt: Date.now(),
+    });
+
+    // Create the first round
+    await ctx.db.insert("emojifyrRounds", {
+      gameSessionId: sessionId,
+      roundIndex: 0,
+      writerParticipantId: playerOrder[0],
+      status: "writing",
+      maxCharacters: 80,
+      startedAt: Date.now(),
+    });
+
+    // Post system message
+    await ctx.db.insert("messages", {
+      roomId: args.roomId,
+      senderId: args.createdByParticipantId,
+      kind: "system",
+      status: "processed",
+      text: "game:Emojifyr",
+      createdAt: Date.now(),
+    });
+
+    return sessionId;
+  },
+});
+
+export const submitEmojifyrSentence = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    sentence: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (args.sentence.length < 1 || args.sentence.length > 80) {
+      throw new Error("Sentence must be between 1 and 80 characters");
+    }
+    const round = await ctx.db.get(args.roundId);
+    if (!round) throw new Error("Round not found");
+    if (round.status !== "writing") throw new Error("Round is not in writing phase");
+
+    await ctx.db.patch(args.roundId, {
+      originalSentence: args.sentence,
+      status: "generating",
+    });
+  },
+});
+
+export const submitEmojifyrEmojiClue = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    emojiClue: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    if (!round) throw new Error("Round not found");
+    if (round.status !== "generating" && round.status !== "preview") {
+      throw new Error("Round is not in generating or preview phase");
+    }
+
+    await ctx.db.patch(args.roundId, {
+      emojiClue: args.emojiClue,
+      status: "guessing",
+    });
+  },
+});
+
+export const submitEmojifyrGuess = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    participantId: v.id("participants"),
+    guessText: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    if (!round) throw new Error("Round not found");
+
+    await ctx.db.insert("emojifyrGuesses", {
+      roundId: args.roundId,
+      participantId: args.participantId,
+      guessText: args.guessText,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const revealEmojifyrRound = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+  },
+  handler: async (ctx, args) => {
+    const round = await ctx.db.get(args.roundId);
+    if (!round) throw new Error("Round not found");
+
+    await ctx.db.patch(args.roundId, {
+      status: "reveal",
+      revealedAt: Date.now(),
+    });
+  },
+});
+
+export const advanceEmojifyrRound = mutation({
+  args: {
+    gameSessionId: v.id("gameSessions"),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.gameSessionId);
+    if (!session) throw new Error("Session not found");
+    if (session.status !== "active") throw new Error("Session is not active");
+
+    const playerOrder = session.playerOrder ?? session.playerIds;
+
+    // Get all rounds for this session
+    const rounds = await ctx.db
+      .query("emojifyrRounds")
+      .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", args.gameSessionId))
+      .collect();
+    rounds.sort((a, b) => a.roundIndex - b.roundIndex);
+
+    // Mark current round as complete
+    const currentRound = rounds.find((r) => r.status !== "complete");
+    if (currentRound) {
+      await ctx.db.patch(currentRound._id, { status: "complete" });
+    }
+
+    // Determine next writer (rotate through playerOrder)
+    const nextRoundIndex = (currentRound?.roundIndex ?? -1) + 1;
+    const nextWriterIndex = nextRoundIndex % playerOrder.length;
+    const nextWriter = playerOrder[nextWriterIndex];
+
+    // Create new round
+    await ctx.db.insert("emojifyrRounds", {
+      gameSessionId: args.gameSessionId,
+      roundIndex: nextRoundIndex,
+      writerParticipantId: nextWriter,
+      status: "writing",
+      maxCharacters: 80,
+      startedAt: Date.now(),
+    });
+  },
+});
+
+export const cancelEmojifyr = mutation({
+  args: {
+    gameSessionId: v.id("gameSessions"),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.gameSessionId);
+    if (!session) throw new Error("Session not found");
+
+    await ctx.db.patch(args.gameSessionId, {
+      status: "complete",
+      completedAt: Date.now(),
+      cancelled: true,
+    });
+
+    // Mark all non-complete rounds as complete
+    const rounds = await ctx.db
+      .query("emojifyrRounds")
+      .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", args.gameSessionId))
+      .collect();
+    for (const round of rounds) {
+      if (round.status !== "complete") {
+        await ctx.db.patch(round._id, { status: "complete" });
+      }
+    }
+
+    // Post system message
+    const creator = await ctx.db.get(session.createdByParticipantId);
+    await ctx.db.insert("messages", {
+      roomId: session.roomId,
+      senderId: session.createdByParticipantId,
+      kind: "system",
+      status: "processed",
+      text: "game_cancelled:Emojifyr",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// --- Emojifyr Queries ---
+
+export const getActiveEmojifyrSession = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const sessions = await ctx.db
+      .query("gameSessions")
+      .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
+      .collect();
+    const emojifyrSession = sessions.find((s) => s.gameType === "emojifyr");
+    return emojifyrSession ?? null;
+  },
+});
+
+export const getCurrentEmojifyrRound = query({
+  args: { gameSessionId: v.id("gameSessions") },
+  handler: async (ctx, args) => {
+    const rounds = await ctx.db
+      .query("emojifyrRounds")
+      .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", args.gameSessionId))
+      .collect();
+    // Return the most recent round that isn't "complete"
+    const activeRounds = rounds.filter((r) => r.status !== "complete");
+    if (activeRounds.length === 0) return null;
+    activeRounds.sort((a, b) => b.roundIndex - a.roundIndex);
+    return activeRounds[0];
+  },
+});
+
+export const getEmojifyrGuesses = query({
+  args: { roundId: v.id("emojifyrRounds") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("emojifyrGuesses")
+      .withIndex("by_roundId", (q) => q.eq("roundId", args.roundId))
+      .collect();
+  },
+});
+
+export const getEmojifyrGameState = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    // Find active emojifyr session
+    const sessions = await ctx.db
+      .query("gameSessions")
+      .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
+      .collect();
+    const session = sessions.find((s) => s.gameType === "emojifyr");
+    if (!session) return null;
+
+    // Get all rounds
+    const rounds = await ctx.db
+      .query("emojifyrRounds")
+      .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
+      .collect();
+    rounds.sort((a, b) => a.roundIndex - b.roundIndex);
+
+    // Current round = most recent non-complete
+    const currentRound = [...rounds].reverse().find((r) => r.status !== "complete") ?? null;
+
+    // Get guesses for current round
+    let guesses: any[] = [];
+    if (currentRound) {
+      guesses = await ctx.db
+        .query("emojifyrGuesses")
+        .withIndex("by_roundId", (q) => q.eq("roundId", currentRound._id))
+        .collect();
+    }
+
+    // Get participant info for all players
+    const participants: Record<string, { nickname: string; avatar: { type: string; value: string } }> = {};
+    for (const pid of session.playerIds) {
+      const p = await ctx.db.get(pid);
+      if (p) {
+        participants[pid as string] = { nickname: p.nickname, avatar: p.avatar };
+      }
+    }
+
+    const playerOrder = session.playerOrder ?? session.playerIds;
+
+    // Redact sensitive fields based on round status:
+    // - originalSentence: only visible during reveal/complete (writer knows it already)
+    // - emojiClue: only visible during guessing/reveal/complete
+    let redactedRound = currentRound;
+    if (currentRound) {
+      const showSentence = currentRound.status === "reveal" || currentRound.status === "complete";
+      const showClue = currentRound.status === "guessing" || currentRound.status === "reveal" || currentRound.status === "complete";
+      redactedRound = {
+        ...currentRound,
+        originalSentence: showSentence ? currentRound.originalSentence : undefined,
+        emojiClue: showClue ? currentRound.emojiClue : undefined,
+      };
+    }
+
+    return {
+      session: {
+        _id: session._id,
+        roomId: session.roomId,
+        gameType: session.gameType,
+        status: session.status,
+        playerIds: session.playerIds,
+        playerOrder,
+        createdAt: session.createdAt,
+      },
+      currentRound: redactedRound,
+      guesses,
+      participants,
+      totalRounds: rounds.length,
+      completedRounds: rounds.filter((r) => r.status === "complete").length,
+    };
   },
 });

@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Game Session
 
-struct GameSession: Identifiable, Codable {
+struct GameSession: Identifiable, Codable, Equatable {
     let id: String
     let roomId: String
     let gameType: String
@@ -240,4 +240,50 @@ struct GameStatusScore: Codable {
     let total: Int
     let nickname: String
     let avatar: AvatarConfig
+}
+
+// MARK: - Emojifyr
+
+struct EmojifyrRound: Codable, Identifiable {
+    let id: String  // _id from Convex
+    let gameSessionId: String
+    let roundIndex: Int
+    let writerParticipantId: String
+    var originalSentence: String?
+    var emojiClue: String?
+    var status: EmojifyrRoundStatus
+    let maxCharacters: Int
+    let startedAt: Double
+    var revealedAt: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case gameSessionId, roundIndex, writerParticipantId
+        case originalSentence, emojiClue, status, maxCharacters
+        case startedAt, revealedAt
+    }
+}
+
+enum EmojifyrRoundStatus: String, Codable {
+    case writing, generating, preview, guessing, reveal, complete
+}
+
+struct EmojifyrGuess: Codable, Identifiable {
+    let id: String
+    let roundId: String
+    let participantId: String
+    let guessText: String
+    let createdAt: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case roundId, participantId, guessText, createdAt
+    }
+}
+
+struct EmojifyrGameState: Codable {
+    let session: GameSession?
+    let currentRound: EmojifyrRound?
+    let guesses: [EmojifyrGuess]?
+    let participants: [Participant]?
 }

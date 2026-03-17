@@ -234,6 +234,52 @@ class MockEnchattoAPI: EnchattoAPI {
         return nil
     }
 
+    // MARK: - Emojifyr
+
+    func startEmojifyr(roomId: String, participantId: String) async throws -> String? {
+        return UUID().uuidString
+    }
+
+    func submitEmojifyrSentence(roundId: String, sentence: String) async throws {
+        // Mock: no-op
+    }
+
+    func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws {
+        // Mock: no-op
+    }
+
+    func submitEmojifyrGuess(roundId: String, participantId: String, guessText: String) async throws {
+        // Mock: no-op
+    }
+
+    func revealEmojifyrRound(roundId: String) async throws {
+        // Mock: no-op
+    }
+
+    func advanceEmojifyrRound(gameSessionId: String) async throws {
+        // Mock: no-op
+    }
+
+    func cancelEmojifyr(gameSessionId: String) async throws {
+        // Mock: no-op
+    }
+
+    func getActiveEmojifyrSession(roomId: String) async throws -> GameSession? {
+        return nil
+    }
+
+    func getCurrentEmojifyrRound(gameSessionId: String) async throws -> EmojifyrRound? {
+        return nil
+    }
+
+    func getEmojifyrGuesses(roundId: String) async throws -> [EmojifyrGuess] {
+        return []
+    }
+
+    func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState? {
+        return nil
+    }
+
 }
 
 enum APIError: LocalizedError {

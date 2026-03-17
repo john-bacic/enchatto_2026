@@ -1,14 +1,21 @@
 import SwiftUI
 
+enum GamePickerTab: String, CaseIterable {
+    case lostInTranslation = "Lost in Translation"
+    case emojifyr = "Emojifyr"
+}
+
 struct GamePickerView: View {
     let isHost: Bool
     let playerCount: Int
     var nextLevel: Int = 1
     let lang: String
     let onStartGame: (String, Int, Int) -> Void
+    let onStartEmojifyr: () -> Void
     let onDismiss: () -> Void
 
     @State private var timerSeconds: Int = 20
+    @State private var selectedGame: GamePickerTab = .lostInTranslation
 
     var body: some View {
         VStack(spacing: 8) {
@@ -44,6 +51,28 @@ struct GamePickerView: View {
         VStack(spacing: 8) {
             Text("🎮")
                 .font(.system(size: 28))
+
+            // Game selector
+            Picker("", selection: $selectedGame) {
+                ForEach(GamePickerTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            switch selectedGame {
+            case .lostInTranslation:
+                lostInTranslationContent
+            case .emojifyr:
+                emojifyrContent
+            }
+        }
+    }
+
+    // MARK: - Lost in Translation
+
+    private var lostInTranslationContent: some View {
+        VStack(spacing: 8) {
             Text(L.t("Lost in Translation", lang))
                 .font(.headline)
 
@@ -81,6 +110,38 @@ struct GamePickerView: View {
 
             Button(nextLevel > 1 ? "\(L.t("Level", lang)) \(nextLevel)" : L.t("Start Game", lang)) {
                 onStartGame("lost-in-translation", nextLevel, timerSeconds)
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+            .disabled(playerCount < 2)
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Emojifyr
+
+    private var emojifyrContent: some View {
+        VStack(spacing: 8) {
+            Text(L.t("Emojifyr", lang))
+                .font(.headline)
+
+            Text(L.t("Write a sentence, turn it into emojis, and guess!", lang))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Text("\(playerCount) \(L.t("players", lang))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if playerCount < 2 {
+                Text(L.t("Need at least 2 players to start.", lang))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Button(L.t("Start Game", lang)) {
+                onStartEmojifyr()
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)

@@ -299,4 +299,95 @@ class RealEnchattoAPI: EnchattoAPI {
         }
     }
 
+    // MARK: - Emojifyr
+
+    func startEmojifyr(roomId: String, participantId: String) async throws -> String? {
+        struct Response: Decodable { let sessionId: String }
+        do {
+            let response: Response = try await client.post("/api/emojifyr/start", body: [
+                "roomId": roomId,
+                "createdByParticipantId": participantId,
+            ])
+            return response.sessionId
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func submitEmojifyrSentence(roundId: String, sentence: String) async throws {
+        try await client.postVoid("/api/emojifyr/submit-sentence", body: [
+            "roundId": roundId,
+            "sentence": sentence,
+        ])
+    }
+
+    func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws {
+        try await client.postVoid("/api/emojifyr/submit-emoji-clue", body: [
+            "roundId": roundId,
+            "emojiClue": emojiClue,
+        ])
+    }
+
+    func submitEmojifyrGuess(roundId: String, participantId: String, guessText: String) async throws {
+        try await client.postVoid("/api/emojifyr/submit-guess", body: [
+            "roundId": roundId,
+            "participantId": participantId,
+            "guessText": guessText,
+        ])
+    }
+
+    func revealEmojifyrRound(roundId: String) async throws {
+        try await client.postVoid("/api/emojifyr/reveal", body: [
+            "roundId": roundId,
+        ])
+    }
+
+    func advanceEmojifyrRound(gameSessionId: String) async throws {
+        try await client.postVoid("/api/emojifyr/advance-round", body: [
+            "gameSessionId": gameSessionId,
+        ])
+    }
+
+    func cancelEmojifyr(gameSessionId: String) async throws {
+        try await client.postVoid("/api/emojifyr/cancel", body: [
+            "gameSessionId": gameSessionId,
+        ])
+    }
+
+    func getActiveEmojifyrSession(roomId: String) async throws -> GameSession? {
+        do {
+            let session: GameSession = try await client.post("/api/emojifyr/active-session", body: ["roomId": roomId])
+            return session
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func getCurrentEmojifyrRound(gameSessionId: String) async throws -> EmojifyrRound? {
+        do {
+            let round: EmojifyrRound = try await client.post("/api/emojifyr/current-round", body: ["gameSessionId": gameSessionId])
+            return round
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
+    func getEmojifyrGuesses(roundId: String) async throws -> [EmojifyrGuess] {
+        do {
+            let guesses: [EmojifyrGuess] = try await client.post("/api/emojifyr/guesses", body: ["roundId": roundId])
+            return guesses
+        } catch is DecodingError {
+            return []
+        }
+    }
+
+    func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState? {
+        do {
+            let state: EmojifyrGameState = try await client.post("/api/emojifyr/game-state", body: ["roomId": roomId])
+            return state
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
 }

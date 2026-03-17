@@ -87,6 +87,7 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("complete")),
     createdByParticipantId: v.id("participants"),
     playerIds: v.array(v.id("participants")),
+    playerOrder: v.optional(v.array(v.id("participants"))),
     chainCount: v.number(),
     level: v.optional(v.number()),
     timerEnabled: v.optional(v.union(v.boolean(), v.number())),
@@ -102,6 +103,34 @@ export default defineSchema({
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"]),
+
+  emojifyrRounds: defineTable({
+    gameSessionId: v.id("gameSessions"),
+    roundIndex: v.number(),
+    writerParticipantId: v.id("participants"),
+    originalSentence: v.optional(v.string()),
+    emojiClue: v.optional(v.string()),
+    status: v.union(
+      v.literal("writing"),
+      v.literal("generating"),
+      v.literal("preview"),
+      v.literal("guessing"),
+      v.literal("reveal"),
+      v.literal("complete")
+    ),
+    maxCharacters: v.number(),
+    startedAt: v.number(),
+    revealedAt: v.optional(v.number()),
+  })
+    .index("by_gameSessionId", ["gameSessionId"]),
+
+  emojifyrGuesses: defineTable({
+    roundId: v.id("emojifyrRounds"),
+    participantId: v.id("participants"),
+    guessText: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_roundId", ["roundId"]),
 
   gameChains: defineTable({
     gameSessionId: v.id("gameSessions"),

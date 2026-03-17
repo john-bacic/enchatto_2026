@@ -144,8 +144,7 @@ struct DrawingComposerView: View {
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray4), lineWidth: 1))
                     )
             }
-            Slider(value: $lineWidth, in: minWidth...maxWidth)
-                .tint(.accentColor)
+            PenSizeBar(value: $lineWidth, range: minWidth...maxWidth, color: selectedColor)
         }
         .padding(.horizontal)
         .onChange(of: hue) { _ in
@@ -313,6 +312,50 @@ private struct SpectrumBar: View {
             )
         }
         .frame(height: 20)
+    }
+}
+
+// MARK: - Pen size bar (tap-to-set, like spectrum bars)
+
+private struct PenSizeBar: View {
+    @Binding var value: CGFloat
+    let range: ClosedRange<CGFloat>
+    let color: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                // Track: gradient from thin to thick
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.systemGray5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(.separator), lineWidth: 0.5)
+                    )
+                // Thumb
+                Circle()
+                    .fill(color)
+                    .frame(width: 16, height: 16)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
+                    .position(x: thumbX(in: geo.size.width), y: geo.size.height / 2)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { drag in
+                        let x = max(0, min(drag.location.x, geo.size.width))
+                        let pct = x / geo.size.width
+                        value = range.lowerBound + pct * (range.upperBound - range.lowerBound)
+                    }
+            )
+        }
+        .frame(height: 20)
+    }
+
+    private func thumbX(in width: CGFloat) -> CGFloat {
+        let pct = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        return 8 + pct * (width - 16)
     }
 }
 

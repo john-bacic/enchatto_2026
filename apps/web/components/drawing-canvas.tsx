@@ -145,6 +145,65 @@ function SpectrumPicker({ color, onChange }: { color: string; onChange: (c: stri
   );
 }
 
+function PenSizeBar({ value, min, max, color, onChange }: {
+  value: number; min: number; max: number; color: string; onChange: (v: number) => void;
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+
+  const update = useCallback((clientX: number) => {
+    const el = barRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const pct = x / rect.width;
+    onChange(Math.round(min + pct * (max - min)));
+  }, [min, max, onChange]);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => { if (draggingRef.current) update(e.clientX); };
+    const onUp = () => { draggingRef.current = false; };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [update]);
+
+  const pct = ((value - min) / (max - min)) * 100;
+
+  return (
+    <div
+      ref={barRef}
+      style={{
+        height: "1.75rem",
+        borderRadius: "0.875rem",
+        position: "relative",
+        cursor: "pointer",
+        touchAction: "none",
+        border: "1px solid var(--border)",
+        background: "#e5e5e5",
+      }}
+      onPointerDown={(e) => { draggingRef.current = true; update(e.clientX); }}
+    >
+      <div style={{
+        position: "absolute",
+        top: "50%",
+        left: `${pct}%`,
+        transform: "translate(-50%, -50%)",
+        width: "1.35rem",
+        height: "1.35rem",
+        borderRadius: "50%",
+        border: "2px solid #fff",
+        boxShadow: "0 0 0 1px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.3)",
+        pointerEvents: "none",
+        background: color,
+      }} />
+    </div>
+  );
+}
+
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(function DrawingCanvas({
   onSave,
   onCancel,
@@ -326,17 +385,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           />
         </div>
       </div>
-      <input
-        type="range"
-        min={MIN_WIDTH}
-        max={MAX_WIDTH}
-        value={lineWidth}
-        onChange={(e) => setLineWidth(Number(e.target.value))}
-        style={{
-          width: "100%",
-          accentColor: "var(--primary)",
-        }}
-      />
+      <PenSizeBar value={lineWidth} min={MIN_WIDTH} max={MAX_WIDTH} color={color} onChange={setLineWidth} />
 
       {/* Canvas */}
       <canvas

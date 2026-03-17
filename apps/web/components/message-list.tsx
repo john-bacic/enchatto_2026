@@ -177,10 +177,14 @@ export function MessageList({
             } else if (action === "back") {
               displayText = lang === "ja" ? `${name}${t("is back", lang)}` : `${name} ${t("is back", lang)}`;
             } else if (action === "game") {
-              // name is like "Lost in Translation Level 2"
-              const levelMatch = name.match(/Level (\d+)/);
-              const levelStr = levelMatch ? ` — ${t("Level", lang)} ${levelMatch[1]}` : "";
-              displayText = `🎮 ${t("Game Started: Lost in Translation", lang)}${levelStr}`;
+              // name is like "Lost in Translation Level 2" or "Emojifyr"
+              if (name.startsWith("Emojifyr")) {
+                displayText = `🔥 ${t("Game Started: Emojifyr", lang)}`;
+              } else {
+                const levelMatch = name.match(/Level (\d+)/);
+                const levelStr = levelMatch ? ` — ${t("Level", lang)} ${levelMatch[1]}` : "";
+                displayText = `🎮 ${t("Game Started: Lost in Translation", lang)}${levelStr}`;
+              }
             } else if (action === "game_cancelled") {
               displayText = `🎮 ${t("Game ended", lang)}`;
             } else if (action === "game_correct") {

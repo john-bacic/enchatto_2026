@@ -91,4 +91,39 @@ protocol EnchattoAPI {
 
     /// Get live game status for the status bar
     func getGameStatus(roomId: String) async throws -> GameStatus?
+
+    // MARK: - Emojifyr
+
+    /// Start an Emojifyr game session
+    func startEmojifyr(roomId: String, participantId: String) async throws -> String?
+
+    /// Submit the writer's sentence for an Emojifyr round
+    func submitEmojifyrSentence(roundId: String, sentence: String) async throws
+
+    /// Submit the emoji clue for an Emojifyr round
+    func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws
+
+    /// Submit a guess for an Emojifyr round
+    func submitEmojifyrGuess(roundId: String, participantId: String, guessText: String) async throws
+
+    /// Reveal the answer for an Emojifyr round
+    func revealEmojifyrRound(roundId: String) async throws
+
+    /// Advance to the next Emojifyr round
+    func advanceEmojifyrRound(gameSessionId: String) async throws
+
+    /// Cancel an Emojifyr game session
+    func cancelEmojifyr(gameSessionId: String) async throws
+
+    /// Get the active Emojifyr session for a room
+    func getActiveEmojifyrSession(roomId: String) async throws -> GameSession?
+
+    /// Get the current round for an Emojifyr game session
+    func getCurrentEmojifyrRound(gameSessionId: String) async throws -> EmojifyrRound?
+
+    /// Get all guesses for an Emojifyr round
+    func getEmojifyrGuesses(roundId: String) async throws -> [EmojifyrGuess]
+
+    /// Get the full Emojifyr game state for a room
+    func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState?
 }

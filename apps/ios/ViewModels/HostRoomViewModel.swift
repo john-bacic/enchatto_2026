@@ -25,6 +25,15 @@ class HostRoomViewModel: ObservableObject {
     @Published var gameStatus: GameStatus?
     @Published var drawCountdownTimeLeft: Int = -1
 
+    // MARK: - Emojifyr state
+    @Published var activeEmojifyrSession: GameSession?
+    @Published var currentEmojifyrRound: EmojifyrRound?
+    @Published var emojifyrGuesses: [EmojifyrGuess] = []
+    @Published var emojifyrEmojiClue: String?
+    @Published var isGeneratingEmoji: Bool = false
+
+    private let emojiClueService: EmojiClueGenerationService = HeuristicEmojiClueService()
+
     // MARK: - Draw countdown beep state
     private var drawCountdownTimer: Timer?
     private var trackedDrawStartMs: Double?
@@ -218,6 +227,9 @@ class HostRoomViewModel: ObservableObject {
             } else {
                 gameReplay = nil
             }
+
+            // Poll Emojifyr state
+            await pollEmojifyrState()
 
             isLoading = false
         } catch {
@@ -448,6 +460,19 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    func startEmojifyr() async {
+        guard networkMonitor.isConnected else { return }
+        do {
+            // Cancel any lingering active game first
+            try? await api.cancelGame(roomId: roomId, participantId: hostId)
+
+            _ = try await api.startEmojifyr(roomId: roomId, participantId: hostId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func cancelGame() async {
         guard networkMonitor.isConnected else { return }
         do {
@@ -460,6 +485,162 @@ class HostRoomViewModel: ObservableObject {
 
     var isGameComplete: Bool {
         latestGameSession?.status == .complete && activeGameSession == nil
+    }
+
+    // MARK: - Emojifyr
+
+    func pollEmojifyrState() async {
+        do {
+            // Use individual API calls instead of composite getEmojifyrGameState
+            // (the composite endpoint returns participants as a dict which breaks decoding)
+            let session = try await api.getActiveEmojifyrSession(roomId: roomId)
+            activeEmojifyrSession = session
+
+            if let session = session {
+                currentEmojifyrRound = try await api.getCurrentEmojifyrRound(gameSessionId: session.id)
+                if let round = currentEmojifyrRound {
+                    emojifyrGuesses = try await api.getEmojifyrGuesses(roundId: round.id)
+
+                    // Auto-generate and auto-submit emoji clue when a web participant
+                    // wrote the sentence. The host iPhone always generates.
+                    if round.status == .generating,
+                       !isGeneratingEmoji,
+                       emojifyrEmojiClue == nil,
+                       let sentence = round.originalSentence {
+                        await generateEmojiClue(for: sentence)
+                        // Auto-submit if host is NOT the writer (silent background generation)
+                        if !isEmojifyrWriter, let clue = emojifyrEmojiClue {
+                            await submitEmojifyrEmojiClue(clue)
+                        }
+                    }
+                } else {
+                    emojifyrGuesses = []
+                }
+            } else {
+                currentEmojifyrRound = nil
+                emojifyrGuesses = []
+            }
+        } catch {
+            // Don't surface polling errors
+            print("Error polling Emojifyr state: \(error)")
+        }
+    }
+
+    func submitEmojifyrSentence(_ sentence: String) async {
+        guard let round = currentEmojifyrRound else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.submitEmojifyrSentence(roundId: round.id, sentence: sentence)
+            await generateEmojiClue(for: sentence)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func generateEmojiClue(for sentence: String) async {
+        isGeneratingEmoji = true
+        emojifyrEmojiClue = nil
+
+        // Try Foundation Models on real device with Apple Intelligence available
+        // Use a timeout to prevent hanging
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *), FoundationModelsEmojiClueService.isAvailable {
+            do {
+                let foundationService = FoundationModelsEmojiClueService()
+                let clue = try await withThrowingTaskGroup(of: String.self) { group in
+                    group.addTask {
+                        try await foundationService.generateEmojiClue(from: sentence)
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: 10_000_000_000) // 10s timeout
+                        throw EmojiClueError.generationFailed
+                    }
+                    let result = try await group.next()!
+                    group.cancelAll()
+                    return result
+                }
+                emojifyrEmojiClue = clue
+                isGeneratingEmoji = false
+                return
+            } catch {
+                print("FoundationModels failed, falling back to heuristic: \(error.localizedDescription)")
+            }
+        }
+        #endif
+
+        // Heuristic fallback
+        do {
+            let clue = try await emojiClueService.generateEmojiClue(from: sentence)
+            emojifyrEmojiClue = clue
+        } catch {
+            emojifyrEmojiClue = "\u{2753}"
+        }
+        isGeneratingEmoji = false
+    }
+
+    func submitEmojifyrEmojiClue(_ clue: String) async {
+        guard let round = currentEmojifyrRound else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.submitEmojifyrEmojiClue(roundId: round.id, emojiClue: clue)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func submitEmojifyrGuess(_ text: String) async {
+        guard let round = currentEmojifyrRound else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.submitEmojifyrGuess(roundId: round.id, participantId: hostId, guessText: text)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func revealEmojifyrRound() async {
+        guard let round = currentEmojifyrRound else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.revealEmojifyrRound(roundId: round.id)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func advanceEmojifyrRound() async {
+        guard let session = activeEmojifyrSession else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.advanceEmojifyrRound(gameSessionId: session.id)
+            emojifyrEmojiClue = nil
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func cancelEmojifyr() async {
+        guard let session = activeEmojifyrSession else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.cancelEmojifyr(gameSessionId: session.id)
+            activeEmojifyrSession = nil
+            currentEmojifyrRound = nil
+            emojifyrGuesses = []
+            emojifyrEmojiClue = nil
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    var isEmojifyrWriter: Bool {
+        currentEmojifyrRound?.writerParticipantId == hostId
     }
 
     // MARK: - Offline queue

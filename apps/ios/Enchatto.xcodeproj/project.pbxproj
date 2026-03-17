@@ -34,6 +34,7 @@
 		9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0A2E1624785B94728152B /* NetworkMonitor.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
 		A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395063 /* GitInfo.swift */; };
+		A85A76F688677B02B54DF364 /* GeneratedGitSHA.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395064 /* GeneratedGitSHA.swift */; };
 		AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */; };
 		B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC00ADF95392C392B69EB66 /* RomajiService.swift */; };
 		B2F1A3E7D4C8923FA1B0C5D9 /* PromptGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A2B1C8F5D9034AB2C1D6EA /* PromptGenerator.swift */; };
@@ -50,6 +51,12 @@
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
 		F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE91A5BA76409C309044A18 /* EnchattoApp.swift */; };
 		F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* EmojiClueGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293A4B5D /* EmojiClueGenerationService.swift */; };
+		B2C3D4E5F6A70829314B5C6D /* EmojifyrSentenceInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D70829314B5C6E /* EmojifyrSentenceInputView.swift */; };
+		C3D4E5F6A7B8093A425C6D7E /* EmojifyrPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A4B5C6D7E8093A425C6D7F /* EmojifyrPreviewView.swift */; };
+		D4E5F6A7B8C90A4B536D7E8F /* EmojifyrGuessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B5C6D7E8F90A4B536D7E90 /* EmojifyrGuessView.swift */; };
+		E5F6A7B8C9DA1B5C647E8F9A /* EmojifyrRevealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C6D7E8F9AA1B5C647E8F9B /* EmojifyrRevealView.swift */; };
+		F6A7B8C9DA0B2C5D648F9A0B /* EmojifyrGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B8C9DA0B1C2D5E648F9A0C /* EmojifyrGameView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -91,10 +98,17 @@
 		E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantAvatarView.swift; sourceTree = "<group>"; };
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
+		EE1D049BC86D95C7FD395064 /* GeneratedGitSHA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedGitSHA.swift; sourceTree = "<group>"; };
 		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
 		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C60718293A4B5D /* EmojiClueGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiClueGenerationService.swift; sourceTree = "<group>"; };
+		E2F3A4B5C6D70829314B5C6E /* EmojifyrSentenceInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrSentenceInputView.swift; sourceTree = "<group>"; };
+		F3A4B5C6D7E8093A425C6D7F /* EmojifyrPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrPreviewView.swift; sourceTree = "<group>"; };
+		A4B5C6D7E8F90A4B536D7E90 /* EmojifyrGuessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrGuessView.swift; sourceTree = "<group>"; };
+		B5C6D7E8F9AA1B5C647E8F9B /* EmojifyrRevealView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrRevealView.swift; sourceTree = "<group>"; };
+		A7B8C9DA0B1C2D5E648F9A0C /* EmojifyrGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrGameView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +141,7 @@
 			children = (
 				3739F0B6F971461D3C5ECBCE /* Assets.xcassets */,
 				5EE91A5BA76409C309044A18 /* EnchattoApp.swift */,
+				EE1D049BC86D95C7FD395064 /* GeneratedGitSHA.swift */,
 				EE1D049BC86D95C7FD395063 /* GitInfo.swift */,
 				048A500F948FBFF3A696F580 /* Localization.swift */,
 				4C59768529F53DC71560987B /* SpeechRecognizer.swift */,
@@ -187,6 +202,10 @@
 				0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */,
 				6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */,
 				C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */,
+				A4B5C6D7E8F90A4B536D7E90 /* EmojifyrGuessView.swift */,
+				F3A4B5C6D7E8093A425C6D7F /* EmojifyrPreviewView.swift */,
+				B5C6D7E8F9AA1B5C647E8F9B /* EmojifyrRevealView.swift */,
+				E2F3A4B5C6D70829314B5C6E /* EmojifyrSentenceInputView.swift */,
 				7D4143DC78BEF5E819A44A8A /* GamePickerView.swift */,
 				048E186B7C0C18591A0D86D4 /* GameReplayView.swift */,
 				F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */,
@@ -212,6 +231,7 @@
 		EE49A2E446012BCA5D5244DB /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				D1E2F3A4B5C60718293A4B5D /* EmojiClueGenerationService.swift */,
 				A3C0A2E1624785B94728152B /* NetworkMonitor.swift */,
 				E4A2B1C8F5D9034AB2C1D6EA /* PromptGenerator.swift */,
 				21F34644BA555D35385B9FE7 /* API */,
@@ -223,6 +243,7 @@
 		FEE9A055B89074B1C90DB0E8 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A7B8C9DA0B1C2D5E648F9A0C /* EmojifyrGameView.swift */,
 				C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */,
 				190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */,
 				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
@@ -238,10 +259,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3559C030B885164E4E195F8C /* Build configuration list for PBXNativeTarget "Enchatto" */;
 			buildPhases = (
+				726D310D0C4080C39021ED6B /* Inject Git Commit SHA */,
 				71C4F326CE21B92EA485D735 /* Sources */,
 				6A8A6BBB7C4C66382A0A6C71 /* Resources */,
 				CBE77285521FC51E29BACC70 /* Frameworks */,
-				726D310D0C4080C39021ED6B /* Inject Git Commit SHA */,
 			);
 			buildRules = (
 			);
@@ -321,7 +342,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Find the git repo root by walking up from the source root\nGIT_DIR=$(cd \"${SRCROOT}\" && git rev-parse --git-dir 2>/dev/null)\nif [ -n \"$GIT_DIR\" ]; then\n  SHA=$(git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nelse\n  SHA=\"dev\"\nfi\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitSHA $SHA\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :GitCommitSHA string $SHA\" \"$PLIST\"\nfi\n";
+			shellScript = "SHA=$(/usr/bin/git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nOUTFILE=\"${SRCROOT}/GeneratedGitSHA.swift\"\nNEW_CONTENT=\"// Auto-generated — do not edit\\nenum GeneratedGitSHA {\\n    static let value = \\\"${SHA}\\\"\\n}\"\nif [ -f \"$OUTFILE\" ]; then\n  OLD_CONTENT=$(cat \"$OUTFILE\")\n  if [ \"$OLD_CONTENT\" = \"$NEW_CONTENT\" ]; then\n    exit 0\n  fi\nfi\necho \"$NEW_CONTENT\" > \"$OUTFILE\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -336,12 +357,19 @@
 				CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */,
 				7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */,
 				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* EmojiClueGenerationService.swift in Sources */,
+				F6A7B8C9DA0B2C5D648F9A0B /* EmojifyrGameView.swift in Sources */,
+				D4E5F6A7B8C90A4B536D7E8F /* EmojifyrGuessView.swift in Sources */,
+				C3D4E5F6A7B8093A425C6D7E /* EmojifyrPreviewView.swift in Sources */,
+				E5F6A7B8C9DA1B5C647E8F9A /* EmojifyrRevealView.swift in Sources */,
+				B2C3D4E5F6A70829314B5C6D /* EmojifyrSentenceInputView.swift in Sources */,
 				F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */,
 				F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */,
 				DAA475AB846CF28C659A87D4 /* Game.swift in Sources */,
 				87DBB652730A51EF7C4DCA19 /* GamePickerView.swift in Sources */,
 				8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */,
 				388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */,
+				A85A76F688677B02B54DF364 /* GeneratedGitSHA.swift in Sources */,
 				A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
