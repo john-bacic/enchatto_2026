@@ -501,17 +501,15 @@ class HostRoomViewModel: ObservableObject {
                 if let round = currentEmojifyrRound {
                     emojifyrGuesses = try await api.getEmojifyrGuesses(roundId: round.id)
 
-                    // Auto-generate and auto-submit emoji clue when a web participant
-                    // wrote the sentence. The host iPhone always generates.
+                    // Only auto-generate emoji clue when the HOST is the writer.
+                    // When a web participant is the writer, they generate and
+                    // preview the emoji clue on their own device before submitting.
                     if round.status == .generating,
+                       isEmojifyrWriter,
                        !isGeneratingEmoji,
                        emojifyrEmojiClue == nil,
                        let sentence = round.originalSentence {
                         await generateEmojiClue(for: sentence)
-                        // Auto-submit if host is NOT the writer (silent background generation)
-                        if !isEmojifyrWriter, let clue = emojifyrEmojiClue {
-                            await submitEmojifyrEmojiClue(clue)
-                        }
                     }
                 } else {
                     emojifyrGuesses = []
