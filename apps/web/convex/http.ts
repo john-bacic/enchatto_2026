@@ -367,7 +367,7 @@ http.route({
   path: "/api/emojifyr/submit-emoji-clue",
   method: "POST",
   handler: jsonAction(async (ctx, body) => {
-    await ctx.runMutation(api.games.submitEmojifyrEmojiClue, {
+    await ctx.runAction(api.games.submitEmojifyrEmojiClueWithTranslation, {
       roundId: body.roundId,
       emojiClue: body.emojiClue,
     });
@@ -378,7 +378,7 @@ http.route({
   path: "/api/emojifyr/submit-guess",
   method: "POST",
   handler: jsonAction(async (ctx, body) => {
-    await ctx.runMutation(api.games.submitEmojifyrGuess, {
+    await ctx.runAction(api.games.submitEmojifyrGuessWithTranslation, {
       roundId: body.roundId,
       participantId: body.participantId,
       guessText: body.guessText,

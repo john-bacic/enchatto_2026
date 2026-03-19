@@ -109,6 +109,7 @@ export default defineSchema({
     roundIndex: v.number(),
     writerParticipantId: v.id("participants"),
     originalSentence: v.optional(v.string()),
+    translatedSentence: v.optional(v.string()),
     emojiClue: v.optional(v.string()),
     status: v.union(
       v.literal("writing"),
@@ -128,6 +129,7 @@ export default defineSchema({
     roundId: v.id("emojifyrRounds"),
     participantId: v.id("participants"),
     guessText: v.string(),
+    translatedGuessText: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_roundId", ["roundId"]),

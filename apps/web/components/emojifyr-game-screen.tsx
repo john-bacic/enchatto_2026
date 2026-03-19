@@ -74,6 +74,7 @@ export function EmojifyrGameScreen({
   const alreadyGuessed = guesses.some((g: any) => g.participantId === myParticipantId);
   const emojiClue = currentRound?.emojiClue ?? "";
   const originalSentence = currentRound?.originalSentence ?? "";
+  const translatedSentence = currentRound?.translatedSentence ?? "";
 
   const writerParticipant = participants.find(
     (p: any) => p._id === currentRound?.writerParticipantId
@@ -583,6 +584,11 @@ export function EmojifyrGameScreen({
             <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
               {originalSentence}
             </div>
+            {translatedSentence && (
+              <div style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: "0.35rem", fontStyle: "italic" }}>
+                {translatedSentence}
+              </div>
+            )}
           </div>
 
           {/* Guesses list */}
@@ -630,6 +636,11 @@ export function EmojifyrGameScreen({
                         <div style={{ fontSize: "0.9rem", fontWeight: 500, color: "#fff" }}>
                           {g.guessText}
                         </div>
+                        {g.translatedGuessText && (
+                          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", fontStyle: "italic" }}>
+                            {g.translatedGuessText}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

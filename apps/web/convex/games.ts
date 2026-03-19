@@ -968,16 +968,91 @@ export const submitEmojifyrGuess = mutation({
     roundId: v.id("emojifyrRounds"),
     participantId: v.id("participants"),
     guessText: v.string(),
+    translatedGuessText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const round = await ctx.db.get(args.roundId);
     if (!round) throw new Error("Round not found");
 
-    await ctx.db.insert("emojifyrGuesses", {
+    const doc: any = {
       roundId: args.roundId,
       participantId: args.participantId,
       guessText: args.guessText,
       createdAt: Date.now(),
+    };
+    if (args.translatedGuessText) {
+      doc.translatedGuessText = args.translatedGuessText;
+    }
+    await ctx.db.insert("emojifyrGuesses", doc);
+  },
+});
+
+// Action wrappers that translate before saving
+
+export const submitEmojifyrEmojiClueWithTranslation = action({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    emojiClue: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get the round to read the sentence
+    const round: any = await ctx.runQuery(api.games.getEmojifyrRoundById, { roundId: args.roundId });
+    if (round?.originalSentence) {
+      const sentence = round.originalSentence;
+      const detectedLang = detectLanguage(sentence);
+      const targetLang = detectedLang === "ja" ? "en" : "ja";
+      const translated = await translateWithClaude(sentence, detectedLang, targetLang);
+      if (translated) {
+        await ctx.runMutation(api.games.patchEmojifyrRoundTranslation, {
+          roundId: args.roundId,
+          translatedSentence: translated,
+        });
+      }
+    }
+    await ctx.runMutation(api.games.submitEmojifyrEmojiClue, {
+      roundId: args.roundId,
+      emojiClue: args.emojiClue,
+    });
+  },
+});
+
+export const submitEmojifyrGuessWithTranslation = action({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    participantId: v.id("participants"),
+    guessText: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const detectedLang = detectLanguage(args.guessText);
+    const targetLang = detectedLang === "ja" ? "en" : "ja";
+    const translated = await translateWithClaude(args.guessText, detectedLang, targetLang);
+
+    await ctx.runMutation(api.games.submitEmojifyrGuess, {
+      roundId: args.roundId,
+      participantId: args.participantId,
+      guessText: args.guessText,
+      translatedGuessText: translated ?? undefined,
+    });
+  },
+});
+
+// Helper queries/mutations for translation actions
+
+export const getEmojifyrRoundById = query({
+  args: { roundId: v.id("emojifyrRounds") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.roundId);
+  },
+});
+
+export const patchEmojifyrRoundTranslation = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    translatedSentence: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.roundId, {
+      translatedSentence: args.translatedSentence,
     });
   },
 });
@@ -1115,6 +1190,47 @@ export const getEmojifyrGuesses = query({
   },
 });
 
+// --- AI Translation Helper ---
+
+async function translateWithClaude(text: string, fromLang: string, toLang: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  const fromName = fromLang === "ja" ? "Japanese" : "English";
+  const toName = toLang === "ja" ? "Japanese" : "English";
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 256,
+        messages: [{
+          role: "user",
+          content: `Translate the following ${fromName} text to ${toName}. Output only the translation, nothing else.\n\n${text}`,
+        }],
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.content?.[0]?.text?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function detectLanguage(text: string): string {
+  // Simple heuristic: if text contains CJK characters, it's Japanese
+  const cjkRegex = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]/;
+  return cjkRegex.test(text) ? "ja" : "en";
+}
+
 // --- AI Emoji Clue Generation (Anthropic Claude) ---
 
 export const generateEmojiClue = action({
@@ -1215,6 +1331,7 @@ export const getEmojifyrGameState = query({
       redactedRound = {
         ...currentRound,
         originalSentence: showSentence ? currentRound.originalSentence : undefined,
+        translatedSentence: showSentence ? currentRound.translatedSentence : undefined,
         emojiClue: showClue ? currentRound.emojiClue : undefined,
       };
     }

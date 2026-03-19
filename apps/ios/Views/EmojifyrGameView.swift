@@ -533,6 +533,14 @@ struct EmojifyrGameView: View {
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
+                if let translated = round.translatedSentence {
+                    Text(translated)
+                        .font(.subheadline)
+                        .italic()
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
             }
             .padding()
             .frame(maxWidth: .infinity)
@@ -558,6 +566,12 @@ struct EmojifyrGameView: View {
                                 Text(guess.guessText)
                                     .font(.body)
                                     .foregroundStyle(.white)
+                                if let translated = guess.translatedGuessText {
+                                    Text(translated)
+                                        .font(.caption)
+                                        .italic()
+                                        .foregroundStyle(.white.opacity(0.5))
+                                }
                             }
                             Spacer()
                         }

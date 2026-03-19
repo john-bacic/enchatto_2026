@@ -250,6 +250,7 @@ struct EmojifyrRound: Codable, Identifiable {
     let roundIndex: Int
     let writerParticipantId: String
     var originalSentence: String?
+    var translatedSentence: String?
     var emojiClue: String?
     var status: EmojifyrRoundStatus
     let maxCharacters: Int
@@ -259,7 +260,7 @@ struct EmojifyrRound: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case gameSessionId, roundIndex, writerParticipantId
-        case originalSentence, emojiClue, status, maxCharacters
+        case originalSentence, translatedSentence, emojiClue, status, maxCharacters
         case startedAt, revealedAt
     }
 }
@@ -273,11 +274,12 @@ struct EmojifyrGuess: Codable, Identifiable {
     let roundId: String
     let participantId: String
     let guessText: String
+    let translatedGuessText: String?
     let createdAt: Double
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case roundId, participantId, guessText, createdAt
+        case roundId, participantId, guessText, translatedGuessText, createdAt
     }
 }
 

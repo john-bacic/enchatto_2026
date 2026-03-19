@@ -388,11 +388,11 @@ function RoomContent() {
   // Emojifyr mutations
   const startEmojifyrMutation = useMutation(api.games.startEmojifyr);
   const submitEmojifyrSentenceMutation = useMutation(api.games.submitEmojifyrSentence);
-  const submitEmojifyrGuessMutation = useMutation(api.games.submitEmojifyrGuess);
+  const submitEmojifyrGuessAction = useAction(api.games.submitEmojifyrGuessWithTranslation);
   const revealEmojifyrRoundMutation = useMutation(api.games.revealEmojifyrRound);
   const advanceEmojifyrRoundMutation = useMutation(api.games.advanceEmojifyrRound);
   const cancelEmojifyrMutation = useMutation(api.games.cancelEmojifyr);
-  const submitEmojifyrEmojiClueMutation = useMutation(api.games.submitEmojifyrEmojiClue);
+  const submitEmojifyrEmojiClueAction = useAction(api.games.submitEmojifyrEmojiClueWithTranslation);
   const updateEmojifyrSentenceMutation = useMutation(api.games.updateEmojifyrSentence);
   const generateEmojiClueAction = useAction(api.games.generateEmojiClue);
 
@@ -465,7 +465,7 @@ function RoomContent() {
     async (guess: string) => {
       if (!emojifyrRound || !participantId) return;
       try {
-        await submitEmojifyrGuessMutation({
+        await submitEmojifyrGuessAction({
           roundId: emojifyrRound._id,
           participantId: participantId as Id<"participants">,
           guessText: guess,
@@ -474,7 +474,7 @@ function RoomContent() {
         console.error("Failed to submit Emojifyr guess:", err);
       }
     },
-    [submitEmojifyrGuessMutation, emojifyrRound, participantId]
+    [submitEmojifyrGuessAction, emojifyrRound, participantId]
   );
 
   const handleEmojifyrNextRound = useCallback(
@@ -522,7 +522,7 @@ function RoomContent() {
     async (emojiClue: string) => {
       if (!emojifyrRound) return;
       try {
-        await submitEmojifyrEmojiClueMutation({
+        await submitEmojifyrEmojiClueAction({
           roundId: emojifyrRound._id,
           emojiClue,
         });
@@ -530,7 +530,7 @@ function RoomContent() {
         console.error("Failed to submit emoji clue:", err);
       }
     },
-    [submitEmojifyrEmojiClueMutation, emojifyrRound]
+    [submitEmojifyrEmojiClueAction, emojifyrRound]
   );
 
   const handleUpdateEmojifyrSentence = useCallback(
