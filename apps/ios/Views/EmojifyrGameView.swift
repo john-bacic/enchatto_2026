@@ -39,6 +39,7 @@ struct EmojifyrGameView: View {
                 sentenceText = ""
                 guessText = ""
                 hasSubmittedGuess = false
+                editableSentence = ""
             }
             if newStatus == .guessing {
                 guessText = ""
@@ -383,7 +384,10 @@ struct EmojifyrGameView: View {
         }
         .onAppear {
             if editableSentence.isEmpty {
-                editableSentence = round.originalSentence ?? ""
+                // Prefer the locally typed sentence over the server value
+                // (server poll may not have arrived yet)
+                let local = sentenceText.trimmingCharacters(in: .whitespacesAndNewlines)
+                editableSentence = !local.isEmpty ? local : (round.originalSentence ?? "")
             }
         }
     }
