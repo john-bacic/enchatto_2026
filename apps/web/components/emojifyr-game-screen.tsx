@@ -20,6 +20,7 @@ interface EmojifyrGameScreenProps {
   onSubmitSentence: (sentence: string) => void;
   onGenerateEmojiClue: (sentence: string) => Promise<string | null>;
   onSubmitEmojiClue: (emojiClue: string) => void;
+  onUpdateSentence: (sentence: string) => void;
   onSubmitGuess: (guess: string) => void;
   onReveal: () => void;
   onNextRound: () => void;
@@ -37,6 +38,7 @@ export function EmojifyrGameScreen({
   onSubmitSentence,
   onGenerateEmojiClue,
   onSubmitEmojiClue,
+  onUpdateSentence,
   onSubmitGuess,
   onReveal,
   onNextRound,
@@ -95,16 +97,24 @@ export function EmojifyrGameScreen({
   };
 
   const handleRegenerate = async () => {
-    if (!submittedSentence || isGeneratingEmoji) return;
+    const trimmed = submittedSentence.trim();
+    if (!trimmed || isGeneratingEmoji) return;
+    // Update the sentence on the server if it was edited
+    onUpdateSentence(trimmed);
     setIsGeneratingEmoji(true);
     setPreviewEmojiClue(null);
-    const clue = await onGenerateEmojiClue(submittedSentence);
+    const clue = await onGenerateEmojiClue(trimmed);
     setPreviewEmojiClue(clue);
     setIsGeneratingEmoji(false);
   };
 
   const handleUseEmojiClue = () => {
     if (!previewEmojiClue) return;
+    // If sentence was edited, update it on the server before submitting
+    const trimmed = submittedSentence.trim();
+    if (trimmed) {
+      onUpdateSentence(trimmed);
+    }
     setShowingPreview(false);
     onSubmitEmojiClue(previewEmojiClue);
   };
@@ -150,13 +160,39 @@ export function EmojifyrGameScreen({
           maxWidth: "400px",
           padding: "0 1rem",
         }}>
-          {/* Original sentence */}
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)" }}>
+          {/* Editable sentence */}
+          <div style={{ width: "100%" }}>
+            <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: "0.5rem" }}>
               {t("Original sentence:", lang)}
             </div>
-            <div style={{ fontSize: "1rem", color: "#fff", marginTop: "0.25rem" }}>
-              {submittedSentence}
+            <textarea
+              value={submittedSentence}
+              onChange={(e) => setSubmittedSentence(e.target.value)}
+              maxLength={maxLen}
+              style={{
+                width: "100%",
+                minHeight: "60px",
+                padding: "0.75rem",
+                borderRadius: "10px",
+                border: "2px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.1)",
+                color: "#fff",
+                fontSize: "1rem",
+                resize: "none",
+                outline: "none",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.4)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.2)"; }}
+            />
+            <div style={{
+              textAlign: "right",
+              fontSize: "0.75rem",
+              color: submittedSentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
+              marginTop: "0.25rem",
+            }}>
+              {submittedSentence.length} / {maxLen}
             </div>
           </div>
 

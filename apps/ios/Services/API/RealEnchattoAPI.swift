@@ -321,6 +321,13 @@ class RealEnchattoAPI: EnchattoAPI {
         ])
     }
 
+    func updateEmojifyrSentence(roundId: String, sentence: String) async throws {
+        try await client.postVoid("/api/emojifyr/update-sentence", body: [
+            "roundId": roundId,
+            "sentence": sentence,
+        ])
+    }
+
     func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws {
         try await client.postVoid("/api/emojifyr/submit-emoji-clue", body: [
             "roundId": roundId,

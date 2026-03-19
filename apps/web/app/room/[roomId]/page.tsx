@@ -393,6 +393,7 @@ function RoomContent() {
   const advanceEmojifyrRoundMutation = useMutation(api.games.advanceEmojifyrRound);
   const cancelEmojifyrMutation = useMutation(api.games.cancelEmojifyr);
   const submitEmojifyrEmojiClueMutation = useMutation(api.games.submitEmojifyrEmojiClue);
+  const updateEmojifyrSentenceMutation = useMutation(api.games.updateEmojifyrSentence);
   const generateEmojiClueAction = useAction(api.games.generateEmojiClue);
 
   const cancelGameMutation = useMutation(api.games.cancelGame);
@@ -530,6 +531,21 @@ function RoomContent() {
       }
     },
     [submitEmojifyrEmojiClueMutation, emojifyrRound]
+  );
+
+  const handleUpdateEmojifyrSentence = useCallback(
+    async (sentence: string) => {
+      if (!emojifyrRound) return;
+      try {
+        await updateEmojifyrSentenceMutation({
+          roundId: emojifyrRound._id,
+          sentence,
+        });
+      } catch (err) {
+        console.error("Failed to update sentence:", err);
+      }
+    },
+    [updateEmojifyrSentenceMutation, emojifyrRound]
   );
 
   const handleRevealEmojifyr = useCallback(
@@ -1025,6 +1041,7 @@ function RoomContent() {
           onSubmitSentence={handleSubmitEmojifyrSentence}
           onGenerateEmojiClue={handleGenerateEmojiClue}
           onSubmitEmojiClue={handleSubmitEmojifyrEmojiClue}
+          onUpdateSentence={handleUpdateEmojifyrSentence}
           onSubmitGuess={handleSubmitEmojifyrGuess}
           onReveal={handleRevealEmojifyr}
           onNextRound={handleEmojifyrNextRound}

@@ -244,6 +244,8 @@ class MockEnchattoAPI: EnchattoAPI {
         // Mock: no-op
     }
 
+    func updateEmojifyrSentence(roundId: String, sentence: String) async throws {}
+
     func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws {
         // Mock: no-op
     }

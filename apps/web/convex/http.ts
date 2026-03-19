@@ -353,6 +353,17 @@ http.route({
 });
 
 http.route({
+  path: "/api/emojifyr/update-sentence",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.games.updateEmojifyrSentence, {
+      roundId: body.roundId,
+      sentence: body.sentence,
+    });
+  }),
+});
+
+http.route({
   path: "/api/emojifyr/submit-emoji-clue",
   method: "POST",
   handler: jsonAction(async (ctx, body) => {

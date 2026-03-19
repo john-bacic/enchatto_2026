@@ -536,6 +536,16 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    func updateEmojifyrSentence(_ sentence: String) async {
+        guard let round = currentEmojifyrRound else { return }
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.updateEmojifyrSentence(roundId: round.id, sentence: sentence)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func generateEmojiClue(for sentence: String) async {
         isGeneratingEmoji = true
         emojifyrEmojiClue = nil

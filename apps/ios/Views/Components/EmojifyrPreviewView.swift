@@ -1,13 +1,16 @@
 import SwiftUI
 
 struct EmojifyrPreviewView: View {
-    let sentence: String
+    @Binding var sentence: String
     let emojiClue: String?
     let isGenerating: Bool
     let lang: String
+    let maxCharacters: Int
     let onUse: () -> Void
-    let onRegenerate: () -> Void
+    let onRegenerate: (String) -> Void
     let onCancel: () -> Void
+
+    @FocusState private var isEditing: Bool
 
     var body: some View {
         NavigationStack {
@@ -18,11 +21,22 @@ struct EmojifyrPreviewView: View {
                     Text(L.t("Original sentence:", lang))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text(sentence)
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    TextEditor(text: $sentence)
+                        .focused($isEditing)
+                        .frame(minHeight: 60, maxHeight: 100)
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .onChange(of: sentence) { newValue in
+                            if newValue.count > maxCharacters {
+                                sentence = String(newValue.prefix(maxCharacters))
+                            }
+                        }
+                    Text("\(sentence.count) / \(maxCharacters)")
+                        .font(.caption)
+                        .foregroundStyle(sentence.count >= maxCharacters ? .red : .secondary)
                 }
+                .padding(.horizontal)
 
                 VStack(spacing: 8) {
                     Text(L.t("Generated emoji clue:", lang))
@@ -58,7 +72,7 @@ struct EmojifyrPreviewView: View {
                         .disabled(emojiClue == nil)
 
                         Button {
-                            onRegenerate()
+                            onRegenerate(sentence)
                         } label: {
                             Text(L.t("Regenerate", lang))
                                 .fontWeight(.medium)
@@ -68,6 +82,7 @@ struct EmojifyrPreviewView: View {
                                 .foregroundStyle(.primary)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+                        .disabled(sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 16)

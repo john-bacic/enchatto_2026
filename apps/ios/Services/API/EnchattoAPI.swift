@@ -100,6 +100,9 @@ protocol EnchattoAPI {
     /// Submit the writer's sentence for an Emojifyr round
     func submitEmojifyrSentence(roundId: String, sentence: String) async throws
 
+    /// Update the sentence for an Emojifyr round (during preview/generating phase)
+    func updateEmojifyrSentence(roundId: String, sentence: String) async throws
+
     /// Submit the emoji clue for an Emojifyr round
     func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws
 

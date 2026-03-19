@@ -923,6 +923,27 @@ export const submitEmojifyrSentence = mutation({
   },
 });
 
+export const updateEmojifyrSentence = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    sentence: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (args.sentence.length < 1 || args.sentence.length > 80) {
+      throw new Error("Sentence must be between 1 and 80 characters");
+    }
+    const round = await ctx.db.get(args.roundId);
+    if (!round) throw new Error("Round not found");
+    if (round.status !== "generating" && round.status !== "preview") {
+      throw new Error("Round is not in generating or preview phase");
+    }
+
+    await ctx.db.patch(args.roundId, {
+      originalSentence: args.sentence,
+    });
+  },
+});
+
 export const submitEmojifyrEmojiClue = mutation({
   args: {
     roundId: v.id("emojifyrRounds"),

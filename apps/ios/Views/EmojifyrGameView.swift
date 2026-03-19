@@ -8,6 +8,7 @@ struct EmojifyrGameView: View {
     @State private var sentenceText = ""
     @State private var guessText = ""
     @State private var hasSubmittedGuess = false
+    @State private var editableSentence = ""
     @FocusState private var isInputFocused: Bool
 
     private let maxCharacters = 80
@@ -284,18 +285,29 @@ struct EmojifyrGameView: View {
         VStack(spacing: 24) {
             Spacer(minLength: 20)
 
-            // Only show the original sentence to the writer — keep it secret from others
+            // Editable sentence
             if viewModel.isEmojifyrWriter {
                 VStack(spacing: 8) {
                     Text(L.t("Original sentence:", lang))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.7))
-                    Text(round.originalSentence ?? "")
-                        .font(.body)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+
+                    TextEditor(text: $editableSentence)
+                        .frame(minHeight: 60, maxHeight: 100)
+                        .padding(8)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .onChange(of: editableSentence) { newValue in
+                            if newValue.count > maxCharacters {
+                                editableSentence = String(newValue.prefix(maxCharacters))
+                            }
+                        }
+
+                    Text("\(editableSentence.count) / \(maxCharacters)")
+                        .font(.caption)
+                        .foregroundStyle(editableSentence.count >= maxCharacters ? .red : .white.opacity(0.6))
                 }
+                .padding(.horizontal)
             }
 
             VStack(spacing: 8) {
@@ -322,7 +334,16 @@ struct EmojifyrGameView: View {
                 VStack(spacing: 12) {
                     Button {
                         if let clue = viewModel.emojifyrEmojiClue {
-                            Task { await viewModel.submitEmojifyrEmojiClue(clue) }
+                            // If sentence was edited, update it on the server before submitting
+                            let trimmed = editableSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if trimmed != round.originalSentence, !trimmed.isEmpty {
+                                Task {
+                                    await viewModel.updateEmojifyrSentence(trimmed)
+                                    await viewModel.submitEmojifyrEmojiClue(clue)
+                                }
+                            } else {
+                                Task { await viewModel.submitEmojifyrEmojiClue(clue) }
+                            }
                         }
                     } label: {
                         Text(L.t("Use", lang))
@@ -336,8 +357,14 @@ struct EmojifyrGameView: View {
                     .disabled(viewModel.emojifyrEmojiClue == nil)
 
                     Button {
-                        if let sentence = round.originalSentence {
-                            Task { await viewModel.generateEmojiClue(for: sentence) }
+                        let trimmed = editableSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        Task {
+                            // Update sentence on server if edited
+                            if trimmed != round.originalSentence {
+                                await viewModel.updateEmojifyrSentence(trimmed)
+                            }
+                            await viewModel.generateEmojiClue(for: trimmed)
                         }
                     } label: {
                         Text(L.t("Regenerate", lang))
@@ -348,9 +375,15 @@ struct EmojifyrGameView: View {
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .disabled(editableSentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 16)
+            }
+        }
+        .onAppear {
+            if editableSentence.isEmpty {
+                editableSentence = round.originalSentence ?? ""
             }
         }
     }
