@@ -280,6 +280,10 @@ class MockEnchattoAPI: EnchattoAPI {
         return nil
     }
 
+    func generateEmojiClueFromAI(sentence: String) async throws -> String {
+        return "🐱💤🛋️"
+    }
+
 }
 
 enum APIError: LocalizedError {

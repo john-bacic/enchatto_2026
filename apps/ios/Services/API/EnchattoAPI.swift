@@ -126,4 +126,7 @@ protocol EnchattoAPI {
 
     /// Get the full Emojifyr game state for a room
     func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState?
+
+    /// Generate an emoji clue from a sentence using server-side AI
+    func generateEmojiClueFromAI(sentence: String) async throws -> String
 }

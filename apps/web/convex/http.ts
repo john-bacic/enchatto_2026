@@ -436,6 +436,16 @@ http.route({
 });
 
 http.route({
+  path: "/api/emojifyr/generate-emoji-clue",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runAction(api.games.generateEmojiClue, {
+      sentence: body.sentence,
+    });
+  }),
+});
+
+http.route({
   path: "/api/emojifyr/game-state",
   method: "POST",
   handler: jsonAction(async (ctx, body) => {

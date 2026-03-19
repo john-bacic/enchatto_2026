@@ -32,7 +32,7 @@ class HostRoomViewModel: ObservableObject {
     @Published var emojifyrEmojiClue: String?
     @Published var isGeneratingEmoji: Bool = false
 
-    private let emojiClueService: EmojiClueGenerationService = HeuristicEmojiClueService()
+    private let heuristicEmojiService: EmojiClueGenerationService = HeuristicEmojiClueService()
 
     // MARK: - Draw countdown beep state
     private var drawCountdownTimer: Timer?
@@ -542,36 +542,19 @@ class HostRoomViewModel: ObservableObject {
         isGeneratingEmoji = true
         emojifyrEmojiClue = nil
 
-        // Try Foundation Models on real device with Apple Intelligence available
-        // Use a timeout to prevent hanging
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *), FoundationModelsEmojiClueService.isAvailable {
-            do {
-                let foundationService = FoundationModelsEmojiClueService()
-                let clue = try await withThrowingTaskGroup(of: String.self) { group in
-                    group.addTask {
-                        try await foundationService.generateEmojiClue(from: sentence)
-                    }
-                    group.addTask {
-                        try await Task.sleep(nanoseconds: 10_000_000_000) // 10s timeout
-                        throw EmojiClueError.generationFailed
-                    }
-                    let result = try await group.next()!
-                    group.cancelAll()
-                    return result
-                }
-                emojifyrEmojiClue = clue
-                isGeneratingEmoji = false
-                return
-            } catch {
-                print("FoundationModels failed, falling back to heuristic: \(error.localizedDescription)")
-            }
-        }
-        #endif
-
-        // Heuristic fallback
+        // Primary: server-side AI (Anthropic Claude) via Convex action
         do {
-            let clue = try await emojiClueService.generateEmojiClue(from: sentence)
+            let clue = try await api.generateEmojiClueFromAI(sentence: sentence)
+            emojifyrEmojiClue = clue
+            isGeneratingEmoji = false
+            return
+        } catch {
+            print("Server AI emoji generation failed, falling back to heuristic: \(error.localizedDescription)")
+        }
+
+        // Heuristic fallback (offline or if API fails)
+        do {
+            let clue = try await heuristicEmojiService.generateEmojiClue(from: sentence)
             emojifyrEmojiClue = clue
         } catch {
             emojifyrEmojiClue = "\u{2753}"

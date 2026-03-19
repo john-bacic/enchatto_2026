@@ -390,4 +390,12 @@ class RealEnchattoAPI: EnchattoAPI {
         }
     }
 
+    func generateEmojiClueFromAI(sentence: String) async throws -> String {
+        struct Response: Decodable { let emojiClue: String }
+        let response: Response = try await client.post("/api/emojifyr/generate-emoji-clue", body: [
+            "sentence": sentence,
+        ])
+        return response.emojiClue
+    }
+
 }

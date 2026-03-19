@@ -1094,6 +1094,55 @@ export const getEmojifyrGuesses = query({
   },
 });
 
+// --- AI Emoji Clue Generation (Anthropic Claude) ---
+
+export const generateEmojiClue = action({
+  args: { sentence: v.string() },
+  handler: async (_ctx, args) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+    }
+
+    const prompt = `Convert this sentence into 3–6 emojis.
+Output emojis only.
+Do not output words.
+Preserve the core meaning.
+Make it fun and guessable for a group.
+Prefer common, recognizable emojis.
+Do not explain your answer.
+
+Sentence: ${args.sentence}`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 64,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text?.trim();
+    if (!text) {
+      throw new Error("Empty response from Anthropic API");
+    }
+
+    return { emojiClue: text };
+  },
+});
+
 export const getEmojifyrGameState = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
