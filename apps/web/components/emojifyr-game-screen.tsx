@@ -18,6 +18,8 @@ interface EmojifyrGameScreenProps {
 
   // Actions
   onSubmitSentence: (sentence: string) => void;
+  onGenerateEmojiClue: (sentence: string) => Promise<string | null>;
+  onSubmitEmojiClue: (emojiClue: string) => void;
   onSubmitGuess: (guess: string) => void;
   onReveal: () => void;
   onNextRound: () => void;
@@ -33,6 +35,8 @@ export function EmojifyrGameScreen({
   isHost,
   lang,
   onSubmitSentence,
+  onGenerateEmojiClue,
+  onSubmitEmojiClue,
   onSubmitGuess,
   onReveal,
   onNextRound,
@@ -43,6 +47,11 @@ export function EmojifyrGameScreen({
   const [submittingSentence, setSubmittingSentence] = useState(false);
   const [submittingGuess, setSubmittingGuess] = useState(false);
 
+  // Preview state for writer
+  const [previewEmojiClue, setPreviewEmojiClue] = useState<string | null>(null);
+  const [isGeneratingEmoji, setIsGeneratingEmoji] = useState(false);
+  const [submittedSentence, setSubmittedSentence] = useState("");
+
   // Reset state when round changes
   const roundId = currentRound?._id ?? null;
   useEffect(() => {
@@ -50,6 +59,9 @@ export function EmojifyrGameScreen({
     setGuess("");
     setSubmittingSentence(false);
     setSubmittingGuess(false);
+    setPreviewEmojiClue(null);
+    setIsGeneratingEmoji(false);
+    setSubmittedSentence("");
   }, [roundId]);
 
   const roundStatus = currentRound?.status ?? null;
@@ -66,11 +78,31 @@ export function EmojifyrGameScreen({
 
   const maxLen = 80;
 
-  const handleSubmitSentence = () => {
+  const handleSubmitSentence = async () => {
     const trimmed = sentence.trim();
     if (!trimmed || submittingSentence) return;
     setSubmittingSentence(true);
+    setSubmittedSentence(trimmed);
     onSubmitSentence(trimmed);
+    // Start generating emoji preview
+    setIsGeneratingEmoji(true);
+    const clue = await onGenerateEmojiClue(trimmed);
+    setPreviewEmojiClue(clue);
+    setIsGeneratingEmoji(false);
+  };
+
+  const handleRegenerate = async () => {
+    if (!submittedSentence || isGeneratingEmoji) return;
+    setIsGeneratingEmoji(true);
+    setPreviewEmojiClue(null);
+    const clue = await onGenerateEmojiClue(submittedSentence);
+    setPreviewEmojiClue(clue);
+    setIsGeneratingEmoji(false);
+  };
+
+  const handleUseEmojiClue = () => {
+    if (!previewEmojiClue) return;
+    onSubmitEmojiClue(previewEmojiClue);
   };
 
   const handleSubmitGuess = () => {
@@ -192,19 +224,104 @@ export function EmojifyrGameScreen({
     // Phase 2: Generating / Preview
     if (roundStatus === "generating" || roundStatus === "preview") {
       if (isWriter) {
-        // Writer sees confirmation that their sentence is being converted
+        // Writer sees emoji preview with Use / Regenerate buttons
         return (
-          <div style={{ textAlign: "center", color: "#fff" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>✅</div>
-            <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>
-              {t("Sentence submitted!", lang)}
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "1rem",
+            width: "100%",
+            maxWidth: "400px",
+            padding: "0 1rem",
+          }}>
+            {/* Original sentence */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)" }}>
+                {t("Original sentence:", lang)}
+              </div>
+              <div style={{ fontSize: "1rem", color: "#fff", marginTop: "0.25rem" }}>
+                {submittedSentence}
+              </div>
             </div>
-            <div style={{ fontSize: "2rem", marginTop: "1rem", marginBottom: "0.5rem", animation: "emojifyrPulse 1.5s ease-in-out infinite" }}>
-              ✨
+
+            {/* Emoji clue label */}
+            <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)" }}>
+              {t("Generated emoji clue:", lang)}
             </div>
-            <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", marginTop: "0.5rem" }}>
-              {t("Waiting for emoji translation...", lang)}
-            </div>
+
+            {/* Generating spinner or emoji preview */}
+            {isGeneratingEmoji ? (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "2rem", animation: "emojifyrPulse 1.5s ease-in-out infinite" }}>
+                  ✨
+                </div>
+                <div style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.7)", marginTop: "0.5rem" }}>
+                  {t("Generating emojis...", lang)}
+                </div>
+              </div>
+            ) : previewEmojiClue ? (
+              <div style={{
+                fontSize: "3.5rem",
+                lineHeight: 1.3,
+                textAlign: "center",
+                wordBreak: "break-word",
+                padding: "1rem",
+                background: "rgba(255,255,255,0.1)",
+                borderRadius: "16px",
+                border: "2px solid rgba(255,255,255,0.15)",
+                width: "100%",
+                boxSizing: "border-box",
+              }}>
+                {previewEmojiClue}
+              </div>
+            ) : (
+              <div style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.5)" }}>
+                {t("Failed to generate. Try again.", lang)}
+              </div>
+            )}
+
+            {/* Use / Regenerate buttons */}
+            {!isGeneratingEmoji && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <button
+                  onClick={handleUseEmojiClue}
+                  disabled={!previewEmojiClue}
+                  style={{
+                    width: "100%",
+                    padding: "0.85rem",
+                    borderRadius: "12px",
+                    background: previewEmojiClue
+                      ? "linear-gradient(135deg, #a855f7, #7c3aed)"
+                      : "rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontWeight: 700,
+                    cursor: previewEmojiClue ? "pointer" : "default",
+                    border: "none",
+                    fontSize: "1rem",
+                    opacity: previewEmojiClue ? 1 : 0.5,
+                  }}
+                >
+                  {t("Use", lang)}
+                </button>
+                <button
+                  onClick={handleRegenerate}
+                  style={{
+                    width: "100%",
+                    padding: "0.85rem",
+                    borderRadius: "12px",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "1rem",
+                  }}
+                >
+                  {t("Regenerate", lang)}
+                </button>
+              </div>
+            )}
           </div>
         );
       }

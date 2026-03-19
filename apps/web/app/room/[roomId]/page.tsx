@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useCallback, useEffect, useRef, Component, type ReactNode } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
@@ -392,6 +392,8 @@ function RoomContent() {
   const revealEmojifyrRoundMutation = useMutation(api.games.revealEmojifyrRound);
   const advanceEmojifyrRoundMutation = useMutation(api.games.advanceEmojifyrRound);
   const cancelEmojifyrMutation = useMutation(api.games.cancelEmojifyr);
+  const submitEmojifyrEmojiClueMutation = useMutation(api.games.submitEmojifyrEmojiClue);
+  const generateEmojiClueAction = useAction(api.games.generateEmojiClue);
 
   const cancelGameMutation = useMutation(api.games.cancelGame);
   const handleStartGame = useCallback(
@@ -500,6 +502,34 @@ function RoomContent() {
       }
     },
     [cancelEmojifyrMutation, emojifyrSession]
+  );
+
+  const handleGenerateEmojiClue = useCallback(
+    async (sentence: string) => {
+      try {
+        const result = await generateEmojiClueAction({ sentence });
+        return result.emojiClue;
+      } catch (err) {
+        console.error("Failed to generate emoji clue:", err);
+        return null;
+      }
+    },
+    [generateEmojiClueAction]
+  );
+
+  const handleSubmitEmojifyrEmojiClue = useCallback(
+    async (emojiClue: string) => {
+      if (!emojifyrRound) return;
+      try {
+        await submitEmojifyrEmojiClueMutation({
+          roundId: emojifyrRound._id,
+          emojiClue,
+        });
+      } catch (err) {
+        console.error("Failed to submit emoji clue:", err);
+      }
+    },
+    [submitEmojifyrEmojiClueMutation, emojifyrRound]
   );
 
   const handleRevealEmojifyr = useCallback(
@@ -993,6 +1023,8 @@ function RoomContent() {
           isHost={me?.role === "host"}
           lang={lang}
           onSubmitSentence={handleSubmitEmojifyrSentence}
+          onGenerateEmojiClue={handleGenerateEmojiClue}
+          onSubmitEmojiClue={handleSubmitEmojifyrEmojiClue}
           onSubmitGuess={handleSubmitEmojifyrGuess}
           onReveal={handleRevealEmojifyr}
           onNextRound={handleEmojifyrNextRound}
