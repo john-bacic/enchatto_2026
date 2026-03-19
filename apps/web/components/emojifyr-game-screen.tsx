@@ -244,7 +244,7 @@ export function EmojifyrGameScreen({
                   padding: "0.85rem",
                   borderRadius: "12px",
                   background: previewEmojiClue
-                    ? "linear-gradient(135deg, #a855f7, #7c3aed)"
+                    ? "linear-gradient(135deg, #f59e0b, #ef4444)"
                     : "rgba(255,255,255,0.15)",
                   color: "#fff",
                   fontWeight: 700,

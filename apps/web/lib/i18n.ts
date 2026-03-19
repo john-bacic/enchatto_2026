@@ -213,6 +213,12 @@ const translations: Record<string, Record<string, string>> = {
   "Everyone guesses the original": { ja: "みんなが元の文を当てる" },
   "min per round": { ja: "分/ラウンド" },
   "can we play \"Emojifyr\"? 🔥": { ja: "「Emojifyr」やりませんか？🔥" },
+  "Use": { ja: "使う" },
+  "Regenerate": { ja: "再生成" },
+  "Original sentence:": { ja: "元の文：" },
+  "Generated emoji clue:": { ja: "生成された絵文字：" },
+  "Failed to generate. Try again.": { ja: "生成に失敗しました。もう一度お試しください。" },
+  "Game Starting...": { ja: "ゲーム開始中…" },
   "Off": { ja: "オフ" },
 };
 
