@@ -112,6 +112,7 @@ enum L {
         "Draw this phrase:": ["ja": "このフレーズを描いてください："],
         "What is this drawing?": ["ja": "この絵は何ですか？"],
         "Type your guess...": ["ja": "答えを入力…"],
+        
         "Submit": ["ja": "送信"],
         "Game Results": ["ja": "ゲーム結果"],
         "Chain": ["ja": "チェーン"],
@@ -159,6 +160,7 @@ enum L {
         "Generate Emojis": ["ja": "絵文字を生成"],
         "Original sentence:": ["ja": "元の文："],
         "Generated emoji clue:": ["ja": "生成された絵文字ヒント："],
+        "Random": ["ja": "ランダム"],
         "Use": ["ja": "使う"],
         "Regenerate": ["ja": "再生成"],
         "What does this mean?": ["ja": "これはどういう意味？"],

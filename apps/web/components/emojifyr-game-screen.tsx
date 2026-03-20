@@ -1,8 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { t } from "@/lib/i18n";
 import { getAvatarById } from "@/lib/types";
+
+const RANDOM_SENTENCES_EN = [
+  "A cat sleeping on a pizza",
+  "Dancing under the stars",
+  "A robot walking a dog",
+  "Surfing on a rainbow",
+  "A penguin eating ice cream",
+  "Flying to the moon",
+  "A dragon blowing out birthday candles",
+  "Swimming with dolphins",
+  "A monkey playing guitar",
+  "Cooking breakfast in space",
+  "A ghost riding a bicycle",
+  "Reading a book in the rain",
+  "A bear drinking coffee",
+  "Running through a field of flowers",
+  "A dinosaur playing basketball",
+  "Building a snowman at the beach",
+  "A frog driving a race car",
+  "Singing karaoke with friends",
+  "A wizard making pancakes",
+  "Sleeping on a cloud",
+];
+
+const RANDOM_SENTENCES_JA = [
+  "猫がピザの上で寝ている",
+  "星の下で踊る",
+  "ロボットが犬を散歩させている",
+  "虹の上でサーフィン",
+  "ペンギンがアイスクリームを食べている",
+  "月に向かって飛ぶ",
+  "ドラゴンが誕生日のろうそくを吹き消す",
+  "イルカと泳ぐ",
+  "猿がギターを弾いている",
+  "宇宙で朝ごはんを作る",
+  "おばけが自転車に乗っている",
+  "雨の中で本を読む",
+  "クマがコーヒーを飲んでいる",
+  "花畑を走り抜ける",
+  "恐竜がバスケをしている",
+  "ビーチで雪だるまを作る",
+  "カエルがレースカーを運転している",
+  "友達とカラオケを歌う",
+  "魔法使いがパンケーキを作る",
+  "雲の上で眠る",
+];
 
 interface EmojifyrGameScreenProps {
   // Game state (from Convex)
@@ -82,6 +128,12 @@ export function EmojifyrGameScreen({
   const writerName = writerParticipant?.nickname ?? "?";
 
   const maxLen = 80;
+
+  const handleRandom = useCallback(() => {
+    const list = lang === "ja" ? RANDOM_SENTENCES_JA : RANDOM_SENTENCES_EN;
+    const pick = list[Math.floor(Math.random() * list.length)];
+    setSentence(pick);
+  }, [lang]);
 
   const handleSubmitSentence = async () => {
     const trimmed = sentence.trim();
@@ -321,12 +373,33 @@ export function EmojifyrGameScreen({
               onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.2)"; }}
             />
             <div style={{
-              alignSelf: "flex-end",
-              fontSize: "0.75rem",
-              color: sentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
               marginTop: "-0.5rem",
             }}>
-              {sentence.length} / {maxLen}
+              <button
+                onClick={handleRandom}
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: "8px",
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  fontSize: "0.8rem",
+                }}
+              >
+                🎲 {t("Random", lang)}
+              </button>
+              <span style={{
+                fontSize: "0.75rem",
+                color: sentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
+              }}>
+                {sentence.length} / {maxLen}
+              </span>
             </div>
             <button
               onClick={handleSubmitSentence}

@@ -13,6 +13,57 @@ struct EmojifyrGameView: View {
 
     private let maxCharacters = 80
 
+    private static let randomSentencesEN = [
+        "A cat sleeping on a pizza",
+        "Dancing under the stars",
+        "A robot walking a dog",
+        "Surfing on a rainbow",
+        "A penguin eating ice cream",
+        "Flying to the moon",
+        "A dragon blowing out birthday candles",
+        "Swimming with dolphins",
+        "A monkey playing guitar",
+        "Cooking breakfast in space",
+        "A ghost riding a bicycle",
+        "Reading a book in the rain",
+        "A bear drinking coffee",
+        "Running through a field of flowers",
+        "A dinosaur playing basketball",
+        "Building a snowman at the beach",
+        "A frog driving a race car",
+        "Singing karaoke with friends",
+        "A wizard making pancakes",
+        "Sleeping on a cloud",
+    ]
+
+    private static let randomSentencesJA = [
+        "猫がピザの上で寝ている",
+        "星の下で踊る",
+        "ロボットが犬を散歩させている",
+        "虹の上でサーフィン",
+        "ペンギンがアイスクリームを食べている",
+        "月に向かって飛ぶ",
+        "ドラゴンが誕生日のろうそくを吹き消す",
+        "イルカと泳ぐ",
+        "猿がギターを弾いている",
+        "宇宙で朝ごはんを作る",
+        "おばけが自転車に乗っている",
+        "雨の中で本を読む",
+        "クマがコーヒーを飲んでいる",
+        "花畑を走り抜ける",
+        "恐竜がバスケをしている",
+        "ビーチで雪だるまを作る",
+        "カエルがレースカーを運転している",
+        "友達とカラオケを歌う",
+        "魔法使いがパンケーキを作る",
+        "雲の上で眠る",
+    ]
+
+    static func randomSentence(lang: String) -> String {
+        let list = lang == "ja" ? randomSentencesJA : randomSentencesEN
+        return list.randomElement() ?? list[0]
+    }
+
     var body: some View {
         ZStack {
             // Background gradient
@@ -197,9 +248,29 @@ struct EmojifyrGameView: View {
                         }
                     }
 
-                Text("\(sentenceText.count) / \(maxCharacters)")
-                    .font(.caption)
-                    .foregroundStyle(sentenceText.count >= maxCharacters ? .red : .white.opacity(0.6))
+                HStack {
+                    Button {
+                        sentenceText = Self.randomSentence(lang: lang)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("\u{1F3B2}")
+                            Text(L.t("Random", lang))
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.2))
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                    }
+
+                    Spacer()
+
+                    Text("\(sentenceText.count) / \(maxCharacters)")
+                        .font(.caption)
+                        .foregroundStyle(sentenceText.count >= maxCharacters ? .red : .white.opacity(0.6))
+                }
             }
             .padding(.horizontal)
 
