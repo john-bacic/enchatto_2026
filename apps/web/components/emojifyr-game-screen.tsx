@@ -4,50 +4,22 @@ import { useState, useEffect, useCallback } from "react";
 import { t } from "@/lib/i18n";
 import { getAvatarById } from "@/lib/types";
 
-const RANDOM_SENTENCES_EN = [
-  "A cat sleeping on a pizza",
-  "Dancing under the stars",
-  "A robot walking a dog",
-  "Surfing on a rainbow",
-  "A penguin eating ice cream",
-  "Flying to the moon",
-  "A dragon blowing out birthday candles",
-  "Swimming with dolphins",
-  "A monkey playing guitar",
-  "Cooking breakfast in space",
-  "A ghost riding a bicycle",
-  "Reading a book in the rain",
-  "A bear drinking coffee",
-  "Running through a field of flowers",
-  "A dinosaur playing basketball",
-  "Building a snowman at the beach",
-  "A frog driving a race car",
-  "Singing karaoke with friends",
-  "A wizard making pancakes",
-  "Sleeping on a cloud",
+const RANDOM_WORDS_EN = [
+  "Cat", "Dog", "Pizza", "Robot", "Rainbow", "Moon", "Dragon", "Dolphin",
+  "Guitar", "Ghost", "Coffee", "Dinosaur", "Snowman", "Rocket", "Penguin",
+  "Wizard", "Monkey", "Sunset", "Beach", "Star", "Fire", "Ocean", "Snake",
+  "Cake", "Flower", "Train", "Pirate", "Ninja", "Alien", "Banana",
+  "Happy cat", "Angry bird", "Flying fish", "Sad clown", "Baby shark",
+  "Hot dog", "Ice cream", "Race car", "Magic hat", "Space dog",
 ];
 
-const RANDOM_SENTENCES_JA = [
-  "猫がピザの上で寝ている",
-  "星の下で踊る",
-  "ロボットが犬を散歩させている",
-  "虹の上でサーフィン",
-  "ペンギンがアイスクリームを食べている",
-  "月に向かって飛ぶ",
-  "ドラゴンが誕生日のろうそくを吹き消す",
-  "イルカと泳ぐ",
-  "猿がギターを弾いている",
-  "宇宙で朝ごはんを作る",
-  "おばけが自転車に乗っている",
-  "雨の中で本を読む",
-  "クマがコーヒーを飲んでいる",
-  "花畑を走り抜ける",
-  "恐竜がバスケをしている",
-  "ビーチで雪だるまを作る",
-  "カエルがレースカーを運転している",
-  "友達とカラオケを歌う",
-  "魔法使いがパンケーキを作る",
-  "雲の上で眠る",
+const RANDOM_WORDS_JA = [
+  "猫", "犬", "ピザ", "ロボット", "虹", "月", "ドラゴン", "イルカ",
+  "ギター", "おばけ", "コーヒー", "恐竜", "雪だるま", "ロケット", "ペンギン",
+  "魔法使い", "猿", "夕日", "ビーチ", "星", "火", "海", "ヘビ",
+  "ケーキ", "花", "電車", "海賊", "忍者", "宇宙人", "バナナ",
+  "幸せな猫", "怒った鳥", "空飛ぶ魚", "悲しいピエロ", "赤ちゃんサメ",
+  "ホットドッグ", "アイス", "レースカー", "魔法の帽子", "宇宙犬",
 ];
 
 interface EmojifyrGameScreenProps {
@@ -130,7 +102,7 @@ export function EmojifyrGameScreen({
   const maxLen = 80;
 
   const handleRandom = useCallback(() => {
-    const list = lang === "ja" ? RANDOM_SENTENCES_JA : RANDOM_SENTENCES_EN;
+    const list = lang === "ja" ? RANDOM_WORDS_JA : RANDOM_WORDS_EN;
     const pick = list[Math.floor(Math.random() * list.length)];
     setSentence(pick);
   }, [lang]);
