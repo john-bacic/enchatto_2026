@@ -46,6 +46,7 @@
 		D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EF9BF8694735A0B284D54A /* StubTranslationService.swift */; };
 		D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FEB11E5FF91BEBD77A223B /* TranslationService.swift */; };
 		D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */; };
+		DA0E1F2A3B4C5D6E7F809A1B /* EmojifyrRandomPhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E1F2A3B4C5D6E7F809A1C /* EmojifyrRandomPhrases.swift */; };
 		DAA475AB846CF28C659A87D4 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0373DCCC2C38FB107E44A1 /* Game.swift */; };
 		DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9108C84B71431E861972 /* HostMessageRow.swift */; };
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
@@ -82,6 +83,7 @@
 		82EF9BF8694735A0B284D54A /* StubTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTranslationService.swift; sourceTree = "<group>"; };
 		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
 		8B0373DCCC2C38FB107E44A1 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
+		DA0E1F2A3B4C5D6E7F809A1C /* EmojifyrRandomPhrases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrRandomPhrases.swift; sourceTree = "<group>"; };
 		8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexHTTPClient.swift; sourceTree = "<group>"; };
 		96B6CE020D97A2019D833739 /* SuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionService.swift; sourceTree = "<group>"; };
 		96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockEnchattoAPI.swift; sourceTree = "<group>"; };
@@ -220,6 +222,7 @@
 		C167CF9D2F2508F01F631F95 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				DA0E1F2A3B4C5D6E7F809A1C /* EmojifyrRandomPhrases.swift */,
 				8B0373DCCC2C38FB107E44A1 /* Game.swift */,
 				5D4D07C9C52F8ADCC4EDD899 /* Message.swift */,
 				47566C0B30406CBDDDEAA04F /* Participant.swift */,
@@ -365,6 +368,7 @@
 				B2C3D4E5F6A70829314B5C6D /* EmojifyrSentenceInputView.swift in Sources */,
 				F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */,
 				F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */,
+				DA0E1F2A3B4C5D6E7F809A1B /* EmojifyrRandomPhrases.swift in Sources */,
 				DAA475AB846CF28C659A87D4 /* Game.swift in Sources */,
 				87DBB652730A51EF7C4DCA19 /* GamePickerView.swift in Sources */,
 				8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */,
