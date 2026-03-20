@@ -566,6 +566,27 @@ export function EmojifyrGameScreen({
             >
               {submittingGuess ? t("Submitting...", lang) : t("Submit Guess", lang)}
             </button>
+            <button
+              onClick={() => {
+                if (submittingGuess) return;
+                setSubmittingGuess(true);
+                onSubmitGuess("🤷 " + t("I don't know", lang));
+              }}
+              disabled={submittingGuess}
+              style={{
+                width: "100%",
+                padding: "0.7rem",
+                borderRadius: "12px",
+                background: "rgba(255,255,255,0.1)",
+                color: "rgba(255,255,255,0.7)",
+                fontWeight: 600,
+                cursor: submittingGuess ? "default" : "pointer",
+                border: "1px solid rgba(255,255,255,0.15)",
+                fontSize: "0.9rem",
+              }}
+            >
+              🤷 {t("I don't know", lang)}
+            </button>
           </div>
         );
       }

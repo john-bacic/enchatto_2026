@@ -161,6 +161,7 @@ enum L {
         "Original sentence:": ["ja": "元の文："],
         "Generated emoji clue:": ["ja": "生成された絵文字ヒント："],
         "Random": ["ja": "ランダム"],
+        "I don't know": ["ja": "わからない"],
         "Use": ["ja": "使う"],
         "Regenerate": ["ja": "再生成"],
         "What does this mean?": ["ja": "これはどういう意味？"],

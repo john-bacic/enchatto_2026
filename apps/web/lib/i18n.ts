@@ -214,6 +214,7 @@ const translations: Record<string, Record<string, string>> = {
   "min per round": { ja: "分/ラウンド" },
   "can we play \"Emojifyr\"? 🔥": { ja: "「Emojifyr」やりませんか？🔥" },
   "Random": { ja: "ランダム" },
+  "I don't know": { ja: "わからない" },
   "Use": { ja: "使う" },
   "Regenerate": { ja: "再生成" },
   "Original sentence:": { ja: "元の文：" },

@@ -984,6 +984,28 @@ export const submitEmojifyrGuess = mutation({
       doc.translatedGuessText = args.translatedGuessText;
     }
     await ctx.db.insert("emojifyrGuesses", doc);
+
+    // Auto-reveal: if all non-writer participants have guessed, reveal automatically
+    if (round.status === "guessing") {
+      const session = await ctx.db.get(round.gameSessionId);
+      if (session) {
+        const guessers = session.playerIds.filter(
+          (pid: any) => pid !== round.writerParticipantId
+        );
+        const allGuesses = await ctx.db
+          .query("emojifyrGuesses")
+          .withIndex("by_roundId", (q) => q.eq("roundId", args.roundId))
+          .collect();
+        const guessedPlayerIds = new Set(allGuesses.map((g: any) => g.participantId as string));
+        const allGuessed = guessers.every((pid: any) => guessedPlayerIds.has(pid as string));
+        if (allGuessed) {
+          await ctx.db.patch(args.roundId, {
+            status: "reveal",
+            revealedAt: Date.now(),
+          });
+        }
+      }
+    }
   },
 });
 

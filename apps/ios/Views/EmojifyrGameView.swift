@@ -572,6 +572,24 @@ struct EmojifyrGameView: View {
                     .disabled(guessText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.horizontal)
+
+                Button {
+                    hasSubmittedGuess = true
+                    Task { await viewModel.submitEmojifyrGuess("\u{1F937} " + L.t("I don't know", lang)) }
+                } label: {
+                    Text("\u{1F937} " + L.t("I don't know", lang))
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.1))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
+                }
+                .padding(.horizontal)
             }
 
             Spacer(minLength: 40)
