@@ -125,9 +125,8 @@ struct EmojifyrGameView: View {
                     // Host is the writer — show preview with Use/Regenerate
                     previewPhase(round: round)
                 } else {
-                    // Web player is the writer — iOS generates silently in background
-                    // Show passive waiting screen (auto-submit happens in ViewModel)
-                    waitingForEmojiGeneration
+                    // Web player is the writer — show who is generating
+                    waitingForEmojiGeneration(round: round)
                 }
             case .guessing:
                 if viewModel.isEmojifyrWriter {
@@ -282,25 +281,24 @@ struct EmojifyrGameView: View {
 
     // MARK: - Waiting for Emoji Generation (web player's turn)
 
-    private var waitingForEmojiGeneration: some View {
-        VStack(spacing: 24) {
+    private func waitingForEmojiGeneration(round: EmojifyrRound) -> some View {
+        let writerName = viewModel.participant(for: round.writerParticipantId)?.nickname ?? L.t("Someone", lang)
+        return VStack(spacing: 24) {
             Spacer(minLength: 80)
 
             Text("\u{2728}")
                 .font(.system(size: 64))
 
-            Text(L.t("Generating emojis...", lang))
+            Text(writerName + " " + L.t("is generating emojis...", lang))
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
 
             ProgressView()
                 .tint(.white)
                 .scaleEffect(1.5)
-
-            Text(L.t("Sending to players...", lang))
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.6))
 
             Spacer(minLength: 80)
         }

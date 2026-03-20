@@ -162,6 +162,7 @@ enum L {
         "Generated emoji clue:": ["ja": "生成された絵文字ヒント："],
         "Random": ["ja": "ランダム"],
         "I don't know": ["ja": "わからない"],
+        "is generating emojis...": ["ja": "が絵文字を生成中…"],
         "Use": ["ja": "使う"],
         "Regenerate": ["ja": "再生成"],
         "What does this mean?": ["ja": "これはどういう意味？"],
