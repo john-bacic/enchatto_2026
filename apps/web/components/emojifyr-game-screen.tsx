@@ -212,12 +212,36 @@ export function EmojifyrGameScreen({
               onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.2)"; }}
             />
             <div style={{
-              textAlign: "right",
-              fontSize: "0.75rem",
-              color: submittedSentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
               marginTop: "0.25rem",
             }}>
-              {submittedSentence.length} / {maxLen}
+              <button
+                onClick={() => {
+                  const list = lang === "ja" ? RANDOM_WORDS_JA : RANDOM_WORDS_EN;
+                  setSubmittedSentence(list[Math.floor(Math.random() * list.length)]);
+                }}
+                style={{
+                  padding: "0.3rem 0.6rem",
+                  borderRadius: "8px",
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  fontSize: "0.75rem",
+                }}
+              >
+                🎲 {t("Random", lang)}
+              </button>
+              <span style={{
+                fontSize: "0.75rem",
+                color: submittedSentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
+              }}>
+                {submittedSentence.length} / {maxLen}
+              </span>
             </div>
           </div>
 
@@ -226,7 +250,7 @@ export function EmojifyrGameScreen({
             {t("Generated emoji clue:", lang)}
           </div>
 
-          {/* Generating spinner or emoji preview */}
+          {/* Generating spinner or editable emoji preview */}
           {isGeneratingEmoji ? (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: "2rem", animation: "emojifyrPulse 1.5s ease-in-out infinite" }}>
@@ -236,25 +260,28 @@ export function EmojifyrGameScreen({
                 {t("Generating emojis...", lang)}
               </div>
             </div>
-          ) : previewEmojiClue ? (
-            <div style={{
-              fontSize: "3.5rem",
-              lineHeight: 1.3,
-              textAlign: "center",
-              wordBreak: "break-word",
-              padding: "1rem",
-              background: "rgba(255,255,255,0.1)",
-              borderRadius: "16px",
-              border: "2px solid rgba(255,255,255,0.15)",
-              width: "100%",
-              boxSizing: "border-box",
-            }}>
-              {previewEmojiClue}
-            </div>
           ) : (
-            <div style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.5)" }}>
-              {t("Failed to generate. Try again.", lang)}
-            </div>
+            <input
+              type="text"
+              value={previewEmojiClue ?? ""}
+              onChange={(e) => setPreviewEmojiClue(e.target.value)}
+              placeholder="🐱💤🛋️"
+              style={{
+                width: "100%",
+                fontSize: "2.5rem",
+                textAlign: "center",
+                padding: "0.75rem",
+                borderRadius: "16px",
+                border: "2px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.1)",
+                color: "#fff",
+                outline: "none",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.4)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.2)"; }}
+            />
           )}
 
           {/* Use / Regenerate buttons */}

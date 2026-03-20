@@ -9,6 +9,7 @@ struct EmojifyrGameView: View {
     @State private var guessText = ""
     @State private var hasSubmittedGuess = false
     @State private var editableSentence = ""
+    @State private var editableEmojiClue = ""
     @FocusState private var isInputFocused: Bool
 
     private let maxCharacters = 80
@@ -63,6 +64,7 @@ struct EmojifyrGameView: View {
                 guessText = ""
                 hasSubmittedGuess = false
                 editableSentence = ""
+                editableEmojiClue = ""
             }
             if newStatus == .guessing {
                 guessText = ""
@@ -347,9 +349,29 @@ struct EmojifyrGameView: View {
                             }
                         }
 
-                    Text("\(editableSentence.count) / \(maxCharacters)")
-                        .font(.caption)
-                        .foregroundStyle(editableSentence.count >= maxCharacters ? .red : .white.opacity(0.6))
+                    HStack {
+                        Button {
+                            editableSentence = Self.randomSentence(lang: lang)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("\u{1F3B2}")
+                                Text(L.t("Random", lang))
+                            }
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.2))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                        }
+
+                        Spacer()
+
+                        Text("\(editableSentence.count) / \(maxCharacters)")
+                            .font(.caption)
+                            .foregroundStyle(editableSentence.count >= maxCharacters ? .red : .white.opacity(0.6))
+                    }
                 }
                 .padding(.horizontal)
             }
@@ -364,10 +386,17 @@ struct EmojifyrGameView: View {
                         .tint(.white)
                         .foregroundStyle(.white)
                         .padding()
-                } else if let clue = viewModel.emojifyrEmojiClue {
-                    Text(clue)
-                        .font(.system(size: 56))
+                } else {
+                    TextField("🐱💤🛋️", text: $editableEmojiClue)
+                        .font(.system(size: 40))
                         .multilineTextAlignment(.center)
+                        .padding(12)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                        )
                         .padding(.horizontal)
                 }
             }
@@ -377,28 +406,27 @@ struct EmojifyrGameView: View {
             if !viewModel.isGeneratingEmoji {
                 VStack(spacing: 12) {
                     Button {
-                        if let clue = viewModel.emojifyrEmojiClue {
-                            // If sentence was edited, update it on the server before submitting
-                            let trimmed = editableSentence.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if trimmed != round.originalSentence, !trimmed.isEmpty {
-                                Task {
-                                    await viewModel.updateEmojifyrSentence(trimmed)
-                                    await viewModel.submitEmojifyrEmojiClue(clue)
-                                }
-                            } else {
-                                Task { await viewModel.submitEmojifyrEmojiClue(clue) }
+                        let clue = editableEmojiClue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !clue.isEmpty else { return }
+                        let trimmed = editableSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed != round.originalSentence, !trimmed.isEmpty {
+                            Task {
+                                await viewModel.updateEmojifyrSentence(trimmed)
+                                await viewModel.submitEmojifyrEmojiClue(clue)
                             }
+                        } else {
+                            Task { await viewModel.submitEmojifyrEmojiClue(clue) }
                         }
                     } label: {
                         Text(L.t("Use", lang))
                             .fontWeight(.semibold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(viewModel.emojifyrEmojiClue != nil ? Color.white : Color.white.opacity(0.3))
-                            .foregroundStyle(viewModel.emojifyrEmojiClue != nil ? Color.purple : Color.white.opacity(0.5))
+                            .background(!editableEmojiClue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.white : Color.white.opacity(0.3))
+                            .foregroundStyle(!editableEmojiClue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.purple : Color.white.opacity(0.5))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .disabled(viewModel.emojifyrEmojiClue == nil)
+                    .disabled(editableEmojiClue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button {
                         let trimmed = editableSentence.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -427,10 +455,16 @@ struct EmojifyrGameView: View {
         }
         .onAppear {
             if editableSentence.isEmpty {
-                // Prefer the locally typed sentence over the server value
-                // (server poll may not have arrived yet)
                 let local = sentenceText.trimmingCharacters(in: .whitespacesAndNewlines)
                 editableSentence = !local.isEmpty ? local : (round.originalSentence ?? "")
+            }
+            if editableEmojiClue.isEmpty, let clue = viewModel.emojifyrEmojiClue {
+                editableEmojiClue = clue
+            }
+        }
+        .onChange(of: viewModel.emojifyrEmojiClue) { newClue in
+            if let clue = newClue {
+                editableEmojiClue = clue
             }
         }
     }
