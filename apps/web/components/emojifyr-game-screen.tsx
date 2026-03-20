@@ -3,28 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { t } from "@/lib/i18n";
 import { getAvatarById } from "@/lib/types";
-
-const RANDOM_WORDS_EN = [
-  "Happy cat", "Angry bird", "Flying fish", "Sad clown", "Baby shark",
-  "Hot dog", "Ice cream", "Race car", "Magic hat", "Space dog",
-  "Sleeping bear", "Dancing robot", "Pirate ship", "Ninja star", "Alien spaceship",
-  "Birthday cake", "Rainbow unicorn", "Fire dragon", "Ocean wave", "Snow monkey",
-  "Roller coaster", "Pizza party", "Super hero", "Haunted house", "Treasure map",
-  "Chocolate milk", "Rocket ship", "Gold medal", "Teddy bear", "Palm tree",
-  "Flower garden", "Thunder storm", "Bubble bath", "Candy cane", "Lava volcano",
-  "Love letter", "Broken heart", "Full moon", "Shooting star", "Sunny day",
-];
-
-const RANDOM_WORDS_JA = [
-  "幸せな猫", "怒った鳥", "空飛ぶ魚", "悲しいピエロ", "赤ちゃんサメ",
-  "ホットドッグ", "アイスクリーム", "レースカー", "魔法の帽子", "宇宙犬",
-  "眠るクマ", "踊るロボット", "海賊船", "手裏剣", "宇宙船",
-  "誕生日ケーキ", "虹のユニコーン", "火を吐くドラゴン", "海の波", "雪の猿",
-  "ジェットコースター", "ピザパーティー", "スーパーヒーロー", "お化け屋敷", "宝の地図",
-  "チョコレートミルク", "ロケット船", "金メダル", "テディベア", "ヤシの木",
-  "花の庭", "雷の嵐", "泡のお風呂", "キャンディケイン", "溶岩の火山",
-  "ラブレター", "失恋", "満月", "流れ星", "晴れた日",
-];
+import { RANDOM_PHRASES_EN, RANDOM_PHRASES_JA } from "@/lib/random-phrases";
 
 interface EmojifyrGameScreenProps {
   // Game state (from Convex)
@@ -106,7 +85,7 @@ export function EmojifyrGameScreen({
   const maxLen = 80;
 
   const handleRandom = useCallback(() => {
-    const list = lang === "ja" ? RANDOM_WORDS_JA : RANDOM_WORDS_EN;
+    const list = lang === "ja" ? RANDOM_PHRASES_JA : RANDOM_PHRASES_EN;
     const pick = list[Math.floor(Math.random() * list.length)];
     setSentence(pick);
   }, [lang]);
@@ -224,7 +203,7 @@ export function EmojifyrGameScreen({
             }}>
               <button
                 onClick={() => {
-                  const list = lang === "ja" ? RANDOM_WORDS_JA : RANDOM_WORDS_EN;
+                  const list = lang === "ja" ? RANDOM_PHRASES_JA : RANDOM_PHRASES_EN;
                   setSubmittedSentence(list[Math.floor(Math.random() * list.length)]);
                 }}
                 style={{
