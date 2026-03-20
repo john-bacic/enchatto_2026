@@ -177,13 +177,13 @@ struct EmojifyrGameView: View {
         VStack(spacing: 20) {
             Spacer(minLength: 20)
 
-            Text(L.t("Write a sentence for Emojifyr", lang))
+            Text(L.t("Write something for Emojifyr", lang))
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
 
-            Text(L.t("Use a short, visual sentence that can be turned into emojis.", lang))
+            Text(L.t("Write something short and visual that can be turned into emojis.", lang))
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -264,7 +264,7 @@ struct EmojifyrGameView: View {
                 .font(.system(size: 64))
 
             let writerName = viewModel.participant(for: round.writerParticipantId)?.nickname ?? L.t("Someone", lang)
-            Text(L.t("Waiting for", lang) + " " + writerName + " " + L.t("to write a sentence...", lang))
+            Text(L.t("Waiting for", lang) + " " + writerName + " " + L.t("to write something...", lang))
                 .font(.title3)
                 .fontWeight(.medium)
                 .foregroundStyle(.white)
@@ -313,7 +313,7 @@ struct EmojifyrGameView: View {
             // Editable sentence
             if viewModel.isEmojifyrWriter {
                 VStack(spacing: 8) {
-                    Text(L.t("Original sentence:", lang))
+                    Text(L.t("Original:", lang))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.7))
 
@@ -602,7 +602,7 @@ struct EmojifyrGameView: View {
 
             // Original sentence revealed
             VStack(spacing: 6) {
-                Text(L.t("Original sentence", lang))
+                Text(L.t("Original", lang))
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
                 Text(round.originalSentence ?? "")

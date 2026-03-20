@@ -83,7 +83,7 @@ export function EmojifyrRevealModal({
           }}
         >
           <div style={{ fontSize: "0.7rem", opacity: 0.8, marginBottom: "0.25rem" }}>
-            {t("Original sentence", lang)}
+            {t("Original", lang)}
           </div>
           <div style={{ fontSize: "1rem", fontWeight: 700 }}>
             {originalSentence}

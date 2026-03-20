@@ -171,7 +171,7 @@ export function EmojifyrGameScreen({
           {/* Editable sentence */}
           <div style={{ width: "100%" }}>
             <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: "0.5rem" }}>
-              {t("Original sentence:", lang)}
+              {t("Original:", lang)}
             </div>
             <textarea
               value={submittedSentence}
@@ -326,10 +326,10 @@ export function EmojifyrGameScreen({
             padding: "0 1rem",
           }}>
             <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "#fff", margin: 0, textAlign: "center" }}>
-              {t("Write a sentence for Emojifyr", lang)}
+              {t("Write something for Emojifyr", lang)}
             </h2>
             <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem", textAlign: "center", margin: 0, lineHeight: 1.5 }}>
-              {t("Use a short, visual sentence that can be turned into emojis.", lang)}
+              {t("Write something short and visual that can be turned into emojis.", lang)}
             </p>
             <textarea
               value={sentence}
@@ -655,7 +655,7 @@ export function EmojifyrGameScreen({
             boxSizing: "border-box",
           }}>
             <div style={{ fontSize: "0.7rem", opacity: 0.8, marginBottom: "0.25rem" }}>
-              {t("Original sentence", lang)}
+              {t("Original", lang)}
             </div>
             <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
               {originalSentence}

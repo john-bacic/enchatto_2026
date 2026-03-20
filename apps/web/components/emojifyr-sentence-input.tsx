@@ -51,7 +51,7 @@ export function EmojifyrSentenceInput({ lang, onSubmit, onCancel }: EmojifyrSent
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>🔥</div>
           <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>
-            {t("Write a sentence for Emojifyr", lang)}
+            {t("Write something for Emojifyr", lang)}
           </h2>
         </div>
 

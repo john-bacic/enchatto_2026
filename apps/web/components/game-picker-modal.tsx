@@ -245,7 +245,7 @@ export function GamePickerModal({
                   {t("Emojifyr", lang)} 🔥
                 </h2>
                 <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
-                  {t("Write a sentence, turn it into emojis, and guess!", lang)}
+                  {t("Write something, turn it into emojis, and guess!", lang)}
                 </p>
                 <div style={{
                   background: "var(--bg)",
@@ -293,7 +293,7 @@ export function GamePickerModal({
                   {t("Emojifyr", lang)} 🔥
                 </h2>
                 <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
-                  {t("Write a sentence, turn it into emojis, and guess!", lang)}
+                  {t("Write something, turn it into emojis, and guess!", lang)}
                 </p>
                 <div style={{
                   background: "var(--bg)",

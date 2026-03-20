@@ -154,11 +154,11 @@ enum L {
 
         // Emojifyr
         "Emojifyr": ["ja": "Emojifyr"],
-        "Write a sentence, turn it into emojis, and guess!": ["ja": "文を書いて、絵文字に変換して、当てよう！"],
-        "Write a sentence for Emojifyr": ["ja": "Emojifyrの文を書いてください"],
-        "Use a short, visual sentence that can be turned into emojis.": ["ja": "絵文字に変換できる短い文を書いてください。"],
+        "Write something, turn it into emojis, and guess!": ["ja": "何か書いて、絵文字に変えて、当てよう！"],
+        "Write something for Emojifyr": ["ja": "Emojifyrに何か書こう"],
+        "Write something short and visual that can be turned into emojis.": ["ja": "絵文字に変換できる短くてビジュアルなものを書いてください。"],
         "Generate Emojis": ["ja": "絵文字を生成"],
-        "Original sentence:": ["ja": "元の文："],
+        "Original:": ["ja": "元の言葉："],
         "Generated emoji clue:": ["ja": "生成された絵文字ヒント："],
         "Random": ["ja": "ランダム"],
         "I don't know": ["ja": "わからない"],
@@ -169,7 +169,7 @@ enum L {
         "Submit Guess": ["ja": "回答する"],
         "Emojifyr Result": ["ja": "Emojifyr 結果"],
         "Emoji clue:": ["ja": "絵文字ヒント："],
-        "Original sentence": ["ja": "元の文"],
+        "Original": ["ja": "元の言葉"],
         "Guesses:": ["ja": "回答："],
         "Continue": ["ja": "続ける"],
         "Waiting for writer...": ["ja": "書き手を待っています…"],
@@ -187,7 +187,7 @@ enum L {
         "guess": ["ja": "回答"],
         "guesses": ["ja": "回答"],
         "Waiting for": ["ja": "待っています"],
-        "to write a sentence...": ["ja": "が文を書くのを…"],
+        "to write something...": ["ja": "が何か書くのを…"],
         "Someone": ["ja": "誰か"],
         "Game Starting...": ["ja": "ゲーム開始中…"],
     ]
