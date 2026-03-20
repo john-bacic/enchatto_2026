@@ -15,21 +15,25 @@ struct EmojifyrGameView: View {
     private let maxCharacters = 80
 
     private static let randomWordsEN = [
-        "Cat", "Dog", "Pizza", "Robot", "Rainbow", "Moon", "Dragon", "Dolphin",
-        "Guitar", "Ghost", "Coffee", "Dinosaur", "Snowman", "Rocket", "Penguin",
-        "Wizard", "Monkey", "Sunset", "Beach", "Star", "Fire", "Ocean", "Snake",
-        "Cake", "Flower", "Train", "Pirate", "Ninja", "Alien", "Banana",
         "Happy cat", "Angry bird", "Flying fish", "Sad clown", "Baby shark",
         "Hot dog", "Ice cream", "Race car", "Magic hat", "Space dog",
+        "Sleeping bear", "Dancing robot", "Pirate ship", "Ninja star", "Alien spaceship",
+        "Birthday cake", "Rainbow unicorn", "Fire dragon", "Ocean wave", "Snow monkey",
+        "Roller coaster", "Pizza party", "Super hero", "Haunted house", "Treasure map",
+        "Chocolate milk", "Rocket ship", "Gold medal", "Teddy bear", "Palm tree",
+        "Flower garden", "Thunder storm", "Bubble bath", "Candy cane", "Lava volcano",
+        "Love letter", "Broken heart", "Full moon", "Shooting star", "Sunny day",
     ]
 
     private static let randomWordsJA = [
-        "猫", "犬", "ピザ", "ロボット", "虹", "月", "ドラゴン", "イルカ",
-        "ギター", "おばけ", "コーヒー", "恐竜", "雪だるま", "ロケット", "ペンギン",
-        "魔法使い", "猿", "夕日", "ビーチ", "星", "火", "海", "ヘビ",
-        "ケーキ", "花", "電車", "海賊", "忍者", "宇宙人", "バナナ",
         "幸せな猫", "怒った鳥", "空飛ぶ魚", "悲しいピエロ", "赤ちゃんサメ",
-        "ホットドッグ", "アイス", "レースカー", "魔法の帽子", "宇宙犬",
+        "ホットドッグ", "アイスクリーム", "レースカー", "魔法の帽子", "宇宙犬",
+        "眠るクマ", "踊るロボット", "海賊船", "手裏剣", "宇宙船",
+        "誕生日ケーキ", "虹のユニコーン", "火を吐くドラゴン", "海の波", "雪の猿",
+        "ジェットコースター", "ピザパーティー", "スーパーヒーロー", "お化け屋敷", "宝の地図",
+        "チョコレートミルク", "ロケット船", "金メダル", "テディベア", "ヤシの木",
+        "花の庭", "雷の嵐", "泡のお風呂", "キャンディケイン", "溶岩の火山",
+        "ラブレター", "失恋", "満月", "流れ星", "晴れた日",
     ]
 
     static func randomSentence(lang: String) -> String {
