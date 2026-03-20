@@ -989,16 +989,17 @@ export const submitEmojifyrGuess = mutation({
     if (round.status === "guessing") {
       const session = await ctx.db.get(round.gameSessionId);
       if (session) {
-        const guessers = session.playerIds.filter(
-          (pid: any) => pid !== round.writerParticipantId
-        );
+        const writerIdStr = String(round.writerParticipantId);
+        const guesserIds = session.playerIds
+          .map((pid: any) => String(pid))
+          .filter((pid: string) => pid !== writerIdStr);
         const allGuesses = await ctx.db
           .query("emojifyrGuesses")
           .withIndex("by_roundId", (q) => q.eq("roundId", args.roundId))
           .collect();
-        const guessedPlayerIds = new Set(allGuesses.map((g: any) => g.participantId as string));
-        const allGuessed = guessers.every((pid: any) => guessedPlayerIds.has(pid as string));
-        if (allGuessed) {
+        const guessedPlayerIds = new Set(allGuesses.map((g: any) => String(g.participantId)));
+        const allGuessed = guesserIds.every((pid: string) => guessedPlayerIds.has(pid));
+        if (allGuessed && guesserIds.length > 0) {
           await ctx.db.patch(args.roundId, {
             status: "reveal",
             revealedAt: Date.now(),
