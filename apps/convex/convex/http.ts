@@ -348,6 +348,7 @@ http.route({
     await ctx.runMutation(api.games.submitEmojifyrSentence, {
       roundId: body.roundId,
       sentence: body.sentence,
+      isInitialism: body.isInitialism === true ? true : undefined,
     });
   }),
 });
@@ -462,6 +463,129 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     return await ctx.runQuery(api.games.getEmojifyrGameState, {
       roomId: body.roomId,
+    });
+  }),
+});
+
+// --- Emoji Match ---
+
+http.route({
+  path: "/api/emoji-match/create-lobby",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const gameId = await ctx.runMutation(api.emojiMatch.createLobby, {
+      roomId: body.roomId,
+      hostParticipantId: body.hostParticipantId,
+    });
+    return { gameId };
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/join",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiMatch.joinLobby, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/leave",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiMatch.leaveLobby, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/start",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiMatch.startGame, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/flip-card",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runMutation(api.emojiMatch.flipCard, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      cardId: body.cardId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/resolve-mismatch",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiMatch.resolveMismatch, {
+      gameId: body.gameId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/timeout-turn",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiMatch.timeoutTurn, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/cancel",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiMatch.cancelGame, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/play-again",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const gameId = await ctx.runMutation(api.emojiMatch.playAgain, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+    return { gameId };
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/active",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.emojiMatch.getActiveEmojiMatch, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-match/state",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.emojiMatch.getEmojiMatchById, {
+      gameId: body.gameId,
     });
   }),
 });

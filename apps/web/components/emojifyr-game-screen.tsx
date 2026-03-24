@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { t } from "@/lib/i18n";
 import { getAvatarById } from "@/lib/types";
-import { RANDOM_PHRASES_EN, RANDOM_PHRASES_JA } from "@/lib/random-phrases";
+import { RANDOM_PHRASES_EN, RANDOM_PHRASES_JA, INITIALISMS } from "@/lib/random-phrases";
 
 interface EmojifyrGameScreenProps {
   // Game state (from Convex)
@@ -18,7 +18,7 @@ interface EmojifyrGameScreenProps {
   lang: string;
 
   // Actions
-  onSubmitSentence: (sentence: string) => void;
+  onSubmitSentence: (sentence: string, isInitialism?: boolean) => void;
   onGenerateEmojiClue: (sentence: string) => Promise<string | null>;
   onSubmitEmojiClue: (emojiClue: string) => void;
   onUpdateSentence: (sentence: string) => void;
@@ -96,7 +96,8 @@ export function EmojifyrGameScreen({
     setSubmittingSentence(true);
     setSubmittedSentence(trimmed);
     setShowingPreview(true);
-    onSubmitSentence(trimmed);
+    const isInit = INITIALISMS.some((i) => i.text.toUpperCase() === trimmed.toUpperCase());
+    onSubmitSentence(trimmed, isInit || undefined);
     // Start generating emoji preview
     setIsGeneratingEmoji(true);
     const clue = await onGenerateEmojiClue(trimmed);
@@ -201,24 +202,44 @@ export function EmojifyrGameScreen({
               width: "100%",
               marginTop: "0.25rem",
             }}>
-              <button
-                onClick={() => {
-                  const list = lang === "ja" ? RANDOM_PHRASES_JA : RANDOM_PHRASES_EN;
-                  setSubmittedSentence(list[Math.floor(Math.random() * list.length)]);
-                }}
-                style={{
-                  padding: "0.3rem 0.6rem",
-                  borderRadius: "8px",
-                  background: "rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  fontSize: "0.75rem",
-                }}
-              >
-                🎲 {t("Random", lang)}
-              </button>
+              <div style={{ display: "flex", gap: "0.4rem" }}>
+                <button
+                  onClick={() => {
+                    const list = lang === "ja" ? RANDOM_PHRASES_JA : RANDOM_PHRASES_EN;
+                    setSubmittedSentence(list[Math.floor(Math.random() * list.length)]);
+                  }}
+                  style={{
+                    padding: "0.3rem 0.6rem",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  🎲 {t("Random", lang)}
+                </button>
+                <button
+                  onClick={() => {
+                    const pick = INITIALISMS[Math.floor(Math.random() * INITIALISMS.length)];
+                    setSubmittedSentence(pick.text);
+                  }}
+                  style={{
+                    padding: "0.3rem 0.6rem",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  🔤 Init
+                </button>
+              </div>
               <span style={{
                 fontSize: "0.75rem",
                 color: submittedSentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
@@ -266,6 +287,20 @@ export function EmojifyrGameScreen({
               onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.2)"; }}
             />
           )}
+
+          {/* Initialism definition for writer */}
+          {(() => {
+            const initMatch = INITIALISMS.find(
+              (i) => i.text.toUpperCase() === (submittedSentence || "").trim().toUpperCase()
+            );
+            if (!initMatch) return null;
+            const def = lang === "ja" ? initMatch.defJa : initMatch.defEn;
+            return (
+              <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.7)", padding: "0.5rem 0.85rem", background: "rgba(255,255,255,0.1)", borderRadius: "10px", textAlign: "center", width: "100%", boxSizing: "border-box" }}>
+                🔤 <span style={{ fontWeight: 700 }}>{initMatch.text}</span> — {def}
+              </div>
+            );
+          })()}
 
           {/* Use / Regenerate buttons */}
           {!isGeneratingEmoji && (
@@ -361,21 +396,41 @@ export function EmojifyrGameScreen({
               width: "100%",
               marginTop: "-0.5rem",
             }}>
-              <button
-                onClick={handleRandom}
-                style={{
-                  padding: "0.35rem 0.75rem",
-                  borderRadius: "8px",
-                  background: "rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  fontSize: "0.8rem",
-                }}
-              >
-                🎲 {t("Random", lang)}
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  onClick={handleRandom}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  🎲 {t("Random", lang)}
+                </button>
+                <button
+                  onClick={() => {
+                    const pick = INITIALISMS[Math.floor(Math.random() * INITIALISMS.length)];
+                    setSentence(pick.text);
+                  }}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  🔤 Init
+                </button>
+              </div>
               <span style={{
                 fontSize: "0.75rem",
                 color: sentence.length >= maxLen ? "#fca5a5" : "rgba(255,255,255,0.5)",
@@ -438,18 +493,17 @@ export function EmojifyrGameScreen({
           </div>
         );
       }
-      // Non-writer sees waiting message
+      // Non-writer sees waiting message with writer's name
       return (
         <div style={{ textAlign: "center", color: "#fff" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>🔥</div>
           <div style={{ fontSize: "2rem", marginBottom: "1rem", animation: "emojifyrPulse 1.5s ease-in-out infinite" }}>
             ✨
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>
-            {t("Generating emojis...", lang)}
+            {writerName} {t("is generating emojis...", lang)}
           </div>
-          <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", marginTop: "0.5rem" }}>
-            {t("Waiting for emoji translation...", lang)}
+          <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", marginTop: "0.75rem", lineHeight: 1.6 }}>
+            {lang === "ja" ? "この絵文字の意味、わかるかな？" : "Can you guess what the emojis mean?"}
           </div>
         </div>
       );
@@ -486,8 +540,15 @@ export function EmojifyrGameScreen({
             padding: "0 1rem",
           }}>
             <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#fff", margin: 0 }}>
-              {t("What does this mean?", lang)}
+              {currentRound?.isInitialism
+                ? t("What is this init?", lang)
+                : t("What is this phrase?", lang)}
             </h2>
+            {(lang === "ja" ? currentRound?.hintJa : currentRound?.hintEn) ? (
+              <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", lineHeight: 1.5, textAlign: "center", fontStyle: "italic" }}>
+                {lang === "ja" ? currentRound.hintJa : currentRound.hintEn}
+              </div>
+            ) : null}
             <div style={{
               fontSize: "3rem",
               lineHeight: 1.3,
@@ -574,11 +635,19 @@ export function EmojifyrGameScreen({
         );
       }
       // Writer view — players are guessing
+      const initMatchWriter = INITIALISMS.find(
+        (i) => i.text.toUpperCase() === (originalSentence || "").trim().toUpperCase()
+      );
       return (
         <div style={{ textAlign: "center", color: "#fff", width: "100%", maxWidth: "400px", padding: "0 1rem" }}>
           <div style={{ fontSize: "3rem", lineHeight: 1.3, wordBreak: "break-word", marginBottom: "1rem" }}>
             {emojiClue}
           </div>
+          {initMatchWriter && (
+            <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", padding: "0.4rem 0.75rem", background: "rgba(255,255,255,0.08)", borderRadius: "8px", marginBottom: "1rem" }}>
+              🔤 <span style={{ fontWeight: 600 }}>{initMatchWriter.text}</span> — {lang === "ja" ? initMatchWriter.defJa : initMatchWriter.defEn}
+            </div>
+          )}
           <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>
             {t("Players are guessing...", lang)}
           </div>
@@ -665,6 +734,19 @@ export function EmojifyrGameScreen({
                 {translatedSentence}
               </div>
             )}
+            {(() => {
+              const initMatch = INITIALISMS.find(
+                (i) => i.text.toUpperCase() === (originalSentence || "").trim().toUpperCase()
+              );
+              if (!initMatch) return null;
+              const def = lang === "ja" ? initMatch.defJa : initMatch.defEn;
+              return (
+                <div style={{ fontSize: "0.8rem", opacity: 0.9, marginTop: "0.5rem", padding: "0.5rem", background: "rgba(0,0,0,0.15)", borderRadius: "8px" }}>
+                  <div style={{ fontWeight: 700, marginBottom: "0.15rem" }}>🔤 {initMatch.text}</div>
+                  <div>{def}</div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Guesses list */}

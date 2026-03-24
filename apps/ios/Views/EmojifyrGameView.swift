@@ -219,6 +219,22 @@ struct EmojifyrGameView: View {
                         .clipShape(Capsule())
                     }
 
+                    Button {
+                        sentenceText = EmojifyrRandomPhrases.randomInitialism()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("\u{1F524}")
+                            Text("Init")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.2))
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                    }
+
                     Spacer()
 
                     Text("\(sentenceText.count) / \(maxCharacters)")
@@ -296,6 +312,12 @@ struct EmojifyrGameView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
+            Text(lang == "ja" ? "この絵文字の意味、わかるかな？" : "Can you guess what the emojis mean?")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
             ProgressView()
                 .tint(.white)
                 .scaleEffect(1.5)
@@ -345,6 +367,22 @@ struct EmojifyrGameView: View {
                             .clipShape(Capsule())
                         }
 
+                        Button {
+                            editableSentence = EmojifyrRandomPhrases.randomInitialism()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("\u{1F524}")
+                                Text("Init")
+                            }
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.2))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                        }
+
                         Spacer()
 
                         Text("\(editableSentence.count) / \(maxCharacters)")
@@ -378,6 +416,24 @@ struct EmojifyrGameView: View {
                         )
                         .padding(.horizontal)
                 }
+            }
+
+            // Initialism definition for writer
+            if let def = EmojifyrRandomPhrases.definition(for: editableSentence, lang: lang) {
+                HStack(spacing: 4) {
+                    Text("\u{1F524}")
+                    Text(editableSentence.trimmingCharacters(in: .whitespacesAndNewlines))
+                        .fontWeight(.bold)
+                    Text("—")
+                    Text(def)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
 
             Spacer(minLength: 20)
@@ -472,6 +528,23 @@ struct EmojifyrGameView: View {
                 Text(clue)
                     .font(.system(size: 48))
                     .padding(.top, 8)
+
+                if let def = EmojifyrRandomPhrases.definition(for: round.originalSentence ?? "", lang: lang) {
+                    HStack(spacing: 4) {
+                        Text("\u{1F524}")
+                        Text((round.originalSentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+                            .fontWeight(.semibold)
+                        Text("—")
+                        Text(def)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             }
 
             // Reveal button for host/writer
@@ -498,10 +571,19 @@ struct EmojifyrGameView: View {
         VStack(spacing: 20) {
             Spacer(minLength: 20)
 
-            Text(L.t("What does this mean?", lang))
+            Text(L.t(round.isInitialism == true ? "What is this init?" : "What is this phrase?", lang))
                 .font(.title3)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
+
+            if let hint = (lang == "ja" ? round.hintJa : round.hintEn) {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .italic()
+                    .padding(.horizontal)
+            }
 
             if let clue = round.emojiClue {
                 Text(clue)
@@ -618,6 +700,22 @@ struct EmojifyrGameView: View {
                         .foregroundStyle(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
+                }
+                if let def = EmojifyrRandomPhrases.definition(for: round.originalSentence ?? "", lang: lang) {
+                    VStack(spacing: 2) {
+                        Text("\u{1F524} " + (round.originalSentence ?? ""))
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                        Text(def)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal)
                 }
             }
             .padding()

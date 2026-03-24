@@ -98,7 +98,7 @@ protocol EnchattoAPI {
     func startEmojifyr(roomId: String, participantId: String) async throws -> String?
 
     /// Submit the writer's sentence for an Emojifyr round
-    func submitEmojifyrSentence(roundId: String, sentence: String) async throws
+    func submitEmojifyrSentence(roundId: String, sentence: String, isInitialism: Bool) async throws
 
     /// Update the sentence for an Emojifyr round (during preview/generating phase)
     func updateEmojifyrSentence(roundId: String, sentence: String) async throws
@@ -132,4 +132,30 @@ protocol EnchattoAPI {
 
     /// Generate an emoji clue from a sentence using server-side AI
     func generateEmojiClueFromAI(sentence: String) async throws -> String
+
+    // MARK: - Emoji Match
+
+    /// Create an Emoji Match lobby
+    func createEmojiMatchLobby(roomId: String, hostParticipantId: String) async throws -> String
+
+    /// Join an Emoji Match lobby
+    func joinEmojiMatchLobby(gameId: String, participantId: String) async throws
+
+    /// Leave an Emoji Match lobby
+    func leaveEmojiMatchLobby(gameId: String, participantId: String) async throws
+
+    /// Start an Emoji Match game
+    func startEmojiMatch(gameId: String, participantId: String) async throws
+
+    /// Flip a card in Emoji Match
+    func flipEmojiMatchCard(gameId: String, participantId: String, cardId: String) async throws
+
+    /// Cancel an Emoji Match game
+    func cancelEmojiMatch(gameId: String, participantId: String) async throws
+
+    /// Play again after an Emoji Match game
+    func playAgainEmojiMatch(gameId: String, participantId: String) async throws -> String
+
+    /// Get the active Emoji Match game for a room
+    func getActiveEmojiMatch(roomId: String) async throws -> EmojiMatchGame?
 }

@@ -356,18 +356,6 @@ export const submitGameStep = mutation({
       submittedAt: Date.now(),
     });
 
-    // Post correct/wrong feedback to chat timeline
-    const guesser = await ctx.db.get(args.participantId);
-    const msgPrefix = isCorrect ? "game_correct" : "game_wrong";
-    await ctx.db.insert("messages", {
-      roomId: session.roomId,
-      senderId: args.participantId,
-      kind: "system",
-      status: "processed",
-      text: `${msgPrefix}:${guesser?.nickname ?? "?"}|${chain.originalPrompt}`,
-      createdAt: Date.now(),
-    });
-
     // Check if ALL guess steps for this chain are submitted
     const chainSteps = await ctx.db
       .query("gameSteps")
@@ -400,10 +388,69 @@ export const submitGameStep = mutation({
 
     if (!nextChain) {
       // No more rounds — game complete
+      const completedAt = Date.now();
       await ctx.db.patch(session._id, {
         status: "complete",
-        completedAt: Date.now(),
+        completedAt,
       });
+
+      // Post game summary to chat
+      const allSteps = await ctx.db
+        .query("gameSteps")
+        .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
+        .collect();
+
+      // Build per-round, per-player results
+      const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
+      for (const ch of allChains) {
+        const guessStepsForChain = allSteps.filter((s) => s.chainId === ch._id && s.stepType === "guess" && s.status === "submitted");
+        if (guessStepsForChain.length === 0) continue;
+        const results: Record<string, boolean> = {};
+        for (const gs of guessStepsForChain) {
+          results[gs.assignedParticipantId] = !!gs.correct;
+        }
+        roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results });
+      }
+
+      // Build totals
+      const totals: Record<string, { correct: number; total: number }> = {};
+      for (const pid of session.playerIds) {
+        totals[pid] = { correct: 0, total: 0 };
+      }
+      for (const s of allSteps) {
+        if (s.stepType === "guess" && s.status === "submitted") {
+          if (!totals[s.assignedParticipantId]) totals[s.assignedParticipantId] = { correct: 0, total: 0 };
+          totals[s.assignedParticipantId].total += 1;
+          if (s.correct) totals[s.assignedParticipantId].correct += 1;
+        }
+      }
+
+      // Build player name map
+      const playerMap: Record<string, { name: string; avatar: string }> = {};
+      for (const pid of session.playerIds) {
+        const p = await ctx.db.get(pid);
+        if (p && "nickname" in p) {
+          playerMap[pid] = { name: (p as any).nickname, avatar: (p as any).avatar?.value ?? "default" };
+        }
+      }
+
+      const summaryData = {
+        gameType: "Lost in Translation",
+        level: session.level ?? 1,
+        players: playerMap,
+        rounds: roundResults,
+        totals,
+      };
+
+      await ctx.db.insert("messages", {
+        roomId: session.roomId,
+        senderId: session.playerIds[0],
+        kind: "system",
+        status: "processed",
+        text: `game_summary:${JSON.stringify(summaryData)}`,
+        createdAt: completedAt + 1,
+      });
+
       return;
     }
 
@@ -495,14 +542,80 @@ export const cancelGame = mutation({
       }
     }
 
-    // Post system message that game was cancelled
-    if (litSessions.length > 0) {
+    // Post game summary (only if at least one round was played)
+    for (const session of litSessions) {
+      const chains = await ctx.db
+        .query("gameChains")
+        .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
+        .collect();
+      chains.sort((a, b) => a.chainIndex - b.chainIndex);
+      const steps = await ctx.db
+        .query("gameSteps")
+        .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
+        .collect();
+
+      // Only post summary if any guesses were made
+      const guessSteps = steps.filter((s) => s.stepType === "guess" && s.status === "submitted");
+      if (guessSteps.length === 0) {
+        // No rounds played — just post cancellation
+        await ctx.db.insert("messages", {
+          roomId: args.roomId,
+          senderId: args.participantId,
+          kind: "system",
+          status: "processed",
+          text: "game_cancelled:Lost in Translation",
+          createdAt: Date.now(),
+        });
+        continue;
+      }
+
+      // Build per-round results
+      const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
+      for (const ch of chains) {
+        const guessesForChain = steps.filter((s) => s.chainId === ch._id && s.stepType === "guess" && s.status === "submitted");
+        if (guessesForChain.length === 0) continue;
+        const results: Record<string, boolean> = {};
+        for (const gs of guessesForChain) {
+          results[gs.assignedParticipantId] = !!gs.correct;
+        }
+        roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results });
+      }
+
+      // Build totals
+      const totals: Record<string, { correct: number; total: number }> = {};
+      for (const pid of session.playerIds) {
+        totals[pid] = { correct: 0, total: 0 };
+      }
+      for (const s of guessSteps) {
+        if (!totals[s.assignedParticipantId]) totals[s.assignedParticipantId] = { correct: 0, total: 0 };
+        totals[s.assignedParticipantId].total += 1;
+        if (s.correct) totals[s.assignedParticipantId].correct += 1;
+      }
+
+      // Build player name map
+      const playerMap: Record<string, { name: string; avatar: string }> = {};
+      for (const pid of session.playerIds) {
+        const p = await ctx.db.get(pid);
+        if (p && "nickname" in p) {
+          playerMap[pid] = { name: (p as any).nickname, avatar: (p as any).avatar?.value ?? "default" };
+        }
+      }
+
+      const summaryData = {
+        gameType: "Lost in Translation",
+        level: session.level ?? 1,
+        cancelled: true,
+        players: playerMap,
+        rounds: roundResults,
+        totals,
+      };
+
       await ctx.db.insert("messages", {
         roomId: args.roomId,
         senderId: args.participantId,
         kind: "system",
         status: "processed",
-        text: "game_cancelled:Lost in Translation",
+        text: `game_summary:${JSON.stringify(summaryData)}`,
         createdAt: Date.now(),
       });
     }
@@ -907,6 +1020,7 @@ export const submitEmojifyrSentence = mutation({
   args: {
     roundId: v.id("emojifyrRounds"),
     sentence: v.string(),
+    isInitialism: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     if (args.sentence.length < 1 || args.sentence.length > 80) {
@@ -914,12 +1028,17 @@ export const submitEmojifyrSentence = mutation({
     }
     const round = await ctx.db.get(args.roundId);
     if (!round) throw new Error("Round not found");
-    if (round.status !== "writing") throw new Error("Round is not in writing phase");
+    // Tolerate stale calls: if round already moved past "writing", silently skip
+    if (round.status !== "writing") return;
 
-    await ctx.db.patch(args.roundId, {
+    const patch: any = {
       originalSentence: args.sentence,
       status: "generating",
-    });
+    };
+    if (args.isInitialism) {
+      patch.isInitialism = true;
+    }
+    await ctx.db.patch(args.roundId, patch);
   },
 });
 
@@ -934,9 +1053,8 @@ export const updateEmojifyrSentence = mutation({
     }
     const round = await ctx.db.get(args.roundId);
     if (!round) throw new Error("Round not found");
-    if (round.status !== "generating" && round.status !== "preview") {
-      throw new Error("Round is not in generating or preview phase");
-    }
+    // Tolerate stale calls: if round already moved past generating/preview, silently skip
+    if (round.status !== "generating" && round.status !== "preview") return;
 
     await ctx.db.patch(args.roundId, {
       originalSentence: args.sentence,
@@ -952,9 +1070,8 @@ export const submitEmojifyrEmojiClue = mutation({
   handler: async (ctx, args) => {
     const round = await ctx.db.get(args.roundId);
     if (!round) throw new Error("Round not found");
-    if (round.status !== "generating" && round.status !== "preview") {
-      throw new Error("Round is not in generating or preview phase");
-    }
+    // Tolerate stale calls: if round already moved past generating/preview, silently skip
+    if (round.status !== "generating" && round.status !== "preview") return;
 
     await ctx.db.patch(args.roundId, {
       emojiClue: args.emojiClue,
@@ -1018,24 +1135,42 @@ export const submitEmojifyrEmojiClueWithTranslation = action({
     emojiClue: v.string(),
   },
   handler: async (ctx, args) => {
-    // Get the round to read the sentence
-    const round: any = await ctx.runQuery(api.games.getEmojifyrRoundById, { roundId: args.roundId });
-    if (round?.originalSentence) {
-      const sentence = round.originalSentence;
-      const detectedLang = detectLanguage(sentence);
-      const targetLang = detectedLang === "ja" ? "en" : "ja";
-      const translated = await translateWithClaude(sentence, detectedLang, targetLang);
-      if (translated) {
-        await ctx.runMutation(api.games.patchEmojifyrRoundTranslation, {
-          roundId: args.roundId,
-          translatedSentence: translated,
-        });
-      }
-    }
+    // Submit the emoji clue FIRST so guessing begins immediately
     await ctx.runMutation(api.games.submitEmojifyrEmojiClue, {
       roundId: args.roundId,
       emojiClue: args.emojiClue,
     });
+
+    // Then do background work: generate hint + translate sentence (non-blocking)
+    try {
+      const round: any = await ctx.runQuery(api.games.getEmojifyrRoundById, { roundId: args.roundId });
+
+      // Generate bilingual hint for the emoji clue
+      const hints = await generateEmojiHint(args.emojiClue);
+      if (hints) {
+        await ctx.runMutation(api.games.patchEmojifyrRoundHints, {
+          roundId: args.roundId,
+          hintEn: hints.en,
+          hintJa: hints.ja,
+        });
+      }
+
+      // Translate the original sentence
+      if (round?.originalSentence) {
+        const sentence = round.originalSentence;
+        const detectedLang = detectLanguage(sentence);
+        const targetLang = detectedLang === "ja" ? "en" : "ja";
+        const translated = await translateWithClaude(sentence, detectedLang, targetLang);
+        if (translated) {
+          await ctx.runMutation(api.games.patchEmojifyrRoundTranslation, {
+            roundId: args.roundId,
+            translatedSentence: translated,
+          });
+        }
+      }
+    } catch {
+      // Background work is best-effort; don't fail the game flow
+    }
   },
 });
 
@@ -1076,6 +1211,20 @@ export const patchEmojifyrRoundTranslation = mutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.roundId, {
       translatedSentence: args.translatedSentence,
+    });
+  },
+});
+
+export const patchEmojifyrRoundHints = mutation({
+  args: {
+    roundId: v.id("emojifyrRounds"),
+    hintEn: v.string(),
+    hintJa: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.roundId, {
+      hintEn: args.hintEn,
+      hintJa: args.hintJa,
     });
   },
 });
@@ -1212,6 +1361,52 @@ export const getEmojifyrGuesses = query({
       .collect();
   },
 });
+
+// --- AI Hint Generation Helper ---
+
+async function generateEmojiHint(emojiClue: string): Promise<{ en: string; ja: string } | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 128,
+        messages: [{
+          role: "user",
+          content: `You are helping players in a guessing game. Given these emojis: ${emojiClue}
+
+Write a short, playful one-sentence hint that nudges players toward the answer WITHOUT giving it away. Be vague and fun.
+
+Output exactly two lines:
+Line 1: The hint in English
+Line 2: The same hint in Japanese
+
+No labels, no prefixes, just the two lines.`,
+        }],
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data.content?.[0]?.text?.trim();
+    if (!text) return null;
+
+    const lines = text.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+    if (lines.length < 2) return null;
+
+    return { en: lines[0], ja: lines[1] };
+  } catch {
+    return null;
+  }
+}
 
 // --- AI Translation Helper ---
 

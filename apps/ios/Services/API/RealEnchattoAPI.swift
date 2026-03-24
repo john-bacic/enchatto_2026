@@ -314,11 +314,15 @@ class RealEnchattoAPI: EnchattoAPI {
         }
     }
 
-    func submitEmojifyrSentence(roundId: String, sentence: String) async throws {
-        try await client.postVoid("/api/emojifyr/submit-sentence", body: [
+    func submitEmojifyrSentence(roundId: String, sentence: String, isInitialism: Bool) async throws {
+        var body: [String: Any] = [
             "roundId": roundId,
             "sentence": sentence,
-        ])
+        ]
+        if isInitialism {
+            body["isInitialism"] = true
+        }
+        try await client.postVoid("/api/emojifyr/submit-sentence", body: body)
     }
 
     func updateEmojifyrSentence(roundId: String, sentence: String) async throws {
@@ -403,6 +407,73 @@ class RealEnchattoAPI: EnchattoAPI {
             "sentence": sentence,
         ])
         return response.emojiClue
+    }
+
+    // MARK: - Emoji Match
+
+    func createEmojiMatchLobby(roomId: String, hostParticipantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/emoji-match/create-lobby", body: [
+            "roomId": roomId,
+            "hostParticipantId": hostParticipantId,
+        ])
+        return response.gameId
+    }
+
+    func joinEmojiMatchLobby(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/emoji-match/join", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func leaveEmojiMatchLobby(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/emoji-match/leave", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func startEmojiMatch(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/emoji-match/start", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func flipEmojiMatchCard(gameId: String, participantId: String, cardId: String) async throws {
+        let _: [String: String] = try await client.post("/api/emoji-match/flip-card", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "cardId": cardId,
+        ])
+    }
+
+    func cancelEmojiMatch(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/emoji-match/cancel", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func playAgainEmojiMatch(gameId: String, participantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/emoji-match/play-again", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+        return response.gameId
+    }
+
+    func getActiveEmojiMatch(roomId: String) async throws -> EmojiMatchGame? {
+        do {
+            let game: EmojiMatchGame = try await client.post("/api/emoji-match/active", body: [
+                "roomId": roomId,
+            ])
+            return game
+        } catch is DecodingError {
+            return nil
+        }
     }
 
 }

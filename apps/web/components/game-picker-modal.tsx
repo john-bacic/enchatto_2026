@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { t } from "@/lib/i18n";
 
-type GameTab = "lost-in-translation" | "emojifyr";
+type GameTab = "lost-in-translation" | "emojifyr" | "emoji-match";
 
 interface GamePickerModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface GamePickerModalProps {
   nextLevel?: number;
   onStartGame: (gameType: string, level: number, timerSeconds: number) => void;
   onStartEmojifyr?: () => void;
+  onStartEmojiMatch?: () => void;
   onRequestGame: (message: string) => void;
   onClose: () => void;
   lang?: string;
@@ -26,6 +27,7 @@ export function GamePickerModal({
   nextLevel = 1,
   onStartGame,
   onStartEmojifyr,
+  onStartEmojiMatch,
   onRequestGame,
   onClose,
   lang,
@@ -94,6 +96,12 @@ export function GamePickerModal({
             style={tabStyle(selectedGame === "emojifyr")}
           >
             🔥 {t("Emojifyr", lang)}
+          </button>
+          <button
+            onClick={() => setSelectedGame("emoji-match")}
+            style={tabStyle(selectedGame === "emoji-match")}
+          >
+            🃏 {t("Match", lang)}
           </button>
         </div>
 
@@ -352,6 +360,128 @@ export function GamePickerModal({
                       color: "#fff",
                       fontWeight: 600,
                       cursor: playerCount < 2 ? "default" : "pointer",
+                      border: "none",
+                    }}
+                  >
+                    {t("Start Game", lang)}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Emoji Match content */}
+        {selectedGame === "emoji-match" && (
+          <>
+            {!isHost ? (
+              <>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🃏</div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+                  {t("Emoji Match", lang)}
+                </h2>
+                <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
+                  {t("Find matching emoji pairs! Take turns flipping cards.", lang)}
+                </p>
+                <div style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "0.5rem 0.75rem",
+                  marginBottom: "1rem",
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  textAlign: "left",
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: "0.25rem", color: "var(--foreground)" }}>
+                    {t("How it works", lang)}
+                  </div>
+                  {t("Flip two cards per turn", lang)} → {t("Match a pair to score", lang)} → {t("Most matches wins!", lang)}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "1rem" }}>
+                  {t("Only the host can start a game.", lang)}
+                </p>
+                <button
+                  onClick={() => {
+                    onRequestGame(`${hostName} ${t("can we play \"Emoji Match\"? 🃏", lang)}`);
+                    onClose();
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem",
+                    borderRadius: "8px",
+                    background: "linear-gradient(135deg, var(--primary), #7c3aed)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "none",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {t("Ask to play!", lang)}
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🃏</div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+                  {t("Emoji Match", lang)}
+                </h2>
+                <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
+                  {t("Find matching emoji pairs! Take turns flipping cards.", lang)}
+                </p>
+                <div style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "0.5rem 0.75rem",
+                  marginBottom: "0.75rem",
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  textAlign: "left",
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: "0.25rem", color: "var(--foreground)" }}>
+                    {t("How it works", lang)}
+                  </div>
+                  {t("Flip two cards per turn", lang)} → {t("Match a pair to score", lang)} → {t("Most matches wins!", lang)}
+                </div>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  marginBottom: "1rem",
+                }}>
+                  <span>{playerCount} {t("players", lang)}</span>
+                  <span>{t("Works solo or multiplayer", lang)}</span>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button
+                    onClick={onClose}
+                    style={{
+                      flex: 1,
+                      padding: "0.6rem",
+                      borderRadius: "8px",
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t("Cancel", lang)}
+                  </button>
+                  <button
+                    onClick={() => onStartEmojiMatch?.()}
+                    style={{
+                      flex: 1,
+                      padding: "0.6rem",
+                      borderRadius: "8px",
+                      background: "linear-gradient(135deg, var(--primary), #7c3aed)",
+                      color: "#fff",
+                      fontWeight: 600,
+                      cursor: "pointer",
                       border: "none",
                     }}
                   >

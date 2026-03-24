@@ -45,6 +45,7 @@ struct HostConversationView: View {
     @State private var showEndGameConfirm = false
     @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
     @State private var showEmojifyrGame = false
+    @State private var showEmojiMatchGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
@@ -489,7 +490,10 @@ struct HostConversationView: View {
                             gameCompleteBubble
                         }
 
-                        if message.kind == .system {
+                        if message.kind == .system, let text = message.text, text.hasPrefix("game_summary:") || text.hasPrefix("emoji_match_summary:") {
+                            GameSummaryBanner(text: text, lang: hostLanguage)
+                                .id(message.id)
+                        } else if message.kind == .system {
                             SystemMessageRow(text: message.text ?? "", lang: hostLanguage)
                                 .id(message.id)
                         } else {
@@ -898,6 +902,12 @@ struct HostConversationView: View {
                         showEmojifyrGame = true
                     }
                 },
+                onStartEmojiMatch: {
+                    showGamePicker = false
+                    Task {
+                        await viewModel.createEmojiMatchLobby()
+                    }
+                },
                 onDismiss: { showGamePicker = false }
             )
             .presentationDetents([.height(300)])
@@ -984,6 +994,23 @@ struct HostConversationView: View {
         .onChange(of: viewModel.activeEmojifyrSession) { session in
             if session != nil && !showEmojifyrGame {
                 showEmojifyrGame = true
+            }
+        }
+        // MARK: - Emoji Match full-screen game
+        .fullScreenCover(isPresented: $showEmojiMatchGame) {
+            EmojiMatchGameView(
+                viewModel: viewModel,
+                lang: hostLanguage,
+                onDismiss: { showEmojiMatchGame = false }
+            )
+        }
+        .onChange(of: viewModel.activeEmojiMatchGame) { game in
+            if let g = game, g.status != .canceled, g.status != .completed {
+                if !showEmojiMatchGame {
+                    showEmojiMatchGame = true
+                }
+            } else if game == nil || game?.status == .canceled {
+                showEmojiMatchGame = false
             }
         }
     }
@@ -1194,6 +1221,261 @@ private struct SendButton: View {
     }
 }
 
+// MARK: - Game Summary Banner
+
+private struct GameSummaryBanner: View {
+    let text: String
+    var lang: String = "en"
+
+    private struct PlayerScore: Identifiable {
+        let id = UUID()
+        let name: String
+        let avatar: String
+        let score: Int
+        let total: Int
+        let isWinner: Bool
+    }
+
+    private struct GameRoundData: Identifiable {
+        let id = UUID()
+        let players: [PlayerScore]
+    }
+
+    private enum SummaryData {
+        case emojiMatch(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore])
+        case litGame(title: String, subtitle: String, players: [PlayerScore])
+    }
+
+    private var parsed: SummaryData? {
+        if text.hasPrefix("game_summary:") {
+            let json = String(text.dropFirst("game_summary:".count))
+            guard let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            let gameType = obj["gameType"] as? String ?? "Game"
+            let level = obj["level"] as? Int
+            let cancelled = obj["cancelled"] as? Bool ?? false
+            let rounds = obj["rounds"] as? [[String: Any]] ?? []
+            let players = obj["players"] as? [String: [String: Any]] ?? [:]
+            let totals = obj["totals"] as? [String: [String: Any]] ?? [:]
+
+            let title = level != nil ? "\(gameType) — Level \(level!)" : gameType
+            let subtitle = cancelled ? L.t("Game ended early", lang) : L.t("Game Complete", lang)
+
+            var playerScores: [PlayerScore] = []
+            for (pid, info) in players {
+                let pName = info["name"] as? String ?? "?"
+                let avatar = info["avatar"] as? String ?? "default"
+                let t = totals[pid]
+                let correct = t?["correct"] as? Int ?? 0
+                let total = t?["total"] as? Int ?? 0
+                playerScores.append(PlayerScore(name: pName, avatar: avatar, score: correct, total: total, isWinner: false))
+            }
+            playerScores.sort { $0.score > $1.score }
+            let maxScore = playerScores.first?.score ?? 0
+            playerScores = playerScores.map {
+                PlayerScore(name: $0.name, avatar: $0.avatar, score: $0.score, total: $0.total, isWinner: $0.score == maxScore && maxScore > 0)
+            }
+
+            let roundCount = rounds.count
+            let fullSubtitle = "\(subtitle) · \(roundCount) \(roundCount == 1 ? "round" : "rounds")"
+
+            return .litGame(title: title, subtitle: fullSubtitle, players: playerScores)
+        } else if text.hasPrefix("emoji_match_summary:") {
+            let json = String(text.dropFirst("emoji_match_summary:".count))
+            guard let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            let gameType = obj["gameType"] as? String ?? "Match Emoji"
+
+            // Parse multi-game format (games array) or legacy single-game
+            var gameRounds: [GameRoundData] = []
+            if let gamesArr = obj["games"] as? [[String: Any]] {
+                for g in gamesArr {
+                    let playersArr = g["players"] as? [[String: Any]] ?? []
+                    let scores = playersArr.map { p in
+                        PlayerScore(
+                            name: p["name"] as? String ?? "?",
+                            avatar: p["avatar"] as? String ?? "default",
+                            score: p["score"] as? Int ?? 0,
+                            total: g["totalPairs"] as? Int ?? 0,
+                            isWinner: p["isWinner"] as? Bool ?? false
+                        )
+                    }
+                    gameRounds.append(GameRoundData(players: scores))
+                }
+            } else if let playersArr = obj["players"] as? [[String: Any]] {
+                // Legacy single-game format
+                let totalPairs = obj["totalPairs"] as? Int ?? 0
+                let scores = playersArr.map { p in
+                    PlayerScore(
+                        name: p["name"] as? String ?? "?",
+                        avatar: p["avatar"] as? String ?? "default",
+                        score: p["score"] as? Int ?? 0,
+                        total: totalPairs,
+                        isWinner: p["isWinner"] as? Bool ?? false
+                    )
+                }
+                gameRounds.append(GameRoundData(players: scores))
+            }
+
+            let gameCount = gameRounds.count
+            let subtitle = "\(gameCount) \(gameCount == 1 ? "game" : "games") \(L.t("played", lang))"
+
+            // Aggregate totals across all games
+            var agg: [String: (name: String, avatar: String, totalScore: Int, wins: Int)] = [:]
+            for g in gameRounds {
+                for p in g.players {
+                    let key = "\(p.name)|\(p.avatar)"
+                    var entry = agg[key] ?? (name: p.name, avatar: p.avatar, totalScore: 0, wins: 0)
+                    entry.totalScore += p.score
+                    if p.isWinner { entry.wins += 1 }
+                    agg[key] = entry
+                }
+            }
+            var aggregated = agg.values.map { e in
+                PlayerScore(name: e.name, avatar: e.avatar, score: e.totalScore, total: 0, isWinner: false)
+            }
+            aggregated.sort { $0.score > $1.score }
+            let maxScore = aggregated.first?.score ?? 0
+            aggregated = aggregated.map {
+                PlayerScore(name: $0.name, avatar: $0.avatar, score: $0.score, total: $0.total, isWinner: $0.score == maxScore && maxScore > 0)
+            }
+
+            return .emojiMatch(title: gameType, subtitle: subtitle, games: gameRounds, aggregated: aggregated)
+        }
+        return nil
+    }
+
+    var body: some View {
+        if let data = parsed {
+            VStack(spacing: 10) {
+                switch data {
+                case .emojiMatch(let title, let subtitle, let games, let aggregated):
+                    // Header
+                    VStack(spacing: 2) {
+                        Text("🃏 \(title)")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                        Text(subtitle)
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+
+                    // Per-game results
+                    ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Game \(idx + 1)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.8))
+                            HStack(spacing: 8) {
+                                ForEach(game.players) { p in
+                                    HStack(spacing: 3) {
+                                        Text(presetAvatar(for: p.avatar).emoji)
+                                            .font(.system(size: 12))
+                                        Text(p.name + ":")
+                                            .font(.system(size: 11))
+                                        Text("\(p.score)")
+                                            .font(.system(size: 11, weight: .bold))
+                                        if p.isWinner { Text("👑").font(.system(size: 10)) }
+                                    }
+                                    .foregroundColor(.white)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+
+                    // Overall totals
+                    HStack(spacing: 8) {
+                        ForEach(aggregated) { player in
+                            VStack(spacing: 4) {
+                                Text(player.isWinner ? "👑" : "")
+                                    .font(.system(size: 12))
+                                    .frame(height: 14)
+                                Text(presetAvatar(for: player.avatar).emoji)
+                                    .font(.system(size: 24))
+                                Text(player.name)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                Text("\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .frame(minWidth: 65)
+                            .background(player.isWinner ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(player.isWinner ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                            )
+                        }
+                    }
+
+                case .litGame(let title, let subtitle, let players):
+                    // Header
+                    VStack(spacing: 2) {
+                        Text("🎮 \(title)")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                        Text(subtitle)
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+
+                    // Player score cards
+                    HStack(spacing: 8) {
+                        ForEach(players) { player in
+                            VStack(spacing: 4) {
+                                Text(player.isWinner ? "👑" : "")
+                                    .font(.system(size: 12))
+                                    .frame(height: 14)
+                                Text(presetAvatar(for: player.avatar).emoji)
+                                    .font(.system(size: 24))
+                                Text(player.name)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                Text("\(player.score)/\(player.total)")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .frame(minWidth: 65)
+                            .background(player.isWinner ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(player.isWinner ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                            )
+                        }
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(
+                LinearGradient(
+                    colors: [Color(red: 0.39, green: 0.4, blue: 0.95), Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.66, green: 0.33, blue: 0.97)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Color(red: 0.39, green: 0.4, blue: 0.95).opacity(0.3), radius: 8, y: 4)
+            .padding(.horizontal, 4)
+        } else {
+            SystemMessageRow(text: text, lang: lang)
+        }
+    }
+}
+
 // MARK: - System message (join/leave divider)
 
 private struct SystemMessageRow: View {
@@ -1210,9 +1492,12 @@ private struct SystemMessageRow: View {
         } else if action == "leave" {
             return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
         } else if action == "game" {
-            // name is like "Lost in Translation Level 2" or "Emojifyr"
+            // name is like "Lost in Translation Level 2" or "Emojifyr" or "Emoji Match"
             if name.hasPrefix("Emojifyr") {
                 return "🔥 \(L.t("Game Started: Emojifyr", lang))"
+            }
+            if name.hasPrefix("Emoji Match") {
+                return "🃏 \(L.t("Game Started: Match Emoji", lang))"
             }
             if let range = name.range(of: "Level "), let levelNum = Int(name[range.upperBound...].trimmingCharacters(in: .whitespaces)) {
                 return "🎮 \(L.t("Game Started: Lost in Translation", lang)) — \(L.t("Level", lang)) \(levelNum)"

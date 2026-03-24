@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { MessageItem } from "@/components/message-item";
 import { TypingIndicator } from "@/components/typing-indicator";
 import { t } from "@/lib/i18n";
+import { PRESET_AVATARS } from "@/lib/types";
 
 interface MessageData {
   _id: string;
@@ -177,9 +178,11 @@ export function MessageList({
             } else if (action === "back") {
               displayText = lang === "ja" ? `${name}${t("is back", lang)}` : `${name} ${t("is back", lang)}`;
             } else if (action === "game") {
-              // name is like "Lost in Translation Level 2" or "Emojifyr"
+              // name is like "Lost in Translation Level 2" or "Emojifyr" or "Emoji Match"
               if (name.startsWith("Emojifyr")) {
                 displayText = `🔥 ${t("Game Started: Emojifyr", lang)}`;
+              } else if (name.startsWith("Emoji Match")) {
+                displayText = `🃏 ${t("Game Started: Match Emoji", lang)}`;
               } else {
                 const levelMatch = name.match(/Level (\d+)/);
                 const levelStr = levelMatch ? ` — ${t("Level", lang)} ${levelMatch[1]}` : "";
@@ -187,6 +190,212 @@ export function MessageList({
               }
             } else if (action === "game_cancelled") {
               displayText = `🎮 ${t("Game ended", lang)}`;
+            } else if (action === "emoji_match_complete") {
+              // Legacy format — keep for old messages
+              const [headline, scores] = name.split("|");
+              elements.push(
+                <div
+                  key={message._id}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "0.15rem",
+                    margin: "0.5rem 0",
+                    padding: "0.5rem 1rem",
+                    background: "var(--bg)",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                    🃏 {headline}
+                  </span>
+                  <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
+                    {scores}
+                  </span>
+                </div>
+              );
+              return elements;
+            } else if (action === "emoji_match_summary" || action === "game_summary") {
+              try {
+                const data = JSON.parse(name);
+                const isEmojiMatch = action === "emoji_match_summary";
+                const getPlayerEmoji = (avatarId: string) =>
+                  PRESET_AVATARS.find((a) => a.id === avatarId)?.emoji ?? "👤";
+
+                type GameRound = { players: Array<{ name: string; avatar: string; score: number; isWinner: boolean }>; totalPairs: number; isTie: boolean };
+
+                if (isEmojiMatch) {
+                  // Multi-game format: data.games is an array of rounds
+                  const games: GameRound[] = data.games ?? [
+                    // Legacy single-game format fallback
+                    { players: data.players, totalPairs: data.totalPairs, isTie: data.isTie },
+                  ];
+                  const gameCount = games.length;
+
+                  // Aggregate total scores across all games per player (by name+avatar)
+                  const aggregated: Record<string, { name: string; avatar: string; totalScore: number; totalPairs: number; wins: number }> = {};
+                  for (const game of games) {
+                    for (const p of (game.players ?? [])) {
+                      const key = `${p.name}|${p.avatar}`;
+                      if (!aggregated[key]) aggregated[key] = { name: p.name, avatar: p.avatar, totalScore: 0, totalPairs: 0, wins: 0 };
+                      aggregated[key].totalScore += p.score;
+                      aggregated[key].totalPairs += game.totalPairs;
+                      if (p.isWinner) aggregated[key].wins += 1;
+                    }
+                  }
+                  const sortedAgg = Object.values(aggregated).sort((a, b) => b.totalScore - a.totalScore);
+                  const maxScore = sortedAgg[0]?.totalScore ?? 0;
+
+                  elements.push(
+                    <div
+                      key={message._id}
+                      style={{
+                        margin: "0.75rem 0",
+                        borderRadius: "16px",
+                        background: "linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)",
+                        padding: "1rem",
+                        color: "#fff",
+                        boxShadow: "0 4px 16px rgba(99, 102, 241, 0.3)",
+                      }}
+                    >
+                      {/* Header */}
+                      <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
+                          🃏 {data.gameType ?? "Match Emoji"}
+                        </div>
+                        <div style={{ fontSize: "0.75rem", opacity: 0.85, marginTop: "0.15rem" }}>
+                          {gameCount} {gameCount === 1 ? "game" : "games"} {t("played", lang)}
+                        </div>
+                      </div>
+
+                      {/* Per-game results */}
+                      {games.map((game, gi) => (
+                        <div
+                          key={gi}
+                          style={{
+                            background: "rgba(255,255,255,0.12)",
+                            borderRadius: "10px",
+                            padding: "0.5rem 0.6rem",
+                            marginBottom: gi < gameCount - 1 ? "0.4rem" : "0.6rem",
+                          }}
+                        >
+                          <div style={{ fontSize: "0.7rem", opacity: 0.8, marginBottom: "0.3rem", fontWeight: 600 }}>
+                            Game {gi + 1}
+                          </div>
+                          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                            {(game.players ?? []).map((p, pi) => (
+                              <span key={pi} style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.2rem" }}>
+                                {getPlayerEmoji(p.avatar)} {p.name}: <strong>{p.score}</strong>
+                                {p.isWinner ? " 👑" : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Overall totals */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "center",
+                          gap: "0.6rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {sortedAgg.map((p, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: "0.2rem",
+                              background: p.totalScore === maxScore && maxScore > 0 ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
+                              borderRadius: "12px",
+                              padding: "0.5rem 0.85rem",
+                              minWidth: "65px",
+                              border: p.totalScore === maxScore && maxScore > 0 ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid transparent",
+                            }}
+                          >
+                            <span style={{ fontSize: "0.75rem", height: "1rem", lineHeight: "1rem" }}>
+                              {p.totalScore === maxScore && maxScore > 0 ? "👑" : ""}
+                            </span>
+                            <span style={{ fontSize: "1.5rem" }}>
+                              {getPlayerEmoji(p.avatar)}
+                            </span>
+                            <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>
+                              {p.name}
+                            </span>
+                            <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                              {p.totalScore} {p.totalScore === 1 ? t("pair", lang) : t("pairs", lang)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                  return elements;
+                } else {
+                  // game_summary (Lost in Translation) — single game format
+                  const playerIds = Object.keys(data.players ?? {});
+                  const sorted = [...playerIds].sort((a, b) => (data.totals?.[b]?.correct ?? 0) - (data.totals?.[a]?.correct ?? 0));
+                  const maxCorrect = data.totals?.[sorted[0]]?.correct ?? 0;
+
+                  elements.push(
+                    <div
+                      key={message._id}
+                      style={{
+                        margin: "0.75rem 0",
+                        borderRadius: "16px",
+                        background: "linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)",
+                        padding: "1rem",
+                        color: "#fff",
+                        boxShadow: "0 4px 16px rgba(99, 102, 241, 0.3)",
+                      }}
+                    >
+                      <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
+                          🎮 {data.gameType ?? "Game"}{data.level ? ` — Level ${data.level}` : ""}
+                        </div>
+                        <div style={{ fontSize: "0.75rem", opacity: 0.85, marginTop: "0.15rem" }}>
+                          {data.cancelled ? t("Game ended early", lang) : t("Game Complete", lang)}
+                          {" · "}{data.rounds?.length ?? 0} {(data.rounds?.length ?? 0) === 1 ? "round" : "rounds"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                        {sorted.map((pid) => (
+                          <div
+                            key={pid}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: "0.2rem",
+                              background: (data.totals?.[pid]?.correct ?? 0) === maxCorrect && maxCorrect > 0 ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
+                              borderRadius: "12px",
+                              padding: "0.5rem 0.85rem",
+                              minWidth: "65px",
+                              border: (data.totals?.[pid]?.correct ?? 0) === maxCorrect && maxCorrect > 0 ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid transparent",
+                            }}
+                          >
+                            <span style={{ fontSize: "0.75rem", height: "1rem", lineHeight: "1rem" }}>
+                              {(data.totals?.[pid]?.correct ?? 0) === maxCorrect && maxCorrect > 0 ? "👑" : ""}
+                            </span>
+                            <span style={{ fontSize: "1.5rem" }}>{getPlayerEmoji(data.players[pid]?.avatar)}</span>
+                            <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>{data.players[pid]?.name ?? "?"}</span>
+                            <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>{data.totals?.[pid]?.correct ?? 0}/{data.totals?.[pid]?.total ?? 0}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                  return elements;
+                }
+              } catch {
+                displayText = action === "emoji_match_summary" ? "🃏 Match Emoji Summary" : "🎮 Game Summary";
+              }
             } else if (action === "game_correct") {
               const [guesserName, prompt] = name.split("|");
               displayText = `🎉 ${guesserName} ${t("guessed correctly!", lang)} (${prompt})`;

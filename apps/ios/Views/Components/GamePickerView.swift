@@ -3,6 +3,7 @@ import SwiftUI
 enum GamePickerTab: String, CaseIterable {
     case lostInTranslation = "Lost in Translation"
     case emojifyr = "Emojifyr"
+    case emojiMatch = "Emoji Match"
 }
 
 struct GamePickerView: View {
@@ -12,6 +13,7 @@ struct GamePickerView: View {
     let lang: String
     let onStartGame: (String, Int, Int) -> Void
     let onStartEmojifyr: () -> Void
+    let onStartEmojiMatch: () -> Void
     let onDismiss: () -> Void
 
     @State private var timerSeconds: Int = 20
@@ -65,6 +67,8 @@ struct GamePickerView: View {
                 lostInTranslationContent
             case .emojifyr:
                 emojifyrContent
+            case .emojiMatch:
+                emojiMatchContent
             }
         }
     }
@@ -146,6 +150,35 @@ struct GamePickerView: View {
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
             .disabled(playerCount < 2)
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Emoji Match
+
+    private var emojiMatchContent: some View {
+        VStack(spacing: 8) {
+            Text(L.t("Emoji Match", lang))
+                .font(.headline)
+
+            Text(L.t("Find matching emoji pairs! Take turns flipping cards.", lang))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Text("\(playerCount) \(L.t("players", lang))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(L.t("Works solo or multiplayer", lang))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button(L.t("Start Game", lang)) {
+                onStartEmojiMatch()
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
             .padding(.top, 8)
         }
     }

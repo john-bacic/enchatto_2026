@@ -240,7 +240,7 @@ class MockEnchattoAPI: EnchattoAPI {
         return UUID().uuidString
     }
 
-    func submitEmojifyrSentence(roundId: String, sentence: String) async throws {
+    func submitEmojifyrSentence(roundId: String, sentence: String, isInitialism: Bool) async throws {
         // Mock: no-op
     }
 
@@ -284,6 +284,30 @@ class MockEnchattoAPI: EnchattoAPI {
 
     func generateEmojiClueFromAI(sentence: String) async throws -> String {
         return "🐱💤🛋️"
+    }
+
+    // MARK: - Emoji Match
+
+    func createEmojiMatchLobby(roomId: String, hostParticipantId: String) async throws -> String {
+        return UUID().uuidString
+    }
+
+    func joinEmojiMatchLobby(gameId: String, participantId: String) async throws {}
+
+    func leaveEmojiMatchLobby(gameId: String, participantId: String) async throws {}
+
+    func startEmojiMatch(gameId: String, participantId: String) async throws {}
+
+    func flipEmojiMatchCard(gameId: String, participantId: String, cardId: String) async throws {}
+
+    func cancelEmojiMatch(gameId: String, participantId: String) async throws {}
+
+    func playAgainEmojiMatch(gameId: String, participantId: String) async throws -> String {
+        return UUID().uuidString
+    }
+
+    func getActiveEmojiMatch(roomId: String) async throws -> EmojiMatchGame? {
+        return nil
     }
 
 }

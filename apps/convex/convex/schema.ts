@@ -119,6 +119,9 @@ export default defineSchema({
       v.literal("reveal"),
       v.literal("complete")
     ),
+    isInitialism: v.optional(v.boolean()),
+    hintEn: v.optional(v.string()),
+    hintJa: v.optional(v.string()),
     maxCharacters: v.number(),
     startedAt: v.number(),
     revealedAt: v.optional(v.number()),
@@ -133,6 +136,57 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_roundId", ["roundId"]),
+
+  emojiMatchGames: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(
+      v.literal("lobby"),
+      v.literal("active"),
+      v.literal("resolving"),
+      v.literal("completed"),
+      v.literal("canceled")
+    ),
+    hostParticipantId: v.id("participants"),
+    players: v.array(v.object({
+      participantId: v.id("participants"),
+      nickname: v.string(),
+      avatarValue: v.string(),
+      joinedAt: v.number(),
+      isActive: v.boolean(),
+      score: v.number(),
+    })),
+    turnOrder: v.array(v.id("participants")),
+    currentTurnParticipantId: v.optional(v.id("participants")),
+    board: v.array(v.object({
+      cardId: v.string(),
+      pairKey: v.string(),
+      content: v.object({
+        kind: v.string(),
+        value: v.string(),
+      }),
+      isMatched: v.boolean(),
+      isRevealed: v.boolean(),
+    })),
+    selectedCardIds: v.array(v.string()),
+    matchedPairCount: v.number(),
+    totalPairs: v.number(),
+    boardRows: v.number(),
+    boardCols: v.number(),
+    turnTimeoutMs: v.optional(v.number()),
+    mismatchRevealMs: v.number(),
+    result: v.optional(v.object({
+      winnerParticipantIds: v.array(v.id("participants")),
+      isTie: v.boolean(),
+      endReason: v.string(),
+    })),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+    turnStartedAt: v.optional(v.number()),
+    resolveAt: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_roomId_status", ["roomId", "status"]),
 
   gameChains: defineTable({
     gameSessionId: v.id("gameSessions"),

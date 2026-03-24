@@ -32,6 +32,10 @@ class HostRoomViewModel: ObservableObject {
     @Published var emojifyrEmojiClue: String?
     @Published var isGeneratingEmoji: Bool = false
 
+    // MARK: - Emoji Match state
+    @Published var activeEmojiMatchGame: EmojiMatchGame?
+    private var emojiMatchPollTask: Task<Void, Never>?
+
     private let heuristicEmojiService: EmojiClueGenerationService = HeuristicEmojiClueService()
 
     // MARK: - Draw countdown beep state
@@ -153,6 +157,7 @@ class HostRoomViewModel: ObservableObject {
         processingTask = nil
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        stopEmojiMatchFastPoll()
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
@@ -230,6 +235,9 @@ class HostRoomViewModel: ObservableObject {
 
             // Poll Emojifyr state
             await pollEmojifyrState()
+
+            // Poll Emoji Match state
+            await pollEmojiMatchState()
 
             isLoading = false
         } catch {
@@ -527,8 +535,9 @@ class HostRoomViewModel: ObservableObject {
     func submitEmojifyrSentence(_ sentence: String) async {
         guard let round = currentEmojifyrRound else { return }
         guard networkMonitor.isConnected else { return }
+        let isInit = EmojifyrRandomPhrases.definition(for: sentence, lang: "en") != nil
         do {
-            try await api.submitEmojifyrSentence(roundId: round.id, sentence: sentence)
+            try await api.submitEmojifyrSentence(roundId: round.id, sentence: sentence, isInitialism: isInit)
             await generateEmojiClue(for: sentence)
             await refresh()
         } catch {
@@ -919,5 +928,135 @@ class HostRoomViewModel: ObservableObject {
         drawCountdownTimer = nil
         drawCountdownTimeLeft = -1
         trackedDrawStartMs = nil
+    }
+
+    // MARK: - Emoji Match
+
+    func pollEmojiMatchState() async {
+        do {
+            let game = try await api.getActiveEmojiMatch(roomId: roomId)
+            // Always trust server state — optimistic updates in flipEmojiMatchCard
+            // give instant local feedback, server catches up within 500ms
+            activeEmojiMatchGame = game
+
+            // Start or stop fast polling based on game state
+            let needsFastPoll = game != nil &&
+                (game!.status == .active || game!.status == .resolving || game!.status == .lobby)
+            if needsFastPoll && emojiMatchPollTask == nil {
+                startEmojiMatchFastPoll()
+            } else if !needsFastPoll && emojiMatchPollTask != nil {
+                stopEmojiMatchFastPoll()
+            }
+        } catch {
+            print("Error polling Emoji Match state: \(error)")
+        }
+    }
+
+    private func startEmojiMatchFastPoll() {
+        guard emojiMatchPollTask == nil else { return }
+        emojiMatchPollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                guard !Task.isCancelled else { break }
+                do {
+                    let game = try await self.api.getActiveEmojiMatch(roomId: self.roomId)
+                    self.activeEmojiMatchGame = game
+                    // Stop fast polling if game ended
+                    if game == nil || game!.status == .completed || game!.status == .canceled {
+                        break
+                    }
+                } catch {
+                    // Continue polling on transient errors
+                }
+            }
+            self.emojiMatchPollTask = nil
+        }
+    }
+
+    private func stopEmojiMatchFastPoll() {
+        emojiMatchPollTask?.cancel()
+        emojiMatchPollTask = nil
+    }
+
+    func createEmojiMatchLobby() async {
+        do {
+            _ = try await api.createEmojiMatchLobby(roomId: roomId, hostParticipantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            print("Error creating Emoji Match lobby: \(error)")
+        }
+    }
+
+    func joinEmojiMatchLobby() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.joinEmojiMatchLobby(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            print("Error joining Emoji Match lobby: \(error)")
+        }
+    }
+
+    func leaveEmojiMatchLobby() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.leaveEmojiMatchLobby(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            print("Error leaving Emoji Match lobby: \(error)")
+        }
+    }
+
+    func startEmojiMatch() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.startEmojiMatch(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            print("Error starting Emoji Match: \(error)")
+        }
+    }
+
+    func flipEmojiMatchCard(cardId: String) async {
+        guard var game = activeEmojiMatchGame else { return }
+        let gameId = game.id
+
+        // Optimistic update: immediately reveal the card locally for instant feedback
+        if let idx = game.board.firstIndex(where: { $0.cardId == cardId }) {
+            game.board[idx].isRevealed = true
+            activeEmojiMatchGame = game
+        }
+
+        do {
+            try await api.flipEmojiMatchCard(gameId: gameId, participantId: hostId, cardId: cardId)
+            // Immediately fetch authoritative state — server has processed the flip
+            // This replaces local state entirely, so mismatch resolution will
+            // correctly flip cards back when the server sets isRevealed=false
+            await pollEmojiMatchState()
+        } catch {
+            print("Error flipping card: \(error)")
+            await pollEmojiMatchState()
+        }
+    }
+
+    func cancelEmojiMatch() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.cancelEmojiMatch(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            print("Error canceling Emoji Match: \(error)")
+        }
+    }
+
+    func playAgainEmojiMatch() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            _ = try await api.playAgainEmojiMatch(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            print("Error playing again: \(error)")
+        }
     }
 }

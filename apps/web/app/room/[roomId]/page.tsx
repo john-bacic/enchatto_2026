@@ -13,6 +13,7 @@ import { GameTaskOverlay } from "@/components/game-task-overlay";
 import { GameReplayModal } from "@/components/game-replay-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
 import { EmojifyrGameScreen } from "@/components/emojifyr-game-screen";
+import { EmojiMatchGame } from "@/components/emoji-match-game";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -42,6 +43,7 @@ function RoomContent() {
   const [showGamePicker, setShowGamePicker] = useState(false);
   const [showGameReplay, setShowGameReplay] = useState(false);
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
+  const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
 
   // Network status & offline queue
   const { isOnline } = useNetworkStatus();
@@ -88,6 +90,11 @@ function RoomContent() {
   const emojifyrSession = emojifyrState?.session ?? null;
   const emojifyrRound = emojifyrState?.currentRound ?? null;
   const emojifyrGuesses = emojifyrState?.guesses ?? [];
+
+  // Emoji Match real-time subscription
+  const emojiMatchGame = useQuery(api.emojiMatch.getActiveEmojiMatch, {
+    roomId: roomId as Id<"rooms">,
+  });
 
 
   // Auto-show game replay when a game completes or is cancelled
@@ -396,6 +403,17 @@ function RoomContent() {
   const updateEmojifyrSentenceMutation = useMutation(api.games.updateEmojifyrSentence);
   const generateEmojiClueAction = useAction(api.games.generateEmojiClue);
 
+  // Emoji Match mutations
+  const createEmojiMatchLobby = useMutation(api.emojiMatch.createLobby);
+  const joinEmojiMatchLobby = useMutation(api.emojiMatch.joinLobby);
+  const leaveEmojiMatchLobby = useMutation(api.emojiMatch.leaveLobby);
+  const startEmojiMatch = useMutation(api.emojiMatch.startGame);
+  const flipEmojiMatchCard = useMutation(api.emojiMatch.flipCard);
+  const resolveEmojiMatchMismatch = useMutation(api.emojiMatch.resolveMismatch);
+  const cancelEmojiMatch = useMutation(api.emojiMatch.cancelGame);
+  const timeoutEmojiMatchTurn = useMutation(api.emojiMatch.timeoutTurn);
+  const playAgainEmojiMatch = useMutation(api.emojiMatch.playAgain);
+
   const cancelGameMutation = useMutation(api.games.cancelGame);
   const handleStartGame = useCallback(
     async (gameType: string, level: number = 1, timerSeconds: number = 20) => {
@@ -447,12 +465,13 @@ function RoomContent() {
   );
 
   const handleSubmitEmojifyrSentence = useCallback(
-    async (sentence: string) => {
+    async (sentence: string, isInitialism?: boolean) => {
       if (!emojifyrRound) return;
       try {
         await submitEmojifyrSentenceMutation({
           roundId: emojifyrRound._id,
           sentence,
+          isInitialism: isInitialism || undefined,
         });
       } catch (err) {
         console.error("Failed to submit Emojifyr sentence:", err);
@@ -546,6 +565,142 @@ function RoomContent() {
       }
     },
     [updateEmojifyrSentenceMutation, emojifyrRound]
+  );
+
+  // Emoji Match handlers
+  const handleCreateEmojiMatchLobby = useCallback(
+    async () => {
+      if (!participantId) return;
+      try {
+        await createEmojiMatchLobby({
+          roomId: roomId as Id<"rooms">,
+          hostParticipantId: participantId as Id<"participants">,
+        });
+        setDismissedEmojiMatchId(null);
+        setShowGamePicker(false);
+      } catch (err) {
+        console.error("Failed to create Emoji Match lobby:", err);
+      }
+    },
+    [createEmojiMatchLobby, roomId, participantId]
+  );
+
+  const handleJoinEmojiMatchLobby = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await joinEmojiMatchLobby({
+          gameId: gameId as Id<"emojiMatchGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to join Emoji Match lobby:", err);
+      }
+    },
+    [joinEmojiMatchLobby, participantId]
+  );
+
+  const handleLeaveEmojiMatchLobby = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await leaveEmojiMatchLobby({
+          gameId: gameId as Id<"emojiMatchGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to leave Emoji Match lobby:", err);
+      }
+    },
+    [leaveEmojiMatchLobby, participantId]
+  );
+
+  const handleStartEmojiMatch = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await startEmojiMatch({
+          gameId: gameId as Id<"emojiMatchGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to start Emoji Match:", err);
+      }
+    },
+    [startEmojiMatch, participantId]
+  );
+
+  const handleFlipEmojiMatchCard = useCallback(
+    async (gameId: string, cardId: string) => {
+      if (!participantId) return;
+      try {
+        await flipEmojiMatchCard({
+          gameId: gameId as Id<"emojiMatchGames">,
+          cardId,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to flip card:", err);
+      }
+    },
+    [flipEmojiMatchCard, participantId]
+  );
+
+  const handleResolveEmojiMatchMismatch = useCallback(
+    async (gameId: string) => {
+      try {
+        await resolveEmojiMatchMismatch({
+          gameId: gameId as Id<"emojiMatchGames">,
+        });
+      } catch (err) {
+        console.error("Failed to resolve mismatch:", err);
+      }
+    },
+    [resolveEmojiMatchMismatch]
+  );
+
+  const handleCancelEmojiMatch = useCallback(
+    async (gameId: string) => {
+      try {
+        await cancelEmojiMatch({
+          gameId: gameId as Id<"emojiMatchGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to cancel Emoji Match:", err);
+      }
+    },
+    [cancelEmojiMatch, participantId]
+  );
+
+  const handleTimeoutEmojiMatchTurn = useCallback(
+    async (gameId: string, targetParticipantId: string) => {
+      try {
+        await timeoutEmojiMatchTurn({
+          gameId: gameId as Id<"emojiMatchGames">,
+          participantId: targetParticipantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to timeout turn:", err);
+      }
+    },
+    [timeoutEmojiMatchTurn]
+  );
+
+  const handlePlayAgainEmojiMatch = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await playAgainEmojiMatch({
+          gameId: gameId as Id<"emojiMatchGames">,
+          participantId: participantId as Id<"participants">,
+        });
+        setDismissedEmojiMatchId(null);
+      } catch (err) {
+        console.error("Failed to play again:", err);
+      }
+    },
+    [playAgainEmojiMatch, participantId]
   );
 
   const handleRevealEmojifyr = useCallback(
@@ -658,7 +813,7 @@ function RoomContent() {
   const displayMessages = [...messageList, ...queuedAsMessages].filter((m) => {
     if (m.kind === "system" && roomHostId && m.senderId === roomHostId) {
       const text = m.text ?? "";
-      if (text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:")) return true;
+      if (text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:") || text.startsWith("game_summary:") || text.startsWith("emoji_match_summary:") || text.startsWith("emoji_match_complete:")) return true;
       return false;
     }
     return true;
@@ -916,10 +1071,12 @@ function RoomContent() {
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
           onGameTap={() => setShowGamePicker(true)}
-          isGameActive={(activeGameSession != null || emojifyrSession != null) && me?.role === "host"}
+          isGameActive={(activeGameSession != null || emojifyrSession != null || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled")) && me?.role === "host"}
           onEndGame={me?.role === "host" ? async () => {
             if (confirm(t("This will end the game for all players and show results.", lang))) {
-              if (emojifyrSession) {
+              if (emojiMatchGame && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") {
+                await cancelEmojiMatch({ gameId: emojiMatchGame._id as Id<"emojiMatchGames">, participantId: participantId as Id<"participants"> });
+              } else if (emojifyrSession) {
                 await cancelEmojifyrMutation({ gameSessionId: emojifyrSession._id as Id<"gameSessions"> });
               } else {
                 await cancelGameMutation({ roomId: roomId as Id<"rooms">, participantId: participantId as Id<"participants"> });
@@ -1049,6 +1206,26 @@ function RoomContent() {
         />
       )}
 
+      {/* Emoji Match game overlay */}
+      {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId !== emojiMatchGame._id && (
+        <EmojiMatchGame
+          game={emojiMatchGame}
+          participants={participants}
+          myParticipantId={participantId}
+          isHost={me?.role === "host"}
+          lang={lang}
+          onJoinLobby={handleJoinEmojiMatchLobby}
+          onLeaveLobby={handleLeaveEmojiMatchLobby}
+          onStartGame={handleStartEmojiMatch}
+          onFlipCard={handleFlipEmojiMatchCard}
+          onResolveMismatch={handleResolveEmojiMatchMismatch}
+          onTimeoutTurn={handleTimeoutEmojiMatchTurn}
+          onCancelGame={handleCancelEmojiMatch}
+          onPlayAgain={handlePlayAgainEmojiMatch}
+          onClose={() => setDismissedEmojiMatchId(emojiMatchGame._id)}
+        />
+      )}
+
       {/* Game task overlay */}
       {myActiveStep && myActiveStep._id !== dismissedGameStepId && (
         <GameTaskOverlay
@@ -1081,6 +1258,7 @@ function RoomContent() {
         nextLevel={(latestGameSession?.status === "complete" && latestGameSession?.level && !latestGameSession?.cancelled) ? (latestGameSession.level as number) + 1 : 1}
         onStartGame={handleStartGame}
         onStartEmojifyr={handleStartEmojifyr}
+        onStartEmojiMatch={handleCreateEmojiMatchLobby}
         onRequestGame={(msg) => handleSend(msg)}
         onClose={() => setShowGamePicker(false)}
         lang={lang}
