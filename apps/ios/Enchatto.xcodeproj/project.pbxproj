@@ -336,6 +336,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		726D310D0C4080C39021ED6B /* Inject Git Commit SHA */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
