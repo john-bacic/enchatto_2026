@@ -143,7 +143,7 @@ function LobbyView({
           {t("Emoji Match", lang)}
         </h2>
         <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "1rem", lineHeight: 1.5 }}>
-          {t("Find matching emoji pairs! Take turns flipping cards to find matches.", lang)}
+          {t("Match English and Japanese words! Flip cards to pair translations.", lang)}
         </p>
 
         {/* Player list */}
@@ -473,12 +473,31 @@ function MatchCard({
           border: card.isMatched
             ? "2px solid #22c55e"
             : "2px solid var(--primary)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "clamp(1.2rem, 4vw, 2rem)",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          gap: "2px", padding: "2px",
           opacity: card.isMatched ? 0.7 : 1,
           transition: "opacity 0.3s, background 0.3s",
         }}>
-          {card.content.value}
+          <span style={{ fontSize: "clamp(1rem, 3.5vw, 1.6rem)", lineHeight: 1 }}>
+            {card.content.value}
+          </span>
+          {card.content.label && (
+            <span style={{
+              fontSize: "clamp(0.45rem, 1.5vw, 0.65rem)",
+              fontWeight: 600,
+              color: "var(--foreground)",
+              lineHeight: 1.1,
+              textAlign: "center",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "100%",
+              whiteSpace: "nowrap",
+              padding: "0 2px",
+            }}>
+              {card.content.label}
+            </span>
+          )}
         </div>
       </div>
     </div>

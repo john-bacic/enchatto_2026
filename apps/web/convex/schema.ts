@@ -163,6 +163,7 @@ export default defineSchema({
       content: v.object({
         kind: v.string(),
         value: v.string(),
+        label: v.optional(v.string()),
       }),
       isMatched: v.boolean(),
       isRevealed: v.boolean(),

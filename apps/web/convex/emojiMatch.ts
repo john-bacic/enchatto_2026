@@ -5,10 +5,37 @@ import { Id } from "./_generated/dataModel";
 
 // --- Emoji pool ---
 
-const EMOJI_POOL = [
-  "🍎", "🍌", "🍓", "🍇", "🍒", "🐱", "🐶", "🐼", "🐸", "🦊",
-  "⚽", "🏀", "🎈", "⭐", "🌙", "☀️", "🚗", "✈️", "🍣", "🍜",
-  "🎵", "📱", "☕", "🎁", "🌸", "🗻", "⛩️", "🐟", "🍙", "🌈",
+const EMOJI_POOL: Array<{ emoji: string; en: string; ja: string }> = [
+  { emoji: "🍎", en: "Apple", ja: "りんご" },
+  { emoji: "🍌", en: "Banana", ja: "バナナ" },
+  { emoji: "🍓", en: "Strawberry", ja: "いちご" },
+  { emoji: "🍇", en: "Grapes", ja: "ぶどう" },
+  { emoji: "🍒", en: "Cherry", ja: "さくらんぼ" },
+  { emoji: "🐱", en: "Cat", ja: "ねこ" },
+  { emoji: "🐶", en: "Dog", ja: "いぬ" },
+  { emoji: "🐼", en: "Panda", ja: "パンダ" },
+  { emoji: "🐸", en: "Frog", ja: "かえる" },
+  { emoji: "🦊", en: "Fox", ja: "きつね" },
+  { emoji: "⚽", en: "Soccer", ja: "サッカー" },
+  { emoji: "🏀", en: "Basketball", ja: "バスケ" },
+  { emoji: "🎈", en: "Balloon", ja: "ふうせん" },
+  { emoji: "⭐", en: "Star", ja: "ほし" },
+  { emoji: "🌙", en: "Moon", ja: "つき" },
+  { emoji: "☀️", en: "Sun", ja: "たいよう" },
+  { emoji: "🚗", en: "Car", ja: "くるま" },
+  { emoji: "✈️", en: "Airplane", ja: "ひこうき" },
+  { emoji: "🍣", en: "Sushi", ja: "すし" },
+  { emoji: "🍜", en: "Ramen", ja: "ラーメン" },
+  { emoji: "🎵", en: "Music", ja: "おんがく" },
+  { emoji: "📱", en: "Phone", ja: "でんわ" },
+  { emoji: "☕", en: "Coffee", ja: "コーヒー" },
+  { emoji: "🎁", en: "Gift", ja: "プレゼント" },
+  { emoji: "🌸", en: "Cherry Blossom", ja: "さくら" },
+  { emoji: "🗻", en: "Mountain", ja: "やま" },
+  { emoji: "⛩️", en: "Shrine", ja: "じんじゃ" },
+  { emoji: "🐟", en: "Fish", ja: "さかな" },
+  { emoji: "🍙", en: "Rice Ball", ja: "おにぎり" },
+  { emoji: "🌈", en: "Rainbow", ja: "にじ" },
 ];
 
 // --- Helpers ---
@@ -249,30 +276,31 @@ export const startGame = mutation({
 
     const { rows, cols, pairs } = getBoardConfig(activePlayers.length);
 
-    // Pick random emojis and create pairs
+    // Pick random emojis and create English/Japanese pairs
     const selectedEmojis = shuffleArray(EMOJI_POOL).slice(0, pairs);
 
     const cards: Array<{
       cardId: string;
       pairKey: string;
-      content: { kind: string; value: string };
+      content: { kind: string; value: string; label?: string };
       isMatched: boolean;
       isRevealed: boolean;
     }> = [];
 
     for (let i = 0; i < selectedEmojis.length; i++) {
       const pairKey = `pair_${i}`;
+      const item = selectedEmojis[i];
       cards.push({
         cardId: `card_${i * 2}`,
         pairKey,
-        content: { kind: "emoji", value: selectedEmojis[i] },
+        content: { kind: "emoji", value: item.emoji, label: item.en },
         isMatched: false,
         isRevealed: false,
       });
       cards.push({
         cardId: `card_${i * 2 + 1}`,
         pairKey,
-        content: { kind: "emoji", value: selectedEmojis[i] },
+        content: { kind: "emoji", value: item.emoji, label: item.ja },
         isMatched: false,
         isRevealed: false,
       });
