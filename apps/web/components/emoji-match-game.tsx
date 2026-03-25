@@ -58,23 +58,29 @@ export function EmojiMatchGame({
     prevStatusRef.current = game.status;
   }, [game.status]);
 
-  // Auto-resolve mismatch after delay
-  const resolveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const resolveCalledRef = useRef(false);
-
+  // Auto-resolve mismatch — poll until resolved instead of single attempt
   useEffect(() => {
-    if (game.status === "resolving" && game.resolveAt && !resolveCalledRef.current) {
-      const delay = Math.max(0, game.resolveAt - Date.now()) + 100;
-      resolveTimerRef.current = setTimeout(() => {
-        resolveCalledRef.current = true;
+    if (game.status !== "resolving") return;
+
+    const tryResolve = () => {
+      // Only attempt if the reveal period should have passed
+      if (game.resolveAt && Date.now() >= game.resolveAt) {
         onResolveMismatch(game._id);
-      }, delay);
-    }
-    if (game.status !== "resolving") {
-      resolveCalledRef.current = false;
-    }
+      }
+    };
+
+    // Initial attempt after the reveal delay
+    const initialDelay = game.resolveAt
+      ? Math.max(0, game.resolveAt - Date.now()) + 200
+      : 1300;
+    const timer = setTimeout(tryResolve, initialDelay);
+
+    // Keep retrying every 500ms in case the first attempt fails
+    const interval = setInterval(tryResolve, 500);
+
     return () => {
-      if (resolveTimerRef.current) clearTimeout(resolveTimerRef.current);
+      clearTimeout(timer);
+      clearInterval(interval);
     };
   }, [game.status, game.resolveAt, game._id, onResolveMismatch]);
 

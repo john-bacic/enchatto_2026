@@ -472,10 +472,8 @@ export const resolveMismatch = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
-    if (game.status !== "resolving") throw new Error("Game is not in resolving state");
-    if (game.resolveAt && Date.now() < game.resolveAt) {
-      throw new Error("Mismatch reveal period has not elapsed yet");
-    }
+    if (game.status !== "resolving") return; // Already resolved — no error
+    if (game.resolveAt && Date.now() < game.resolveAt) return; // Too early — wait
     await doResolveMismatch(ctx, game);
   },
 });
