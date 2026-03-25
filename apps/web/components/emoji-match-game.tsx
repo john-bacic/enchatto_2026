@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { t } from "@/lib/i18n";
 import { getAvatarById } from "@/lib/types";
 
@@ -422,7 +422,7 @@ function GameBoardView({
 
 /* ── Card ──────────────────────────────────────────────────── */
 
-function MatchCard({
+const MatchCard = memo(function MatchCard({
   card,
   isClickable,
   onClick,
@@ -431,18 +431,6 @@ function MatchCard({
   isClickable: boolean;
   onClick: () => void;
 }) {
-  const [animating, setAnimating] = useState(false);
-  const prevRevealedRef = useRef(card.isRevealed);
-
-  useEffect(() => {
-    if (card.isRevealed !== prevRevealedRef.current) {
-      setAnimating(true);
-      const timer = setTimeout(() => setAnimating(false), 350);
-      prevRevealedRef.current = card.isRevealed;
-      return () => clearTimeout(timer);
-    }
-  }, [card.isRevealed]);
-
   const showFace = card.isRevealed || card.isMatched;
 
   return (
@@ -462,6 +450,7 @@ function MatchCard({
         transformStyle: "preserve-3d",
         transition: "transform 0.35s ease",
         transform: showFace ? "rotateY(180deg)" : "rotateY(0deg)",
+        willChange: "transform",
       }}>
         {/* Back face */}
         <div style={{
@@ -519,7 +508,12 @@ function MatchCard({
       </div>
     </div>
   );
-}
+}, (prev, next) => {
+  // Only re-render if this card's state actually changed
+  return prev.card.isRevealed === next.card.isRevealed
+    && prev.card.isMatched === next.card.isMatched
+    && prev.isClickable === next.isClickable;
+});
 
 /* ── Completed ─────────────────────────────────────────────── */
 
