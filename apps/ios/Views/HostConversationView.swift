@@ -702,7 +702,7 @@ struct HostConversationView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "gamecontroller.fill")
                             .font(.system(size: 14))
-                        Text(L.t("Game", hostLanguage))
+                        Text(L.t("Games", hostLanguage))
                             .font(.system(size: 13, weight: .medium))
                     }
                     .foregroundStyle(.secondary)

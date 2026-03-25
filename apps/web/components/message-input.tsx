@@ -359,7 +359,7 @@ export function MessageInput({
                   flexShrink: 0,
                 }}
               >
-                {t("🎮 Game", lang)}
+                {t("🎮 Games", lang)}
               </button>
             ) : null}
 

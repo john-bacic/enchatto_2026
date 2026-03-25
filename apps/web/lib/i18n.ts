@@ -125,7 +125,7 @@ const translations: Record<string, Record<string, string>> = {
   "queued": { ja: "件待ち" },
 
   // Game
-  "🎮 Game": { ja: "🎮 ゲーム" },
+  "🎮 Games": { ja: "🎮 ゲーム" },
   "Games": { ja: "ゲーム" },
   "Only the host can start a game.": { ja: "ゲームを開始できるのはホストだけです。" },
   "Got it": { ja: "了解" },
