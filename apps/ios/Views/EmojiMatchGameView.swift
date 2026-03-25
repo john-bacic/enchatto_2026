@@ -214,17 +214,15 @@ struct EmojiMatchGameView: View {
                 .padding(.vertical, 6)
             }
 
-            // Board grid
+            // Board grid — centered, no scrolling
             let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: game.boardCols)
-            ScrollView {
-                LazyVGrid(columns: cols, spacing: 6) {
-                    ForEach(game.board) { card in
-                        cardView(card: card, canFlip: canFlip && !card.isMatched && !card.isRevealed, game: game)
-                    }
+            Spacer()
+            LazyVGrid(columns: cols, spacing: 6) {
+                ForEach(game.board) { card in
+                    cardView(card: card, canFlip: canFlip && !card.isMatched && !card.isRevealed, game: game)
                 }
-                .padding()
             }
-
+            .padding()
             Spacer()
         }
     }
