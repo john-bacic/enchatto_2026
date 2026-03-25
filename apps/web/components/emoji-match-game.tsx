@@ -94,6 +94,21 @@ export function EmojiMatchGame({
     );
   }
 
+  // Stabilize callbacks to prevent effect churn in GameBoardView
+  const gameId = game._id;
+  const currentTurnId = game.currentTurnParticipantId;
+  const stableOnFlipCard = useCallback(
+    (cardId: string) => onFlipCard(gameId, cardId),
+    [onFlipCard, gameId]
+  );
+  const stableOnTimeoutTurn = useCallback(() => {
+    if (currentTurnId) onTimeoutTurn(gameId, currentTurnId);
+  }, [onTimeoutTurn, gameId, currentTurnId]);
+  const stableOnCancel = useCallback(
+    () => onCancelGame(gameId),
+    [onCancelGame, gameId]
+  );
+
   if (game.status === "active" || game.status === "resolving" || (game.status === "completed" && !showCompleted)) {
     return (
       <GameBoardView
@@ -102,12 +117,9 @@ export function EmojiMatchGame({
         isMyTurn={isMyTurn}
         amHost={amHost}
         lang={lang}
-        onFlipCard={(cardId) => onFlipCard(game._id, cardId)}
-        onTimeoutTurn={() =>
-          game.currentTurnParticipantId &&
-          onTimeoutTurn(game._id, game.currentTurnParticipantId)
-        }
-        onCancel={() => onCancelGame(game._id)}
+        onFlipCard={stableOnFlipCard}
+        onTimeoutTurn={stableOnTimeoutTurn}
+        onCancel={stableOnCancel}
       />
     );
   }
@@ -254,7 +266,6 @@ function GameBoardView({
   onTimeoutTurn: () => void;
   onCancel: () => void;
 }) {
-  const isResolving = game.status === "resolving";
   const currentPlayer = game.players.find(
     (p: any) => p.participantId === game.currentTurnParticipantId
   );
@@ -287,7 +298,7 @@ function GameBoardView({
     return () => clearInterval(interval);
   }, [game.turnTimeoutMs, game.turnStartedAt, onTimeoutTurn]);
 
-  const canFlip = isMyTurn && !isResolving && game.selectedCardIds.length < 2;
+  const canFlip = isMyTurn && game.status === "active" && game.selectedCardIds.length < 2;
 
   return (
     <div style={{
