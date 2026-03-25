@@ -298,15 +298,25 @@ export const startGame = mutation({
       turnStartedAt: now,
     });
 
-    // Post system message
-    await ctx.db.insert("messages", {
-      roomId: game.roomId,
-      senderId: args.participantId,
-      kind: "system",
-      status: "processed",
-      text: `game:Emoji Match`,
-      createdAt: now,
-    });
+    // Post system message only for the first game in this room
+    const existingGameMsg = await ctx.db
+      .query("messages")
+      .withIndex("by_roomId_createdAt", (q: any) => q.eq("roomId", game.roomId))
+      .order("desc")
+      .collect();
+    const alreadyPosted = existingGameMsg.some(
+      (m: any) => m.kind === "system" && m.text === "game:Emoji Match"
+    );
+    if (!alreadyPosted) {
+      await ctx.db.insert("messages", {
+        roomId: game.roomId,
+        senderId: args.participantId,
+        kind: "system",
+        status: "processed",
+        text: `game:Emoji Match`,
+        createdAt: now,
+      });
+    }
   },
 });
 
