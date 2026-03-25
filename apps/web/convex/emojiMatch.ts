@@ -545,7 +545,8 @@ export const timeoutTurn = mutation({
       throw new Error("Not this player's turn");
     }
     if (!game.turnTimeoutMs || !game.turnStartedAt) return;
-    if (Date.now() - game.turnStartedAt < game.turnTimeoutMs) {
+    // Allow 1s grace for client/server clock skew
+    if (Date.now() - game.turnStartedAt < game.turnTimeoutMs - 1000) {
       throw new Error("Turn has not timed out yet");
     }
 
