@@ -285,12 +285,15 @@ export function MessageList({
                             Game {gi + 1}
                           </div>
                           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                            {(game.players ?? []).map((p, pi) => (
+                            {(() => { const sorted = [...(game.players ?? [])].sort((a, b) => b.score - a.score); return sorted.map((p, pi) => {
+                              const rank = sorted.findIndex(r => r.score === p.score);
+                              const placeEmoji = rank === 0 ? " 🏆" : rank === 1 ? " 🥈" : rank === 2 ? " 🥉" : "";
+                              return (
                               <span key={pi} style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.2rem" }}>
                                 {getPlayerEmoji(p.avatar)} {p.name}: <strong>{p.score}</strong>
-                                {p.isWinner ? " 👑" : ""}
+                                {placeEmoji}
                               </span>
-                            ))}
+                            ); }); })()}
                           </div>
                         </div>
                       ))}
@@ -304,7 +307,11 @@ export function MessageList({
                           flexWrap: "wrap",
                         }}
                       >
-                        {sortedAgg.map((p, idx) => (
+                        {sortedAgg.map((p, idx) => {
+                          const rank = sortedAgg.findIndex(r => r.totalScore === p.totalScore);
+                          const placeEmoji = rank === 0 ? "🏆" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
+                          const isTop3 = rank <= 2;
+                          return (
                           <div
                             key={idx}
                             style={{
@@ -312,15 +319,15 @@ export function MessageList({
                               flexDirection: "column",
                               alignItems: "center",
                               gap: "0.2rem",
-                              background: p.totalScore === maxScore && maxScore > 0 ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
+                              background: isTop3 && p.totalScore > 0 ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
                               borderRadius: "12px",
                               padding: "0.5rem 0.85rem",
                               minWidth: "65px",
-                              border: p.totalScore === maxScore && maxScore > 0 ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid transparent",
+                              border: rank === 0 && p.totalScore > 0 ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid transparent",
                             }}
                           >
                             <span style={{ fontSize: "0.75rem", height: "1rem", lineHeight: "1rem" }}>
-                              {p.totalScore === maxScore && maxScore > 0 ? "👑" : ""}
+                              {placeEmoji}
                             </span>
                             <span style={{ fontSize: "1.5rem" }}>
                               {getPlayerEmoji(p.avatar)}
@@ -332,7 +339,7 @@ export function MessageList({
                               {p.totalScore} {p.totalScore === 1 ? t("pair", lang) : t("pairs", lang)}
                             </span>
                           </div>
-                        ))}
+                        ); })}
                       </div>
                     </div>
                   );

@@ -1367,7 +1367,9 @@ private struct GameSummaryBanner: View {
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(.white.opacity(0.8))
                             HStack(spacing: 8) {
-                                ForEach(game.players) { p in
+                                let sorted = game.players.sorted { $0.score > $1.score }
+                                ForEach(Array(sorted.enumerated()), id: \.element.id) { _, p in
+                                    let rank = sorted.firstIndex(where: { $0.score == p.score }) ?? 0
                                     HStack(spacing: 3) {
                                         Text(presetAvatar(for: p.avatar).emoji)
                                             .font(.system(size: 12))
@@ -1375,7 +1377,8 @@ private struct GameSummaryBanner: View {
                                             .font(.system(size: 11))
                                         Text("\(p.score)")
                                             .font(.system(size: 11, weight: .bold))
-                                        if p.isWinner { Text("👑").font(.system(size: 10)) }
+                                        Text(rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
+                                            .font(.system(size: 10))
                                     }
                                     .foregroundColor(.white)
                                 }
@@ -1390,9 +1393,10 @@ private struct GameSummaryBanner: View {
 
                     // Overall totals
                     HStack(spacing: 8) {
-                        ForEach(aggregated) { player in
+                        ForEach(Array(aggregated.enumerated()), id: \.element.id) { _, player in
+                            let rank = aggregated.firstIndex(where: { $0.score == player.score }) ?? 0
                             VStack(spacing: 4) {
-                                Text(player.isWinner ? "👑" : "")
+                                Text(rank == 0 && player.score > 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
                                     .font(.system(size: 12))
                                     .frame(height: 14)
                                 Text(presetAvatar(for: player.avatar).emoji)
