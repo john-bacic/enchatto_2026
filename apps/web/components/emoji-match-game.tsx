@@ -78,6 +78,21 @@ export function EmojiMatchGame({
     };
   }, [game.status, game.resolveAt, game._id, onResolveMismatch]);
 
+  // Stabilize callbacks — must be before any early returns (Rules of Hooks)
+  const gameId = game._id;
+  const currentTurnId = game.currentTurnParticipantId;
+  const stableOnFlipCard = useCallback(
+    (cardId: string) => onFlipCard(gameId, cardId),
+    [onFlipCard, gameId]
+  );
+  const stableOnTimeoutTurn = useCallback(() => {
+    if (currentTurnId) onTimeoutTurn(gameId, currentTurnId);
+  }, [onTimeoutTurn, gameId, currentTurnId]);
+  const stableOnCancel = useCallback(
+    () => onCancelGame(gameId),
+    [onCancelGame, gameId]
+  );
+
   if (game.status === "lobby") {
     return (
       <LobbyView
@@ -93,21 +108,6 @@ export function EmojiMatchGame({
       />
     );
   }
-
-  // Stabilize callbacks to prevent effect churn in GameBoardView
-  const gameId = game._id;
-  const currentTurnId = game.currentTurnParticipantId;
-  const stableOnFlipCard = useCallback(
-    (cardId: string) => onFlipCard(gameId, cardId),
-    [onFlipCard, gameId]
-  );
-  const stableOnTimeoutTurn = useCallback(() => {
-    if (currentTurnId) onTimeoutTurn(gameId, currentTurnId);
-  }, [onTimeoutTurn, gameId, currentTurnId]);
-  const stableOnCancel = useCallback(
-    () => onCancelGame(gameId),
-    [onCancelGame, gameId]
-  );
 
   if (game.status === "active" || game.status === "resolving" || (game.status === "completed" && !showCompleted)) {
     return (
