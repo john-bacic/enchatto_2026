@@ -307,7 +307,13 @@ export function MessageList({
                           flexWrap: "wrap",
                         }}
                       >
-                        {sortedAgg.map((p, idx) => {
+                        {(() => {
+                          // Podium order: 2nd, 1st, 3rd, then rest
+                          const podium = sortedAgg.length >= 3
+                            ? [sortedAgg[1], sortedAgg[0], sortedAgg[2], ...sortedAgg.slice(3)]
+                            : sortedAgg;
+                          return podium;
+                        })().map((p, idx) => {
                           const rank = sortedAgg.findIndex(r => r.totalScore === p.totalScore);
                           const placeEmoji = rank === 0 ? "🏆" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
                           const isTop3 = rank <= 2;

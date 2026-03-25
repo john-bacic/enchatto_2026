@@ -1391,9 +1391,12 @@ private struct GameSummaryBanner: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
 
-                    // Overall totals
+                    // Overall totals — podium order: 2nd, 1st, 3rd, then rest
+                    let podium: [PlayerScore] = aggregated.count >= 3
+                        ? [aggregated[1], aggregated[0], aggregated[2]] + Array(aggregated.dropFirst(3))
+                        : aggregated
                     HStack(spacing: 8) {
-                        ForEach(Array(aggregated.enumerated()), id: \.element.id) { _, player in
+                        ForEach(Array(podium.enumerated()), id: \.element.id) { _, player in
                             let rank = aggregated.firstIndex(where: { $0.score == player.score }) ?? 0
                             VStack(spacing: 4) {
                                 Text(rank == 0 && player.score > 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
