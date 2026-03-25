@@ -199,8 +199,9 @@ struct EmojiMatchGameView: View {
                 HStack(spacing: 12) {
                     ForEach(Array(rankedPlayers.enumerated()), id: \.element.id) { index, player in
                         let isCurrent = player.participantId == game.currentTurnParticipantId
+                        let rank = rankedPlayers.firstIndex(where: { $0.score == player.score }) ?? index
                         HStack(spacing: 4) {
-                            Text(index == 0 ? "🏆" : index == 1 ? "🥈" : index == 2 ? "🥉" : "")
+                            Text(rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
                                 .font(.system(size: 10))
                             Circle()
                                 .fill(Color.white.opacity(isCurrent ? 0.3 : 0.15))
@@ -278,8 +279,9 @@ struct EmojiMatchGameView: View {
             VStack(spacing: 8) {
                 ForEach(Array(sortedPlayers.enumerated()), id: \.element.id) { index, player in
                     let isMe = player.participantId == viewModel.hostId
+                    let rank = sortedPlayers.firstIndex(where: { $0.score == player.score }) ?? index
                     HStack(spacing: 8) {
-                        Text(index == 0 ? "🏆" : index == 1 ? "🥈" : index == 2 ? "🥉" : "\(index + 1).")
+                        Text(rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "\(index + 1).")
                             .font(.caption)
                             .frame(width: 24)
                         Circle()
