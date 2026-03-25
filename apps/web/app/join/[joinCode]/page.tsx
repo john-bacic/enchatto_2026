@@ -14,18 +14,15 @@ export default function JoinPage() {
   const router = useRouter();
   const joinCode = params.joinCode as string;
 
-  const [nickname, setNickname] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("enchatto_lastNickname") ?? "";
-    return "";
-  });
-  const [avatar, setAvatar] = useState<PresetAvatarId>(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("enchatto_lastAvatarId") as PresetAvatarId) ?? "cat";
-    return "cat";
-  });
-  const [language, setLanguage] = useState<LanguageCode>(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "ja";
-    return "ja";
-  });
+  const [nickname, setNickname] = useState("");
+  const [avatar, setAvatar] = useState<PresetAvatarId>("cat");
+  const [language, setLanguage] = useState<LanguageCode>("ja");
+
+  useEffect(() => {
+    setNickname(localStorage.getItem("enchatto_lastNickname") ?? "");
+    setAvatar((localStorage.getItem("enchatto_lastAvatarId") as PresetAvatarId) ?? "cat");
+    setLanguage((localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "ja");
+  }, []);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

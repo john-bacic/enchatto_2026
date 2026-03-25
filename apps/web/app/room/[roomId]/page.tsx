@@ -1403,7 +1403,7 @@ export default function RoomPage() {
             color: "var(--muted)",
           }}
         >
-          {t("Loading room...", typeof window !== "undefined" ? localStorage.getItem("enchatto_lastLanguage") ?? "ja" : "ja")}
+          {t("Loading room...", "ja")}
         </div>
       }
     >
