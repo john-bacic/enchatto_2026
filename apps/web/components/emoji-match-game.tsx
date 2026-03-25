@@ -495,7 +495,7 @@ function MatchCard({
               whiteSpace: "nowrap",
               padding: "0 2px",
               position: "absolute",
-              bottom: "3px",
+              bottom: "6px",
             }}>
               {card.content.label}
             </span>

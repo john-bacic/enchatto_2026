@@ -404,7 +404,7 @@ private struct FlipCardView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                             .padding(.horizontal, 2)
-                            .padding(.bottom, 3)
+                            .padding(.bottom, 6)
                     }
                 }
             )
