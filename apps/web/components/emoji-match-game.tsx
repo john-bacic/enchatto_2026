@@ -397,7 +397,7 @@ function GameBoardView({
       {/* Board */}
       <div style={{
         flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "0.75rem", overflow: "auto",
+        padding: "0.75rem", overflow: "hidden",
       }}>
         <div style={{
           display: "grid",
