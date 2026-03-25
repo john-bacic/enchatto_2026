@@ -600,7 +600,12 @@ export const cancelGame = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
-    if (game.hostParticipantId !== args.participantId) {
+
+    // Allow both the game lobby host and the room host to cancel
+    const participant = await ctx.db.get(args.participantId);
+    const isGameHost = game.hostParticipantId === args.participantId;
+    const isRoomHost = participant?.role === "host";
+    if (!isGameHost && !isRoomHost) {
       throw new Error("Only the host can cancel the game");
     }
     if (game.status === "completed" || game.status === "canceled") {

@@ -225,14 +225,9 @@ function LobbyView({
             </button>
           )}
           {amHost && (
-            <>
-              <button onClick={onStart} style={primaryBtnStyle}>
-                {t("Start Game", lang)}
-              </button>
-              <button onClick={onCancel} style={secondaryBtnStyle}>
-                {t("Cancel", lang)}
-              </button>
-            </>
+            <button onClick={onStart} style={primaryBtnStyle}>
+              {t("Start Game", lang)}
+            </button>
           )}
           {!amJoined && !amHost && (
             <button onClick={onClose} style={secondaryBtnStyle}>
@@ -321,17 +316,7 @@ function GameBoardView({
           <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
             {game.matchedPairCount}/{game.totalPairs}
           </span>
-          {amHost && (
-            <button
-              onClick={onCancel}
-              style={{
-                background: "none", border: "none", color: "#ef4444",
-                fontSize: "0.75rem", cursor: "pointer", fontWeight: 600,
-              }}
-            >
-              {t("End", lang)}
-            </button>
-          )}
+          {/* End Game is controlled by the iOS host only */}
         </div>
       </div>
 
