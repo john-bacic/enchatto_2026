@@ -64,6 +64,7 @@ struct EmojiMatchCard: Codable, Identifiable, Equatable {
 struct EmojiMatchContent: Codable, Equatable {
     let kind: String
     let value: String
+    let label: String?
 }
 
 struct EmojiMatchResult: Codable, Equatable {

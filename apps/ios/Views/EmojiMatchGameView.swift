@@ -392,8 +392,21 @@ private struct FlipCardView: View {
                     .stroke(card.isMatched ? Color.mint : Color.indigo, lineWidth: 2)
             )
             .overlay(
-                Text(card.content.value)
-                    .font(.system(size: 28))
+                VStack(spacing: 0) {
+                    Spacer()
+                    Text(card.content.value)
+                        .font(.system(size: 28))
+                    Spacer()
+                    if let label = card.content.label {
+                        Text(label)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, 2)
+                            .padding(.bottom, 3)
+                    }
+                }
             )
     }
 }

@@ -475,7 +475,7 @@ function MatchCard({
             : "2px solid var(--primary)",
           display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
-          gap: "2px", padding: "2px",
+          padding: "2px",
           opacity: card.isMatched ? 0.7 : 1,
           transition: "opacity 0.3s, background 0.3s",
         }}>
@@ -487,13 +487,15 @@ function MatchCard({
               fontSize: "clamp(0.45rem, 1.5vw, 0.65rem)",
               fontWeight: 600,
               color: "var(--foreground)",
-              lineHeight: 1.1,
+              lineHeight: 1,
               textAlign: "center",
               overflow: "hidden",
               textOverflow: "ellipsis",
               maxWidth: "100%",
               whiteSpace: "nowrap",
               padding: "0 2px",
+              position: "absolute",
+              bottom: "3px",
             }}>
               {card.content.label}
             </span>
