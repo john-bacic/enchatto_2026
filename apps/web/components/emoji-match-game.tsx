@@ -402,9 +402,9 @@ function GameBoardView({
         <div style={{
           display: "grid",
           gridTemplateColumns: `repeat(${game.boardCols}, 1fr)`,
-          gap: "6px",
+          gap: "8px",
           width: "100%",
-          maxWidth: `${game.boardCols * 70}px`,
+          maxWidth: `${game.boardCols * 90}px`,
         }}>
           {game.board.map((card: any) => (
             <MatchCard
