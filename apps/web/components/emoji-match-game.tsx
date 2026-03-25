@@ -365,20 +365,22 @@ function GameBoardView({
         )}
       </div>
 
-      {/* Score strip */}
+      {/* Score strip — sorted by score, with placement emojis */}
       <div style={{
         padding: "0.4rem 1rem", display: "flex", gap: "0.75rem",
         overflowX: "auto", borderBottom: "1px solid var(--border)",
         background: "var(--surface)",
       }}>
-        {game.players.filter((p: any) => p.isActive).map((p: any) => {
+        {[...game.players].filter((p: any) => p.isActive).sort((a: any, b: any) => b.score - a.score).map((p: any, i: number) => {
           const avatar = getAvatarById(p.avatarValue);
           const isCurrent = p.participantId === game.currentTurnParticipantId;
+          const placeEmoji = i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : "";
           return (
             <div key={p.participantId} style={{
               display: "flex", alignItems: "center", gap: "0.3rem",
               opacity: isCurrent ? 1 : 0.6, whiteSpace: "nowrap",
             }}>
+              {placeEmoji && <span style={{ fontSize: "0.6rem" }}>{placeEmoji}</span>}
               <span style={{
                 width: "20px", height: "20px", borderRadius: "50%",
                 background: avatar?.color ?? "var(--primary)",
@@ -580,7 +582,7 @@ function CompletedView({
                 padding: "0.35rem 0", fontWeight: isMe ? 700 : 400,
               }}>
                 <span style={{ fontSize: "0.75rem", color: "var(--muted)", width: "1.5rem" }}>
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}
+                  {i === 0 ? "🏆" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}
                 </span>
                 <span style={{
                   width: "22px", height: "22px", borderRadius: "50%",

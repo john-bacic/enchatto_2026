@@ -193,12 +193,15 @@ struct EmojiMatchGameView: View {
             .padding(.vertical, 6)
             .background(isMyTurn ? Color.yellow.opacity(0.15) : Color.clear)
 
-            // Score strip
+            // Score strip — sorted by score, with placement emojis
+            let rankedPlayers = game.players.filter(\.isActive).sorted { $0.score > $1.score }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(game.players.filter(\.isActive)) { player in
+                    ForEach(Array(rankedPlayers.enumerated()), id: \.element.id) { index, player in
                         let isCurrent = player.participantId == game.currentTurnParticipantId
                         HStack(spacing: 4) {
+                            Text(index == 0 ? "🏆" : index == 1 ? "🥈" : index == 2 ? "🥉" : "")
+                                .font(.system(size: 10))
                             Circle()
                                 .fill(Color.white.opacity(isCurrent ? 0.3 : 0.15))
                                 .frame(width: 20, height: 20)
@@ -276,7 +279,7 @@ struct EmojiMatchGameView: View {
                 ForEach(Array(sortedPlayers.enumerated()), id: \.element.id) { index, player in
                     let isMe = player.participantId == viewModel.hostId
                     HStack(spacing: 8) {
-                        Text(index == 0 ? "🥇" : index == 1 ? "🥈" : index == 2 ? "🥉" : "\(index + 1).")
+                        Text(index == 0 ? "🏆" : index == 1 ? "🥈" : index == 2 ? "🥉" : "\(index + 1).")
                             .font(.caption)
                             .frame(width: 24)
                         Circle()
