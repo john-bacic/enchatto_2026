@@ -43,6 +43,21 @@ export function EmojiMatchGame({
   );
   const amHost = game.hostParticipantId === myParticipantId;
 
+  // Delay showing completed screen so players can see the final board
+  const [showCompleted, setShowCompleted] = useState(false);
+  const prevStatusRef = useRef(game.status);
+
+  useEffect(() => {
+    if (game.status === "completed" && prevStatusRef.current !== "completed") {
+      const timer = setTimeout(() => setShowCompleted(true), 1500);
+      return () => clearTimeout(timer);
+    }
+    if (game.status !== "completed") {
+      setShowCompleted(false);
+    }
+    prevStatusRef.current = game.status;
+  }, [game.status]);
+
   // Auto-resolve mismatch after delay
   const resolveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const resolveCalledRef = useRef(false);
@@ -79,7 +94,7 @@ export function EmojiMatchGame({
     );
   }
 
-  if (game.status === "active" || game.status === "resolving") {
+  if (game.status === "active" || game.status === "resolving" || (game.status === "completed" && !showCompleted)) {
     return (
       <GameBoardView
         game={game}
@@ -97,7 +112,7 @@ export function EmojiMatchGame({
     );
   }
 
-  if (game.status === "completed") {
+  if (game.status === "completed" && showCompleted) {
     return (
       <CompletedView
         game={game}

@@ -5,6 +5,8 @@ struct EmojiMatchGameView: View {
     let lang: String
     let onDismiss: () -> Void
 
+    @State private var showCompleted = false
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -21,10 +23,24 @@ struct EmojiMatchGameView: View {
                 case .active, .resolving:
                     boardView(game: game)
                 case .completed:
-                    completedView(game: game)
+                    if showCompleted {
+                        completedView(game: game)
+                    } else {
+                        boardView(game: game)
+                    }
                 case .canceled:
                     EmptyView()
                 }
+            }
+        }
+        .onChange(of: viewModel.activeEmojiMatchGame?.status) { newStatus in
+            if newStatus == .completed {
+                showCompleted = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation { showCompleted = true }
+                }
+            } else {
+                showCompleted = false
             }
         }
     }
