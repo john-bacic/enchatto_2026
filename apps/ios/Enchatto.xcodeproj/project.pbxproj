@@ -19,6 +19,8 @@
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
 		5718E78DEE601BCE2326427C /* EmojiMatchGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */; };
+		AA1111111111111111111111 /* TruthOrDareGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222222222222222222222 /* TruthOrDareGame.swift */; };
+		AA3333333333333333333333 /* TruthOrDareGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4444444444444444444444 /* TruthOrDareGameView.swift */; };
 		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
 		5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */; };
 		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
@@ -79,6 +81,8 @@
 		56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomViewModel.swift; sourceTree = "<group>"; };
 		5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMemoryTranslationService.swift; sourceTree = "<group>"; };
 		5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatchGame.swift; sourceTree = "<group>"; };
+		AA2222222222222222222222 /* TruthOrDareGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGame.swift; sourceTree = "<group>"; };
+		AA4444444444444444444444 /* TruthOrDareGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGameView.swift; sourceTree = "<group>"; };
 		5D4D07C9C52F8ADCC4EDD899 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		5EE91A5BA76409C309044A18 /* EnchattoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoApp.swift; sourceTree = "<group>"; };
 		5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatchGameView.swift; sourceTree = "<group>"; };
@@ -229,6 +233,7 @@
 				E1A8E6C8CA5049AA09657E16 /* EmojifyrRandomPhrases.swift */,
 				5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */,
 				8B0373DCCC2C38FB107E44A1 /* Game.swift */,
+				AA2222222222222222222222 /* TruthOrDareGame.swift */,
 				5D4D07C9C52F8ADCC4EDD899 /* Message.swift */,
 				47566C0B30406CBDDDEAA04F /* Participant.swift */,
 				EB8E05A49B6BA14F2CFC1285 /* Room.swift */,
@@ -253,6 +258,7 @@
 			children = (
 				CEF6597A402DBBB3A83EB4DC /* EmojifyrGameView.swift */,
 				5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */,
+				AA4444444444444444444444 /* TruthOrDareGameView.swift */,
 				C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */,
 				190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */,
 				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
@@ -268,10 +274,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3559C030B885164E4E195F8C /* Build configuration list for PBXNativeTarget "Enchatto" */;
 			buildPhases = (
+				726D310D0C4080C39021ED6B /* Inject Git Commit SHA */,
 				71C4F326CE21B92EA485D735 /* Sources */,
 				6A8A6BBB7C4C66382A0A6C71 /* Resources */,
 				CBE77285521FC51E29BACC70 /* Frameworks */,
-				726D310D0C4080C39021ED6B /* Inject Git Commit SHA */,
 			);
 			buildRules = (
 			);
@@ -348,10 +354,11 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(SRCROOT)/GeneratedGitSHA.swift",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "SHA=$(git rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitSHA $SHA\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :GitCommitSHA string $SHA\" \"$PLIST\"\nfi\n";
+			shellScript = "SHA=$(git rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nSWIFT_FILE=\"${SRCROOT}/GeneratedGitSHA.swift\"\necho \"// Auto-generated — do not edit\" > \"$SWIFT_FILE\"\necho \"enum GeneratedGitSHA {\" >> \"$SWIFT_FILE\"\necho \"    static let value = \\\"$SHA\\\"\" >> \"$SWIFT_FILE\"\necho \"}\" >> \"$SWIFT_FILE\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -368,6 +375,8 @@
 				F7BECF54111959B75BF31E1A /* EmojiClueGenerationService.swift in Sources */,
 				5718E78DEE601BCE2326427C /* EmojiMatchGame.swift in Sources */,
 				7385117BD75BA9926C3619E1 /* EmojiMatchGameView.swift in Sources */,
+				AA1111111111111111111111 /* TruthOrDareGame.swift in Sources */,
+				AA3333333333333333333333 /* TruthOrDareGameView.swift in Sources */,
 				818A4D8C9C5FE9FF98A5D77B /* EmojifyrGameView.swift in Sources */,
 				742B3973392C4E18BA502FC0 /* EmojifyrGuessView.swift in Sources */,
 				E94395D385CA34DE42A68924 /* EmojifyrPreviewView.swift in Sources */,

@@ -16,6 +16,7 @@ import type * as messages from "../messages.js";
 import type * as participants from "../participants.js";
 import type * as reactions from "../reactions.js";
 import type * as rooms from "../rooms.js";
+import type * as truthOrDare from "../truthOrDare.js";
 
 import type {
   ApiFromModules,
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   participants: typeof participants;
   reactions: typeof reactions;
   rooms: typeof rooms;
+  truthOrDare: typeof truthOrDare;
 }>;
 
 /**

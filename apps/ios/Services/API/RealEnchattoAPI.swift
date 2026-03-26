@@ -476,4 +476,73 @@ class RealEnchattoAPI: EnchattoAPI {
         }
     }
 
+    // MARK: - Truth or Dare
+
+    func createTruthOrDare(roomId: String, hostParticipantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/truth-or-dare/create", body: [
+            "roomId": roomId,
+            "hostParticipantId": hostParticipantId,
+        ])
+        return response.gameId
+    }
+
+    func submitTruthOrDareChoice(gameId: String, participantId: String, choice: String) async throws {
+        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-choice", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "choice": choice,
+        ])
+    }
+
+    func submitTruthOrDareResponse(gameId: String, participantId: String, responseText: String?, responseMediaUrl: String?) async throws {
+        var body: [String: Any] = [
+            "gameId": gameId,
+            "participantId": participantId,
+        ]
+        if let responseText { body["responseText"] = responseText }
+        if let responseMediaUrl { body["responseMediaUrl"] = responseMediaUrl }
+        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-response", body: body)
+    }
+
+    func advanceTruthOrDareTurn(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/truth-or-dare/advance-turn", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func skipTruthOrDareTurn(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/truth-or-dare/skip-turn", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func endTruthOrDare(gameId: String, participantId: String) async throws {
+        let _: [String: String] = try await client.post("/api/truth-or-dare/end", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func submitTruthOrDareRating(turnId: String, participantId: String, score: Double) async throws {
+        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-rating", body: [
+            "turnId": turnId,
+            "participantId": participantId,
+            "score": score,
+        ] as [String : Any])
+    }
+
+    func getActiveTruthOrDare(roomId: String) async throws -> TruthOrDareGame? {
+        do {
+            let game: TruthOrDareGame = try await client.post("/api/truth-or-dare/active", body: [
+                "roomId": roomId,
+            ])
+            return game
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
 }

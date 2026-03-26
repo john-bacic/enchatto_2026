@@ -36,6 +36,10 @@ class HostRoomViewModel: ObservableObject {
     @Published var activeEmojiMatchGame: EmojiMatchGame?
     private var emojiMatchPollTask: Task<Void, Never>?
 
+    // MARK: - Truth or Dare state
+    @Published var activeTruthOrDareGame: TruthOrDareGame?
+    private var truthOrDarePollTask: Task<Void, Never>?
+
     private let heuristicEmojiService: EmojiClueGenerationService = HeuristicEmojiClueService()
 
     // MARK: - Draw countdown beep state
@@ -238,6 +242,9 @@ class HostRoomViewModel: ObservableObject {
 
             // Poll Emoji Match state
             await pollEmojiMatchState()
+
+            // Poll Truth or Dare state
+            await pollTruthOrDareState()
 
             isLoading = false
         } catch {
@@ -1057,6 +1064,117 @@ class HostRoomViewModel: ObservableObject {
             await pollEmojiMatchState()
         } catch {
             print("Error playing again: \(error)")
+        }
+    }
+
+    // MARK: - Truth or Dare
+
+    func pollTruthOrDareState() async {
+        do {
+            let game = try await api.getActiveTruthOrDare(roomId: roomId)
+            activeTruthOrDareGame = game
+            let needsFastPoll = game != nil && game!.status == .active
+            if needsFastPoll && truthOrDarePollTask == nil {
+                startTruthOrDareFastPoll()
+            } else if !needsFastPoll && truthOrDarePollTask != nil {
+                stopTruthOrDareFastPoll()
+            }
+        } catch {
+            print("Error polling Truth or Dare state: \(error)")
+        }
+    }
+
+    private func startTruthOrDareFastPoll() {
+        guard truthOrDarePollTask == nil else { return }
+        truthOrDarePollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s
+                guard !Task.isCancelled else { break }
+                do {
+                    let game = try await self.api.getActiveTruthOrDare(roomId: self.roomId)
+                    self.activeTruthOrDareGame = game
+                    if game == nil || game!.status != .active {
+                        break
+                    }
+                } catch {}
+            }
+            self.truthOrDarePollTask = nil
+        }
+    }
+
+    private func stopTruthOrDareFastPoll() {
+        truthOrDarePollTask?.cancel()
+        truthOrDarePollTask = nil
+    }
+
+    func createTruthOrDare() async {
+        do {
+            _ = try await api.createTruthOrDare(roomId: roomId, hostParticipantId: hostId)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error creating Truth or Dare: \(error)")
+        }
+    }
+
+    func submitTruthOrDareChoice(choice: String) async {
+        guard let game = activeTruthOrDareGame else { return }
+        do {
+            try await api.submitTruthOrDareChoice(gameId: game.id, participantId: hostId, choice: choice)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error submitting choice: \(error)")
+        }
+    }
+
+    func submitTruthOrDareResponse(responseText: String?, responseMediaUrl: String?) async {
+        guard let game = activeTruthOrDareGame else { return }
+        do {
+            try await api.submitTruthOrDareResponse(gameId: game.id, participantId: hostId, responseText: responseText, responseMediaUrl: responseMediaUrl)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error submitting response: \(error)")
+        }
+    }
+
+    func advanceTruthOrDareTurn() async {
+        guard let game = activeTruthOrDareGame else { return }
+        do {
+            try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error advancing turn: \(error)")
+        }
+    }
+
+    func skipTruthOrDareTurn() async {
+        guard let game = activeTruthOrDareGame else { return }
+        do {
+            try await api.skipTruthOrDareTurn(gameId: game.id, participantId: hostId)
+            // Auto-advance after skip
+            try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error skipping turn: \(error)")
+        }
+    }
+
+    func submitTruthOrDareRating(turnId: String, score: Double) async {
+        do {
+            try await api.submitTruthOrDareRating(turnId: turnId, participantId: hostId, score: score)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error submitting rating: \(error)")
+        }
+    }
+
+    func endTruthOrDare() async {
+        guard let game = activeTruthOrDareGame else { return }
+        do {
+            try await api.endTruthOrDare(gameId: game.id, participantId: hostId)
+            await pollTruthOrDareState()
+        } catch {
+            print("Error ending Truth or Dare: \(error)")
         }
     }
 }

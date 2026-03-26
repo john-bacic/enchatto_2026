@@ -310,6 +310,28 @@ class MockEnchattoAPI: EnchattoAPI {
         return nil
     }
 
+    // MARK: - Truth or Dare
+
+    func createTruthOrDare(roomId: String, hostParticipantId: String) async throws -> String {
+        return UUID().uuidString
+    }
+
+    func submitTruthOrDareChoice(gameId: String, participantId: String, choice: String) async throws {}
+
+    func submitTruthOrDareResponse(gameId: String, participantId: String, responseText: String?, responseMediaUrl: String?) async throws {}
+
+    func advanceTruthOrDareTurn(gameId: String, participantId: String) async throws {}
+
+    func skipTruthOrDareTurn(gameId: String, participantId: String) async throws {}
+
+    func endTruthOrDare(gameId: String, participantId: String) async throws {}
+
+    func submitTruthOrDareRating(turnId: String, participantId: String, score: Double) async throws {}
+
+    func getActiveTruthOrDare(roomId: String) async throws -> TruthOrDareGame? {
+        return nil
+    }
+
 }
 
 enum APIError: LocalizedError {

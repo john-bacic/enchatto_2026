@@ -158,4 +158,30 @@ protocol EnchattoAPI {
 
     /// Get the active Emoji Match game for a room
     func getActiveEmojiMatch(roomId: String) async throws -> EmojiMatchGame?
+
+    // MARK: - Truth or Dare
+
+    /// Create a Truth or Dare game
+    func createTruthOrDare(roomId: String, hostParticipantId: String) async throws -> String
+
+    /// Submit a truth/dare choice
+    func submitTruthOrDareChoice(gameId: String, participantId: String, choice: String) async throws
+
+    /// Submit a response
+    func submitTruthOrDareResponse(gameId: String, participantId: String, responseText: String?, responseMediaUrl: String?) async throws
+
+    /// Advance to next turn
+    func advanceTruthOrDareTurn(gameId: String, participantId: String) async throws
+
+    /// Skip current turn
+    func skipTruthOrDareTurn(gameId: String, participantId: String) async throws
+
+    /// End the game
+    func endTruthOrDare(gameId: String, participantId: String) async throws
+
+    /// Submit a rating for a turn
+    func submitTruthOrDareRating(turnId: String, participantId: String, score: Double) async throws
+
+    /// Get active Truth or Dare game state
+    func getActiveTruthOrDare(roomId: String) async throws -> TruthOrDareGame?
 }

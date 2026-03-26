@@ -590,4 +590,98 @@ http.route({
   }),
 });
 
+// --- Truth or Dare ---
+
+http.route({
+  path: "/api/truth-or-dare/create",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const gameId = await ctx.runMutation(api.truthOrDare.createGame, {
+      roomId: body.roomId,
+      hostParticipantId: body.hostParticipantId,
+    });
+    return { gameId };
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/submit-choice",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.submitChoice, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      choice: body.choice,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/submit-response",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.submitResponse, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      responseText: body.responseText,
+      responseMediaUrl: body.responseMediaUrl,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/advance-turn",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.advanceTurn, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/skip-turn",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.skipTurn, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/end",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.endGame, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/submit-rating",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.submitRating, {
+      turnId: body.turnId,
+      participantId: body.participantId,
+      score: body.score,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/active",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.truthOrDare.getActiveTruthOrDare, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
 export default http;

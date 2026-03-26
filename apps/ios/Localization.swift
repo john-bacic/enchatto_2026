@@ -196,6 +196,35 @@ enum L {
         "to write something...": ["ja": "が何か書くのを…"],
         "Someone": ["ja": "誰か"],
         "Game Starting...": ["ja": "ゲーム開始中…"],
+
+        // Truth or Dare
+        "Truth or Dare": ["ja": "どっちする？"],
+        "Game Started: Truth or Dare": ["ja": "ゲーム開始：どっちする？"],
+        "Truth or Dare?": ["ja": "どっちする？"],
+        "Truth": ["ja": "ほんとのこと"],
+        "Dare": ["ja": "チャレンジ"],
+        "A social game: answer a question or complete a challenge! Take turns with your group.": [
+            "ja": "みんなで順番に質問に答えたり、チャレンジしたりするゲームです！",
+        ],
+        "It's your turn!": ["ja": "あなたの番です！"],
+        "'s turn!": ["ja": "さんの番です！"],
+        "to choose...": ["ja": "が選んでいます…"],
+        "to respond...": ["ja": "が答えています…"],
+        "Skip": ["ja": "スキップ"],
+        "Next Turn": ["ja": "次の人へ"],
+        "Type your answer...": ["ja": "答えを入力…"],
+        "Take a photo": ["ja": "写真を撮る"],
+        "Draw your answer": ["ja": "絵で答える"],
+        "Send Answer": ["ja": "答えを送信"],
+        "Skipped!": ["ja": "スキップしました！"],
+        "answered:": ["ja": "の答え："],
+        "Rotates through all players": ["ja": "全員が順番にプレイ"],
+        "Waiting for host...": ["ja": "ホストを待っています…"],
+        "Rate this answer": ["ja": "この答えを評価"],
+        "Ratings": ["ja": "評価"],
+        "Submit Rating": ["ja": "評価を送信"],
+        "Waiting for others to rate...": ["ja": "他の人の評価を待っています…"],
+        "Skip ratings": ["ja": "評価をスキップ"],
     ]
 
     /// Translate a UI string. Returns the key unchanged for English or missing translations.

@@ -163,6 +163,7 @@ export default defineSchema({
       content: v.object({
         kind: v.string(),
         value: v.string(),
+        label: v.optional(v.string()),
       }),
       isMatched: v.boolean(),
       isRevealed: v.boolean(),
@@ -187,6 +188,53 @@ export default defineSchema({
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"]),
+
+  truthOrDareGames: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("canceled")
+    ),
+    hostParticipantId: v.id("participants"),
+    playerOrder: v.array(v.id("participants")),
+    currentTurnIndex: v.number(),
+    currentTurnParticipantId: v.optional(v.id("participants")),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_roomId_status", ["roomId", "status"]),
+
+  truthOrDareTurns: defineTable({
+    gameId: v.id("truthOrDareGames"),
+    turnIndex: v.number(),
+    participantId: v.id("participants"),
+    choice: v.optional(v.union(v.literal("truth"), v.literal("dare"))),
+    promptId: v.optional(v.string()),
+    promptText: v.optional(v.string()),
+    promptResponseType: v.optional(v.union(
+      v.literal("text"),
+      v.literal("photo"),
+      v.literal("drawing")
+    )),
+    responseText: v.optional(v.string()),
+    responseMediaUrl: v.optional(v.string()),
+    ratings: v.optional(v.array(v.object({
+      participantId: v.id("participants"),
+      score: v.number(),
+    }))),
+    status: v.union(
+      v.literal("waiting_for_choice"),
+      v.literal("waiting_for_response"),
+      v.literal("completed"),
+      v.literal("skipped")
+    ),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_gameId", ["gameId"])
+    .index("by_gameId_status", ["gameId", "status"]),
 
   gameChains: defineTable({
     gameSessionId: v.id("gameSessions"),

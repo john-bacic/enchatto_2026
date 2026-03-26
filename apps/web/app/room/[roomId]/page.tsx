@@ -14,6 +14,7 @@ import { GameReplayModal } from "@/components/game-replay-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
 import { EmojifyrGameScreen } from "@/components/emojifyr-game-screen";
 import { EmojiMatchGame } from "@/components/emoji-match-game";
+import { TruthOrDareGame } from "@/components/truth-or-dare-game";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -44,6 +45,7 @@ function RoomContent() {
   const [showGameReplay, setShowGameReplay] = useState(false);
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
   const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
+  const [dismissedTruthOrDareId, setDismissedTruthOrDareId] = useState<string | null>(null);
 
   // Network status & offline queue
   const { isOnline } = useNetworkStatus();
@@ -96,6 +98,10 @@ function RoomContent() {
     roomId: roomId as Id<"rooms">,
   });
 
+  // Truth or Dare real-time subscription
+  const truthOrDareGame = useQuery(api.truthOrDare.getActiveTruthOrDare, {
+    roomId: roomId as Id<"rooms">,
+  });
 
   // Auto-show game replay when a game completes or is cancelled
   const prevActiveGameRef = useRef(activeGameSession);
@@ -703,6 +709,133 @@ function RoomContent() {
     [playAgainEmojiMatch, participantId]
   );
 
+  // Truth or Dare mutations
+  const createTruthOrDare = useMutation(api.truthOrDare.createGame);
+  const submitTruthOrDareChoice = useMutation(api.truthOrDare.submitChoice);
+  const submitTruthOrDareResponse = useMutation(api.truthOrDare.submitResponse);
+  const advanceTruthOrDareTurn = useMutation(api.truthOrDare.advanceTurn);
+  const skipTruthOrDareTurn = useMutation(api.truthOrDare.skipTurn);
+  const endTruthOrDare = useMutation(api.truthOrDare.endGame);
+  const submitTruthOrDareRating = useMutation(api.truthOrDare.submitRating);
+
+  const handleCreateTruthOrDare = useCallback(
+    async () => {
+      if (!participantId) return;
+      try {
+        await createTruthOrDare({
+          roomId: roomId as Id<"rooms">,
+          hostParticipantId: participantId as Id<"participants">,
+        });
+        setDismissedTruthOrDareId(null);
+        setShowGamePicker(false);
+      } catch (err) {
+        console.error("Failed to create Truth or Dare:", err);
+      }
+    },
+    [createTruthOrDare, roomId, participantId]
+  );
+
+  const handleSubmitTruthOrDareChoice = useCallback(
+    async (gameId: string, choice: "truth" | "dare") => {
+      if (!participantId) return;
+      try {
+        await submitTruthOrDareChoice({
+          gameId: gameId as Id<"truthOrDareGames">,
+          participantId: participantId as Id<"participants">,
+          choice,
+        });
+      } catch (err) {
+        console.error("Failed to submit choice:", err);
+      }
+    },
+    [submitTruthOrDareChoice, participantId]
+  );
+
+  const handleSubmitTruthOrDareResponse = useCallback(
+    async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
+      if (!participantId) return;
+      try {
+        await submitTruthOrDareResponse({
+          gameId: gameId as Id<"truthOrDareGames">,
+          participantId: participantId as Id<"participants">,
+          responseText,
+          responseMediaUrl,
+        });
+      } catch (err) {
+        console.error("Failed to submit response:", err);
+      }
+    },
+    [submitTruthOrDareResponse, participantId]
+  );
+
+  const handleAdvanceTruthOrDareTurn = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await advanceTruthOrDareTurn({
+          gameId: gameId as Id<"truthOrDareGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to advance turn:", err);
+      }
+    },
+    [advanceTruthOrDareTurn, participantId]
+  );
+
+  const handleSkipTruthOrDareTurn = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await skipTruthOrDareTurn({
+          gameId: gameId as Id<"truthOrDareGames">,
+          participantId: participantId as Id<"participants">,
+        });
+        // After skipping, auto-advance if host
+        if (me?.role === "host") {
+          await advanceTruthOrDareTurn({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to skip turn:", err);
+      }
+    },
+    [skipTruthOrDareTurn, advanceTruthOrDareTurn, participantId, me?.role]
+  );
+
+  const handleEndTruthOrDare = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await endTruthOrDare({
+          gameId: gameId as Id<"truthOrDareGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to end Truth or Dare:", err);
+      }
+    },
+    [endTruthOrDare, participantId]
+  );
+
+  const handleSubmitTruthOrDareRating = useCallback(
+    async (turnId: string, score: number) => {
+      if (!participantId) return;
+      try {
+        await submitTruthOrDareRating({
+          turnId: turnId as Id<"truthOrDareTurns">,
+          participantId: participantId as Id<"participants">,
+          score,
+        });
+      } catch (err) {
+        console.error("Failed to submit rating:", err);
+      }
+    },
+    [submitTruthOrDareRating, participantId]
+  );
+
   const handleRevealEmojifyr = useCallback(
     async () => {
       if (!emojifyrRound) return;
@@ -1061,6 +1194,7 @@ function RoomContent() {
           isGameComplete={latestGameSession?.status === "complete" && !activeGameSession}
           gameCompletedAt={latestGameSession?.completedAt}
           onViewGameResults={() => setShowGameReplay(true)}
+          truthOrDareGame={truthOrDareGame}
         />
       </MessageErrorBoundary>
 
@@ -1071,10 +1205,12 @@ function RoomContent() {
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
           onGameTap={() => setShowGamePicker(true)}
-          isGameActive={(activeGameSession != null || emojifyrSession != null || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled")) && me?.role === "host"}
+          isGameActive={(activeGameSession != null || emojifyrSession != null || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
           onEndGame={me?.role === "host" ? async () => {
             if (confirm(t("This will end the game for all players and show results.", lang))) {
-              if (emojiMatchGame && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") {
+              if (truthOrDareGame && truthOrDareGame.status === "active") {
+                await endTruthOrDare({ gameId: truthOrDareGame._id as Id<"truthOrDareGames">, participantId: participantId as Id<"participants"> });
+              } else if (emojiMatchGame && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") {
                 await cancelEmojiMatch({ gameId: emojiMatchGame._id as Id<"emojiMatchGames">, participantId: participantId as Id<"participants"> });
               } else if (emojifyrSession) {
                 await cancelEmojifyrMutation({ gameSessionId: emojifyrSession._id as Id<"gameSessions"> });
@@ -1226,6 +1362,23 @@ function RoomContent() {
         />
       )}
 
+      {/* Truth or Dare game overlay — only show for active games */}
+      {truthOrDareGame && truthOrDareGame.status === "active" && dismissedTruthOrDareId !== truthOrDareGame._id && (
+        <TruthOrDareGame
+          game={truthOrDareGame}
+          myParticipantId={participantId}
+          isHost={me?.role === "host"}
+          lang={lang}
+          onSubmitChoice={handleSubmitTruthOrDareChoice}
+          onSubmitResponse={handleSubmitTruthOrDareResponse}
+          onAdvanceTurn={handleAdvanceTruthOrDareTurn}
+          onSkipTurn={handleSkipTruthOrDareTurn}
+          onEndGame={handleEndTruthOrDare}
+          onSubmitRating={handleSubmitTruthOrDareRating}
+          onClose={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
+        />
+      )}
+
       {/* Game task overlay */}
       {myActiveStep && myActiveStep._id !== dismissedGameStepId && (
         <GameTaskOverlay
@@ -1259,6 +1412,7 @@ function RoomContent() {
         onStartGame={handleStartGame}
         onStartEmojifyr={handleStartEmojifyr}
         onStartEmojiMatch={handleCreateEmojiMatchLobby}
+        onStartTruthOrDare={handleCreateTruthOrDare}
         onRequestGame={(msg) => handleSend(msg)}
         onClose={() => setShowGamePicker(false)}
         lang={lang}

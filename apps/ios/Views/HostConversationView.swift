@@ -47,6 +47,7 @@ struct HostConversationView: View {
     @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
     @State private var showEmojifyrGame = false
     @State private var showEmojiMatchGame = false
+    @State private var showTruthOrDareGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
@@ -540,7 +541,7 @@ struct HostConversationView: View {
                             gameCompleteBubble
                         }
 
-                        if message.kind == .system, let text = message.text, text.hasPrefix("game_summary:") || text.hasPrefix("emoji_match_summary:") {
+                        if message.kind == .system, let text = message.text, text.hasPrefix("game_summary:") || text.hasPrefix("emoji_match_summary:") || text.hasPrefix("truth_or_dare_summary:") {
                             GameSummaryBanner(text: text, lang: hostLanguage)
                                 .id(message.id)
                         } else if message.kind == .system {
@@ -958,9 +959,15 @@ struct HostConversationView: View {
                         await viewModel.createEmojiMatchLobby()
                     }
                 },
+                onStartTruthOrDare: {
+                    showGamePicker = false
+                    Task {
+                        await viewModel.createTruthOrDare()
+                    }
+                },
                 onDismiss: { showGamePicker = false }
             )
-            .presentationDetents([.height(300)])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showGameTask) {
@@ -1061,6 +1068,23 @@ struct HostConversationView: View {
                 }
             } else if game == nil || game?.status == .canceled {
                 showEmojiMatchGame = false
+            }
+        }
+        // MARK: - Truth or Dare full-screen game
+        .fullScreenCover(isPresented: $showTruthOrDareGame) {
+            TruthOrDareGameView(
+                viewModel: viewModel,
+                lang: hostLanguage,
+                onDismiss: { showTruthOrDareGame = false }
+            )
+        }
+        .onChange(of: viewModel.activeTruthOrDareGame) { game in
+            if let g = game, g.status == .active {
+                if !showTruthOrDareGame {
+                    showTruthOrDareGame = true
+                }
+            } else if game == nil || game?.status == .completed || game?.status == .canceled {
+                showTruthOrDareGame = false
             }
         }
     }
@@ -1291,9 +1315,18 @@ private struct GameSummaryBanner: View {
         let players: [PlayerScore]
     }
 
+    private struct TodPlayerRating: Identifiable {
+        let id = UUID()
+        let name: String
+        let avatar: String
+        let avgRating: Double?
+        let turnsRated: Int
+    }
+
     private enum SummaryData {
         case emojiMatch(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore])
         case litGame(title: String, subtitle: String, players: [PlayerScore])
+        case truthOrDare(title: String, subtitle: String, players: [TodPlayerRating])
     }
 
     private var parsed: SummaryData? {
@@ -1391,8 +1424,59 @@ private struct GameSummaryBanner: View {
             }
 
             return .emojiMatch(title: gameType, subtitle: subtitle, games: gameRounds, aggregated: aggregated)
+        } else if text.hasPrefix("truth_or_dare_summary:") {
+            let json = String(text.dropFirst("truth_or_dare_summary:".count))
+            guard let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+
+            let totalTurns = obj["totalTurns"] as? Int ?? 0
+            let playersArr = obj["players"] as? [[String: Any]] ?? []
+
+            var playerRatings: [TodPlayerRating] = []
+            for p in playersArr {
+                let name = p["name"] as? String ?? "?"
+                let avatar = p["avatar"] as? String ?? "cat"
+                let avgRating = p["avgRating"] as? Double
+                let turnsRated = p["turnsRated"] as? Int ?? 0
+                playerRatings.append(TodPlayerRating(name: name, avatar: avatar, avgRating: avgRating, turnsRated: turnsRated))
+            }
+
+            // Sort by rating descending (nil last)
+            playerRatings.sort {
+                guard let a = $0.avgRating else { return false }
+                guard let b = $1.avgRating else { return true }
+                return a > b
+            }
+
+            let subtitle = "\(totalTurns) \(totalTurns == 1 ? "turn" : "turns") \(L.t("played", lang))"
+            return .truthOrDare(title: L.t("Truth or Dare", lang), subtitle: subtitle, players: playerRatings)
         }
         return nil
+    }
+
+    private var isTruthOrDare: Bool {
+        if let data = parsed, case .truthOrDare = data { return true }
+        return false
+    }
+
+    private var bannerGradient: LinearGradient {
+        if isTruthOrDare {
+            return LinearGradient(
+                colors: [Color(red: 0.92, green: 0.35, blue: 0.05), Color(red: 0.96, green: 0.62, blue: 0.04), Color(red: 0.85, green: 0.47, blue: 0.02)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        }
+        return LinearGradient(
+            colors: [Color(red: 0.39, green: 0.4, blue: 0.95), Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.66, green: 0.33, blue: 0.97)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+    }
+
+    private var bannerShadowColor: Color {
+        if isTruthOrDare {
+            return Color(red: 0.92, green: 0.35, blue: 0.05).opacity(0.3)
+        }
+        return Color(red: 0.39, green: 0.4, blue: 0.95).opacity(0.3)
     }
 
     var body: some View {
@@ -1400,136 +1484,180 @@ private struct GameSummaryBanner: View {
             VStack(spacing: 10) {
                 switch data {
                 case .emojiMatch(let title, let subtitle, let games, let aggregated):
-                    // Header
-                    VStack(spacing: 2) {
-                        Text("🃏 \(title)")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                        Text(subtitle)
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.85))
-                    }
-
-                    // Per-game results
-                    ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Game \(idx + 1)")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.8))
-                            HStack(spacing: 8) {
-                                let sorted = game.players.sorted { $0.score > $1.score }
-                                ForEach(Array(sorted.enumerated()), id: \.element.id) { _, p in
-                                    let rank = sorted.firstIndex(where: { $0.score == p.score }) ?? 0
-                                    HStack(spacing: 3) {
-                                        Text(presetAvatar(for: p.avatar).emoji)
-                                            .font(.system(size: 12))
-                                        Text(p.name + ":")
-                                            .font(.system(size: 11))
-                                        Text("\(p.score)")
-                                            .font(.system(size: 11, weight: .bold))
-                                        Text(rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
-                                            .font(.system(size: 10))
-                                    }
-                                    .foregroundColor(.white)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-
-                    // Overall totals — podium order: 2nd, 1st, 3rd, then rest
-                    let podium: [PlayerScore] = aggregated.count >= 3
-                        ? [aggregated[1], aggregated[0], aggregated[2]] + Array(aggregated.dropFirst(3))
-                        : aggregated
-                    HStack(spacing: 8) {
-                        ForEach(Array(podium.enumerated()), id: \.element.id) { _, player in
-                            let rank = aggregated.firstIndex(where: { $0.score == player.score }) ?? 0
-                            VStack(spacing: 4) {
-                                Text(rank == 0 && player.score > 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
-                                    .font(.system(size: 12))
-                                    .frame(height: 14)
-                                Text(presetAvatar(for: player.avatar).emoji)
-                                    .font(.system(size: 24))
-                                Text(player.name)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                Text("\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .frame(minWidth: 65)
-                            .background(player.isWinner ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(player.isWinner ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
-                            )
-                        }
-                    }
-
+                    emojiMatchBody(title: title, subtitle: subtitle, games: games, aggregated: aggregated)
                 case .litGame(let title, let subtitle, let players):
-                    // Header
-                    VStack(spacing: 2) {
-                        Text("🎮 \(title)")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                        Text(subtitle)
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.85))
-                    }
-
-                    // Player score cards
-                    HStack(spacing: 8) {
-                        ForEach(players) { player in
-                            VStack(spacing: 4) {
-                                Text(player.isWinner ? "👑" : "")
-                                    .font(.system(size: 12))
-                                    .frame(height: 14)
-                                Text(presetAvatar(for: player.avatar).emoji)
-                                    .font(.system(size: 24))
-                                Text(player.name)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                Text("\(player.score)/\(player.total)")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .frame(minWidth: 65)
-                            .background(player.isWinner ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(player.isWinner ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
-                            )
-                        }
-                    }
+                    litGameBody(title: title, subtitle: subtitle, players: players)
+                case .truthOrDare(let title, let subtitle, let players):
+                    truthOrDareBody(title: title, subtitle: subtitle, players: players)
                 }
             }
             .padding()
             .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    colors: [Color(red: 0.39, green: 0.4, blue: 0.95), Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.66, green: 0.33, blue: 0.97)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            .background(bannerGradient)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: Color(red: 0.39, green: 0.4, blue: 0.95).opacity(0.3), radius: 8, y: 4)
+            .shadow(color: bannerShadowColor, radius: 8, y: 4)
             .padding(.horizontal, 4)
         } else {
             SystemMessageRow(text: text, lang: lang)
         }
+    }
+
+    // MARK: - Emoji Match body
+
+    @ViewBuilder
+    private func emojiMatchBody(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore]) -> some View {
+        VStack(spacing: 2) {
+            Text("🃏 \(title)")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.white)
+            Text(subtitle)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.85))
+        }
+
+        ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
+            emojiMatchGameRow(idx: idx, game: game)
+        }
+
+        emojiMatchPodium(aggregated: aggregated)
+    }
+
+    @ViewBuilder
+    private func emojiMatchGameRow(idx: Int, game: GameRoundData) -> some View {
+        let sorted = game.players.sorted { $0.score > $1.score }
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Game \(idx + 1)")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.8))
+            HStack(spacing: 8) {
+                ForEach(Array(sorted.enumerated()), id: \.element.id) { _, p in
+                    let rank = sorted.firstIndex(where: { $0.score == p.score }) ?? 0
+                    let placeEmoji = rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : ""
+                    HStack(spacing: 3) {
+                        Text(presetAvatar(for: p.avatar).emoji).font(.system(size: 12))
+                        Text(p.name + ":").font(.system(size: 11))
+                        Text("\(p.score)").font(.system(size: 11, weight: .bold))
+                        Text(placeEmoji).font(.system(size: 10))
+                    }
+                    .foregroundColor(.white)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func emojiMatchPodium(aggregated: [PlayerScore]) -> some View {
+        let podium: [PlayerScore] = aggregated.count >= 3
+            ? [aggregated[1], aggregated[0], aggregated[2]] + Array(aggregated.dropFirst(3))
+            : aggregated
+        HStack(spacing: 8) {
+            ForEach(podium) { player in
+                let rank = aggregated.firstIndex(where: { $0.score == player.score }) ?? 0
+                let placeEmoji = rank == 0 && player.score > 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : ""
+                playerCard(
+                    emoji: presetAvatar(for: player.avatar).emoji,
+                    name: player.name,
+                    detail: "\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))",
+                    placeEmoji: placeEmoji,
+                    isHighlighted: player.isWinner
+                )
+            }
+        }
+    }
+
+    // MARK: - Lost in Translation body
+
+    @ViewBuilder
+    private func litGameBody(title: String, subtitle: String, players: [PlayerScore]) -> some View {
+        VStack(spacing: 2) {
+            Text("🎮 \(title)")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.white)
+            Text(subtitle)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.85))
+        }
+
+        HStack(spacing: 8) {
+            ForEach(players) { player in
+                playerCard(
+                    emoji: presetAvatar(for: player.avatar).emoji,
+                    name: player.name,
+                    detail: "\(player.score)/\(player.total)",
+                    placeEmoji: player.isWinner ? "👑" : "",
+                    isHighlighted: player.isWinner
+                )
+            }
+        }
+    }
+
+    // MARK: - Truth or Dare body
+
+    @ViewBuilder
+    private func truthOrDareBody(title: String, subtitle: String, players: [TodPlayerRating]) -> some View {
+        VStack(spacing: 2) {
+            Text("🎲 \(title)")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.white)
+            Text(subtitle)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.85))
+        }
+
+        let topRating = players.first?.avgRating
+        HStack(spacing: 8) {
+            ForEach(players) { player in
+                let isTop = player.avgRating != nil && player.avgRating == topRating
+                let rank = players.firstIndex(where: { $0.avgRating == player.avgRating }) ?? 0
+                let placeEmoji = rank == 0 && player.avgRating != nil ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : ""
+                let detail: String = {
+                    if let avg = player.avgRating {
+                        return "⭐ \(String(format: "%.1f", avg))"
+                    }
+                    return "—"
+                }()
+                playerCard(
+                    emoji: presetAvatar(for: player.avatar).emoji,
+                    name: player.name,
+                    detail: detail,
+                    placeEmoji: placeEmoji,
+                    isHighlighted: isTop
+                )
+            }
+        }
+    }
+
+    // MARK: - Shared player card
+
+    private func playerCard(emoji: String, name: String, detail: String, placeEmoji: String, isHighlighted: Bool) -> some View {
+        VStack(spacing: 4) {
+            Text(placeEmoji)
+                .font(.system(size: 12))
+                .frame(height: 14)
+            Text(emoji)
+                .font(.system(size: 24))
+            Text(name)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+            Text(detail)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(isHighlighted ? .white : .white.opacity(0.85))
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .frame(minWidth: 65)
+        .background(isHighlighted ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHighlighted ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
+        )
     }
 }
 
@@ -1556,12 +1684,17 @@ private struct SystemMessageRow: View {
             if name.hasPrefix("Emoji Match") {
                 return "🃏 \(L.t("Game Started: Match Emoji", lang))"
             }
+            if name.hasPrefix("Truth or Dare") {
+                return "🎲 \(L.t("Game Started: Truth or Dare", lang))"
+            }
             if let range = name.range(of: "Level "), let levelNum = Int(name[range.upperBound...].trimmingCharacters(in: .whitespaces)) {
                 return "🎮 \(L.t("Game Started: Lost in Translation", lang)) — \(L.t("Level", lang)) \(levelNum)"
             }
             return "🎮 \(L.t("Game Started: Lost in Translation", lang))"
         } else if action == "game_cancelled" {
             return "🎮 \(L.t("Game ended", lang))"
+        } else if action == "game_ended" {
+            return "🎲 \(L.t("Game ended", lang))"
         } else if action == "game_correct" {
             let parts = name.split(separator: "|", maxSplits: 1)
             let guesserName = parts.count > 0 ? String(parts[0]) : "?"

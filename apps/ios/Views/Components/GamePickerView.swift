@@ -4,6 +4,7 @@ enum GamePickerTab: String, CaseIterable {
     case lostInTranslation = "Lost in Translation"
     case emojifyr = "Emojifyr"
     case emojiMatch = "Emoji Match"
+    case truthOrDare = "Truth or Dare"
 }
 
 struct GamePickerView: View {
@@ -14,6 +15,7 @@ struct GamePickerView: View {
     let onStartGame: (String, Int, Int) -> Void
     let onStartEmojifyr: () -> Void
     let onStartEmojiMatch: () -> Void
+    let onStartTruthOrDare: () -> Void
     let onDismiss: () -> Void
 
     @State private var timerSeconds: Int = 20
@@ -54,13 +56,8 @@ struct GamePickerView: View {
             Text("🎮")
                 .font(.system(size: 28))
 
-            // Game selector
-            Picker("", selection: $selectedGame) {
-                ForEach(GamePickerTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
+            // Game selector — vertical list
+            gameSelector
 
             switch selectedGame {
             case .lostInTranslation:
@@ -69,7 +66,59 @@ struct GamePickerView: View {
                 emojifyrContent
             case .emojiMatch:
                 emojiMatchContent
+            case .truthOrDare:
+                truthOrDareContent
             }
+        }
+    }
+
+    private var gameSelector: some View {
+        VStack(spacing: 4) {
+            ForEach(GamePickerTab.allCases, id: \.self) { tab in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { selectedGame = tab }
+                } label: {
+                    HStack {
+                        Text(gameTabIcon(tab))
+                        Text(L.t(tab.rawValue, lang))
+                            .font(.subheadline)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedGame == tab
+                        ? gameTabGradient(tab)
+                        : LinearGradient(colors: [Color(.systemBackground), Color(.systemBackground)], startPoint: .leading, endPoint: .trailing))
+                    .foregroundColor(selectedGame == tab ? .white : .primary)
+                    .fontWeight(selectedGame == tab ? .bold : .regular)
+                    .cornerRadius(8)
+                }
+            }
+        }
+        .padding(4)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(10)
+    }
+
+    private func gameTabIcon(_ tab: GamePickerTab) -> String {
+        switch tab {
+        case .lostInTranslation: return "🎨"
+        case .emojifyr: return "🔥"
+        case .emojiMatch: return "🃏"
+        case .truthOrDare: return "🎲"
+        }
+    }
+
+    private func gameTabGradient(_ tab: GamePickerTab) -> LinearGradient {
+        switch tab {
+        case .lostInTranslation:
+            return LinearGradient(colors: [Color(red: 0.23, green: 0.51, blue: 0.96), Color(red: 0.15, green: 0.39, blue: 0.93)], startPoint: .leading, endPoint: .trailing)
+        case .emojifyr:
+            return LinearGradient(colors: [Color(red: 0.94, green: 0.27, blue: 0.27), Color(red: 0.86, green: 0.15, blue: 0.15)], startPoint: .leading, endPoint: .trailing)
+        case .emojiMatch:
+            return LinearGradient(colors: [Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.49, green: 0.23, blue: 0.93)], startPoint: .leading, endPoint: .trailing)
+        case .truthOrDare:
+            return LinearGradient(colors: [Color(red: 0.92, green: 0.35, blue: 0.05), Color(red: 0.85, green: 0.47, blue: 0.02)], startPoint: .leading, endPoint: .trailing)
         }
     }
 
@@ -179,6 +228,42 @@ struct GamePickerView: View {
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Truth or Dare
+
+    private var truthOrDareContent: some View {
+        VStack(spacing: 8) {
+            Text(L.t("Truth or Dare", lang))
+                .font(.headline)
+
+            Text(L.t("A social game: answer a question or complete a challenge! Take turns with your group.", lang))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Text("\(playerCount) \(L.t("players", lang))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(L.t("Rotates through all players", lang))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if playerCount < 2 {
+                Text(L.t("Need at least 2 players to start.", lang))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Button(L.t("Start Game", lang)) {
+                onStartTruthOrDare()
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+            .disabled(playerCount < 2)
             .padding(.top, 8)
         }
     }

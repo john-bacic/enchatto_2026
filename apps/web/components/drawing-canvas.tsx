@@ -301,7 +301,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   }, []);
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
     const point = getPoint(e);
     if (!point) return;
     setIsDrawing(true);
@@ -310,7 +309,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
     if (!isDrawing || !lastPoint.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
