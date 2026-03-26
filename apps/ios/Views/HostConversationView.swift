@@ -225,71 +225,66 @@ struct HostConversationView: View {
                     }
                 }
 
-            VStack {
-                HStack {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Button {
-                            showEnglish.toggle()
-                        } label: {
-                            Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(showEnglish ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Button {
-                            showJapanese.toggle()
-                        } label: {
-                            Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(showJapanese ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Button {
-                            showRomaji.toggle()
-                        } label: {
-                            Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(showRomaji ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Divider()
-                            .padding(.vertical, 4)
-
-                        Button {
-                            showHostSettings = false
-                            viewModel.showParticipantSheet = true
-                        } label: {
-                            Label(L.t("Participants", hostLanguage), systemImage: "person.2")
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Divider()
-                            .padding(.vertical, 4)
-
-                        Button {
-                            showHostSettings = false
-                            showCloseConfirmation = true
-                        } label: {
-                            Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
-                                .foregroundStyle(.red)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+            GeometryReader { _ in
+                VStack(alignment: .leading, spacing: 0) {
+                    Button {
+                        showEnglish.toggle()
+                    } label: {
+                        Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(showEnglish ? .primary : .secondary)
                     }
-                    .padding(.vertical, 8)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                    .padding(.leading, 12)
-                    .padding(.top, 4)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
 
-                    Spacer()
+                    Button {
+                        showJapanese.toggle()
+                    } label: {
+                        Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(showJapanese ? .primary : .secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+
+                    Button {
+                        showRomaji.toggle()
+                    } label: {
+                        Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(showRomaji ? .primary : .secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    Button {
+                        showHostSettings = false
+                        viewModel.showParticipantSheet = true
+                    } label: {
+                        Label(L.t("Participants", hostLanguage), systemImage: "person.2")
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+
+                    Divider()
+                        .padding(.vertical, 4)
+
+                    Button {
+                        showHostSettings = false
+                        showCloseConfirmation = true
+                    } label: {
+                        Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
+                            .foregroundStyle(.red)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
-                Spacer()
+                .padding(.vertical, 8)
+                .fixedSize()
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                .offset(x: 12, y: 44)
             }
             .transition(.opacity)
         }
