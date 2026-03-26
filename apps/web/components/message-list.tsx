@@ -41,6 +41,8 @@ interface TypingParticipant {
 interface TruthOrDareGameData {
   _id: string;
   status: string;
+  completedAt?: number;
+  createdAt: number;
   completedTurns: number;
   completedTurnsList?: Array<{
     _id: string;
@@ -131,6 +133,83 @@ export function MessageList({
     );
   }
 
+  const renderTruthOrDareBanner = (game: TruthOrDareGameData, lng?: string): React.ReactNode => {
+    const turns = game.completedTurnsList ?? [];
+    const playerRatings: Record<string, { total: number; count: number }> = {};
+    for (const t of turns) {
+      if (t.ratings.length === 0) continue;
+      const pid = t.participantId;
+      const avg = t.ratings.reduce((s, r) => s + r.score, 0) / t.ratings.length;
+      if (!playerRatings[pid]) playerRatings[pid] = { total: 0, count: 0 };
+      playerRatings[pid].total += avg;
+      playerRatings[pid].count += 1;
+    }
+    const players = (game.playerInfo ?? []).map((p) => ({
+      ...p,
+      avgRating: playerRatings[p.participantId]
+        ? Math.round((playerRatings[p.participantId].total / playerRatings[p.participantId].count) * 10) / 10
+        : null,
+    }));
+    const sorted = [...players].sort((a, b) => {
+      if (a.avgRating === null && b.avgRating === null) return 0;
+      if (a.avgRating === null) return 1;
+      if (b.avgRating === null) return -1;
+      return b.avgRating - a.avgRating;
+    });
+    const topRating = sorted[0]?.avgRating;
+    const getEmoji = (id: string) => PRESET_AVATARS.find((a) => a.id === id)?.emoji ?? "👤";
+
+    return (
+      <div
+        key={`tod-summary-${game._id}`}
+        style={{
+          margin: "0.75rem 0",
+          borderRadius: "16px",
+          background: "linear-gradient(135deg, #ea580c, #f59e0b, #d97706)",
+          padding: "1rem",
+          color: "#fff",
+          boxShadow: "0 4px 16px rgba(234, 88, 12, 0.3)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
+          <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>🎲 {t("Truth or Dare", lng)}</div>
+          <div style={{ fontSize: "0.75rem", opacity: 0.85, marginTop: "0.15rem" }}>
+            {game.completedTurns} {game.completedTurns === 1 ? "turn" : "turns"} {t("played", lng)}
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+          {sorted.map((p, idx) => {
+            const isTop = p.avgRating !== null && p.avgRating === topRating;
+            const rank = sorted.findIndex((r) => r.avgRating === p.avgRating);
+            const placeEmoji = rank === 0 && p.avgRating !== null ? "🏆" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
+            return (
+              <div key={idx} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "0.2rem",
+                background: isTop ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
+                borderRadius: "12px", padding: "0.5rem 0.85rem", minWidth: "65px",
+                border: isTop ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid transparent",
+              }}>
+                <span style={{ fontSize: "0.75rem", height: "1rem", lineHeight: "1rem" }}>{placeEmoji}</span>
+                <span style={{ fontSize: "1.5rem" }}>{getEmoji(p.avatarValue)}</span>
+                <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>{p.nickname}</span>
+                <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                  {p.avgRating !== null ? `⭐ ${p.avgRating}` : "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Check if Truth or Dare summary should appear after all messages
+  const todSummaryAfterAll = truthOrDareGame && truthOrDareGame.status === "completed" &&
+    messages.length > 0 &&
+    (truthOrDareGame.completedAt ?? truthOrDareGame.createdAt) >= messages[messages.length - 1].createdAt;
+  // Also show if there are no messages after the game
+  const todSummaryNoMessages = truthOrDareGame && truthOrDareGame.status === "completed" && messages.length === 0;
+
   return (
     <div
       style={{
@@ -141,6 +220,19 @@ export function MessageList({
     >
       {messages.map((message, index) => {
         const elements: React.ReactNode[] = [];
+
+        // Insert Truth or Dare summary at chronological position
+        if (truthOrDareGame && truthOrDareGame.status === "completed") {
+          const todCompletedAt = truthOrDareGame.completedAt ?? truthOrDareGame.createdAt;
+          const prevMsg = index > 0 ? messages[index - 1] : null;
+          const shouldInsertBefore =
+            (prevMsg && prevMsg.createdAt <= todCompletedAt && message.createdAt > todCompletedAt) ||
+            (index === 0 && message.createdAt > todCompletedAt);
+          if (shouldInsertBefore) {
+            const banner = renderTruthOrDareBanner(truthOrDareGame, lang);
+            if (banner) elements.push(banner);
+          }
+        }
 
         // Insert game complete bubble at chronological position
         if (isGameComplete && onViewGameResults && gameCompletedAt) {
@@ -611,94 +703,8 @@ export function MessageList({
           </button>
         </div>
       )}
-      {/* Truth or Dare summary — rendered directly from game data */}
-      {truthOrDareGame && truthOrDareGame.status === "completed" && (() => {
-        const turns = truthOrDareGame.completedTurnsList ?? [];
-        const playerRatings: Record<string, { total: number; count: number }> = {};
-        for (const t of turns) {
-          if (t.ratings.length === 0) continue;
-          const pid = t.participantId;
-          const avg = t.ratings.reduce((s, r) => s + r.score, 0) / t.ratings.length;
-          if (!playerRatings[pid]) playerRatings[pid] = { total: 0, count: 0 };
-          playerRatings[pid].total += avg;
-          playerRatings[pid].count += 1;
-        }
-
-        const players = (truthOrDareGame.playerInfo ?? []).map((p) => ({
-          ...p,
-          avgRating: playerRatings[p.participantId]
-            ? Math.round((playerRatings[p.participantId].total / playerRatings[p.participantId].count) * 10) / 10
-            : null,
-        }));
-
-        const sorted = [...players].sort((a, b) => {
-          if (a.avgRating === null && b.avgRating === null) return 0;
-          if (a.avgRating === null) return 1;
-          if (b.avgRating === null) return -1;
-          return b.avgRating - a.avgRating;
-        });
-        const topRating = sorted[0]?.avgRating;
-        const getPlayerEmoji = (avatarId: string) =>
-          PRESET_AVATARS.find((a) => a.id === avatarId)?.emoji ?? "👤";
-
-        return (
-          <div
-            style={{
-              margin: "0.75rem 0",
-              borderRadius: "16px",
-              background: "linear-gradient(135deg, #ea580c, #f59e0b, #d97706)",
-              padding: "1rem",
-              color: "#fff",
-              boxShadow: "0 4px 16px rgba(234, 88, 12, 0.3)",
-            }}
-          >
-            <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
-                🎲 {t("Truth or Dare", lang)}
-              </div>
-              <div style={{ fontSize: "0.75rem", opacity: 0.85, marginTop: "0.15rem" }}>
-                {truthOrDareGame.completedTurns} {truthOrDareGame.completedTurns === 1 ? "turn" : "turns"} {t("played", lang)}
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-              {sorted.map((p, idx) => {
-                const isTop = p.avgRating !== null && p.avgRating === topRating;
-                const rank = sorted.findIndex((r) => r.avgRating === p.avgRating);
-                const placeEmoji = rank === 0 && p.avgRating !== null ? "🏆" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "0.2rem",
-                      background: isTop ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
-                      borderRadius: "12px",
-                      padding: "0.5rem 0.85rem",
-                      minWidth: "65px",
-                      border: isTop ? "1.5px solid rgba(255,255,255,0.5)" : "1.5px solid transparent",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.75rem", height: "1rem", lineHeight: "1rem" }}>
-                      {placeEmoji}
-                    </span>
-                    <span style={{ fontSize: "1.5rem" }}>
-                      {getPlayerEmoji(p.avatarValue)}
-                    </span>
-                    <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>
-                      {p.nickname}
-                    </span>
-                    <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                      {p.avgRating !== null ? `⭐ ${p.avgRating}` : "—"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Truth or Dare summary after all messages */}
+      {(todSummaryAfterAll || todSummaryNoMessages) && truthOrDareGame && renderTruthOrDareBanner(truthOrDareGame, lang)}
 
       {typingParticipants && typingParticipants.length > 0 && (
         <TypingIndicator participants={typingParticipants} lang={lang} />
