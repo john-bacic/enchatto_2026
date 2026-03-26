@@ -382,6 +382,8 @@ struct HostConversationView: View {
                         .padding(.vertical, 10)
                     }
                     .padding(.vertical, 8)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .modifier(CompactPopoverAdaptation())
                 }
             }
