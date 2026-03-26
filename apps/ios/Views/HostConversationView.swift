@@ -382,7 +382,7 @@ struct HostConversationView: View {
                         .padding(.vertical, 10)
                     }
                     .padding(.vertical, 8)
-                    .presentationCompactAdaptation(.popover)
+                    .modifier(CompactPopoverAdaptation())
                 }
             }
 
@@ -1977,6 +1977,16 @@ private struct QRCodeIcon: View {
         Image(systemName: "qrcode")
             .resizable()
             .scaledToFit()
+    }
+}
+
+private struct CompactPopoverAdaptation: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 16.4, *) {
+            content.presentationCompactAdaptation(.popover)
+        } else {
+            content
+        }
     }
 }
 
