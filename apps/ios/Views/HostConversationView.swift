@@ -114,6 +114,7 @@ struct HostConversationView: View {
         .sheet(isPresented: $viewModel.showParticipantSheet) {
             participantSheet
         }
+        .overlay { hostSettingsOverlay }
         .overlay { contextMenuOverlay }
         .overlay { qrOverlay }
         .overlay { fullScreenImageOverlay }
@@ -211,6 +212,88 @@ struct HostConversationView: View {
     }
 
     // MARK: - Context menu overlay
+
+    @ViewBuilder
+    private var hostSettingsOverlay: some View {
+        if showHostSettings {
+            // Tap-outside dismiss layer
+            Color.black.opacity(0.01)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showHostSettings = false
+                    }
+                }
+
+            VStack {
+                HStack {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button {
+                            showEnglish.toggle()
+                        } label: {
+                            Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(showEnglish ? .primary : .secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+
+                        Button {
+                            showJapanese.toggle()
+                        } label: {
+                            Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(showJapanese ? .primary : .secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+
+                        Button {
+                            showRomaji.toggle()
+                        } label: {
+                            Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(showRomaji ? .primary : .secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        Button {
+                            showHostSettings = false
+                            viewModel.showParticipantSheet = true
+                        } label: {
+                            Label(L.t("Participants", hostLanguage), systemImage: "person.2")
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        Button {
+                            showHostSettings = false
+                            showCloseConfirmation = true
+                        } label: {
+                            Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
+                                .foregroundStyle(.red)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+                    .padding(.vertical, 8)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    .padding(.leading, 12)
+                    .padding(.top, 4)
+
+                    Spacer()
+                }
+                Spacer()
+            }
+            .transition(.opacity)
+        }
+    }
 
     @ViewBuilder
     private var contextMenuOverlay: some View {
@@ -316,7 +399,9 @@ struct HostConversationView: View {
             // Host's own avatar — tap to show settings menu
             if let host = viewModel.participant(for: hostId) {
                 Button {
-                    showHostSettings = true
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showHostSettings.toggle()
+                    }
                 } label: {
                     ZStack {
                         Circle()
@@ -325,66 +410,6 @@ struct HostConversationView: View {
                         Text(host.avatarEmoji)
                             .font(.system(size: 18))
                     }
-                }
-                .popover(isPresented: $showHostSettings, arrowEdge: .top) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Language display toggles
-                        Button {
-                            showEnglish.toggle()
-                        } label: {
-                            Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(showEnglish ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Button {
-                            showJapanese.toggle()
-                        } label: {
-                            Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(showJapanese ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Button {
-                            showRomaji.toggle()
-                        } label: {
-                            Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(showRomaji ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Divider()
-                            .padding(.vertical, 4)
-
-                        Button {
-                            showHostSettings = false
-                            viewModel.showParticipantSheet = true
-                        } label: {
-                            Label(L.t("Participants", hostLanguage), systemImage: "person.2")
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-
-                        Divider()
-                            .padding(.vertical, 4)
-
-                        Button(role: .destructive) {
-                            showHostSettings = false
-                            showCloseConfirmation = true
-                        } label: {
-                            Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
-                                .foregroundStyle(.red)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                    }
-                    .padding(.vertical, 8)
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .modifier(CompactPopoverAdaptation())
                 }
             }
 
@@ -1982,15 +2007,6 @@ private struct QRCodeIcon: View {
     }
 }
 
-private struct CompactPopoverAdaptation: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 16.4, *) {
-            content.presentationCompactAdaptation(.popover)
-        } else {
-            content
-        }
-    }
-}
 
 #Preview {
     NavigationStack {
