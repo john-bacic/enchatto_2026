@@ -283,7 +283,7 @@ struct TruthOrDareGameView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                             .background(
-                                LinearGradient(colors: [.red, .red.opacity(0.7)],
+                                LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")],
                                                startPoint: .topLeading, endPoint: .bottomTrailing)
                             )
                             .cornerRadius(12)
@@ -326,7 +326,7 @@ struct TruthOrDareGameView: View {
                 .background(
                     turn.choice == .truth
                         ? LinearGradient(colors: [.blue, .blue.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
-                        : LinearGradient(colors: [.red, .red.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
+                        : LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")], startPoint: .leading, endPoint: .trailing)
                 )
                 .cornerRadius(20)
 
@@ -515,7 +515,7 @@ struct TruthOrDareGameView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
                     .background(
-                        Capsule().fill(choice == .truth ? Color.blue.opacity(0.3) : Color.red.opacity(0.3))
+                        Capsule().fill(choice == .truth ? Color.blue.opacity(0.3) : Color(hex: "#ea580c").opacity(0.3))
                     )
 
                 Text(turn.localizedPrompt(lang: lang))

@@ -550,7 +550,7 @@ export function TruthOrDareGame({
                       maxWidth: "150px",
                       padding: "1rem",
                       borderRadius: "12px",
-                      background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                      background: "linear-gradient(135deg, #ea580c, #d97706)",
                       color: "#fff",
                       fontWeight: 700,
                       fontSize: "1.1rem",
@@ -597,7 +597,7 @@ export function TruthOrDareGame({
                 borderRadius: "20px",
                 background: turn.choice === "truth"
                   ? "linear-gradient(135deg, #3b82f6, #2563eb)"
-                  : "linear-gradient(135deg, #ef4444, #dc2626)",
+                  : "linear-gradient(135deg, #ea580c, #d97706)",
                 color: "#fff",
                 fontWeight: 700,
                 fontSize: "0.85rem",
@@ -859,7 +859,7 @@ export function TruthOrDareGame({
                     borderRadius: "20px",
                     background: turn.choice === "truth"
                       ? "rgba(59,130,246,0.3)"
-                      : "rgba(239,68,68,0.3)",
+                      : "rgba(234,88,12,0.3)",
                     color: "rgba(255,255,255,0.7)",
                     fontWeight: 600,
                     fontSize: "0.75rem",
