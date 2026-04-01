@@ -14,6 +14,7 @@ struct TruthOrDareGameView: View {
     @State private var fullScreenImageUrl: String?
     @State private var starRating: Int = 0
     @State private var pencilWiggle = false
+    @State private var dismissedRoundBreak: Int = 0
 
     var body: some View {
         let game = viewModel.activeTruthOrDareGame
@@ -105,6 +106,98 @@ struct TruthOrDareGameView: View {
                 }
 
                 Spacer()
+            }
+
+            // Round break interstitial — every 10 turns
+            if let completedTurns = game.completedTurns,
+               completedTurns > 0,
+               completedTurns % 10 == 0,
+               game.currentTurn?.status == .waiting_for_choice,
+               dismissedRoundBreak != completedTurns {
+
+                Color.black.opacity(0.7)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 12) {
+                    Text("🎉")
+                        .font(.system(size: 50))
+                    Text(L.t("Round Complete!", lang))
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
+                    Text("\(completedTurns) \(L.t("turns played", lang))")
+                        .foregroundColor(.white.opacity(0.6))
+                        .font(.subheadline)
+
+                    // Mini ratings
+                    if let turns = game.completedTurnsList, !turns.isEmpty {
+                        let ratedTurns = turns.filter { !$0.ratings.isEmpty }
+                        if !ratedTurns.isEmpty {
+                            let summary = ratingSummary(turns: ratedTurns, players: game.playerInfo ?? [])
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(Array(summary.prefix(3).enumerated()), id: \.element.pid) { index, entry in
+                                    let medal = index == 0 ? "🥇" : index == 1 ? "🥈" : "🥉"
+                                    HStack {
+                                        Text("\(medal) \(entry.emoji) \(entry.name)")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                        Text("⭐ \(String(format: "%.1f", entry.avg))")
+                                            .font(.caption.bold())
+                                            .foregroundColor(.yellow)
+                                    }
+                                }
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.08))
+                            .cornerRadius(10)
+                            .padding(.horizontal, 32)
+                        }
+                    }
+
+                    HStack(spacing: 16) {
+                        Button {
+                            Task { await viewModel.endTruthOrDare() }
+                        } label: {
+                            Text(L.t("End Game", lang))
+                                .font(.body.bold())
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.red.opacity(0.8))
+                                .cornerRadius(10)
+                        }
+
+                        Button {
+                            dismissedRoundBreak = completedTurns
+                        } label: {
+                            Text("\(L.t("Keep Playing", lang)) →")
+                                .font(.body.bold())
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    LinearGradient(colors: [.green, .green.opacity(0.7)],
+                                                   startPoint: .leading, endPoint: .trailing)
+                                )
+                                .cornerRadius(10)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                }
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(colors: [Color(hex: "#1e1b4b"), Color(hex: "#312e81")],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                .padding(.horizontal, 16)
             }
 
             // Full-screen image overlay
@@ -655,17 +748,37 @@ struct TruthOrDareGameView: View {
                     }
                 }
 
-                Button {
-                    onDismiss()
-                } label: {
-                    Text(L.t("Close", lang))
-                        .font(.body.bold())
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 10)
-                        .background(Color.purple)
-                        .cornerRadius(8)
+                HStack(spacing: 16) {
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Text(L.t("Close", lang))
+                            .font(.body.bold())
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.white.opacity(0.15))
+                            .cornerRadius(10)
+                    }
+
+                    Button {
+                        Task {
+                            await viewModel.createTruthOrDare(promptMode: game.promptMode ?? "normal")
+                        }
+                    } label: {
+                        Text("\(L.t("Play Again", lang)) →")
+                            .font(.body.bold())
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(colors: [.green, .green.opacity(0.7)],
+                                               startPoint: .leading, endPoint: .trailing)
+                            )
+                            .cornerRadius(10)
+                    }
                 }
+                .padding(.horizontal)
                 .padding(.top, 16)
             }
         }
