@@ -34,7 +34,6 @@ interface TruthOrDareGameProps {
       choice?: "truth" | "dare";
       promptText?: string;
       responseText?: string;
-      responseMediaUrl?: string;
       ratings: Array<{ participantId: string; score: number }>;
     }>;
     playerInfo: Array<{

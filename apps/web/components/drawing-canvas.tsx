@@ -236,9 +236,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       offscreen.width = outW;
       offscreen.height = outH;
       const octx = offscreen.getContext("2d");
-      if (!octx) return canvas.toDataURL("image/png");
+      if (!octx) return canvas.toDataURL("image/jpeg", 0.6);
+      // Fill white background for JPEG (no transparency)
+      octx.fillStyle = "#ffffff";
+      octx.fillRect(0, 0, outW, outH);
       octx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, outW, outH);
-      return offscreen.toDataURL("image/png");
+      return offscreen.toDataURL("image/jpeg", 0.6);
     },
   }));
 
@@ -361,9 +364,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     offscreen.width = outW;
     offscreen.height = outH;
     const octx = offscreen.getContext("2d");
-    if (!octx) { onSave(canvas.toDataURL("image/png")); return; }
+    if (!octx) { onSave(canvas.toDataURL("image/jpeg", 0.6)); return; }
+    // Fill white background for JPEG (no transparency)
+    octx.fillStyle = "#ffffff";
+    octx.fillRect(0, 0, outW, outH);
     octx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, outW, outH);
-    onSave(offscreen.toDataURL("image/png"));
+    onSave(offscreen.toDataURL("image/jpeg", 0.6));
   };
 
   return (

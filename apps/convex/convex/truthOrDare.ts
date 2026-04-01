@@ -700,7 +700,7 @@ export const getActiveTruthOrDare = query({
       };
     });
 
-    // All completed turns with ratings for the summary
+    // All completed turns with ratings for the summary (exclude responseMediaUrl to keep payload small)
     const completedTurnsList = turns
       .filter((t) => t.status === "completed")
       .map((t) => ({
@@ -709,7 +709,6 @@ export const getActiveTruthOrDare = query({
         choice: t.choice,
         promptText: t.promptText,
         responseText: t.responseText,
-        responseMediaUrl: t.responseMediaUrl,
         ratings: t.ratings ?? [],
         completedAt: t.completedAt,
       }));
