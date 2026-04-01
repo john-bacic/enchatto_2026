@@ -226,7 +226,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const canvas = canvasRef.current;
       if (!canvas) return null;
       // Export at 1x resolution to keep data URL small (smaller for game mode)
-      const maxDim = gameMode ? 256 : 512;
+      const maxDim = gameMode ? 160 : 512;
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       const scale = Math.min(1, maxDim / Math.max(w, h));
@@ -236,12 +236,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       offscreen.width = outW;
       offscreen.height = outH;
       const octx = offscreen.getContext("2d");
-      if (!octx) return canvas.toDataURL("image/jpeg", gameMode ? 0.5 : 0.6);
+      if (!octx) return canvas.toDataURL("image/jpeg", gameMode ? 0.3 : 0.6);
       // Fill white background for JPEG (no transparency)
       octx.fillStyle = "#ffffff";
       octx.fillRect(0, 0, outW, outH);
       octx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, outW, outH);
-      return offscreen.toDataURL("image/jpeg", gameMode ? 0.5 : 0.6);
+      return offscreen.toDataURL("image/jpeg", gameMode ? 0.3 : 0.6);
     },
   }));
 
@@ -364,7 +364,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     offscreen.width = outW;
     offscreen.height = outH;
     const octx = offscreen.getContext("2d");
-    if (!octx) { onSave(canvas.toDataURL("image/jpeg", gameMode ? 0.5 : 0.6)); return; }
+    if (!octx) { onSave(canvas.toDataURL("image/jpeg", gameMode ? 0.3 : 0.6)); return; }
     // Fill white background for JPEG (no transparency)
     octx.fillStyle = "#ffffff";
     octx.fillRect(0, 0, outW, outH);

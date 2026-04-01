@@ -348,14 +348,17 @@ export const submitResponse = mutation({
       throw new Error("Not your turn");
     }
 
-    // Find current turn
-    const turns = await ctx.db
+    // Find current turn (filter server-side instead of collecting all turns)
+    const currentTurn = await ctx.db
       .query("truthOrDareTurns")
       .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect();
-    const currentTurn = turns.find(
-      (t) => t.turnIndex === game.currentTurnIndex && t.status === "waiting_for_response"
-    );
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("turnIndex"), game.currentTurnIndex),
+          q.eq(q.field("status"), "waiting_for_response")
+        )
+      )
+      .first();
     if (!currentTurn) throw new Error("No active turn waiting for response");
 
     await ctx.db.patch(currentTurn._id, {
