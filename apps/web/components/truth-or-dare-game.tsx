@@ -852,6 +852,40 @@ export function TruthOrDareGame({
               {currentPlayer?.nickname} {turn.status === "skipped" ? t("Skipped!", lang) : t("answered:", lang)}
             </h3>
 
+            {/* Show original prompt as reminder */}
+            {turn.choice && promptDisplay && (
+              <>
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "0.2rem 0.75rem",
+                    borderRadius: "20px",
+                    background: turn.choice === "truth"
+                      ? "rgba(59,130,246,0.3)"
+                      : "rgba(239,68,68,0.3)",
+                    color: "rgba(255,255,255,0.7)",
+                    fontWeight: 600,
+                    fontSize: "0.75rem",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  {turn.choice === "truth" ? t("Truth", lang) : t("Dare", lang)}
+                </div>
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    borderRadius: "10px",
+                    padding: "0.6rem 0.75rem",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.85rem", fontStyle: "italic", lineHeight: 1.4 }}>
+                    {promptDisplay}
+                  </p>
+                </div>
+              </>
+            )}
+
             {turn.status === "completed" && (
               <div
                 style={{

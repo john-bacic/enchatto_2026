@@ -389,6 +389,25 @@ struct TruthOrDareGameView: View {
                 .font(.headline)
                 .foregroundColor(.white)
 
+            // Show original prompt as reminder
+            if let choice = turn.choice {
+                Text(choice == .truth ? L.t("Truth", lang) : L.t("Dare", lang))
+                    .font(.caption.bold())
+                    .foregroundColor(.white.opacity(0.7))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule().fill(choice == .truth ? Color.blue.opacity(0.3) : Color.red.opacity(0.3))
+                    )
+
+                Text(turn.localizedPrompt(lang: lang))
+                    .font(.subheadline)
+                    .italic()
+                    .foregroundColor(.white.opacity(0.5))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+            }
+
             if turn.status == .completed {
                 VStack(spacing: 8) {
                     if let text = turn.responseText {
