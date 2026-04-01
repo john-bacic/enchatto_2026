@@ -11,7 +11,6 @@ struct TruthOrDareGameView: View {
     @State private var showDrawing = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var triggerAutoSubmit = false
-    @State private var drawingTimeLeft: Int = 10
     @State private var fullScreenImageUrl: String?
     @State private var starRating: Int = 0
 
@@ -323,21 +322,13 @@ struct TruthOrDareGameView: View {
             .padding(.horizontal)
             .fullScreenCover(isPresented: $showDrawing) {
                 VStack(spacing: 0) {
-                    // Show the prompt and countdown
-                    HStack {
-                        Spacer()
-                        Text(turn.localizedPrompt(lang: lang))
-                            .font(.subheadline.bold())
-                            .multilineTextAlignment(.center)
-                        Spacer()
-                        Text("\(drawingTimeLeft)s")
-                            .font(.title3.bold().monospacedDigit())
-                            .foregroundColor(drawingTimeLeft <= 3 ? .red : .primary)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 12)
-                    .padding(.bottom, 4)
+                    // Show the prompt
+                    Text(turn.localizedPrompt(lang: lang))
+                        .font(.subheadline.bold())
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
 
                     DrawingComposerView(
                         lang: lang,
@@ -349,17 +340,8 @@ struct TruthOrDareGameView: View {
                             Task { await viewModel.submitTruthOrDareResponse(responseText: nil, responseMediaUrl: mediaUrl) }
                         },
                         onCancel: { showDrawing = false },
-                        countdownSeconds: drawingTimeLeft,
                         triggerAutoSubmit: $triggerAutoSubmit
                     )
-                }
-                .onAppear { drawingTimeLeft = 10 }
-                .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-                    if drawingTimeLeft > 0 {
-                        drawingTimeLeft -= 1
-                    } else {
-                        triggerAutoSubmit = true
-                    }
                 }
             }
 
