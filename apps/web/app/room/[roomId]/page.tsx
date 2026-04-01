@@ -755,6 +755,11 @@ function RoomContent() {
   const handleSubmitTruthOrDareResponse = useCallback(
     async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
       if (!participantId) return;
+      const isImage = responseMediaUrl && responseMediaUrl.startsWith("data:");
+      const t0 = performance.now();
+      if (isImage) {
+        console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
+      }
       try {
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
@@ -762,6 +767,9 @@ function RoomContent() {
           responseText,
           responseMediaUrl,
         });
+        if (isImage) {
+          console.log("[T/D] Mutation complete:", Math.round(performance.now() - t0), "ms");
+        }
       } catch (err) {
         console.error("Failed to submit response:", err);
       }
