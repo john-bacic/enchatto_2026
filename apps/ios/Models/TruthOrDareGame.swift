@@ -7,6 +7,7 @@ struct TruthOrDareGame: Codable, Identifiable, Equatable {
     let roomId: String
     var status: TruthOrDareStatus
     let hostParticipantId: String
+    var promptMode: String?
     var playerOrder: [String]
     var currentTurnIndex: Int
     var currentTurnParticipantId: String?
@@ -22,7 +23,7 @@ struct TruthOrDareGame: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case roomId, status, hostParticipantId, playerOrder
+        case roomId, status, hostParticipantId, promptMode, playerOrder
         case currentTurnIndex, currentTurnParticipantId
         case createdAt = "_creationTime"
         case completedAt, currentTurn, completedTurns, completedTurnsList, totalTurns, playerInfo
@@ -43,6 +44,7 @@ struct TruthOrDareTurn: Codable, Identifiable, Equatable {
     var promptText: String?
     var promptResponseType: TruthOrDareResponseType?
     var responseText: String?
+    var translatedResponseText: String?
     var responseMediaUrl: String?
     var ratings: [TruthOrDareRating]?
     var status: TruthOrDareTurnStatus
@@ -53,7 +55,7 @@ struct TruthOrDareTurn: Codable, Identifiable, Equatable {
         case id = "_id"
         case gameId, turnIndex, participantId, choice
         case promptId, promptText, promptResponseType
-        case responseText, responseMediaUrl, ratings, status
+        case responseText, translatedResponseText, responseMediaUrl, ratings, status
         case createdAt = "_creationTime"
         case completedAt
     }

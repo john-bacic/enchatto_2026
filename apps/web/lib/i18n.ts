@@ -153,6 +153,9 @@ const translations: Record<string, Record<string, string>> = {
   "It's a tie!": { ja: "引き分け！" },
   "played": { ja: "プレイ" },
   "End Game": { ja: "ゲーム終了" },
+  "Round Complete!": { ja: "ラウンド完了！" },
+  "turns played": { ja: "ターンプレイ済み" },
+  "Keep Playing": { ja: "続ける" },
   "End game?": { ja: "ゲームを終了しますか？" },
   "This will end the game for all players and show results.": { ja: "全プレイヤーのゲームを終了し、結果を表示します。" },
   "🛑 End Game": { ja: "🛑 ゲーム終了" },
@@ -262,6 +265,9 @@ const translations: Record<string, Record<string, string>> = {
   "Waiting for others to rate...": { ja: "他の人の評価を待っています…" },
   "Waiting for all ratings...": { ja: "全員の評価を待っています…" },
   "Skip ratings": { ja: "評価をスキップ" },
+  "Done Dare": { ja: "チャレンジ完了" },
+  "Normal": { ja: "ノーマル" },
+  "Deep": { ja: "ディープ" },
 };
 
 /**

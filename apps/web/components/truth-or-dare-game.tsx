@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { t } from "@/lib/i18n";
 import { PRESET_AVATARS } from "@/lib/types";
-import { DrawingCanvas } from "@/components/drawing-canvas";
+import { DrawingCanvas, DrawingCanvasHandle } from "@/components/drawing-canvas";
 
 interface TruthOrDareGameProps {
   game: {
     _id: string;
     status: string;
+    promptMode?: string;
     hostParticipantId: string;
     playerOrder: string[];
     currentTurnIndex: number;
@@ -21,6 +22,7 @@ interface TruthOrDareGameProps {
       promptText?: string;
       promptResponseType?: "text" | "photo" | "drawing";
       responseText?: string;
+      translatedResponseText?: string;
       responseMediaUrl?: string;
       ratings?: Array<{ participantId: string; score: number }>;
       status: string;
@@ -51,6 +53,7 @@ interface TruthOrDareGameProps {
   onSkipTurn: (gameId: string) => void;
   onEndGame: (gameId: string) => void;
   onSubmitRating: (turnId: string, score: number) => void;
+  onDrawingStateChange?: (isDrawing: boolean) => void;
   onClose: () => void;
 }
 
@@ -65,14 +68,29 @@ export function TruthOrDareGame({
   onSkipTurn,
   onEndGame,
   onSubmitRating,
+  onDrawingStateChange,
   onClose,
 }: TruthOrDareGameProps) {
   const [responseText, setResponseText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
-  const [sliderValue, setSliderValue] = useState<number>(5);
+  const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
+  const [dismissedRoundBreak, setDismissedRoundBreak] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
+
+  // Reset star rating when turn changes
+  useEffect(() => {
+    setStarRating(0);
+    setHasRated(false);
+  }, [game.currentTurn?._id]);
+
+  // Signal drawing state to other players via typing indicator
+  useEffect(() => {
+    onDrawingStateChange?.(showDrawing);
+    return () => { onDrawingStateChange?.(false); };
+  }, [showDrawing, onDrawingStateChange]);
 
   const isMyTurn = game.currentTurnParticipantId === myParticipantId;
   const currentPlayer = game.playerInfo.find(
@@ -249,8 +267,13 @@ export function TruthOrDareGame({
           alignItems: "center",
         }}
       >
-        <span style={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}>
+        <span style={{ color: "#fff", fontWeight: 700, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
           🎲 {t("Truth or Dare", lang)}
+          {game.promptMode === "deep" && (
+            <span style={{ fontSize: "0.65rem", background: "rgba(14,165,233,0.8)", padding: "0.1rem 0.4rem", borderRadius: "10px" }}>
+              🌊 {t("Deep", lang)}
+            </span>
+          )}
         </span>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           {isHost && (
@@ -342,6 +365,138 @@ export function TruthOrDareGame({
           </div>
         );
       })()}
+
+      {/* Round break interstitial — every 10 turns */}
+      {game.completedTurns > 0 &&
+        game.completedTurns % 10 === 0 &&
+        turn?.status === "waiting_for_choice" &&
+        dismissedRoundBreak !== game.completedTurns && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            zIndex: 250,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg, #1e1b4b, #312e81)",
+              borderRadius: "20px",
+              padding: "2rem 1.5rem",
+              textAlign: "center",
+              maxWidth: "340px",
+              width: "100%",
+              border: "1px solid rgba(139,92,246,0.3)",
+            }}
+          >
+            <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🎉</div>
+            <h2 style={{ color: "#fff", fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+              {t("Round Complete!", lang)}
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+              {game.completedTurns} {t("turns played", lang)}
+            </p>
+
+            {/* Mini ratings summary */}
+            {(() => {
+              const turns = game.completedTurnsList ?? [];
+              const ratedTurns = turns.filter((rt) => rt.ratings.length > 0);
+              if (ratedTurns.length === 0) return null;
+
+              const playerScores: Record<string, { total: number; count: number }> = {};
+              for (const rt of ratedTurns) {
+                const pid = rt.participantId;
+                if (!playerScores[pid]) playerScores[pid] = { total: 0, count: 0 };
+                const avg = rt.ratings.reduce((s, r) => s + r.score, 0) / rt.ratings.length;
+                playerScores[pid].total += avg;
+                playerScores[pid].count += 1;
+              }
+
+              const sorted = Object.entries(playerScores)
+                .map(([pid, s]) => ({
+                  pid,
+                  avg: s.total / s.count,
+                  player: game.playerInfo.find((p) => p.participantId === pid),
+                }))
+                .sort((a, b) => b.avg - a.avg);
+
+              return (
+                <div style={{
+                  background: "rgba(255,255,255,0.08)",
+                  borderRadius: "10px",
+                  padding: "0.6rem 0.75rem",
+                  margin: "0.75rem 0",
+                  textAlign: "left",
+                }}>
+                  {sorted.slice(0, 3).map(({ pid, avg, player }, i) => {
+                    const emoji = PRESET_AVATARS.find((a) => a.id === player?.avatarValue)?.emoji ?? "🐱";
+                    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+                    return (
+                      <div key={pid} style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "0.8rem",
+                        color: "#fff",
+                        padding: "0.2rem 0",
+                      }}>
+                        <span>{medal} {emoji} {player?.nickname ?? "?"}</span>
+                        <span style={{ fontWeight: 600, color: "#f59e0b" }}>⭐ {avg.toFixed(1)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {isHost ? (
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+                <button
+                  onClick={() => onEndGame(game._id)}
+                  style={{
+                    flex: 1,
+                    padding: "0.75rem",
+                    borderRadius: "10px",
+                    background: "rgba(239,68,68,0.8)",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("End Game", lang)}
+                </button>
+                <button
+                  onClick={() => setDismissedRoundBreak(game.completedTurns)}
+                  style={{
+                    flex: 1,
+                    padding: "0.75rem",
+                    borderRadius: "10px",
+                    background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("Keep Playing", lang)} →
+                </button>
+              </div>
+            ) : (
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.85rem", marginTop: "1rem" }}>
+                {t("Waiting for host...", lang)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main content area */}
       <div
@@ -496,43 +651,54 @@ export function TruthOrDareGame({
                       }}
                       autoFocus
                     />
-                    <button
-                      onClick={() => {
-                        if (responseText.trim()) {
-                          onSubmitResponse(game._id, responseText.trim());
-                          setResponseText("");
-                        }
-                      }}
-                      disabled={!responseText.trim()}
-                      style={{
-                        width: "100%",
-                        padding: "0.65rem",
-                        borderRadius: "8px",
-                        background: responseText.trim() ? "var(--primary)" : "rgba(255,255,255,0.15)",
-                        color: "#fff",
-                        fontWeight: 600,
-                        border: "none",
-                        cursor: responseText.trim() ? "pointer" : "default",
-                      }}
-                    >
-                      {t("Send Answer", lang)}
-                    </button>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => {
+                          if (responseText.trim()) {
+                            onSubmitResponse(game._id, responseText.trim());
+                            setResponseText("");
+                          }
+                        }}
+                        disabled={!responseText.trim()}
+                        style={{
+                          flex: 1,
+                          padding: "0.65rem",
+                          borderRadius: "8px",
+                          background: responseText.trim() ? "var(--primary)" : "rgba(255,255,255,0.15)",
+                          color: "#fff",
+                          fontWeight: 600,
+                          border: "none",
+                          cursor: responseText.trim() ? "pointer" : "default",
+                        }}
+                      >
+                        {t("Send Answer", lang)}
+                      </button>
+                      {turn.choice === "dare" && (
+                        <button
+                          onClick={() => onSubmitResponse(game._id, "✅ Done!")}
+                          style={{
+                            flex: 1,
+                            padding: "0.65rem",
+                            borderRadius: "8px",
+                            background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                            color: "#fff",
+                            fontWeight: 600,
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {t("Done Dare", lang)}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                {/* Photo response */}
-                {turn.promptResponseType === "photo" && (
+                {/* Drawing response */}
+                {turn.promptResponseType === "drawing" && (
                   <div style={{ width: "100%" }}>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handlePhotoCapture}
-                      style={{ display: "none" }}
-                    />
                     <button
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => setShowDrawing(true)}
                       style={{
                         width: "100%",
                         padding: "1rem",
@@ -545,29 +711,28 @@ export function TruthOrDareGame({
                         cursor: "pointer",
                       }}
                     >
-                      📷 {t("Take a photo", lang)}
+                      ✏️ {t("Draw your answer", lang)}
                     </button>
+                    {turn.choice === "dare" && (
+                      <button
+                        onClick={() => onSubmitResponse(game._id, "✅ Done!")}
+                        style={{
+                          width: "100%",
+                          padding: "1rem",
+                          borderRadius: "12px",
+                          background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: "1rem",
+                          border: "none",
+                          cursor: "pointer",
+                          marginTop: "0.5rem",
+                        }}
+                      >
+                        {t("Done Dare", lang)}
+                      </button>
+                    )}
                   </div>
-                )}
-
-                {/* Drawing response — uses the same DrawingModal as chat */}
-                {turn.promptResponseType === "drawing" && (
-                  <button
-                    onClick={() => setShowDrawing(true)}
-                    style={{
-                      width: "100%",
-                      padding: "1rem",
-                      borderRadius: "12px",
-                      background: "linear-gradient(135deg, var(--primary), #7c3aed)",
-                      color: "#fff",
-                      fontWeight: 600,
-                      fontSize: "1rem",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✏️ {t("Draw your answer", lang)}
-                  </button>
                 )}
 
                 {/* Drawing overlay with prompt visible */}
@@ -610,8 +775,10 @@ export function TruthOrDareGame({
                         </p>
                       </div>
                       <DrawingCanvas
+                        ref={drawingCanvasRef}
                         onSave={handleDrawingSave}
                         onCancel={() => setShowDrawing(false)}
+                        gameMode
                       />
                     </div>
                   </div>
@@ -635,9 +802,42 @@ export function TruthOrDareGame({
                 </button>
               </>
             ) : (
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem" }}>
-                {t("Waiting for", lang)} {currentPlayer?.nickname} {t("to respond...", lang)}
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+                {turn.promptResponseType === "drawing" ? (
+                  <>
+                    <div style={{
+                      background: "rgba(255,255,255,0.1)",
+                      borderRadius: "16px",
+                      padding: "0.75rem 1.25rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}>
+                      <span className="td-drawing-pencil">✏️</span>
+                      <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.9rem" }}>
+                        {currentPlayer?.nickname} {t("is drawing", lang)}...
+                      </span>
+                    </div>
+                    <style jsx>{`
+                      .td-drawing-pencil {
+                        display: inline-block;
+                        font-size: 1.1rem;
+                        animation: tdDrawingWiggle 0.8s infinite ease-in-out;
+                      }
+                      @keyframes tdDrawingWiggle {
+                        0%, 100% { transform: rotate(-10deg) translateY(0); }
+                        25% { transform: rotate(5deg) translateY(-2px); }
+                        50% { transform: rotate(-5deg) translateY(0); }
+                        75% { transform: rotate(8deg) translateY(-1px); }
+                      }
+                    `}</style>
+                  </>
+                ) : (
+                  <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem" }}>
+                    {t("Waiting for", lang)} {currentPlayer?.nickname} {t("to respond...", lang)}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -664,6 +864,9 @@ export function TruthOrDareGame({
                 {turn.responseText && (
                   <p style={{ color: "#fff", fontSize: "1.1rem" }}>{turn.responseText}</p>
                 )}
+                {turn.translatedResponseText && (
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.9rem", fontStyle: "italic", marginTop: "0.3rem" }}>{turn.translatedResponseText}</p>
+                )}
                 {turn.responseMediaUrl && (
                   <img
                     src={turn.responseMediaUrl}
@@ -689,7 +892,7 @@ export function TruthOrDareGame({
                 ? (ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length).toFixed(1)
                 : null;
               const isActivePlayer = turn.participantId === myParticipantId;
-              const displayValue = myRating ? myRating.score : sliderValue;
+              const displayValue = myRating ? myRating.score : starRating;
 
               // Count eligible raters (online, non-active players)
               const eligibleRaters = game.playerInfo.filter(
@@ -703,63 +906,60 @@ export function TruthOrDareGame({
                   {/* Average rating display */}
                   {avg && (
                     <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-                      ⭐ {avg}/10 ({ratings.length}/{eligibleRaters.length} rated)
+                      ⭐ {avg}/5 ({ratings.length}/{eligibleRaters.length} rated)
                     </p>
                   )}
 
-                  {/* Rating slider (don't show to the player who answered) */}
+                  {/* Star rating (don't show to the player who answered) */}
                   {!isActivePlayer && !myRating && (
                     <div style={{ padding: "0 0.5rem" }}>
                       <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", marginBottom: "0.75rem" }}>
                         {t("Rate this answer", lang)}
                       </p>
 
-                      {/* Star + number ABOVE the slider */}
-                      <p style={{
-                        color: "#f59e0b",
-                        fontSize: "1.3rem",
-                        fontWeight: 700,
-                        marginBottom: "0.6rem",
-                      }}>
-                        ⭐ {Number.isInteger(sliderValue) ? sliderValue : sliderValue.toFixed(1)}
-                      </p>
-
-                      {/* Slider bar */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem", minWidth: "0.8rem" }}>1</span>
-                        <input
-                          type="range"
-                          min={1}
-                          max={10}
-                          step={0.5}
-                          value={sliderValue}
-                          onChange={(e) => setSliderValue(parseFloat(e.target.value))}
-                          style={{
-                            flex: 1,
-                            accentColor: "#f59e0b",
-                            height: "6px",
-                            cursor: "pointer",
-                          }}
-                        />
-                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.7rem", minWidth: "1.2rem" }}>10</span>
+                      {/* 5 clickable stars */}
+                      <div style={{ display: "flex", justifyContent: "center", gap: "0.4rem", marginBottom: "0.75rem" }}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setStarRating(star)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "2rem",
+                              padding: "0.1rem",
+                              filter: star <= starRating ? "none" : "grayscale(1) opacity(0.3)",
+                              transition: "filter 0.15s, transform 0.15s",
+                              transform: star <= starRating ? "scale(1.1)" : "scale(1)",
+                            }}
+                          >
+                            ⭐
+                          </button>
+                        ))}
                       </div>
 
                       {/* Submit button */}
                       <button
                         onClick={() => {
-                          onSubmitRating(turn._id, sliderValue);
-                          setHasRated(true);
+                          if (starRating > 0) {
+                            onSubmitRating(turn._id, starRating);
+                            setHasRated(true);
+                          }
                         }}
+                        disabled={starRating === 0}
                         style={{
-                          marginTop: "1.5rem",
+                          marginTop: "0.5rem",
                           padding: "0.5rem 1.5rem",
                           borderRadius: "8px",
-                          background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                          background: starRating > 0
+                            ? "linear-gradient(135deg, #f59e0b, #d97706)"
+                            : "rgba(255,255,255,0.15)",
                           color: "#fff",
                           fontWeight: 700,
                           fontSize: "0.9rem",
                           border: "none",
-                          cursor: "pointer",
+                          cursor: starRating > 0 ? "pointer" : "default",
                         }}
                       >
                         {t("Submit Rating", lang)}
@@ -769,9 +969,19 @@ export function TruthOrDareGame({
 
                   {/* After submitting, show confirmed rating */}
                   {!isActivePlayer && myRating && (
-                    <p style={{ color: "#f59e0b", fontSize: "0.9rem", fontWeight: 600 }}>
-                      ⭐ {Number.isInteger(myRating.score) ? myRating.score : myRating.score.toFixed(1)}/10
-                    </p>
+                    <div style={{ display: "flex", justifyContent: "center", gap: "0.2rem" }}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span
+                          key={star}
+                          style={{
+                            fontSize: "1.4rem",
+                            filter: star <= myRating.score ? "none" : "grayscale(1) opacity(0.3)",
+                          }}
+                        >
+                          ⭐
+                        </span>
+                      ))}
+                    </div>
                   )}
 
                   {/* Waiting indicator when not everyone has rated */}

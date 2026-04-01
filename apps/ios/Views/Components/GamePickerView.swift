@@ -15,11 +15,12 @@ struct GamePickerView: View {
     let onStartGame: (String, Int, Int) -> Void
     let onStartEmojifyr: () -> Void
     let onStartEmojiMatch: () -> Void
-    let onStartTruthOrDare: () -> Void
+    let onStartTruthOrDare: (String) -> Void
     let onDismiss: () -> Void
 
     @State private var timerSeconds: Int = 20
     @State private var selectedGame: GamePickerTab = .lostInTranslation
+    @State private var todMode: String = "normal"
 
     var body: some View {
         VStack(spacing: 8) {
@@ -244,11 +245,15 @@ struct GamePickerView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Text("\(playerCount) \(L.t("players", lang))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // Mode selector
+            Picker("", selection: $todMode) {
+                Text(L.t("Normal", lang)).tag("normal")
+                Text("\(L.t("Deep", lang)) 🌊").tag("deep")
+            }
+            .pickerStyle(.segmented)
+            .padding(.top, 4)
 
-            Text(L.t("Rotates through all players", lang))
+            Text("\(playerCount) \(L.t("players", lang))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -259,7 +264,7 @@ struct GamePickerView: View {
             }
 
             Button(L.t("Start Game", lang)) {
-                onStartTruthOrDare()
+                onStartTruthOrDare(todMode)
             }
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)

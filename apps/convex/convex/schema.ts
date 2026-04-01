@@ -197,6 +197,7 @@ export default defineSchema({
       v.literal("canceled")
     ),
     hostParticipantId: v.id("participants"),
+    promptMode: v.optional(v.union(v.literal("normal"), v.literal("deep"), v.literal("spicy"))),
     playerOrder: v.array(v.id("participants")),
     currentTurnIndex: v.number(),
     currentTurnParticipantId: v.optional(v.id("participants")),
@@ -219,6 +220,7 @@ export default defineSchema({
       v.literal("drawing")
     )),
     responseText: v.optional(v.string()),
+    translatedResponseText: v.optional(v.string()),
     responseMediaUrl: v.optional(v.string()),
     ratings: v.optional(v.array(v.object({
       participantId: v.id("participants"),

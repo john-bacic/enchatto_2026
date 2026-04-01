@@ -11,8 +11,9 @@ struct TruthOrDareGameView: View {
     @State private var showDrawing = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var triggerAutoSubmit = false
+    @State private var drawingTimeLeft: Int = 10
     @State private var fullScreenImageUrl: String?
-    @State private var ratingSliderValue: Double = 5.0
+    @State private var starRating: Int = 0
 
     var body: some View {
         let game = viewModel.activeTruthOrDareGame
@@ -123,6 +124,9 @@ struct TruthOrDareGameView: View {
                 }
                 .onTapGesture { fullScreenImageUrl = nil }
             }
+        }
+        .onChange(of: game.currentTurn?.id) { _ in
+            starRating = 0
         }
     }
 
@@ -283,30 +287,26 @@ struct TruthOrDareGameView: View {
                 }
                 .disabled(responseText.trimmingCharacters(in: .whitespaces).isEmpty)
                 .padding(.horizontal)
+
+                if turn.choice == .dare {
+                    Button {
+                        Task { await viewModel.submitTruthOrDareResponse(responseText: "✅ Done!", responseMediaUrl: nil) }
+                    } label: {
+                        Text(L.t("Done Dare", lang))
+                            .font(.body.bold())
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(LinearGradient(colors: [Color.green, Color.green.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
+                            .cornerRadius(10)
+                    }
+                    .padding(.horizontal)
+                }
             }
 
         case .photo:
-            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                Label(L.t("Take a photo", lang), systemImage: "camera.fill")
-                    .font(.body.bold())
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(LinearGradient(colors: [.purple, .purple.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
-                    .cornerRadius(12)
-            }
-            .padding(.horizontal)
-            .onChange(of: selectedPhotoItem) { item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) {
-                        let base64 = data.base64EncodedString()
-                        let mediaUrl = "data:image/png;base64,\(base64)"
-                        await viewModel.submitTruthOrDareResponse(responseText: nil, responseMediaUrl: mediaUrl)
-                    }
-                    selectedPhotoItem = nil
-                }
-            }
+            // Photo dares removed — fall through to drawing
+            EmptyView()
 
         case .drawing:
             Button {
@@ -323,13 +323,21 @@ struct TruthOrDareGameView: View {
             .padding(.horizontal)
             .fullScreenCover(isPresented: $showDrawing) {
                 VStack(spacing: 0) {
-                    // Show the prompt so user knows what to draw
-                    Text(turn.localizedPrompt(lang: lang))
-                        .font(.subheadline.bold())
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
+                    // Show the prompt and countdown
+                    HStack {
+                        Spacer()
+                        Text(turn.localizedPrompt(lang: lang))
+                            .font(.subheadline.bold())
+                            .multilineTextAlignment(.center)
+                        Spacer()
+                        Text("\(drawingTimeLeft)s")
+                            .font(.title3.bold().monospacedDigit())
+                            .foregroundColor(drawingTimeLeft <= 3 ? .red : .primary)
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
 
                     DrawingComposerView(
                         lang: lang,
@@ -341,9 +349,33 @@ struct TruthOrDareGameView: View {
                             Task { await viewModel.submitTruthOrDareResponse(responseText: nil, responseMediaUrl: mediaUrl) }
                         },
                         onCancel: { showDrawing = false },
+                        countdownSeconds: drawingTimeLeft,
                         triggerAutoSubmit: $triggerAutoSubmit
                     )
                 }
+                .onAppear { drawingTimeLeft = 10 }
+                .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+                    if drawingTimeLeft > 0 {
+                        drawingTimeLeft -= 1
+                    } else {
+                        triggerAutoSubmit = true
+                    }
+                }
+            }
+
+            if turn.choice == .dare {
+                Button {
+                    Task { await viewModel.submitTruthOrDareResponse(responseText: "✅ Done!", responseMediaUrl: nil) }
+                } label: {
+                    Text(L.t("Done Dare", lang))
+                        .font(.body.bold())
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(LinearGradient(colors: [Color.green, Color.green.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal)
             }
         }
 
@@ -386,6 +418,13 @@ struct TruthOrDareGameView: View {
                             .background(Color.white.opacity(0.1))
                             .cornerRadius(12)
                     }
+                    if let translated = turn.translatedResponseText {
+                        Text(translated)
+                            .font(.subheadline)
+                            .italic()
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(.horizontal)
+                    }
                     if let mediaUrl = turn.responseMediaUrl, let url = URL(string: mediaUrl) {
                         AsyncImage(url: url) { image in
                             image.resizable().scaledToFit()
@@ -414,12 +453,12 @@ struct TruthOrDareGameView: View {
                     // Average rating
                     if !ratings.isEmpty {
                         let avg = ratings.reduce(0.0) { $0 + $1.score } / Double(ratings.count)
-                        Text("⭐ \(String(format: "%.1f", avg))/10 (\(ratings.count)/\(eligibleRaters.count) rated)")
+                        Text("⭐ \(String(format: "%.1f", avg))/5 (\(ratings.count)/\(eligibleRaters.count) rated)")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.7))
                     }
 
-                    // Rating slider (not for the answerer, only if not yet rated)
+                    // Star rating (not for the answerer, only if not yet rated)
                     if !isActivePlayer && myRating == nil {
                         Text(L.t("Rate this answer", lang))
                             .font(.caption2)
@@ -427,45 +466,54 @@ struct TruthOrDareGameView: View {
                             .padding(.bottom, 4)
 
                         VStack(spacing: 12) {
-                            // Star + number ABOVE the slider
-                            Text("⭐ \(ratingSliderValue == floor(ratingSliderValue) ? String(format: "%.0f", ratingSliderValue) : String(format: "%.1f", ratingSliderValue))")
-                                .font(.title2.bold())
-                                .foregroundColor(.yellow)
-
-                            // Slider bar
-                            HStack {
-                                Text("1")
-                                    .font(.caption2)
-                                    .foregroundColor(.white.opacity(0.4))
-                                Slider(value: $ratingSliderValue, in: 1...10, step: 0.5)
-                                    .tint(.yellow)
-                                Text("10")
-                                    .font(.caption2)
-                                    .foregroundColor(.white.opacity(0.4))
+                            // 5 clickable stars
+                            HStack(spacing: 8) {
+                                ForEach(1...5, id: \.self) { star in
+                                    Button {
+                                        starRating = star
+                                    } label: {
+                                        Text("⭐")
+                                            .font(.system(size: 32))
+                                            .saturation(star <= starRating ? 1.0 : 0.0)
+                                            .opacity(star <= starRating ? 1.0 : 0.3)
+                                            .scaleEffect(star <= starRating ? 1.1 : 1.0)
+                                            .animation(.easeInOut(duration: 0.15), value: starRating)
+                                    }
+                                }
                             }
-                            .padding(.horizontal)
 
                             // Submit button
                             Button {
-                                Task { await viewModel.submitTruthOrDareRating(turnId: turn.id, score: ratingSliderValue) }
+                                guard starRating > 0 else { return }
+                                Task { await viewModel.submitTruthOrDareRating(turnId: turn.id, score: Double(starRating)) }
                             } label: {
                                 Text(L.t("Submit Rating", lang))
                                     .font(.subheadline.bold())
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 24)
                                     .padding(.vertical, 10)
-                                    .background(LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing))
+                                    .background(
+                                        starRating > 0
+                                            ? LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing)
+                                            : LinearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.3)], startPoint: .leading, endPoint: .trailing)
+                                    )
                                     .cornerRadius(8)
                             }
-                            .padding(.top, 20)
+                            .disabled(starRating == 0)
+                            .padding(.top, 8)
                         }
                     }
 
-                    // After submitting, show confirmed rating
+                    // After submitting, show confirmed rating as stars
                     if !isActivePlayer, let myR = myRating {
-                        Text("⭐ \(myR.score == floor(myR.score) ? String(format: "%.0f", myR.score) : String(format: "%.1f", myR.score))/10")
-                            .font(.subheadline.bold())
-                            .foregroundColor(.yellow)
+                        HStack(spacing: 4) {
+                            ForEach(1...5, id: \.self) { star in
+                                Text("⭐")
+                                    .font(.system(size: 22))
+                                    .saturation(Double(star) <= myR.score ? 1.0 : 0.0)
+                                    .opacity(Double(star) <= myR.score ? 1.0 : 0.3)
+                            }
+                        }
                         if !allRated {
                             Text(L.t("Waiting for others to rate...", lang))
                                 .font(.caption2)

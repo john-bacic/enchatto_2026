@@ -1079,6 +1079,18 @@ class HostRoomViewModel: ObservableObject {
             } else if !needsFastPoll && truthOrDarePollTask != nil {
                 stopTruthOrDareFastPoll()
             }
+
+            // Auto-translate completed turn responses that lack a translation
+            if let turn = game?.currentTurn,
+               turn.status == .completed,
+               let text = turn.responseText,
+               !text.isEmpty,
+               text != "✅ Done!",
+               turn.translatedResponseText == nil {
+                Task {
+                    await translateTruthOrDareResponse(text: text, turnId: turn.id)
+                }
+            }
         } catch {
             print("Error polling Truth or Dare state: \(error)")
         }
@@ -1108,9 +1120,9 @@ class HostRoomViewModel: ObservableObject {
         truthOrDarePollTask = nil
     }
 
-    func createTruthOrDare() async {
+    func createTruthOrDare(promptMode: String = "normal") async {
         do {
-            _ = try await api.createTruthOrDare(roomId: roomId, hostParticipantId: hostId)
+            _ = try await api.createTruthOrDare(roomId: roomId, hostParticipantId: hostId, promptMode: promptMode)
             await pollTruthOrDareState()
         } catch {
             print("Error creating Truth or Dare: \(error)")
@@ -1132,8 +1144,45 @@ class HostRoomViewModel: ObservableObject {
         do {
             try await api.submitTruthOrDareResponse(gameId: game.id, participantId: hostId, responseText: responseText, responseMediaUrl: responseMediaUrl)
             await pollTruthOrDareState()
+
+            // Translate text response if present
+            if let text = responseText, !text.isEmpty, text != "✅ Done!",
+               let currentTurn = activeTruthOrDareGame?.currentTurn {
+                Task {
+                    await translateTruthOrDareResponse(text: text, turnId: currentTurn.id)
+                }
+            }
         } catch {
             print("Error submitting response: \(error)")
+        }
+    }
+
+    /// Detect language and translate to the other language (en↔ja)
+    private func translateTruthOrDareResponse(text: String, turnId: String) async {
+        do {
+            // Detect language
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(text)
+            let detectedLang = recognizer.dominantLanguage
+
+            let sourceLang: String
+            let targetLang: String
+            if detectedLang == .japanese {
+                sourceLang = "ja"
+                targetLang = "en"
+            } else {
+                sourceLang = "en"
+                targetLang = "ja"
+            }
+
+            let translationService = MyMemoryTranslationService()
+            let translated = try await translationService.translate(text: text, source: sourceLang, target: targetLang)
+            if !translated.isEmpty && translated != text {
+                try await api.submitTruthOrDareTranslation(turnId: turnId, translatedText: translated)
+                await pollTruthOrDareState()
+            }
+        } catch {
+            print("Error translating T/D response: \(error)")
         }
     }
 
@@ -1151,8 +1200,6 @@ class HostRoomViewModel: ObservableObject {
         guard let game = activeTruthOrDareGame else { return }
         do {
             try await api.skipTruthOrDareTurn(gameId: game.id, participantId: hostId)
-            // Auto-advance after skip
-            try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
             await pollTruthOrDareState()
         } catch {
             print("Error skipping turn: \(error)")

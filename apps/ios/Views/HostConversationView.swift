@@ -959,10 +959,10 @@ struct HostConversationView: View {
                         await viewModel.createEmojiMatchLobby()
                     }
                 },
-                onStartTruthOrDare: {
+                onStartTruthOrDare: { mode in
                     showGamePicker = false
                     Task {
-                        await viewModel.createTruthOrDare()
+                        await viewModel.createTruthOrDare(promptMode: mode)
                     }
                 },
                 onDismiss: { showGamePicker = false }

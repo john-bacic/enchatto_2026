@@ -599,6 +599,7 @@ http.route({
     const gameId = await ctx.runMutation(api.truthOrDare.createGame, {
       roomId: body.roomId,
       hostParticipantId: body.hostParticipantId,
+      promptMode: body.promptMode,
     });
     return { gameId };
   }),
@@ -670,6 +671,17 @@ http.route({
       turnId: body.turnId,
       participantId: body.participantId,
       score: body.score,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/submit-translation",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.submitTranslation, {
+      turnId: body.turnId,
+      translatedText: body.translatedText,
     });
   }),
 });

@@ -478,11 +478,12 @@ class RealEnchattoAPI: EnchattoAPI {
 
     // MARK: - Truth or Dare
 
-    func createTruthOrDare(roomId: String, hostParticipantId: String) async throws -> String {
+    func createTruthOrDare(roomId: String, hostParticipantId: String, promptMode: String) async throws -> String {
         struct Response: Decodable { let gameId: String }
         let response: Response = try await client.post("/api/truth-or-dare/create", body: [
             "roomId": roomId,
             "hostParticipantId": hostParticipantId,
+            "promptMode": promptMode,
         ])
         return response.gameId
     }
@@ -523,6 +524,13 @@ class RealEnchattoAPI: EnchattoAPI {
         let _: [String: String] = try await client.post("/api/truth-or-dare/end", body: [
             "gameId": gameId,
             "participantId": participantId,
+        ])
+    }
+
+    func submitTruthOrDareTranslation(turnId: String, translatedText: String) async throws {
+        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-translation", body: [
+            "turnId": turnId,
+            "translatedText": translatedText,
         ])
     }
 

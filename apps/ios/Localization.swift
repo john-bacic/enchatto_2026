@@ -225,6 +225,9 @@ enum L {
         "Submit Rating": ["ja": "評価を送信"],
         "Waiting for others to rate...": ["ja": "他の人の評価を待っています…"],
         "Skip ratings": ["ja": "評価をスキップ"],
+        "Done Dare": ["ja": "チャレンジ完了"],
+        "Normal": ["ja": "ノーマル"],
+        "Deep": ["ja": "ディープ"],
     ]
 
     /// Translate a UI string. Returns the key unchanged for English or missing translations.

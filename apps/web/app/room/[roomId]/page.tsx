@@ -719,12 +719,13 @@ function RoomContent() {
   const submitTruthOrDareRating = useMutation(api.truthOrDare.submitRating);
 
   const handleCreateTruthOrDare = useCallback(
-    async () => {
+    async (mode: "normal" | "deep" = "normal") => {
       if (!participantId) return;
       try {
         await createTruthOrDare({
           roomId: roomId as Id<"rooms">,
           hostParticipantId: participantId as Id<"participants">,
+          promptMode: mode,
         });
         setDismissedTruthOrDareId(null);
         setShowGamePicker(false);
@@ -791,18 +792,11 @@ function RoomContent() {
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
         });
-        // After skipping, auto-advance if host
-        if (me?.role === "host") {
-          await advanceTruthOrDareTurn({
-            gameId: gameId as Id<"truthOrDareGames">,
-            participantId: participantId as Id<"participants">,
-          });
-        }
       } catch (err) {
         console.error("Failed to skip turn:", err);
       }
     },
-    [skipTruthOrDareTurn, advanceTruthOrDareTurn, participantId, me?.role]
+    [skipTruthOrDareTurn, participantId]
   );
 
   const handleEndTruthOrDare = useCallback(
@@ -1375,6 +1369,14 @@ function RoomContent() {
           onSkipTurn={handleSkipTruthOrDareTurn}
           onEndGame={handleEndTruthOrDare}
           onSubmitRating={handleSubmitTruthOrDareRating}
+          onDrawingStateChange={(isDrawing) => {
+            if (participantId) {
+              setTypingAction({
+                participantId: participantId as Id<"participants">,
+                action: isDrawing ? "drawing" : undefined,
+              }).catch(() => {});
+            }
+          }}
           onClose={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
         />
       )}

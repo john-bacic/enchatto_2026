@@ -162,7 +162,7 @@ protocol EnchattoAPI {
     // MARK: - Truth or Dare
 
     /// Create a Truth or Dare game
-    func createTruthOrDare(roomId: String, hostParticipantId: String) async throws -> String
+    func createTruthOrDare(roomId: String, hostParticipantId: String, promptMode: String) async throws -> String
 
     /// Submit a truth/dare choice
     func submitTruthOrDareChoice(gameId: String, participantId: String, choice: String) async throws
@@ -178,6 +178,9 @@ protocol EnchattoAPI {
 
     /// End the game
     func endTruthOrDare(gameId: String, participantId: String) async throws
+
+    /// Submit a translation for a turn response
+    func submitTruthOrDareTranslation(turnId: String, translatedText: String) async throws
 
     /// Submit a rating for a turn
     func submitTruthOrDareRating(turnId: String, participantId: String, score: Double) async throws

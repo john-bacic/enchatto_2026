@@ -312,7 +312,7 @@ class MockEnchattoAPI: EnchattoAPI {
 
     // MARK: - Truth or Dare
 
-    func createTruthOrDare(roomId: String, hostParticipantId: String) async throws -> String {
+    func createTruthOrDare(roomId: String, hostParticipantId: String, promptMode: String) async throws -> String {
         return UUID().uuidString
     }
 
@@ -325,6 +325,8 @@ class MockEnchattoAPI: EnchattoAPI {
     func skipTruthOrDareTurn(gameId: String, participantId: String) async throws {}
 
     func endTruthOrDare(gameId: String, participantId: String) async throws {}
+
+    func submitTruthOrDareTranslation(turnId: String, translatedText: String) async throws {}
 
     func submitTruthOrDareRating(turnId: String, participantId: String, score: Double) async throws {}
 

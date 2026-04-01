@@ -14,7 +14,7 @@ interface GamePickerModalProps {
   onStartGame: (gameType: string, level: number, timerSeconds: number) => void;
   onStartEmojifyr?: () => void;
   onStartEmojiMatch?: () => void;
-  onStartTruthOrDare?: () => void;
+  onStartTruthOrDare?: (mode: "normal" | "deep") => void;
   onRequestGame: (message: string) => void;
   onClose: () => void;
   lang?: string;
@@ -36,6 +36,7 @@ export function GamePickerModal({
 }: GamePickerModalProps) {
   const [timerSeconds, setTimerSeconds] = useState(20);
   const [selectedGame, setSelectedGame] = useState<GameTab>("lost-in-translation");
+  const [todMode, setTodMode] = useState<"normal" | "deep">("normal");
 
   if (!isOpen) return null;
 
@@ -431,6 +432,37 @@ export function GamePickerModal({
                 <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
                   {t("A social game: answer a question or complete a challenge! Take turns with your group.", lang)}
                 </p>
+                {/* Mode selector */}
+                <div style={{
+                  display: "flex",
+                  gap: "0",
+                  marginBottom: "0.75rem",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  border: "1px solid var(--border)",
+                }}>
+                  {(["normal", "deep"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setTodMode(mode)}
+                      style={{
+                        flex: 1,
+                        padding: "0.5rem 0",
+                        fontSize: "0.8rem",
+                        fontWeight: todMode === mode ? 700 : 500,
+                        background: todMode === mode
+                          ? (mode === "deep" ? "linear-gradient(135deg, #0ea5e9, #0284c7)" : "var(--primary)")
+                          : "var(--bg)",
+                        color: todMode === mode ? "#fff" : "var(--muted)",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {mode === "normal" ? t("Normal", lang) : `${t("Deep", lang)} 🌊`}
+                    </button>
+                  ))}
+                </div>
+
                 <div style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -462,7 +494,7 @@ export function GamePickerModal({
                     {t("Cancel", lang)}
                   </button>
                   <button
-                    onClick={() => onStartTruthOrDare?.()}
+                    onClick={() => onStartTruthOrDare?.(todMode)}
                     disabled={playerCount < 2}
                     style={{
                       flex: 1,
