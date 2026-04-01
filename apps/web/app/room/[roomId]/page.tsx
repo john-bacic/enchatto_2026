@@ -756,11 +756,34 @@ function RoomContent() {
     async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
       if (!participantId) return;
       const isImage = responseMediaUrl && responseMediaUrl.startsWith("data:");
+      const payloadKB = isImage ? Math.round(responseMediaUrl!.length / 1024) : 0;
       const t0 = performance.now();
       if (isImage) {
-        console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
+        console.log("[T/D] Drawing submit started, payload size:", payloadKB, "KB");
       }
       try {
+        // Large images (>15KB) crash the WebSocket, so upload to file storage first
+        if (isImage && payloadKB > 15) {
+          console.log("[T/D] Using file storage (payload > 15KB)");
+          const res = await fetch(responseMediaUrl!);
+          const blob = await res.blob();
+          const uploadUrl = await generateUploadUrl();
+          const uploadResult = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": blob.type || "image/jpeg" },
+            body: blob,
+          });
+          const { storageId } = await uploadResult.json();
+          await submitTruthOrDareResponse({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+            responseText,
+            responseStorageId: storageId as Id<"_storage">,
+          });
+          console.log("[T/D] File storage path complete:", Math.round(performance.now() - t0), "ms");
+          return;
+        }
+        // Small images go directly through the mutation (fastest path)
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
@@ -768,13 +791,13 @@ function RoomContent() {
           responseMediaUrl,
         });
         if (isImage) {
-          console.log("[T/D] Mutation complete:", Math.round(performance.now() - t0), "ms");
+          console.log("[T/D] Direct mutation complete:", Math.round(performance.now() - t0), "ms");
         }
       } catch (err) {
         console.error("Failed to submit response:", err);
       }
     },
-    [submitTruthOrDareResponse, participantId]
+    [submitTruthOrDareResponse, participantId, generateUploadUrl]
   );
 
   const handleAdvanceTruthOrDareTurn = useCallback(
