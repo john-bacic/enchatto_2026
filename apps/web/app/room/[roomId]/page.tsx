@@ -760,58 +760,29 @@ function RoomContent() {
       const isImage = responseMediaUrl && responseMediaUrl.startsWith("data:");
       const t0 = performance.now();
       if (isImage) {
-        setTdSubmitTimer({ startedAt: Date.now(), label: "Uploading drawing..." });
+        setTdSubmitTimer({ startedAt: Date.now(), label: "Sending..." });
         console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
       }
       try {
-        // Upload data URL images to Convex file storage so the subscription
-        // payload stays small (just a CDN URL instead of the full base64).
-        let finalMediaUrl = responseMediaUrl;
-        if (isImage) {
-          const res = await fetch(responseMediaUrl!);
-          const blob = await res.blob();
-          console.log("[T/D] Blob created:", Math.round(blob.size / 1024), "KB in", Math.round(performance.now() - t0), "ms");
-
-          const t1 = performance.now();
-          const uploadUrl = await generateUploadUrl();
-          console.log("[T/D] generateUploadUrl:", Math.round(performance.now() - t1), "ms");
-
-          const t2 = performance.now();
-          const uploadResult = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": blob.type || "image/jpeg" },
-            body: blob,
-          });
-          const { storageId } = await uploadResult.json();
-          console.log("[T/D] File upload:", Math.round(performance.now() - t2), "ms");
-
-          setTdSubmitTimer({ startedAt: Date.now(), label: "Sending to players..." });
-          const t3 = performance.now();
-          finalMediaUrl = undefined;
-          await submitTruthOrDareResponse({
-            gameId: gameId as Id<"truthOrDareGames">,
-            participantId: participantId as Id<"participants">,
-            responseText,
-            responseMediaUrl: finalMediaUrl,
-            responseStorageId: storageId as Id<"_storage">,
-          });
-          console.log("[T/D] Mutation:", Math.round(performance.now() - t3), "ms");
-          console.log("[T/D] TOTAL:", Math.round(performance.now() - t0), "ms");
-          setTdSubmitTimer(null);
-          return;
-        }
+        // Send the small JPEG data URL directly — single mutation call.
+        // At ~10KB the payload is negligible vs. the cost of extra round-trips
+        // (generateUploadUrl + upload + mutation was 11s+ total).
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
           responseText,
           responseMediaUrl,
         });
+        if (isImage) {
+          console.log("[T/D] Mutation:", Math.round(performance.now() - t0), "ms");
+          setTdSubmitTimer(null);
+        }
       } catch (err) {
         console.error("Failed to submit response:", err);
         setTdSubmitTimer(null);
       }
     },
-    [submitTruthOrDareResponse, participantId, generateUploadUrl]
+    [submitTruthOrDareResponse, participantId]
   );
 
   const handleAdvanceTruthOrDareTurn = useCallback(
