@@ -140,7 +140,7 @@ export function TruthOrDareGame({
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "linear-gradient(135deg, #ea580c, #f59e0b, #d97706)",
           zIndex: 200,
           display: "flex",
           alignItems: "center",
@@ -149,14 +149,11 @@ export function TruthOrDareGame({
       >
         <div
           style={{
-            background: "linear-gradient(135deg, #ea580c, #f59e0b, #d97706)",
-            borderRadius: "16px",
             padding: "2rem",
             textAlign: "center",
             maxWidth: "340px",
             width: "100%",
             margin: "1rem",
-            boxShadow: "0 4px 16px rgba(234, 88, 12, 0.3)",
           }}
         >
           <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🎲</div>
