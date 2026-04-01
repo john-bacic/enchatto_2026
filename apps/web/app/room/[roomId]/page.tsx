@@ -756,17 +756,32 @@ function RoomContent() {
     async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
       if (!participantId) return;
       try {
+        let storageId: string | undefined;
+        // Upload data URL drawings to Convex file storage for speed
+        if (responseMediaUrl && responseMediaUrl.startsWith("data:")) {
+          const res = await fetch(responseMediaUrl);
+          const blob = await res.blob();
+          const uploadUrl = await generateUploadUrl();
+          const uploadResult = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": blob.type || "image/jpeg" },
+            body: blob,
+          });
+          const json = await uploadResult.json();
+          storageId = json.storageId;
+        }
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
           responseText,
-          responseMediaUrl,
+          responseMediaUrl: storageId ? undefined : responseMediaUrl,
+          responseStorageId: storageId as Id<"_storage"> | undefined,
         });
       } catch (err) {
         console.error("Failed to submit response:", err);
       }
     },
-    [submitTruthOrDareResponse, participantId]
+    [submitTruthOrDareResponse, participantId, generateUploadUrl]
   );
 
   const handleAdvanceTruthOrDareTurn = useCallback(

@@ -13,6 +13,7 @@ struct TruthOrDareGameView: View {
     @State private var triggerAutoSubmit = false
     @State private var fullScreenImageUrl: String?
     @State private var starRating: Int = 0
+    @State private var pencilWiggle = false
 
     var body: some View {
         let game = viewModel.activeTruthOrDareGame
@@ -250,8 +251,32 @@ struct TruthOrDareGameView: View {
             if isMyTurn {
                 responseInput(turn: turn, game: game)
             } else {
-                Text("\(L.t("Waiting for", lang)) \(currentPlayer?.nickname ?? "") \(L.t("to respond...", lang))")
-                    .foregroundColor(.white.opacity(0.5))
+                if turn.promptResponseType == .drawing {
+                    // Animated pencil indicator when another player is drawing
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            Text("✏️")
+                                .font(.title2)
+                                .rotationEffect(.degrees(pencilWiggle ? 8 : -10))
+                                .animation(
+                                    .easeInOut(duration: 0.4).repeatForever(autoreverses: true),
+                                    value: pencilWiggle
+                                )
+                                .onAppear { pencilWiggle = true }
+                                .onDisappear { pencilWiggle = false }
+
+                            Text("\(currentPlayer?.nickname ?? "") \(L.t("is drawing", lang))...")
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(16)
+                    }
+                } else {
+                    Text("\(L.t("Waiting for", lang)) \(currentPlayer?.nickname ?? "") \(L.t("to respond...", lang))")
+                        .foregroundColor(.white.opacity(0.5))
+                }
             }
         }
         .padding()
