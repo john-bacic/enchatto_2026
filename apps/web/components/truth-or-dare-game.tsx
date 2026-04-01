@@ -149,23 +149,24 @@ export function TruthOrDareGame({
       >
         <div
           style={{
-            background: "var(--surface)",
-            borderRadius: "var(--radius)",
+            background: "linear-gradient(135deg, #ea580c, #f59e0b, #d97706)",
+            borderRadius: "16px",
             padding: "2rem",
             textAlign: "center",
             maxWidth: "340px",
             width: "100%",
             margin: "1rem",
+            boxShadow: "0 4px 16px rgba(234, 88, 12, 0.3)",
           }}
         >
           <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🎲</div>
-          <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.5rem", color: "#fff" }}>
             {t("Game ended", lang)}
           </h2>
-          <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+          <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "0.9rem", marginBottom: "0.5rem" }}>
             {t("Truth or Dare", lang)}
           </p>
-          <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "1rem" }}>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.8rem", marginBottom: "1rem" }}>
             {game.completedTurns} {t("played", lang)}
           </p>
 
@@ -195,14 +196,13 @@ export function TruthOrDareGame({
 
             return (
               <div style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
+                background: "rgba(0,0,0,0.15)",
                 borderRadius: "8px",
                 padding: "0.75rem",
                 marginBottom: "1rem",
                 textAlign: "left",
               }}>
-                <p style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.4rem", color: "#fff" }}>
                   ⭐ {t("Ratings", lang)}
                 </p>
                 {sorted.map(({ pid, avg, player }) => {
@@ -214,6 +214,7 @@ export function TruthOrDareGame({
                       alignItems: "center",
                       fontSize: "0.8rem",
                       padding: "0.2rem 0",
+                      color: "#fff",
                     }}>
                       <span>{emoji} {player?.nickname ?? "?"}</span>
                       <span style={{ fontWeight: 600 }}>⭐ {avg.toFixed(1)}</span>
@@ -229,7 +230,7 @@ export function TruthOrDareGame({
             style={{
               padding: "0.6rem 2rem",
               borderRadius: "8px",
-              background: "var(--primary)",
+              background: "rgba(0,0,0,0.25)",
               color: "#fff",
               fontWeight: 600,
               border: "none",

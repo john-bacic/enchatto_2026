@@ -702,7 +702,7 @@ struct TruthOrDareGameView: View {
     private func completedView(game: TruthOrDareGame) -> some View {
         ZStack {
             LinearGradient(
-                colors: [Color(hex: "#1a1a2e"), Color(hex: "#16213e")],
+                colors: [Color(hex: "#ea580c"), Color(hex: "#f59e0b"), Color(hex: "#d97706")],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
