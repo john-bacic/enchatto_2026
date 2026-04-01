@@ -384,13 +384,13 @@ export function TruthOrDareGame({
         >
           <div
             style={{
-              background: "linear-gradient(135deg, #1e1b4b, #312e81)",
+              background: "linear-gradient(135deg, #7c2d12, #9a3412)",
               borderRadius: "20px",
               padding: "2rem 1.5rem",
               textAlign: "center",
               maxWidth: "340px",
               width: "100%",
-              border: "1px solid rgba(139,92,246,0.3)",
+              border: "1px solid rgba(251,146,60,0.3)",
             }}
           >
             <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🎉</div>

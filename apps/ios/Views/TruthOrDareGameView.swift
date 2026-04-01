@@ -189,12 +189,12 @@ struct TruthOrDareGameView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 20)
                         .fill(
-                            LinearGradient(colors: [Color(hex: "#1e1b4b"), Color(hex: "#312e81")],
+                            LinearGradient(colors: [Color(hex: "#7c2d12"), Color(hex: "#9a3412")],
                                            startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
                         )
                 )
                 .padding(.horizontal, 16)
