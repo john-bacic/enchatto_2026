@@ -752,34 +752,18 @@ function RoomContent() {
     [submitTruthOrDareChoice, participantId]
   );
 
-  const [tdSubmitTimer, setTdSubmitTimer] = useState<{ startedAt: number; label: string } | null>(null);
-
   const handleSubmitTruthOrDareResponse = useCallback(
     async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
       if (!participantId) return;
-      const isImage = responseMediaUrl && responseMediaUrl.startsWith("data:");
-      const t0 = performance.now();
-      if (isImage) {
-        setTdSubmitTimer({ startedAt: Date.now(), label: "Sending..." });
-        console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
-      }
       try {
-        // Send the small JPEG data URL directly — single mutation call.
-        // At ~10KB the payload is negligible vs. the cost of extra round-trips
-        // (generateUploadUrl + upload + mutation was 11s+ total).
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
           responseText,
           responseMediaUrl,
         });
-        if (isImage) {
-          console.log("[T/D] Mutation:", Math.round(performance.now() - t0), "ms");
-          setTdSubmitTimer(null);
-        }
       } catch (err) {
         console.error("Failed to submit response:", err);
-        setTdSubmitTimer(null);
       }
     },
     [submitTruthOrDareResponse, participantId]
@@ -1379,7 +1363,6 @@ function RoomContent() {
           myParticipantId={participantId}
           isHost={me?.role === "host"}
           lang={lang}
-          submitTimer={tdSubmitTimer}
           onSubmitChoice={handleSubmitTruthOrDareChoice}
           onSubmitResponse={handleSubmitTruthOrDareResponse}
           onAdvanceTurn={handleAdvanceTruthOrDareTurn}

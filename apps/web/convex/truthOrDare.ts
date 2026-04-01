@@ -339,7 +339,6 @@ export const submitResponse = mutation({
     participantId: v.id("participants"),
     responseText: v.optional(v.string()),
     responseMediaUrl: v.optional(v.string()),
-    responseStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -359,16 +358,9 @@ export const submitResponse = mutation({
     );
     if (!currentTurn) throw new Error("No active turn waiting for response");
 
-    // Resolve storage URL if a file was uploaded
-    let mediaUrl = args.responseMediaUrl;
-    if (args.responseStorageId) {
-      const url = await ctx.storage.getUrl(args.responseStorageId);
-      if (url) mediaUrl = url;
-    }
-
     await ctx.db.patch(currentTurn._id, {
       responseText: args.responseText,
-      responseMediaUrl: mediaUrl,
+      responseMediaUrl: args.responseMediaUrl,
       status: "completed",
       completedAt: Date.now(),
     });

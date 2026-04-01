@@ -620,41 +620,13 @@ http.route({
 http.route({
   path: "/api/truth-or-dare/submit-response",
   method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    try {
-      const body = await request.json();
-      let storageId: string | undefined;
-
-      // If responseMediaUrl is a data URL, upload to Convex storage first
-      // so the subscription payload stays small for web clients
-      if (body.responseMediaUrl && body.responseMediaUrl.startsWith("data:")) {
-        const match = body.responseMediaUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          const mimeType = match[1];
-          const base64 = match[2];
-          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-          const blob = new Blob([bytes], { type: mimeType });
-          storageId = await ctx.storage.store(blob);
-        }
-      }
-
-      await ctx.runMutation(api.truthOrDare.submitResponse, {
-        gameId: body.gameId,
-        participantId: body.participantId,
-        responseText: body.responseText,
-        responseMediaUrl: storageId ? undefined : body.responseMediaUrl,
-        responseStorageId: storageId as any,
-      });
-      return new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.submitResponse, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      responseText: body.responseText,
+      responseMediaUrl: body.responseMediaUrl,
+    });
   }),
 });
 

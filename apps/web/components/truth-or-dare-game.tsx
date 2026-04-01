@@ -53,7 +53,6 @@ interface TruthOrDareGameProps {
   onEndGame: (gameId: string) => void;
   onSubmitRating: (turnId: string, score: number) => void;
   onDrawingStateChange?: (isDrawing: boolean) => void;
-  submitTimer?: { startedAt: number; label: string } | null;
   onClose: () => void;
 }
 
@@ -69,7 +68,6 @@ export function TruthOrDareGame({
   onEndGame,
   onSubmitRating,
   onDrawingStateChange,
-  submitTimer,
   onClose,
 }: TruthOrDareGameProps) {
   const [responseText, setResponseText] = useState("");
@@ -1125,40 +1123,6 @@ export function TruthOrDareGame({
         </div>
       )}
 
-      {/* Debug: submission timer */}
-      {submitTimer && <SubmitTimerOverlay startedAt={submitTimer.startedAt} label={submitTimer.label} />}
-    </div>
-  );
-}
-
-function SubmitTimerOverlay({ startedAt, label }: { startedAt: number; label: string }) {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(Date.now() - startedAt), 50);
-    return () => clearInterval(id);
-  }, [startedAt]);
-  return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: "2rem",
-        left: "50%",
-        transform: "translateX(-50%)",
-        background: "rgba(0,0,0,0.85)",
-        color: "#fff",
-        padding: "0.5rem 1.25rem",
-        borderRadius: "20px",
-        fontSize: "0.85rem",
-        fontWeight: 600,
-        zIndex: 500,
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5rem",
-        fontVariantNumeric: "tabular-nums",
-      }}
-    >
-      <span style={{ fontSize: "1rem" }}>⏱</span>
-      {label} {(elapsed / 1000).toFixed(1)}s
     </div>
   );
 }
