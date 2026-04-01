@@ -246,7 +246,7 @@ export function TruthOrDareGame({
       style={{
         position: "fixed",
         inset: 0,
-        background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+        background: "linear-gradient(135deg, #451a03 0%, #7c2d12 50%, #92400e 100%)",
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
@@ -267,7 +267,7 @@ export function TruthOrDareGame({
         <span style={{ color: "#fff", fontWeight: 700, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
           🎲 {t("Truth or Dare", lang)}
           {game.promptMode === "deep" && (
-            <span style={{ fontSize: "0.65rem", background: "rgba(14,165,233,0.8)", padding: "0.1rem 0.4rem", borderRadius: "10px" }}>
+            <span style={{ fontSize: "0.65rem", background: "rgba(217,119,6,0.8)", padding: "0.1rem 0.4rem", borderRadius: "10px" }}>
               🌊 {t("Deep", lang)}
             </span>
           )}
@@ -336,14 +336,14 @@ export function TruthOrDareGame({
                   <span
                     style={{
                       fontSize: "1.5rem",
-                      background: isActive ? "rgba(139,92,246,0.4)" : "transparent",
+                      background: isActive ? "rgba(251,146,60,0.4)" : "transparent",
                       borderRadius: "50%",
                       width: "2.5rem",
                       height: "2.5rem",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      border: isActive ? "2px solid #8b5cf6" : "2px solid transparent",
+                      border: isActive ? "2px solid #fb923c" : "2px solid transparent",
                     }}
                   >
                     {emoji}
@@ -661,7 +661,7 @@ export function TruthOrDareGame({
                           flex: 1,
                           padding: "0.65rem",
                           borderRadius: "8px",
-                          background: responseText.trim() ? "var(--primary)" : "rgba(255,255,255,0.15)",
+                          background: responseText.trim() ? "#ea580c" : "rgba(255,255,255,0.15)",
                           color: "#fff",
                           fontWeight: 600,
                           border: "none",
@@ -700,7 +700,7 @@ export function TruthOrDareGame({
                         width: "100%",
                         padding: "1rem",
                         borderRadius: "12px",
-                        background: "linear-gradient(135deg, var(--primary), #7c3aed)",
+                        background: "linear-gradient(135deg, #ea580c, #d97706)",
                         color: "#fff",
                         fontWeight: 600,
                         fontSize: "1rem",
@@ -1043,7 +1043,7 @@ export function TruthOrDareGame({
                       style={{
                         padding: "0.7rem 2rem",
                         borderRadius: "10px",
-                        background: "linear-gradient(135deg, var(--primary), #7c3aed)",
+                        background: "linear-gradient(135deg, #ea580c, #d97706)",
                         color: "#fff",
                         fontWeight: 700,
                         fontSize: "1rem",

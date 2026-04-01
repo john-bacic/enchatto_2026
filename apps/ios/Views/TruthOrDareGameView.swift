@@ -36,7 +36,7 @@ struct TruthOrDareGameView: View {
 
         return ZStack {
             LinearGradient(
-                colors: [Color(hex: "#1a1a2e"), Color(hex: "#16213e"), Color(hex: "#0f3460")],
+                colors: [Color(hex: "#451a03"), Color(hex: "#7c2d12"), Color(hex: "#92400e")],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -78,9 +78,9 @@ struct TruthOrDareGameView: View {
                                     Text(emoji)
                                         .font(.system(size: 28))
                                         .frame(width: 44, height: 44)
-                                        .background(isActive ? Color.purple.opacity(0.4) : Color.clear)
+                                        .background(isActive ? Color.orange.opacity(0.4) : Color.clear)
                                         .clipShape(Circle())
-                                        .overlay(Circle().stroke(isActive ? Color.purple : Color.clear, lineWidth: 2))
+                                        .overlay(Circle().stroke(isActive ? Color.orange : Color.clear, lineWidth: 2))
                                     Text(p.nickname)
                                         .font(.system(size: 10))
                                         .foregroundColor(.white)
@@ -399,7 +399,7 @@ struct TruthOrDareGameView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(responseText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color.purple)
+                        .background(responseText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color(hex: "#ea580c"))
                         .cornerRadius(10)
                 }
                 .disabled(responseText.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -434,7 +434,7 @@ struct TruthOrDareGameView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(LinearGradient(colors: [.purple, .purple.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
+                    .background(LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")], startPoint: .leading, endPoint: .trailing))
                     .cornerRadius(12)
             }
             .padding(.horizontal)
@@ -652,7 +652,7 @@ struct TruthOrDareGameView: View {
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
                             .background(
-                                LinearGradient(colors: [.purple, .purple.opacity(0.7)],
+                                LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")],
                                                startPoint: .leading, endPoint: .trailing)
                             )
                             .cornerRadius(10)
@@ -686,7 +686,7 @@ struct TruthOrDareGameView: View {
                         .padding(.horizontal, 32)
                         .padding(.vertical, 12)
                         .background(
-                            LinearGradient(colors: [.purple, .purple.opacity(0.7)],
+                            LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")],
                                            startPoint: .leading, endPoint: .trailing)
                         )
                         .cornerRadius(10)
