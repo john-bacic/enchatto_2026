@@ -183,6 +183,7 @@ struct TruthOrDareGameView: View {
 
                         Button {
                             dismissedRoundBreak = completedTurns
+                            Task { await viewModel.advanceTruthOrDareTurn() }
                         } label: {
                             Text("\(L.t("Keep Playing", lang)) →")
                                 .font(.body.bold())

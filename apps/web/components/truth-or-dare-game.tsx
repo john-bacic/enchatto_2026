@@ -486,7 +486,10 @@ export function TruthOrDareGame({
                   {t("End Game", lang)}
                 </button>
                 <button
-                  onClick={() => setDismissedRoundBreak(game.completedTurns)}
+                  onClick={() => {
+                    setDismissedRoundBreak(game.completedTurns);
+                    onAdvanceTurn(game._id);
+                  }}
                   style={{
                     flex: 1,
                     padding: "0.75rem",
