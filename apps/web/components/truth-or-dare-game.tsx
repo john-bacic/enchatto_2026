@@ -279,6 +279,9 @@ export function TruthOrDareGame({
       >
         <span style={{ color: "#fff", fontWeight: 700, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
           🎲 {t("Truth or Dare", lang)}
+          <span style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.15)", padding: "0.1rem 0.5rem", borderRadius: "10px", fontWeight: 600 }}>
+            {game.completedTurns + (turn?.status === "waiting_for_choice" || turn?.status === "waiting_for_response" ? 1 : 0)}/{Math.ceil((game.completedTurns + 1) / 10) * 10}
+          </span>
           {game.promptMode === "deep" && (
             <span style={{ fontSize: "0.65rem", background: "rgba(217,119,6,0.8)", padding: "0.1rem 0.4rem", borderRadius: "10px" }}>
               🌊 {t("Deep", lang)}

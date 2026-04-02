@@ -45,9 +45,23 @@ struct TruthOrDareGameView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Text("🎲 \(L.t("Truth or Dare", lang))")
-                        .font(.headline)
-                        .foregroundColor(.white)
+                    HStack(spacing: 6) {
+                        Text("🎲 \(L.t("Truth or Dare", lang))")
+                            .font(.headline)
+                            .foregroundColor(.white)
+
+                        let completed = game.completedTurns ?? 0
+                        let inProgress = (game.currentTurn?.status == .waiting_for_choice || game.currentTurn?.status == .waiting_for_response) ? 1 : 0
+                        let current = completed + inProgress
+                        let roundOf = max(10, Int(ceil(Double(completed + 1) / 10.0)) * 10)
+                        Text("\(current)/\(roundOf)")
+                            .font(.caption.bold())
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.white.opacity(0.15))
+                            .cornerRadius(10)
+                    }
                     Spacer()
                     Button {
                         Task { await viewModel.endTruthOrDare() }
