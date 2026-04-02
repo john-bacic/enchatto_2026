@@ -268,43 +268,49 @@ struct TruthOrDareGameView: View {
                 .foregroundColor(.white)
 
             if isMyTurn {
-                Text(L.t("Truth or Dare?", lang))
-                    .font(.title3)
-                    .foregroundColor(.white.opacity(0.7))
-                    .padding(.bottom, 8)
+                if viewModel.isTruthOrDareSubmitting {
+                    ProgressView()
+                        .tint(.white)
+                        .padding()
+                } else {
+                    Text(L.t("Truth or Dare?", lang))
+                        .font(.title3)
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.bottom, 8)
 
-                HStack(spacing: 20) {
-                    Button {
-                        Task { await viewModel.submitTruthOrDareChoice(choice: "truth") }
-                    } label: {
-                        Text(L.t("Truth", lang))
-                            .font(.title3.bold())
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                LinearGradient(colors: [.blue, .blue.opacity(0.7)],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                            )
-                            .cornerRadius(12)
-                    }
+                    HStack(spacing: 20) {
+                        Button {
+                            Task { await viewModel.submitTruthOrDareChoice(choice: "truth") }
+                        } label: {
+                            Text(L.t("Truth", lang))
+                                .font(.title3.bold())
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(
+                                    LinearGradient(colors: [.blue, .blue.opacity(0.7)],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .cornerRadius(12)
+                        }
 
-                    Button {
-                        Task { await viewModel.submitTruthOrDareChoice(choice: "dare") }
-                    } label: {
-                        Text(L.t("Dare", lang))
-                            .font(.title3.bold())
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                            )
-                            .cornerRadius(12)
+                        Button {
+                            Task { await viewModel.submitTruthOrDareChoice(choice: "dare") }
+                        } label: {
+                            Text(L.t("Dare", lang))
+                                .font(.title3.bold())
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(
+                                    LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .cornerRadius(12)
+                        }
                     }
+                    .padding(.horizontal, 32)
                 }
-                .padding(.horizontal, 32)
 
                 Button {
                     Task { await viewModel.skipTruthOrDareTurn() }
@@ -621,19 +627,26 @@ struct TruthOrDareGameView: View {
                                 guard starRating > 0 else { return }
                                 Task { await viewModel.submitTruthOrDareRating(turnId: turn.id, score: Double(starRating)) }
                             } label: {
-                                Text(L.t("Submit Rating", lang))
-                                    .font(.subheadline.bold())
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        starRating > 0
-                                            ? LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing)
-                                            : LinearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.3)], startPoint: .leading, endPoint: .trailing)
-                                    )
-                                    .cornerRadius(8)
+                                if viewModel.isTruthOrDareSubmitting {
+                                    ProgressView()
+                                        .tint(.white)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 10)
+                                } else {
+                                    Text(L.t("Submit Rating", lang))
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            starRating > 0
+                                                ? LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing)
+                                                : LinearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.3)], startPoint: .leading, endPoint: .trailing)
+                                        )
+                                        .cornerRadius(8)
+                                }
                             }
-                            .disabled(starRating == 0)
+                            .disabled(starRating == 0 || viewModel.isTruthOrDareSubmitting)
                             .padding(.top, 8)
                         }
                     }

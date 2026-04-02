@@ -38,6 +38,7 @@ class HostRoomViewModel: ObservableObject {
 
     // MARK: - Truth or Dare state
     @Published var activeTruthOrDareGame: TruthOrDareGame?
+    @Published var isTruthOrDareSubmitting = false
     private var truthOrDarePollTask: Task<Void, Never>?
 
     private let heuristicEmojiService: EmojiClueGenerationService = HeuristicEmojiClueService()
@@ -243,8 +244,10 @@ class HostRoomViewModel: ObservableObject {
             // Poll Emoji Match state
             await pollEmojiMatchState()
 
-            // Poll Truth or Dare state
-            await pollTruthOrDareState()
+            // Poll Truth or Dare state (skip if an action is in progress to avoid stale overwrites)
+            if !isTruthOrDareSubmitting {
+                await pollTruthOrDareState()
+            }
 
             isLoading = false
         } catch {
@@ -1103,8 +1106,12 @@ class HostRoomViewModel: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s
                 guard !Task.isCancelled else { break }
+                // Skip poll if an action is in progress to avoid stale overwrites
+                guard !self.isTruthOrDareSubmitting else { continue }
                 do {
                     let game = try await self.api.getActiveTruthOrDare(roomId: self.roomId)
+                    // Double-check submitting flag after await (action may have started during the API call)
+                    guard !self.isTruthOrDareSubmitting else { continue }
                     self.activeTruthOrDareGame = game
                     if game == nil || game!.status != .active {
                         break
@@ -1129,11 +1136,29 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    /// Pause the fast poll, run an action, poll once, then resume.
+    /// Prevents stale poll data from overwriting fresh state after an action.
+    private func withTruthOrDarePollPause<T>(_ action: () async throws -> T) async rethrows -> T {
+        isTruthOrDareSubmitting = true
+        stopTruthOrDareFastPoll()
+        defer {
+            isTruthOrDareSubmitting = false
+            if activeTruthOrDareGame?.status == .active && truthOrDarePollTask == nil {
+                startTruthOrDareFastPoll()
+            }
+        }
+        let result = try await action()
+        await pollTruthOrDareState()
+        return result
+    }
+
     func submitTruthOrDareChoice(choice: String) async {
         guard let game = activeTruthOrDareGame else { return }
+        guard !isTruthOrDareSubmitting else { return }
         do {
-            try await api.submitTruthOrDareChoice(gameId: game.id, participantId: hostId, choice: choice)
-            await pollTruthOrDareState()
+            try await withTruthOrDarePollPause {
+                try await api.submitTruthOrDareChoice(gameId: game.id, participantId: hostId, choice: choice)
+            }
         } catch {
             print("Error submitting choice: \(error)")
         }
@@ -1141,9 +1166,11 @@ class HostRoomViewModel: ObservableObject {
 
     func submitTruthOrDareResponse(responseText: String?, responseMediaUrl: String?) async {
         guard let game = activeTruthOrDareGame else { return }
+        guard !isTruthOrDareSubmitting else { return }
         do {
-            try await api.submitTruthOrDareResponse(gameId: game.id, participantId: hostId, responseText: responseText, responseMediaUrl: responseMediaUrl)
-            await pollTruthOrDareState()
+            try await withTruthOrDarePollPause {
+                try await api.submitTruthOrDareResponse(gameId: game.id, participantId: hostId, responseText: responseText, responseMediaUrl: responseMediaUrl)
+            }
 
             // Translate text response if present
             if let text = responseText, !text.isEmpty, text != "✅ Done!",
@@ -1188,9 +1215,11 @@ class HostRoomViewModel: ObservableObject {
 
     func advanceTruthOrDareTurn() async {
         guard let game = activeTruthOrDareGame else { return }
+        guard !isTruthOrDareSubmitting else { return }
         do {
-            try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
-            await pollTruthOrDareState()
+            try await withTruthOrDarePollPause {
+                try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
+            }
         } catch {
             print("Error advancing turn: \(error)")
         }
@@ -1198,18 +1227,22 @@ class HostRoomViewModel: ObservableObject {
 
     func skipTruthOrDareTurn() async {
         guard let game = activeTruthOrDareGame else { return }
+        guard !isTruthOrDareSubmitting else { return }
         do {
-            try await api.skipTruthOrDareTurn(gameId: game.id, participantId: hostId)
-            await pollTruthOrDareState()
+            try await withTruthOrDarePollPause {
+                try await api.skipTruthOrDareTurn(gameId: game.id, participantId: hostId)
+            }
         } catch {
             print("Error skipping turn: \(error)")
         }
     }
 
     func submitTruthOrDareRating(turnId: String, score: Double) async {
+        guard !isTruthOrDareSubmitting else { return }
         do {
-            try await api.submitTruthOrDareRating(turnId: turnId, participantId: hostId, score: score)
-            await pollTruthOrDareState()
+            try await withTruthOrDarePollPause {
+                try await api.submitTruthOrDareRating(turnId: turnId, participantId: hostId, score: score)
+            }
         } catch {
             print("Error submitting rating: \(error)")
         }
@@ -1218,8 +1251,9 @@ class HostRoomViewModel: ObservableObject {
     func endTruthOrDare() async {
         guard let game = activeTruthOrDareGame else { return }
         do {
-            try await api.endTruthOrDare(gameId: game.id, participantId: hostId)
-            await pollTruthOrDareState()
+            try await withTruthOrDarePollPause {
+                try await api.endTruthOrDare(gameId: game.id, participantId: hostId)
+            }
         } catch {
             print("Error ending Truth or Dare: \(error)")
         }
