@@ -86,17 +86,30 @@ export function TruthOrDareGame({
     setHasRated(false);
   }, [game.currentTurn?._id]);
 
-  // Auto-dismiss round break when the host advances (turn index changes)
-  // This handles iOS host clicking "Keep Playing" while web shows the modal
-  const prevTurnIndexRef = useRef(game.currentTurnIndex);
+  // Auto-dismiss round break when the host advances past it.
+  // "Keep Playing" calls advanceTurn which creates a NEW turn (new _id).
+  // If the round break is showing (dismissedRoundBreak !== completedTurns)
+  // and a new turn appears, the host must have advanced — dismiss it.
+  const roundBreakTurnIdRef = useRef<string | null>(null);
+  const isRoundBreak = game.completedTurns > 0 &&
+    game.completedTurns % 10 === 0 &&
+    game.currentTurn?.status === "waiting_for_choice" &&
+    dismissedRoundBreak !== game.completedTurns;
+
   useEffect(() => {
-    if (game.currentTurnIndex !== prevTurnIndexRef.current) {
-      prevTurnIndexRef.current = game.currentTurnIndex;
-      if (game.completedTurns > 0 && game.completedTurns % 10 === 0) {
+    if (isRoundBreak) {
+      // Record which turn ID the round break first appeared on
+      if (!roundBreakTurnIdRef.current) {
+        roundBreakTurnIdRef.current = game.currentTurn?._id ?? null;
+      } else if (game.currentTurn?._id && game.currentTurn._id !== roundBreakTurnIdRef.current) {
+        // Turn changed while round break was showing — host advanced
         setDismissedRoundBreak(game.completedTurns);
+        roundBreakTurnIdRef.current = null;
       }
+    } else {
+      roundBreakTurnIdRef.current = null;
     }
-  }, [game.currentTurnIndex, game.completedTurns]);
+  }, [isRoundBreak, game.currentTurn?._id, game.completedTurns]);
 
   // Signal drawing state to other players via typing indicator
   useEffect(() => {
@@ -380,10 +393,7 @@ export function TruthOrDareGame({
       })()}
 
       {/* Round break interstitial — every 10 turns */}
-      {game.completedTurns > 0 &&
-        game.completedTurns % 10 === 0 &&
-        turn?.status === "waiting_for_choice" &&
-        dismissedRoundBreak !== game.completedTurns && (
+      {isRoundBreak && (
         <div
           style={{
             position: "absolute",
