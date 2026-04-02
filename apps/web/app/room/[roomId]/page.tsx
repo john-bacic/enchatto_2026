@@ -756,48 +756,44 @@ function RoomContent() {
     async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
       if (!participantId) return;
       const isImage = responseMediaUrl && responseMediaUrl.startsWith("data:");
-      const payloadKB = isImage ? Math.round(responseMediaUrl!.length / 1024) : 0;
       const t0 = performance.now();
       if (isImage) {
-        console.log("[T/D] Drawing submit started, payload size:", payloadKB, "KB");
+        console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
       }
       try {
-        // Large images (>15KB) crash the WebSocket, so upload to file storage first
-        if (isImage && payloadKB > 15) {
-          console.log("[T/D] Using file storage (payload > 15KB)");
-          const res = await fetch(responseMediaUrl!);
-          const blob = await res.blob();
-          const uploadUrl = await generateUploadUrl();
-          const uploadResult = await fetch(uploadUrl, {
+        if (isImage) {
+          // Use HTTP POST (same as iOS) to bypass the WebSocket entirely.
+          // Large base64 payloads crash the Convex WebSocket connection.
+          const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
+          console.log("[T/D] Using HTTP POST (bypassing WebSocket)");
+          const res = await fetch(`${convexUrl}/api/truth-or-dare/submit-response`, {
             method: "POST",
-            headers: { "Content-Type": blob.type || "image/jpeg" },
-            body: blob,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              gameId,
+              participantId,
+              responseText,
+              responseMediaUrl,
+            }),
           });
-          const { storageId } = await uploadResult.json();
-          await submitTruthOrDareResponse({
-            gameId: gameId as Id<"truthOrDareGames">,
-            participantId: participantId as Id<"participants">,
-            responseText,
-            responseStorageId: storageId as Id<"_storage">,
-          });
-          console.log("[T/D] File storage path complete:", Math.round(performance.now() - t0), "ms");
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${res.status}`);
+          }
+          console.log("[T/D] HTTP POST complete:", Math.round(performance.now() - t0), "ms");
           return;
         }
-        // Small images go directly through the mutation (fastest path)
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
           responseText,
           responseMediaUrl,
         });
-        if (isImage) {
-          console.log("[T/D] Direct mutation complete:", Math.round(performance.now() - t0), "ms");
-        }
       } catch (err) {
         console.error("Failed to submit response:", err);
       }
     },
-    [submitTruthOrDareResponse, participantId, generateUploadUrl]
+    [submitTruthOrDareResponse, participantId]
   );
 
   const handleAdvanceTruthOrDareTurn = useCallback(
