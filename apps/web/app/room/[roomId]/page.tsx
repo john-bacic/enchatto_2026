@@ -761,18 +761,30 @@ function RoomContent() {
         console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
       }
       try {
-        // Send directly through mutation (same as regular chat drawings).
-        // The getActiveTruthOrDare query strips data URLs from the subscription
-        // to prevent WebSocket crashes on subscribers.
+        if (isImage) {
+          // Use HTTP POST to the Convex HTTP action (same path as iOS).
+          // The action converts base64 to Convex file storage → CDN URL,
+          // so only a tiny URL is stored in the DB and sent via subscriptions.
+          const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
+          const res = await fetch(`${convexSiteUrl}/api/truth-or-dare/submit-response`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gameId, participantId, responseText, responseMediaUrl }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${res.status}`);
+          }
+          console.log("[T/D] HTTP POST complete:", Math.round(performance.now() - t0), "ms");
+          return;
+        }
+        // Text responses go through WebSocket mutation (fast, small payload)
         await submitTruthOrDareResponse({
           gameId: gameId as Id<"truthOrDareGames">,
           participantId: participantId as Id<"participants">,
           responseText,
           responseMediaUrl,
         });
-        if (isImage) {
-          console.log("[T/D] Mutation complete:", Math.round(performance.now() - t0), "ms");
-        }
       } catch (err) {
         console.error("Failed to submit response:", err);
       }
