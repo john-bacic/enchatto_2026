@@ -724,9 +724,19 @@ export const getActiveTruthOrDare = query({
         completedAt: t.completedAt,
       }));
 
+    // Safety: strip base64 data URLs from currentTurn to prevent WebSocket crashes.
+    // CDN URLs (from file storage) pass through fine. Old data URLs from before
+    // the storage conversion would crash every subscriber's WebSocket.
+    const safeTurn = currentTurn ? {
+      ...currentTurn,
+      responseMediaUrl: currentTurn.responseMediaUrl?.startsWith("data:")
+        ? undefined
+        : currentTurn.responseMediaUrl,
+    } : null;
+
     return {
       ...game,
-      currentTurn,
+      currentTurn: safeTurn,
       completedTurns: completedTurnsList.length,
       completedTurnsList,
       totalTurns: turns.length,
