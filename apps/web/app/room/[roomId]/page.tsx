@@ -340,12 +340,22 @@ function RoomContent() {
         return;
       }
       try {
-        await sendDrawingMessage({
-          roomId: roomId as Id<"rooms">,
-          senderId: participantId as Id<"participants">,
-          mediaUrl: dataUrl,
-          replyToId: replyTo ? (replyTo as Id<"messages">) : undefined,
+        // Use HTTP POST to convert base64 to file storage server-side.
+        // This keeps the messages subscription payload small (CDN URLs only).
+        const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
+        const res = await fetch(`${convexSiteUrl}/api/messages/send-drawing`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomId,
+            senderId: participantId,
+            mediaUrl: dataUrl,
+            replyToId: replyTo ?? undefined,
+          }),
         });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         setReplyTo(null);
       } catch (err) {
         console.error("Failed to send drawing, queuing:", err);

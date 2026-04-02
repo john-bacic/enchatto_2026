@@ -142,15 +142,54 @@ http.route({
 
 http.route({
   path: "/api/messages/send-drawing",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }),
+});
+
+http.route({
+  path: "/api/messages/send-drawing",
   method: "POST",
-  handler: jsonAction(async (ctx, body) => {
-    const messageId = await ctx.runMutation(api.messages.sendDrawingMessage, {
-      roomId: body.roomId,
-      senderId: body.senderId,
-      mediaUrl: body.mediaUrl,
-      replyToId: body.replyToId,
-    });
-    return { messageId };
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      let mediaUrl = body.mediaUrl;
+
+      // Convert base64 data URLs to Convex file storage so the messages
+      // subscription payload stays small (CDN URL instead of full base64).
+      if (mediaUrl && typeof mediaUrl === "string" && mediaUrl.startsWith("data:")) {
+        const match = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1];
+          const base64 = match[2];
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: mimeType });
+          const storageId = await ctx.storage.store(blob);
+          mediaUrl = await ctx.storage.getUrl(storageId);
+        }
+      }
+
+      const messageId = await ctx.runMutation(api.messages.sendDrawingMessage, {
+        roomId: body.roomId,
+        senderId: body.senderId,
+        mediaUrl: mediaUrl,
+        replyToId: body.replyToId,
+      });
+      return new Response(JSON.stringify({ messageId }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }),
 });
 
