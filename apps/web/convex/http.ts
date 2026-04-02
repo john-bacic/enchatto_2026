@@ -620,13 +620,46 @@ http.route({
 http.route({
   path: "/api/truth-or-dare/submit-response",
   method: "POST",
-  handler: jsonAction(async (ctx, body) => {
-    await ctx.runMutation(api.truthOrDare.submitResponse, {
-      gameId: body.gameId,
-      participantId: body.participantId,
-      responseText: body.responseText,
-      responseMediaUrl: body.responseMediaUrl,
-    });
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      let mediaUrl = body.responseMediaUrl;
+
+      // Convert base64 data URLs to Convex file storage so the subscription
+      // payload stays small (a CDN URL instead of the full base64).
+      // Without this, large base64 strings crash the WebSocket on subscribers.
+      if (mediaUrl && typeof mediaUrl === "string" && mediaUrl.startsWith("data:")) {
+        const match = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1];
+          const base64 = match[2];
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: mimeType });
+          const storageId = await ctx.storage.store(blob);
+          mediaUrl = await ctx.storage.getUrl(storageId);
+        }
+      }
+
+      await ctx.runMutation(api.truthOrDare.submitResponse, {
+        gameId: body.gameId,
+        participantId: body.participantId,
+        responseText: body.responseText,
+        responseMediaUrl: mediaUrl,
+      });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: any) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }),
 });
 
