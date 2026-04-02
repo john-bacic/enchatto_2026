@@ -86,30 +86,36 @@ export function TruthOrDareGame({
     setHasRated(false);
   }, [game.currentTurn?._id]);
 
-  // Auto-dismiss round break when the host advances past it.
-  // "Keep Playing" calls advanceTurn which creates a NEW turn (new _id).
-  // If the round break is showing (dismissedRoundBreak !== completedTurns)
-  // and a new turn appears, the host must have advanced — dismiss it.
-  const roundBreakTurnIdRef = useRef<string | null>(null);
-  const isRoundBreak = game.completedTurns > 0 &&
+  // Show round break at every 10-turn milestone.
+  // Track which turnIndex triggered the round break so we can detect
+  // when the host advances past it (Keep Playing creates a new turnIndex).
+  const [roundBreakTurnIndex, setRoundBreakTurnIndex] = useState<number | null>(null);
+
+  const shouldShowRoundBreak = game.completedTurns > 0 &&
     game.completedTurns % 10 === 0 &&
     game.currentTurn?.status === "waiting_for_choice" &&
     dismissedRoundBreak !== game.completedTurns;
 
+  // When the round break condition is first met, record the turnIndex.
+  // If the turnIndex changes while the condition is still met, the host advanced — dismiss.
+  const isRoundBreak = shouldShowRoundBreak && (
+    roundBreakTurnIndex === null || roundBreakTurnIndex === game.currentTurnIndex
+  );
+
   useEffect(() => {
-    if (isRoundBreak) {
-      // Record which turn ID the round break first appeared on
-      if (!roundBreakTurnIdRef.current) {
-        roundBreakTurnIdRef.current = game.currentTurn?._id ?? null;
-      } else if (game.currentTurn?._id && game.currentTurn._id !== roundBreakTurnIdRef.current) {
-        // Turn changed while round break was showing — host advanced
+    if (shouldShowRoundBreak) {
+      if (roundBreakTurnIndex === null) {
+        // First time showing — record which turnIndex triggered it
+        setRoundBreakTurnIndex(game.currentTurnIndex);
+      } else if (roundBreakTurnIndex !== game.currentTurnIndex) {
+        // TurnIndex changed while round break active — host clicked Keep Playing
         setDismissedRoundBreak(game.completedTurns);
-        roundBreakTurnIdRef.current = null;
+        setRoundBreakTurnIndex(null);
       }
     } else {
-      roundBreakTurnIdRef.current = null;
+      setRoundBreakTurnIndex(null);
     }
-  }, [isRoundBreak, game.currentTurn?._id, game.completedTurns]);
+  }, [shouldShowRoundBreak, game.currentTurnIndex, roundBreakTurnIndex, game.completedTurns]);
 
   // Signal drawing state to other players via typing indicator
   useEffect(() => {
