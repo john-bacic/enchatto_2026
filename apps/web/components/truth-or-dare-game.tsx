@@ -75,6 +75,7 @@ export function TruthOrDareGame({
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
+  // Track which completedTurns milestone was dismissed (by user click or host advancing)
   const [dismissedRoundBreak, setDismissedRoundBreak] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -84,6 +85,18 @@ export function TruthOrDareGame({
     setStarRating(0);
     setHasRated(false);
   }, [game.currentTurn?._id]);
+
+  // Auto-dismiss round break when the host advances (turn index changes)
+  // This handles iOS host clicking "Keep Playing" while web shows the modal
+  const prevTurnIndexRef = useRef(game.currentTurnIndex);
+  useEffect(() => {
+    if (game.currentTurnIndex !== prevTurnIndexRef.current) {
+      prevTurnIndexRef.current = game.currentTurnIndex;
+      if (game.completedTurns > 0 && game.completedTurns % 10 === 0) {
+        setDismissedRoundBreak(game.completedTurns);
+      }
+    }
+  }, [game.currentTurnIndex, game.completedTurns]);
 
   // Signal drawing state to other players via typing indicator
   useEffect(() => {
