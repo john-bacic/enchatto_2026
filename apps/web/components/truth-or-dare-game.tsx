@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+import { Id } from "../convex/_generated/dataModel";
 import { t } from "@/lib/i18n";
 import { PRESET_AVATARS } from "@/lib/types";
 import { DrawingCanvas, DrawingCanvasHandle } from "@/components/drawing-canvas";
@@ -78,6 +81,16 @@ export function TruthOrDareGame({
   const [dismissedRoundBreak, setDismissedRoundBreak] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
+
+  // Fetch media URL separately to avoid bloating the main subscription
+  const turnMediaUrl = useQuery(
+    api.truthOrDare.getTurnMediaUrl,
+    game.currentTurn?._id && game.currentTurn?.status === "completed"
+      ? { turnId: game.currentTurn._id as Id<"truthOrDareTurns"> }
+      : "skip"
+  );
+  // Use the separate query result, or fall back to inline URL (for CDN URLs)
+  const displayMediaUrl = turnMediaUrl || game.currentTurn?.responseMediaUrl || null;
 
   // Reset star rating when turn changes
   useEffect(() => {
@@ -898,11 +911,11 @@ export function TruthOrDareGame({
                 {turn.translatedResponseText && (
                   <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.9rem", fontStyle: "italic", marginTop: "0.3rem" }}>{turn.translatedResponseText}</p>
                 )}
-                {turn.responseMediaUrl && (
+                {displayMediaUrl && (
                   <img
-                    src={turn.responseMediaUrl}
+                    src={displayMediaUrl}
                     alt="Response"
-                    onClick={() => setFullScreenImage(turn.responseMediaUrl!)}
+                    onClick={() => setFullScreenImage(displayMediaUrl)}
                     style={{
                       maxWidth: "100%",
                       maxHeight: "250px",

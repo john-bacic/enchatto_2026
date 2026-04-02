@@ -724,13 +724,31 @@ export const getActiveTruthOrDare = query({
         completedAt: t.completedAt,
       }));
 
+    // Strip large data URLs from currentTurn to keep subscription payload small.
+    // Large base64 strings crash the Convex WebSocket on all subscribers.
+    const safeTurn = currentTurn ? {
+      ...currentTurn,
+      responseMediaUrl: currentTurn.responseMediaUrl?.startsWith("data:")
+        ? undefined
+        : currentTurn.responseMediaUrl,
+    } : null;
+
     return {
       ...game,
-      currentTurn,
+      currentTurn: safeTurn,
       completedTurns: completedTurnsList.length,
       completedTurnsList,
       totalTurns: turns.length,
       playerInfo,
     };
+  },
+});
+
+// Separate query to fetch media URL for a turn (avoids bloating main subscription)
+export const getTurnMediaUrl = query({
+  args: { turnId: v.id("truthOrDareTurns") },
+  handler: async (ctx, args) => {
+    const turn = await ctx.db.get(args.turnId);
+    return turn?.responseMediaUrl ?? null;
   },
 });

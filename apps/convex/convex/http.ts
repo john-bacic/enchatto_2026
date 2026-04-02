@@ -4,20 +4,29 @@ import { api } from "./_generated/api";
 
 const http = httpRouter();
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 // Helper: parse JSON body and call a mutation/query
 function jsonAction(handler: (ctx: any, body: any) => Promise<any>) {
   return httpAction(async (ctx, request) => {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
     try {
       const body = await request.json();
       const result = await handler(ctx, body);
       return new Response(JSON.stringify(result ?? { ok: true }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (e: any) {
       return new Response(JSON.stringify({ error: e.message }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
   });
@@ -619,6 +628,14 @@ http.route({
 
 http.route({
   path: "/api/truth-or-dare/submit-response",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/submit-response",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -652,12 +669,12 @@ http.route({
       });
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (e: any) {
       return new Response(JSON.stringify({ error: e.message }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
   }),
