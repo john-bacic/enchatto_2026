@@ -489,7 +489,7 @@ class RealEnchattoAPI: EnchattoAPI {
     }
 
     func submitTruthOrDareChoice(gameId: String, participantId: String, choice: String) async throws {
-        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-choice", body: [
+        try await client.postVoid("/api/truth-or-dare/submit-choice", body: [
             "gameId": gameId,
             "participantId": participantId,
             "choice": choice,
@@ -503,39 +503,39 @@ class RealEnchattoAPI: EnchattoAPI {
         ]
         if let responseText { body["responseText"] = responseText }
         if let responseMediaUrl { body["responseMediaUrl"] = responseMediaUrl }
-        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-response", body: body)
+        try await client.postVoid("/api/truth-or-dare/submit-response", body: body)
     }
 
     func advanceTruthOrDareTurn(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/truth-or-dare/advance-turn", body: [
+        try await client.postVoid("/api/truth-or-dare/advance-turn", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
     }
 
     func skipTruthOrDareTurn(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/truth-or-dare/skip-turn", body: [
+        try await client.postVoid("/api/truth-or-dare/skip-turn", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
     }
 
     func endTruthOrDare(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/truth-or-dare/end", body: [
+        try await client.postVoid("/api/truth-or-dare/end", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
     }
 
     func submitTruthOrDareTranslation(turnId: String, translatedText: String) async throws {
-        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-translation", body: [
+        try await client.postVoid("/api/truth-or-dare/submit-translation", body: [
             "turnId": turnId,
             "translatedText": translatedText,
         ])
     }
 
     func submitTruthOrDareRating(turnId: String, participantId: String, score: Double) async throws {
-        let _: [String: String] = try await client.post("/api/truth-or-dare/submit-rating", body: [
+        try await client.postVoid("/api/truth-or-dare/submit-rating", body: [
             "turnId": turnId,
             "participantId": participantId,
             "score": score,

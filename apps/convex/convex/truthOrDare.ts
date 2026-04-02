@@ -313,7 +313,7 @@ export const submitChoice = mutation({
     const currentTurn = turns.find(
       (t) => t.turnIndex === game.currentTurnIndex && t.status === "waiting_for_choice"
     );
-    if (!currentTurn) throw new Error("No active turn found");
+    if (!currentTurn) return; // Already submitted (double-click) — ignore silently
 
     // Pick a prompt, avoiding recently used ones
     const usedIds = turns
@@ -403,7 +403,6 @@ export const advanceTurn = mutation({
     if (game.status !== "active") return;
 
     // Only host can advance
-    const host = await ctx.db.get(game.hostParticipantId);
     const caller = await ctx.db.get(args.participantId);
     if (!caller) throw new Error("Participant not found");
     // Allow room host or game host
@@ -411,43 +410,19 @@ export const advanceTurn = mutation({
       throw new Error("Only the host can advance turns");
     }
 
-    // Get online players to skip disconnected ones
-    const participants = await ctx.db
-      .query("participants")
-      .withIndex("by_roomId", (q) => q.eq("roomId", game.roomId))
-      .collect();
-    const onlineIds = new Set(
-      participants.filter((p) => p.online && !p.departed).map((p) => p._id.toString())
-    );
-
-    // Find next online player
-    let nextIndex = game.currentTurnIndex + 1;
-    let attempts = 0;
-    while (attempts < game.playerOrder.length) {
-      const wrappedIndex = nextIndex % game.playerOrder.length;
-      if (onlineIds.has(game.playerOrder[wrappedIndex].toString())) {
-        const now = Date.now();
-        await ctx.db.patch(args.gameId, {
-          currentTurnIndex: wrappedIndex,
-          currentTurnParticipantId: game.playerOrder[wrappedIndex],
-        });
-        await ctx.db.insert("truthOrDareTurns", {
-          gameId: args.gameId,
-          turnIndex: wrappedIndex,
-          participantId: game.playerOrder[wrappedIndex],
-          status: "waiting_for_choice",
-          createdAt: now,
-        });
-        return;
-      }
-      nextIndex++;
-      attempts++;
-    }
-
-    // No online players left — end game
+    // Advance to next player in rotation (no participants read to avoid write conflicts)
+    const nextIndex = (game.currentTurnIndex + 1) % game.playerOrder.length;
+    const now = Date.now();
     await ctx.db.patch(args.gameId, {
-      status: "completed",
-      completedAt: Date.now(),
+      currentTurnIndex: nextIndex,
+      currentTurnParticipantId: game.playerOrder[nextIndex],
+    });
+    await ctx.db.insert("truthOrDareTurns", {
+      gameId: args.gameId,
+      turnIndex: nextIndex,
+      participantId: game.playerOrder[nextIndex],
+      status: "waiting_for_choice",
+      createdAt: now,
     });
   },
 });
@@ -461,8 +436,15 @@ export const skipTurn = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") return;
-    if (game.currentTurnParticipantId !== args.participantId) {
-      throw new Error("Not your turn");
+
+    // Allow the active player OR the host to skip
+    const isActivePlayer = game.currentTurnParticipantId === args.participantId;
+    if (!isActivePlayer) {
+      const caller = await ctx.db.get(args.participantId);
+      if (!caller) throw new Error("Participant not found");
+      if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
+        throw new Error("Not your turn");
+      }
     }
 
     // Mark current turn as skipped
