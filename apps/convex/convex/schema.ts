@@ -238,6 +238,18 @@ export default defineSchema({
     .index("by_gameId", ["gameId"])
     .index("by_gameId_status", ["gameId", "status"]),
 
+  // Lightweight trace log for debugging T/D gameplay
+  todTrace: defineTable({
+    gameId: v.id("truthOrDareGames"),
+    action: v.string(),                       // e.g. "submitChoice", "advanceTurn"
+    participantId: v.optional(v.string()),
+    detail: v.optional(v.string()),           // JSON payload snippet
+    serverMs: v.optional(v.number()),         // server-side processing time
+    ts: v.number(),
+  })
+    .index("by_gameId", ["gameId"])
+    .index("by_ts", ["ts"]),
+
   gameChains: defineTable({
     gameSessionId: v.id("gameSessions"),
     chainIndex: v.number(),

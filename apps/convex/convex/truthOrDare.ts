@@ -1,6 +1,29 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+
+// ─── Trace helper ────────────────────────────────────────────────────────────
+
+async function trace(
+  ctx: any,
+  gameId: Id<"truthOrDareGames">,
+  action: string,
+  participantId?: string,
+  detail?: string,
+) {
+  try {
+    await ctx.db.insert("todTrace", {
+      gameId,
+      action,
+      participantId,
+      detail: detail?.slice(0, 200),
+      ts: Date.now(),
+    });
+  } catch {
+    // never let tracing break gameplay
+  }
+}
 
 // ─── Prompt pools (200 prompts: 100 normal + 100 spicy) ─────────────────────
 
@@ -313,7 +336,12 @@ export const submitChoice = mutation({
     const currentTurn = turns.find(
       (t) => t.turnIndex === game.currentTurnIndex && t.status === "waiting_for_choice"
     );
-    if (!currentTurn) return; // Already submitted (double-click) — ignore silently
+    if (!currentTurn) {
+      await trace(ctx, args.gameId, "submitChoice:duplicate", args.participantId.toString(), args.choice);
+      return;
+    }
+
+    await trace(ctx, args.gameId, "submitChoice", args.participantId.toString(), `${args.choice} turnIdx=${game.currentTurnIndex}`);
 
     // Pick a prompt, avoiding recently used ones
     const usedIds = turns
@@ -361,6 +389,8 @@ export const submitResponse = mutation({
       )
       .first();
     if (!currentTurn) throw new Error("No active turn waiting for response");
+
+    await trace(ctx, args.gameId, "submitResponse", args.participantId.toString(), args.responseText ? "text" : "media");
 
     // Resolve storage URL if uploaded via file storage
     let mediaUrl = args.responseMediaUrl;
@@ -410,6 +440,8 @@ export const advanceTurn = mutation({
       throw new Error("Only the host can advance turns");
     }
 
+    await trace(ctx, args.gameId, "advanceTurn", args.participantId.toString(), `from=${game.currentTurnIndex}`);
+
     // Advance to next player in rotation (no participants read to avoid write conflicts)
     const nextIndex = (game.currentTurnIndex + 1) % game.playerOrder.length;
     const now = Date.now();
@@ -436,6 +468,8 @@ export const skipTurn = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") return;
+
+    await trace(ctx, args.gameId, "skipTurn", args.participantId.toString(), `turnIdx=${game.currentTurnIndex}`);
 
     // Allow the active player OR the host to skip
     const isActivePlayer = game.currentTurnParticipantId === args.participantId;
@@ -490,6 +524,8 @@ export const submitRating = mutation({
 
     // Don't let the active player rate themselves
     if (turn.participantId === args.participantId) return;
+
+    await trace(ctx, turn.gameId, "submitRating", args.participantId.toString(), `score=${args.score} turn=${args.turnId}`);
 
     const ratings = turn.ratings ?? [];
     // Replace existing rating from this participant
@@ -724,6 +760,48 @@ export const getActiveTruthOrDare = query({
       totalTurns: turns.length,
       playerInfo,
     };
+  },
+});
+
+// ─── Trace log queries ───────────────────────────────────────────────────────
+
+export const getTrace = query({
+  args: {
+    gameId: v.id("truthOrDareGames"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const entries = await ctx.db
+      .query("todTrace")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .collect();
+    // Return newest first, limited
+    return entries
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, args.limit ?? 200);
+  },
+});
+
+export const getTraceByRoom = query({
+  args: {
+    roomId: v.id("rooms"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Find active game for this room
+    const games = await ctx.db
+      .query("truthOrDareGames")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    const game = games.find((g) => g.status === "active") ?? games.sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (!game) return [];
+    const entries = await ctx.db
+      .query("todTrace")
+      .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
+      .collect();
+    return entries
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, args.limit ?? 200);
   },
 });
 

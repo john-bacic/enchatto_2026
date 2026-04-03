@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { t } from "@/lib/i18n";
 import { PRESET_AVATARS } from "@/lib/types";
 import { DrawingCanvas, DrawingCanvasHandle } from "@/components/drawing-canvas";
+import { todTrace } from "@/components/tod-debug-panel";
 
 interface TruthOrDareGameProps {
   game: {
@@ -562,7 +563,10 @@ export function TruthOrDareGame({
                 </p>
                 <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
                   <button
-                    onClick={() => onSubmitChoice(game._id, "truth")}
+                    onClick={() => {
+                      todTrace({ source: "client", action: "btn:truth", detail: `turnStatus=${turn?.status} isMyTurn=${isMyTurn}` });
+                      onSubmitChoice(game._id, "truth");
+                    }}
                     style={{
                       flex: 1,
                       maxWidth: "150px",
@@ -579,7 +583,10 @@ export function TruthOrDareGame({
                     {t("Truth", lang)}
                   </button>
                   <button
-                    onClick={() => onSubmitChoice(game._id, "dare")}
+                    onClick={() => {
+                      todTrace({ source: "client", action: "btn:dare", detail: `turnStatus=${turn?.status} isMyTurn=${isMyTurn}` });
+                      onSubmitChoice(game._id, "dare");
+                    }}
                     style={{
                       flex: 1,
                       maxWidth: "150px",
@@ -1009,6 +1016,7 @@ export function TruthOrDareGame({
                       <button
                         onClick={() => {
                           if (starRating > 0) {
+                            todTrace({ source: "client", action: "btn:submitRating", detail: `score=${starRating} turnId=${turn._id.slice(-6)}` });
                             onSubmitRating(turn._id, starRating);
                             setHasRated(true);
                           }

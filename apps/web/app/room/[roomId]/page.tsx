@@ -15,6 +15,7 @@ import { GameStatusBar } from "@/components/game-status-bar";
 import { EmojifyrGameScreen } from "@/components/emojifyr-game-screen";
 import { EmojiMatchGame } from "@/components/emoji-match-game";
 import { TruthOrDareGame } from "@/components/truth-or-dare-game";
+import { TodDebugPanel, todTrace, tracedMutation } from "@/components/tod-debug-panel";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -102,6 +103,27 @@ function RoomContent() {
   const truthOrDareGame = useQuery(api.truthOrDare.getActiveTruthOrDare, {
     roomId: roomId as Id<"rooms">,
   });
+
+  // Trace T/D reactive query updates
+  const prevTodRef = useRef<{ status?: string; turnStatus?: string; turnIdx?: number; turnId?: string }>({});
+  useEffect(() => {
+    if (!truthOrDareGame) return;
+    const cur = {
+      status: truthOrDareGame.status,
+      turnStatus: truthOrDareGame.currentTurn?.status,
+      turnIdx: truthOrDareGame.currentTurnIndex,
+      turnId: truthOrDareGame.currentTurn?._id,
+    };
+    const prev = prevTodRef.current;
+    if (cur.status !== prev.status || cur.turnStatus !== prev.turnStatus || cur.turnId !== prev.turnId) {
+      todTrace({
+        source: "client",
+        action: "query:stateChange",
+        detail: `status=${cur.status} turn=${cur.turnStatus} idx=${cur.turnIdx} pid=${truthOrDareGame.currentTurnParticipantId?.slice(-6)}`,
+      });
+    }
+    prevTodRef.current = cur;
+  }, [truthOrDareGame]);
 
   // Auto-show game replay when a game completes or is cancelled
   const prevActiveGameRef = useRef(activeGameSession);
@@ -750,11 +772,13 @@ function RoomContent() {
     async (gameId: string, choice: "truth" | "dare") => {
       if (!participantId) return;
       try {
-        await submitTruthOrDareChoice({
-          gameId: gameId as Id<"truthOrDareGames">,
-          participantId: participantId as Id<"participants">,
-          choice,
-        });
+        await tracedMutation("submitChoice", `${choice} pid=${participantId.slice(-6)}`, () =>
+          submitTruthOrDareChoice({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+            choice,
+          })
+        );
       } catch (err) {
         console.error("Failed to submit choice:", err);
       }
@@ -766,35 +790,31 @@ function RoomContent() {
     async (gameId: string, responseText?: string, responseMediaUrl?: string) => {
       if (!participantId) return;
       const isImage = responseMediaUrl && responseMediaUrl.startsWith("data:");
-      const t0 = performance.now();
-      if (isImage) {
-        console.log("[T/D] Drawing submit started, payload size:", Math.round(responseMediaUrl!.length / 1024), "KB");
-      }
+      const payloadKB = isImage ? Math.round(responseMediaUrl!.length / 1024) : 0;
       try {
         if (isImage) {
-          // Use HTTP POST to the Convex HTTP action (same path as iOS).
-          // The action converts base64 to Convex file storage → CDN URL,
-          // so only a tiny URL is stored in the DB and sent via subscriptions.
-          const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
-          const res = await fetch(`${convexSiteUrl}/api/truth-or-dare/submit-response`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ gameId, participantId, responseText, responseMediaUrl }),
+          await tracedMutation("submitResponse:drawing", `${payloadKB}KB`, async () => {
+            const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
+            const res = await fetch(`${convexSiteUrl}/api/truth-or-dare/submit-response`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ gameId, participantId, responseText, responseMediaUrl }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || `HTTP ${res.status}`);
+            }
           });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `HTTP ${res.status}`);
-          }
-          console.log("[T/D] HTTP POST complete:", Math.round(performance.now() - t0), "ms");
           return;
         }
-        // Text responses go through WebSocket mutation (fast, small payload)
-        await submitTruthOrDareResponse({
-          gameId: gameId as Id<"truthOrDareGames">,
-          participantId: participantId as Id<"participants">,
-          responseText,
-          responseMediaUrl,
-        });
+        await tracedMutation("submitResponse:text", responseText?.slice(0, 30) ?? "", () =>
+          submitTruthOrDareResponse({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+            responseText,
+            responseMediaUrl,
+          })
+        );
       } catch (err) {
         console.error("Failed to submit response:", err);
       }
@@ -806,10 +826,12 @@ function RoomContent() {
     async (gameId: string) => {
       if (!participantId) return;
       try {
-        await advanceTruthOrDareTurn({
-          gameId: gameId as Id<"truthOrDareGames">,
-          participantId: participantId as Id<"participants">,
-        });
+        await tracedMutation("advanceTurn", `pid=${participantId.slice(-6)}`, () =>
+          advanceTruthOrDareTurn({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+          })
+        );
       } catch (err) {
         console.error("Failed to advance turn:", err);
       }
@@ -821,10 +843,12 @@ function RoomContent() {
     async (gameId: string) => {
       if (!participantId) return;
       try {
-        await skipTruthOrDareTurn({
-          gameId: gameId as Id<"truthOrDareGames">,
-          participantId: participantId as Id<"participants">,
-        });
+        await tracedMutation("skipTurn", `pid=${participantId.slice(-6)}`, () =>
+          skipTruthOrDareTurn({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+          })
+        );
       } catch (err) {
         console.error("Failed to skip turn:", err);
       }
@@ -836,10 +860,12 @@ function RoomContent() {
     async (gameId: string) => {
       if (!participantId) return;
       try {
-        await endTruthOrDare({
-          gameId: gameId as Id<"truthOrDareGames">,
-          participantId: participantId as Id<"participants">,
-        });
+        await tracedMutation("endGame", `pid=${participantId.slice(-6)}`, () =>
+          endTruthOrDare({
+            gameId: gameId as Id<"truthOrDareGames">,
+            participantId: participantId as Id<"participants">,
+          })
+        );
       } catch (err) {
         console.error("Failed to end Truth or Dare:", err);
       }
@@ -851,11 +877,13 @@ function RoomContent() {
     async (turnId: string, score: number) => {
       if (!participantId) return;
       try {
-        await submitTruthOrDareRating({
-          turnId: turnId as Id<"truthOrDareTurns">,
-          participantId: participantId as Id<"participants">,
-          score,
-        });
+        await tracedMutation("submitRating", `score=${score} pid=${participantId.slice(-6)}`, () =>
+          submitTruthOrDareRating({
+            turnId: turnId as Id<"truthOrDareTurns">,
+            participantId: participantId as Id<"participants">,
+            score,
+          })
+        );
       } catch (err) {
         console.error("Failed to submit rating:", err);
       }
@@ -1534,6 +1562,9 @@ function RoomContent() {
           </div>
         </div>
       )}
+
+      {/* T/D Debug Panel — toggle with the small button in bottom-right */}
+      <TodDebugPanel roomId={roomId} />
 
     </div>
   );
