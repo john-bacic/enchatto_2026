@@ -76,15 +76,17 @@ export function TruthOrDareGame({
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
+  const [submitting, setSubmitting] = useState<string | null>(null); // tracks which action is in-flight
   // Track which completedTurns milestone was dismissed (by user click or host advancing)
   const [dismissedRoundBreak, setDismissedRoundBreak] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
 
-  // Reset star rating when turn changes
+  // Reset local state when turn changes (new turn arrived from server)
   useEffect(() => {
     setStarRating(0);
     setHasRated(false);
+    setSubmitting(null); // clear any stale submitting state
   }, [game.currentTurn?._id]);
 
   // Show round break at every 10-turn milestone.
@@ -561,12 +563,21 @@ export function TruthOrDareGame({
                 <p style={{ color: "rgba(255,255,255,0.7)", marginBottom: "1.5rem", fontSize: "1.1rem" }}>
                   {t("Truth or Dare?", lang)}
                 </p>
+                {submitting === "choice" ? (
+                  <div style={{ padding: "1rem", display: "flex", justifyContent: "center" }}>
+                    <div style={{ width: 28, height: 28, border: "3px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
+                    <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+                  </div>
+                ) : (
                 <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
                   <button
                     onClick={() => {
+                      if (submitting) return;
+                      setSubmitting("choice");
                       todTrace({ source: "client", action: "btn:truth", detail: `turnStatus=${turn?.status} isMyTurn=${isMyTurn}` });
                       onSubmitChoice(game._id, "truth");
                     }}
+                    disabled={!!submitting}
                     style={{
                       flex: 1,
                       maxWidth: "150px",
@@ -577,16 +588,20 @@ export function TruthOrDareGame({
                       fontWeight: 700,
                       fontSize: "1.1rem",
                       border: "none",
-                      cursor: "pointer",
+                      cursor: submitting ? "default" : "pointer",
+                      opacity: submitting ? 0.5 : 1,
                     }}
                   >
                     {t("Truth", lang)}
                   </button>
                   <button
                     onClick={() => {
+                      if (submitting) return;
+                      setSubmitting("choice");
                       todTrace({ source: "client", action: "btn:dare", detail: `turnStatus=${turn?.status} isMyTurn=${isMyTurn}` });
                       onSubmitChoice(game._id, "dare");
                     }}
+                    disabled={!!submitting}
                     style={{
                       flex: 1,
                       maxWidth: "150px",
@@ -597,12 +612,14 @@ export function TruthOrDareGame({
                       fontWeight: 700,
                       fontSize: "1.1rem",
                       border: "none",
-                      cursor: "pointer",
+                      cursor: submitting ? "default" : "pointer",
+                      opacity: submitting ? 0.5 : 1,
                     }}
                   >
                     {t("Dare", lang)}
                   </button>
                 </div>
+                )}
                 {/* Skip option */}
                 <button
                   onClick={() => onSkipTurn(game._id)}
@@ -673,7 +690,8 @@ export function TruthOrDareGame({
                       value={responseText}
                       onChange={(e) => setResponseText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && responseText.trim()) {
+                        if (e.key === "Enter" && responseText.trim() && !submitting) {
+                          setSubmitting("response");
                           onSubmitResponse(game._id, responseText.trim());
                           setResponseText("");
                         }
@@ -693,28 +711,29 @@ export function TruthOrDareGame({
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       <button
                         onClick={() => {
-                          if (responseText.trim()) {
+                          if (responseText.trim() && !submitting) {
+                            setSubmitting("response");
                             onSubmitResponse(game._id, responseText.trim());
                             setResponseText("");
                           }
                         }}
-                        disabled={!responseText.trim()}
+                        disabled={!responseText.trim() || !!submitting}
                         style={{
                           flex: 1,
                           padding: "0.65rem",
                           borderRadius: "8px",
-                          background: responseText.trim() ? "#ea580c" : "rgba(255,255,255,0.15)",
+                          background: responseText.trim() && !submitting ? "#ea580c" : "rgba(255,255,255,0.15)",
                           color: "#fff",
                           fontWeight: 600,
                           border: "none",
-                          cursor: responseText.trim() ? "pointer" : "default",
+                          cursor: responseText.trim() && !submitting ? "pointer" : "default",
                         }}
                       >
-                        {t("Send Answer", lang)}
+                        {submitting === "response" ? "..." : t("Send Answer", lang)}
                       </button>
                       {turn.choice === "dare" && (
                         <button
-                          onClick={() => onSubmitResponse(game._id, "✅ Done!")}
+                          onClick={() => { if (!submitting) { setSubmitting("response"); onSubmitResponse(game._id, "✅ Done!"); } }}
                           style={{
                             flex: 1,
                             padding: "0.65rem",
@@ -1015,18 +1034,19 @@ export function TruthOrDareGame({
                       {/* Submit button */}
                       <button
                         onClick={() => {
-                          if (starRating > 0) {
+                          if (starRating > 0 && !submitting) {
+                            setSubmitting("rating");
                             todTrace({ source: "client", action: "btn:submitRating", detail: `score=${starRating} turnId=${turn._id.slice(-6)}` });
                             onSubmitRating(turn._id, starRating);
                             setHasRated(true);
                           }
                         }}
-                        disabled={starRating === 0}
+                        disabled={starRating === 0 || !!submitting}
                         style={{
                           marginTop: "0.5rem",
                           padding: "0.5rem 1.5rem",
                           borderRadius: "8px",
-                          background: starRating > 0
+                          background: starRating > 0 && !submitting
                             ? "linear-gradient(135deg, #f59e0b, #d97706)"
                             : "rgba(255,255,255,0.15)",
                           color: "#fff",
@@ -1036,7 +1056,7 @@ export function TruthOrDareGame({
                           cursor: starRating > 0 ? "pointer" : "default",
                         }}
                       >
-                        {t("Submit Rating", lang)}
+                        {submitting === "rating" ? "..." : t("Submit Rating", lang)}
                       </button>
                     </div>
                   )}
@@ -1082,26 +1102,28 @@ export function TruthOrDareGame({
                 <>
                   {isHost && allRated && (
                     <button
-                      onClick={() => onAdvanceTurn(game._id)}
+                      onClick={() => { if (!submitting) { setSubmitting("advance"); onAdvanceTurn(game._id); } }}
+                      disabled={!!submitting}
                       style={{
                         padding: "0.7rem 2rem",
                         borderRadius: "10px",
-                        background: "linear-gradient(135deg, #ea580c, #d97706)",
+                        background: submitting === "advance" ? "rgba(255,255,255,0.15)" : "linear-gradient(135deg, #ea580c, #d97706)",
                         color: "#fff",
                         fontWeight: 700,
                         fontSize: "1rem",
                         border: "none",
-                        cursor: "pointer",
+                        cursor: submitting ? "default" : "pointer",
                       }}
                     >
-                      {t("Next Turn", lang)} →
+                      {submitting === "advance" ? "..." : `${t("Next Turn", lang)} →`}
                     </button>
                   )}
 
                   {/* Host can force advance if someone is AFK */}
                   {isHost && !allRated && (
                     <button
-                      onClick={() => onAdvanceTurn(game._id)}
+                      onClick={() => { if (!submitting) { setSubmitting("advance"); onAdvanceTurn(game._id); } }}
+                      disabled={!!submitting}
                       style={{
                         padding: "0.4rem 1rem",
                         background: "transparent",
@@ -1109,11 +1131,11 @@ export function TruthOrDareGame({
                         border: "1px solid rgba(255,255,255,0.2)",
                         borderRadius: "6px",
                         fontSize: "0.75rem",
-                        cursor: "pointer",
+                        cursor: submitting ? "default" : "pointer",
                         marginTop: "0.5rem",
                       }}
                     >
-                      {t("Skip ratings", lang)}
+                      {submitting === "advance" ? "..." : t("Skip ratings", lang)}
                     </button>
                   )}
 
