@@ -388,7 +388,7 @@ export const submitResponse = mutation({
         )
       )
       .first();
-    if (!currentTurn) throw new Error("No active turn waiting for response");
+    if (!currentTurn) return; // Already submitted (double-click) — ignore silently
 
     await trace(ctx, args.gameId, "submitResponse", args.participantId.toString(), args.responseText ? "text" : "media");
 
@@ -438,6 +438,18 @@ export const advanceTurn = mutation({
     // Allow room host or game host
     if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
       throw new Error("Only the host can advance turns");
+    }
+
+    // Guard: if current turn is already waiting_for_choice, this is a double-tap — skip
+    const latestTurn = await ctx.db
+      .query("truthOrDareTurns")
+      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
+      .filter((q) => q.eq(q.field("turnIndex"), game.currentTurnIndex))
+      .order("desc")
+      .first();
+    if (latestTurn?.status === "waiting_for_choice") {
+      await trace(ctx, args.gameId, "advanceTurn:duplicate", args.participantId.toString(), `turnIdx=${game.currentTurnIndex} already waiting`);
+      return;
     }
 
     await trace(ctx, args.gameId, "advanceTurn", args.participantId.toString(), `from=${game.currentTurnIndex}`);
@@ -779,6 +791,18 @@ export const getTrace = query({
     return entries
       .sort((a, b) => b.ts - a.ts)
       .slice(0, args.limit ?? 200);
+  },
+});
+
+export const getRecentTrace = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const entries = await ctx.db
+      .query("todTrace")
+      .withIndex("by_ts")
+      .order("desc")
+      .take(args.limit ?? 200);
+    return entries;
   },
 });
 
