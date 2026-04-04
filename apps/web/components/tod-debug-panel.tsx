@@ -71,12 +71,12 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
 
   // Server-side trace (reactive via Convex subscription)
   const serverTrace = useQuery(
-    open && tab === "server" ? api.truthOrDare.getTraceByRoom : undefined as any,
-    open && tab === "server" ? { roomId: roomId as Id<"rooms">, limit: 100 } : "skip" as any,
+    api.truthOrDare.getTraceByRoom,
+    open && tab === "server" ? { roomId: roomId as Id<"rooms">, limit: 100 } : "skip",
   );
   const emServerTrace = useQuery(
-    open && tab === "em-server" ? api.emojiMatch.getEmTraceByRoom : undefined as any,
-    open && tab === "em-server" ? { roomId: roomId as Id<"rooms">, limit: 100 } : "skip" as any,
+    api.emojiMatch.getEmTraceByRoom,
+    open && tab === "em-server" ? { roomId: roomId as Id<"rooms">, limit: 100 } : "skip",
   );
 
   useEffect(() => {
