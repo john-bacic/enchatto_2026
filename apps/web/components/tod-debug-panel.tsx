@@ -211,7 +211,7 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
             {tab === "server" ? "Loading server trace..." : "No events yet. Play the game!"}
           </div>
         )}
-        {entries.map((e, i) => {
+        {entries.map((e: TodTraceEntry, i: number) => {
           const isError = e.ok === false || e.action?.includes("error");
           const isStart = e.action?.includes("start");
           const color = isError ? "#f66" : isStart ? "#ff0" : tab === "server" ? "#0af" : tab === "em-server" ? "#f0a" : "#0f0";
