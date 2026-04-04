@@ -113,7 +113,7 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
   const formatTs = (ts: number) => new Date(ts).toISOString().slice(11, 23);
 
   const serverData = tab === "em-server" ? emServerTrace : serverTrace;
-  const entries = tab === "client"
+  const entries: TodTraceEntry[] = tab === "client"
     ? [...clientLog].reverse().slice(0, 200)
     : (serverData ?? []).map((e: any) => ({
         ts: e.ts,
