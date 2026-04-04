@@ -238,7 +238,17 @@ export default defineSchema({
     .index("by_gameId", ["gameId"])
     .index("by_gameId_status", ["gameId", "status"]),
 
-  // Lightweight trace log for debugging T/D gameplay
+  // Lightweight trace logs for debugging gameplay
+  emTrace: defineTable({
+    gameId: v.id("emojiMatchGames"),
+    action: v.string(),
+    participantId: v.optional(v.string()),
+    detail: v.optional(v.string()),
+    ts: v.number(),
+  })
+    .index("by_gameId", ["gameId"])
+    .index("by_ts", ["ts"]),
+
   todTrace: defineTable({
     gameId: v.id("truthOrDareGames"),
     action: v.string(),                       // e.g. "submitChoice", "advanceTurn"

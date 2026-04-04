@@ -672,11 +672,13 @@ function RoomContent() {
     async (gameId: string, cardId: string) => {
       if (!participantId) return;
       try {
-        await flipEmojiMatchCard({
-          gameId: gameId as Id<"emojiMatchGames">,
-          cardId,
-          participantId: participantId as Id<"participants">,
-        });
+        await tracedMutation("em:flipCard", `card=${cardId} pid=${participantId.slice(-6)}`, () =>
+          flipEmojiMatchCard({
+            gameId: gameId as Id<"emojiMatchGames">,
+            cardId,
+            participantId: participantId as Id<"participants">,
+          })
+        );
       } catch (err) {
         console.error("Failed to flip card:", err);
       }
@@ -687,9 +689,11 @@ function RoomContent() {
   const handleResolveEmojiMatchMismatch = useCallback(
     async (gameId: string) => {
       try {
-        await resolveEmojiMatchMismatch({
-          gameId: gameId as Id<"emojiMatchGames">,
-        });
+        await tracedMutation("em:resolveMismatch", "", () =>
+          resolveEmojiMatchMismatch({
+            gameId: gameId as Id<"emojiMatchGames">,
+          })
+        );
       } catch (err) {
         console.error("Failed to resolve mismatch:", err);
       }
@@ -700,10 +704,12 @@ function RoomContent() {
   const handleCancelEmojiMatch = useCallback(
     async (gameId: string) => {
       try {
-        await cancelEmojiMatch({
-          gameId: gameId as Id<"emojiMatchGames">,
-          participantId: participantId as Id<"participants">,
-        });
+        await tracedMutation("em:cancel", "", () =>
+          cancelEmojiMatch({
+            gameId: gameId as Id<"emojiMatchGames">,
+            participantId: participantId as Id<"participants">,
+          })
+        );
       } catch (err) {
         console.error("Failed to cancel Emoji Match:", err);
       }
@@ -714,10 +720,12 @@ function RoomContent() {
   const handleTimeoutEmojiMatchTurn = useCallback(
     async (gameId: string, targetParticipantId: string) => {
       try {
-        await timeoutEmojiMatchTurn({
-          gameId: gameId as Id<"emojiMatchGames">,
-          participantId: targetParticipantId as Id<"participants">,
-        });
+        await tracedMutation("em:timeoutTurn", `pid=${targetParticipantId.slice(-6)}`, () =>
+          timeoutEmojiMatchTurn({
+            gameId: gameId as Id<"emojiMatchGames">,
+            participantId: targetParticipantId as Id<"participants">,
+          })
+        );
       } catch (err) {
         console.error("Failed to timeout turn:", err);
       }
@@ -729,10 +737,12 @@ function RoomContent() {
     async (gameId: string) => {
       if (!participantId) return;
       try {
-        await playAgainEmojiMatch({
-          gameId: gameId as Id<"emojiMatchGames">,
-          participantId: participantId as Id<"participants">,
-        });
+        await tracedMutation("em:playAgain", "", () =>
+          playAgainEmojiMatch({
+            gameId: gameId as Id<"emojiMatchGames">,
+            participantId: participantId as Id<"participants">,
+          })
+        );
         setDismissedEmojiMatchId(null);
       } catch (err) {
         console.error("Failed to play again:", err);

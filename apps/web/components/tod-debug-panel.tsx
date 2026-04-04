@@ -65,7 +65,7 @@ export function tracedMutation<T>(
 
 export function TodDebugPanel({ roomId }: { roomId: string }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"client" | "server">("client");
+  const [tab, setTab] = useState<"client" | "server" | "em-server">("client");
   const clientLog = useTraceLog();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +73,10 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
   const serverTrace = useQuery(
     open && tab === "server" ? api.truthOrDare.getTraceByRoom : undefined as any,
     open && tab === "server" ? { roomId: roomId as Id<"rooms">, limit: 100 } : "skip" as any,
+  );
+  const emServerTrace = useQuery(
+    open && tab === "em-server" ? api.emojiMatch.getEmTraceByRoom : undefined as any,
+    open && tab === "em-server" ? { roomId: roomId as Id<"rooms">, limit: 100 } : "skip" as any,
   );
 
   useEffect(() => {
@@ -101,16 +105,17 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
           opacity: 0.6,
         }}
       >
-        T/D Debug
+        Game Debug
       </button>
     );
   }
 
   const formatTs = (ts: number) => new Date(ts).toISOString().slice(11, 23);
 
+  const serverData = tab === "em-server" ? emServerTrace : serverTrace;
   const entries = tab === "client"
     ? [...clientLog].reverse().slice(0, 200)
-    : (serverTrace ?? []).map((e: any) => ({
+    : (serverData ?? []).map((e: any) => ({
         ts: e.ts,
         source: "server" as const,
         action: e.action,
@@ -165,7 +170,21 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
               fontSize: "0.65rem",
             }}
           >
-            Server
+            T/D Server
+          </button>
+          <button
+            onClick={() => setTab("em-server")}
+            style={{
+              background: tab === "em-server" ? "#f0a" : "transparent",
+              color: tab === "em-server" ? "#000" : "#f0a",
+              border: "1px solid #f0a",
+              borderRadius: 4,
+              padding: "2px 8px",
+              cursor: "pointer",
+              fontSize: "0.65rem",
+            }}
+          >
+            EM Server
           </button>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -195,7 +214,7 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
         {entries.map((e, i) => {
           const isError = e.ok === false || e.action?.includes("error");
           const isStart = e.action?.includes("start");
-          const color = isError ? "#f66" : isStart ? "#ff0" : tab === "server" ? "#0af" : "#0f0";
+          const color = isError ? "#f66" : isStart ? "#ff0" : tab === "server" ? "#0af" : tab === "em-server" ? "#f0a" : "#0f0";
           return (
             <div key={i} style={{ color, padding: "1px 0", lineHeight: 1.4, borderBottom: "1px solid #1a1a1a" }}>
               <span style={{ color: "#555" }}>{formatTs(e.ts)}</span>{" "}

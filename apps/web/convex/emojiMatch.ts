@@ -3,6 +3,28 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
+// ─── Trace helper ────────────────────────────────────────────────────────────
+
+async function emTrace(
+  ctx: any,
+  gameId: Id<"emojiMatchGames">,
+  action: string,
+  participantId?: string,
+  detail?: string,
+) {
+  try {
+    await ctx.db.insert("emTrace", {
+      gameId,
+      action,
+      participantId,
+      detail: detail?.slice(0, 200),
+      ts: Date.now(),
+    });
+  } catch {
+    // never let tracing break gameplay
+  }
+}
+
 // --- Emoji pool ---
 
 const EMOJI_POOL: Array<{ emoji: string; en: string; ja: string }> = [
@@ -362,6 +384,8 @@ export const flipCard = mutation({
       throw new Error("Not your turn");
     }
 
+    await emTrace(ctx, args.gameId, "flipCard", args.participantId.toString(), `card=${args.cardId} selected=${game.selectedCardIds.length}`);
+
     const cardIndex = game.board.findIndex((c) => c.cardId === args.cardId);
     if (cardIndex === -1) throw new Error("Card not found");
 
@@ -433,6 +457,7 @@ export const flipCard = mutation({
           isTie,
         });
 
+        await emTrace(ctx, args.gameId, "flipCard:complete", args.participantId.toString(), `pairs=${newMatchedCount}/${game.totalPairs}`);
         return { action: "game_complete" };
       }
 
@@ -444,10 +469,12 @@ export const flipCard = mutation({
         players: updatedPlayers,
         turnStartedAt: Date.now(),
       });
+      await emTrace(ctx, args.gameId, "flipCard:match", args.participantId.toString(), `pair=${firstCard.pairKey} matched=${newMatchedCount}/${game.totalPairs}`);
       return { action: "match" };
     }
 
     // Mismatch
+    await emTrace(ctx, args.gameId, "flipCard:mismatch", args.participantId.toString(), `cards=${firstCard.pairKey}+${secondCard.pairKey}`);
     const resolveAt = Date.now() + game.mismatchRevealMs;
     await ctx.db.patch(args.gameId, {
       board: updatedBoard,
@@ -474,6 +501,7 @@ export const resolveMismatch = mutation({
     if (!game) throw new Error("Game not found");
     if (game.status !== "resolving") return; // Already resolved — no error
     if (game.resolveAt && Date.now() < game.resolveAt) return; // Too early — wait
+    await emTrace(ctx, args.gameId, "resolveMismatch", undefined, `turn=${game.currentTurnParticipantId?.toString().slice(-6)}`);
     await doResolveMismatch(ctx, game);
   },
 });
@@ -543,6 +571,7 @@ export const timeoutTurn = mutation({
       throw new Error("Not this player's turn");
     }
     if (!game.turnTimeoutMs || !game.turnStartedAt) return;
+    await emTrace(ctx, args.gameId, "timeoutTurn", args.participantId.toString());
     // Allow 1s grace for client/server clock skew
     if (Date.now() - game.turnStartedAt < game.turnTimeoutMs - 1000) {
       throw new Error("Turn has not timed out yet");
@@ -757,5 +786,39 @@ export const getEmojiMatchById = query({
   args: { gameId: v.id("emojiMatchGames") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.gameId);
+  },
+});
+
+// ─── Trace queries ───────────────────────────────────────────────────────────
+
+export const getRecentEmTrace = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("emTrace")
+      .withIndex("by_ts")
+      .order("desc")
+      .take(args.limit ?? 200);
+  },
+});
+
+export const getEmTraceByRoom = query({
+  args: {
+    roomId: v.id("rooms"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const games = await ctx.db
+      .query("emojiMatchGames")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    const game = games.find((g) => g.status === "active" || g.status === "resolving")
+      ?? games.sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (!game) return [];
+    const entries = await ctx.db
+      .query("emTrace")
+      .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
+      .collect();
+    return entries.sort((a, b) => b.ts - a.ts).slice(0, args.limit ?? 200);
   },
 });
