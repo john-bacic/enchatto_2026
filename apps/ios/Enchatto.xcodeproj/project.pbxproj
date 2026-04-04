@@ -12,6 +12,7 @@
 		1ACE8467557F73FF17F0F58C /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8E05A49B6BA14F2CFC1285 /* Room.swift */; };
 		1D92719769BB289CD81B2984 /* PromptGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996026AD576DE54C56501B21 /* PromptGenerator.swift */; };
 		2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */; };
+		DBGC00002A000000000000A1 /* DebugConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBGC00001A000000000000A1 /* DebugConsoleView.swift */; };
 		350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */; };
 		388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */; };
 		41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */; };
@@ -77,6 +78,7 @@
 		47566C0B30406CBDDDEAA04F /* Participant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Participant.swift; sourceTree = "<group>"; };
 		4C59768529F53DC71560987B /* SpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageContextMenuOverlay.swift; sourceTree = "<group>"; };
+		DBGC00001A000000000000A1 /* DebugConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugConsoleView.swift; sourceTree = "<group>"; };
 		5174509E25C77776A9FA7941 /* EmojifyrPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojifyrPreviewView.swift; sourceTree = "<group>"; };
 		56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomViewModel.swift; sourceTree = "<group>"; };
 		5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMemoryTranslationService.swift; sourceTree = "<group>"; };
@@ -209,6 +211,7 @@
 			isa = PBXGroup;
 			children = (
 				0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */,
+				DBGC00001A000000000000A1 /* DebugConsoleView.swift */,
 				6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */,
 				C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */,
 				9201C47FF44875A95F7B535B /* EmojifyrGuessView.swift */,
@@ -402,6 +405,7 @@
 				4FB2238E8286E511980A0C4E /* Localization.swift in Sources */,
 				107EADF339940B99F1CB218F /* MeCabCasualizer.swift in Sources */,
 				56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */,
+				DBGC00002A000000000000A1 /* DebugConsoleView.swift in Sources */,
 				2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */,
 				76605A6B5C9A9244CFF3F24A /* MessageProcessor.swift in Sources */,
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,

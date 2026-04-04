@@ -119,6 +119,10 @@ struct HostConversationView: View {
         .overlay { contextMenuOverlay }
         .overlay { qrOverlay }
         .overlay { fullScreenImageOverlay }
+        .overlay { DebugConsoleView() }
+        .onTapGesture(count: 3) {
+            DebugConsole.shared.isEnabled.toggle()
+        }
         .overlay {
             if let participant = tooltipParticipant {
                 Color.black.opacity(0.01)
@@ -1047,6 +1051,8 @@ struct HostConversationView: View {
                 lang: hostLanguage,
                 onDismiss: { showEmojifyrGame = false }
             )
+            .overlay { DebugConsoleView() }
+            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeEmojifyrSession) { session in
             if session != nil && !showEmojifyrGame {
@@ -1060,6 +1066,8 @@ struct HostConversationView: View {
                 lang: hostLanguage,
                 onDismiss: { showEmojiMatchGame = false }
             )
+            .overlay { DebugConsoleView() }
+            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeEmojiMatchGame) { game in
             if let g = game, g.status != .canceled, g.status != .completed {
@@ -1077,6 +1085,8 @@ struct HostConversationView: View {
                 lang: hostLanguage,
                 onDismiss: { showTruthOrDareGame = false }
             )
+            .overlay { DebugConsoleView() }
+            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeTruthOrDareGame) { game in
             if let g = game, g.status == .active {
@@ -2063,12 +2073,12 @@ private struct OfflineTranslator: View {
             // on the same view can conflict and prevent sessions from starting.
             Color.clear
                 .translationTask(enJaConfig) { session in
-                    print("[OfflineTranslator] en→ja session active, translating batch")
+                    DebugConsole.shared.trace(source: .processing, action: "offline:en→ja:batch")
                     await viewModel.translateQueueBatch(session: session, fromLang: "en")
                 }
             Color.clear
                 .translationTask(jaEnConfig) { session in
-                    print("[OfflineTranslator] ja→en session active, translating batch")
+                    DebugConsole.shared.trace(source: .processing, action: "offline:ja→en:batch")
                     await viewModel.translateQueueBatch(session: session, fromLang: "ja")
                 }
         }

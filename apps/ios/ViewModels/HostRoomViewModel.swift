@@ -295,7 +295,7 @@ class HostRoomViewModel: ObservableObject {
             }
         } catch {
             // Don't surface polling errors to the user
-            print("Error fetching pending messages: \(error)")
+            DebugConsole.shared.trace(source: .network, action: "poll:pending:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -309,7 +309,7 @@ class HostRoomViewModel: ObservableObject {
             do {
                 try await api.markMessageFailed(messageId: message.id, error: error.localizedDescription)
             } catch {
-                print("Error marking message as failed: \(error)")
+                DebugConsole.shared.trace(source: .processing, action: "markFailed:error", detail: error.localizedDescription, ok: false)
             }
         }
 
@@ -538,7 +538,7 @@ class HostRoomViewModel: ObservableObject {
             }
         } catch {
             // Don't surface polling errors
-            print("Error polling Emojifyr state: \(error)")
+            DebugConsole.shared.trace(source: .network, action: "poll:emojifyr:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -576,7 +576,7 @@ class HostRoomViewModel: ObservableObject {
             isGeneratingEmoji = false
             return
         } catch {
-            print("Server AI emoji generation failed, falling back to heuristic: \(error.localizedDescription)")
+            DebugConsole.shared.trace(source: .processing, action: "emojiClue:ai:fallback", detail: error.localizedDescription, ok: false)
         }
 
         // Heuristic fallback (offline or if API fails)
@@ -712,7 +712,7 @@ class HostRoomViewModel: ObservableObject {
                 didTranslate = true
             } catch {
                 // Translation failed — leave processingAttempted false so it retries
-                print("Offline translation error: \(error)")
+                DebugConsole.shared.trace(source: .processing, action: "offline:translate:error", detail: error.localizedDescription, ok: false)
             }
         }
         if didTranslate {
@@ -958,7 +958,7 @@ class HostRoomViewModel: ObservableObject {
                 stopEmojiMatchFastPoll()
             }
         } catch {
-            print("Error polling Emoji Match state: \(error)")
+            DebugConsole.shared.trace(source: .network, action: "poll:emojiMatch:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -994,7 +994,7 @@ class HostRoomViewModel: ObservableObject {
             _ = try await api.createEmojiMatchLobby(roomId: roomId, hostParticipantId: hostId)
             await pollEmojiMatchState()
         } catch {
-            print("Error creating Emoji Match lobby: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:createLobby:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1004,7 +1004,7 @@ class HostRoomViewModel: ObservableObject {
             try await api.joinEmojiMatchLobby(gameId: game.id, participantId: hostId)
             await pollEmojiMatchState()
         } catch {
-            print("Error joining Emoji Match lobby: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:joinLobby:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1014,7 +1014,7 @@ class HostRoomViewModel: ObservableObject {
             try await api.leaveEmojiMatchLobby(gameId: game.id, participantId: hostId)
             await pollEmojiMatchState()
         } catch {
-            print("Error leaving Emoji Match lobby: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:leaveLobby:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1024,7 +1024,7 @@ class HostRoomViewModel: ObservableObject {
             try await api.startEmojiMatch(gameId: game.id, participantId: hostId)
             await pollEmojiMatchState()
         } catch {
-            print("Error starting Emoji Match: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:start:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1045,7 +1045,7 @@ class HostRoomViewModel: ObservableObject {
             // correctly flip cards back when the server sets isRevealed=false
             await pollEmojiMatchState()
         } catch {
-            print("Error flipping card: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:flip:error", detail: error.localizedDescription, ok: false)
             await pollEmojiMatchState()
         }
     }
@@ -1056,7 +1056,7 @@ class HostRoomViewModel: ObservableObject {
             try await api.cancelEmojiMatch(gameId: game.id, participantId: hostId)
             await pollEmojiMatchState()
         } catch {
-            print("Error canceling Emoji Match: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:cancel:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1066,7 +1066,7 @@ class HostRoomViewModel: ObservableObject {
             _ = try await api.playAgainEmojiMatch(gameId: game.id, participantId: hostId)
             await pollEmojiMatchState()
         } catch {
-            print("Error playing again: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:playAgain:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1095,7 +1095,7 @@ class HostRoomViewModel: ObservableObject {
                 }
             }
         } catch {
-            print("Error polling Truth or Dare state: \(error)")
+            DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1132,7 +1132,7 @@ class HostRoomViewModel: ObservableObject {
             _ = try await api.createTruthOrDare(roomId: roomId, hostParticipantId: hostId, promptMode: promptMode)
             await pollTruthOrDareState()
         } catch {
-            print("Error creating Truth or Dare: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:create:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1160,7 +1160,7 @@ class HostRoomViewModel: ObservableObject {
                 try await api.submitTruthOrDareChoice(gameId: game.id, participantId: hostId, choice: choice)
             }
         } catch {
-            print("Error submitting choice: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:choice:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1180,7 +1180,7 @@ class HostRoomViewModel: ObservableObject {
                 }
             }
         } catch {
-            print("Error submitting response: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:response:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1209,7 +1209,7 @@ class HostRoomViewModel: ObservableObject {
                 await pollTruthOrDareState()
             }
         } catch {
-            print("Error translating T/D response: \(error)")
+            DebugConsole.shared.trace(source: .processing, action: "truthOrDare:translate:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1221,7 +1221,7 @@ class HostRoomViewModel: ObservableObject {
                 try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
             }
         } catch {
-            print("Error advancing turn: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:advance:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1233,7 +1233,7 @@ class HostRoomViewModel: ObservableObject {
                 try await api.skipTruthOrDareTurn(gameId: game.id, participantId: hostId)
             }
         } catch {
-            print("Error skipping turn: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:skip:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1244,7 +1244,7 @@ class HostRoomViewModel: ObservableObject {
                 try await api.submitTruthOrDareRating(turnId: turnId, participantId: hostId, score: score)
             }
         } catch {
-            print("Error submitting rating: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:rating:error", detail: error.localizedDescription, ok: false)
         }
     }
 
@@ -1255,7 +1255,7 @@ class HostRoomViewModel: ObservableObject {
                 try await api.endTruthOrDare(gameId: game.id, participantId: hostId)
             }
         } catch {
-            print("Error ending Truth or Dare: \(error)")
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:end:error", detail: error.localizedDescription, ok: false)
         }
     }
 }

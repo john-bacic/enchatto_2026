@@ -8,7 +8,7 @@ class MyMemoryTranslationService: TranslationService {
     // Short phrases that the API struggles with — casual Japanese
     private let shortPhraseMap: [String: [String: String]] = [
         "hi":       ["ja": "やあ",         "en": "Hi"],
-        "hello":    ["ja": "やあ",         "en": "Hello"],
+        "hello":    ["ja": "こんにちは",   "en": "Hello"],
         "hey":      ["ja": "ねえ",         "en": "Hey"],
         "bye":      ["ja": "じゃあね",     "en": "Bye"],
         "goodbye":  ["ja": "じゃあね",     "en": "Bye"],
