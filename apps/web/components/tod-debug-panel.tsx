@@ -92,7 +92,8 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
         style={{
           position: "fixed",
           bottom: 8,
-          right: 8,
+          left: "50%",
+          transform: "translateX(-50%)",
           zIndex: 9999,
           background: "rgba(0,0,0,0.7)",
           color: "#0f0",
