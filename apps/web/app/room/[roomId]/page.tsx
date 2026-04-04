@@ -1382,6 +1382,10 @@ function RoomContent() {
               {process.env.NEXT_PUBLIC_GIT_SHA && process.env.NEXT_PUBLIC_GIT_SHA !== "dev" ? (<><br />github: {process.env.NEXT_PUBLIC_GIT_SHA}</>) : null}
               {process.env.NEXT_PUBLIC_VERCEL_URL ? (<><br />vercel: {process.env.NEXT_PUBLIC_VERCEL_URL}</>) : null}
             </p>
+            {/* Game debug panel */}
+            <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+              <TodDebugPanel roomId={roomId} embedded />
+            </div>
           </div>
         </div>
       )}
@@ -1573,8 +1577,7 @@ function RoomContent() {
         </div>
       )}
 
-      {/* T/D Debug Panel — toggle with the small button in bottom-right */}
-      <TodDebugPanel roomId={roomId} />
+      {/* T/D Debug Panel removed — now inside display settings modal */}
 
     </div>
   );

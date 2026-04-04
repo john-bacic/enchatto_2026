@@ -63,7 +63,7 @@ export function tracedMutation<T>(
 
 // ─── Debug panel component ───────────────────────────────────────────────────
 
-export function TodDebugPanel({ roomId }: { roomId: string }) {
+export function TodDebugPanel({ roomId, embedded }: { roomId: string; embedded?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"client" | "server" | "em-server">("client");
   const clientLog = useTraceLog();
@@ -90,11 +90,13 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
       <button
         onClick={() => setOpen(true)}
         style={{
-          position: "fixed",
-          bottom: 8,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 9999,
+          ...(embedded ? {} : {
+            position: "fixed" as const,
+            bottom: 8,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+          }),
           background: "rgba(0,0,0,0.7)",
           color: "#0f0",
           border: "1px solid #0f0",
@@ -103,7 +105,8 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
           fontSize: "0.7rem",
           fontFamily: "monospace",
           cursor: "pointer",
-          opacity: 0.6,
+          opacity: embedded ? 0.8 : 0.6,
+          width: embedded ? "100%" : undefined,
         }}
       >
         Game Debug
@@ -127,23 +130,29 @@ export function TodDebugPanel({ roomId }: { roomId: string }) {
   return (
     <div
       style={{
-        position: "fixed",
-        bottom: 0,
-        right: 0,
-        width: "min(420px, 100vw)",
-        maxHeight: "50vh",
-        zIndex: 9999,
+        ...(embedded ? {
+          borderRadius: 10,
+          maxHeight: "40vh",
+        } : {
+          position: "fixed" as const,
+          bottom: 0,
+          right: 0,
+          width: "min(420px, 100vw)",
+          maxHeight: "50vh",
+          zIndex: 9999,
+          borderTopLeftRadius: 10,
+        }),
         background: "rgba(0,0,0,0.92)",
-        borderTopLeftRadius: 10,
         border: "1px solid #333",
         display: "flex",
         flexDirection: "column",
         fontFamily: "monospace",
         fontSize: "0.7rem",
       }}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", borderBottom: "1px solid #333" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", borderBottom: "1px solid #333", flexWrap: "wrap", gap: 4 }}>
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={() => setTab("client")}
