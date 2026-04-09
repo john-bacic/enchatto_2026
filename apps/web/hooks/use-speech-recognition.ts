@@ -67,6 +67,11 @@ export function ensurePunctuation(text: string): string {
   return trimmed + (jp ? "。" : ".");
 }
 
+/** Detect Android browser */
+function isAndroid(): boolean {
+  return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+}
+
 export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -77,6 +82,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   onTranscriptRef.current = onTranscript;
   const onEndRef = useRef(onEnd);
   onEndRef.current = onEnd;
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const supported =
     typeof window !== "undefined" &&
@@ -86,6 +92,10 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     // Stop recognition first to prevent further onresult events
     listeningRef.current = false;
     setIsListening(false);
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
     recognitionRef.current?.stop();
     recognitionRef.current = null;
     // Apply punctuation to final transcript after stopping
@@ -108,16 +118,18 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
         recognitionRef.current = null;
       }
 
+      const android = isAndroid();
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SR();
-      recognition.continuous = true;
+      // Android Chrome doesn't handle continuous mode well — it re-recognizes
+      // the same speech on restart, causing duplicates. Use single-shot on Android.
+      recognition.continuous = !android;
       recognition.interimResults = true;
       recognition.lang = lang === "ja" ? "ja-JP" : "en-US";
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         if (!listeningRef.current) return;
-        // Build transcript from final + latest interim results only.
-        // On Android Chrome, iterating all results can produce duplicates.
+        // Build transcript from final + latest interim results.
         let finalText = "";
         let interimText = "";
         for (let i = 0; i < event.results.length; i++) {
@@ -131,20 +143,42 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
         const sessionTranscript = finalText + interimText;
         const prefix = committedTextRef.current;
         const full = prefix ? prefix + sessionTranscript : sessionTranscript;
-        // Deduplicate: if full text equals what we already have, skip the update
+        // Skip if unchanged
         if (full === lastTranscriptRef.current) return;
         lastTranscriptRef.current = full;
         onTranscriptRef.current?.(full);
       };
 
       recognition.onend = () => {
-        // Commit punctuated transcript before restarting — the caller adds punctuation + space,
-        // so we store the raw version here and let the next session append naturally
-        if (listeningRef.current && lastTranscriptRef.current) {
+        if (!listeningRef.current) return;
+
+        // Commit current transcript before restarting
+        if (lastTranscriptRef.current) {
           committedTextRef.current = ensurePunctuation(lastTranscriptRef.current) + " ";
         }
-        // Auto-restart if user hasn't explicitly stopped
-        if (listeningRef.current) {
+
+        // Auto-restart: on Android, add a delay so the mic fully stops
+        // and doesn't re-capture the same speech.
+        if (android) {
+          restartTimerRef.current = setTimeout(() => {
+            if (listeningRef.current) {
+              // Create a fresh recognition instance on Android to avoid stale results
+              const newRecognition = new SR();
+              newRecognition.continuous = false;
+              newRecognition.interimResults = true;
+              newRecognition.lang = recognition.lang;
+              newRecognition.onresult = recognition.onresult;
+              newRecognition.onend = recognition.onend;
+              newRecognition.onerror = recognition.onerror;
+              recognitionRef.current = newRecognition;
+              try {
+                newRecognition.start();
+              } catch {
+                // Already started or stopped
+              }
+            }
+          }, 300);
+        } else {
           try {
             recognition.start();
           } catch {
@@ -172,6 +206,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
       if (recognitionRef.current) {
         listeningRef.current = false;
         recognitionRef.current.stop();
