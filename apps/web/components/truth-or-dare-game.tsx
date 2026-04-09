@@ -82,6 +82,19 @@ export function TruthOrDareGame({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
 
+  // Track keyboard height via visualViewport for mobile
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const kbH = window.innerHeight - vv.height;
+      setKeyboardHeight(kbH > 50 ? kbH : 0);
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+
   // Reset local state when turn changes or turn status advances
   const turnStatus = game.currentTurn?.status;
   useEffect(() => {
@@ -282,13 +295,17 @@ export function TruthOrDareGame({
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: keyboardHeight,
         background: "linear-gradient(135deg, #451a03 0%, #7c2d12 50%, #92400e 100%)",
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         overflow: "hidden",
+        transition: "bottom 0.15s ease-out",
       }}
     >
       {/* Header */}
@@ -542,10 +559,12 @@ export function TruthOrDareGame({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
+          justifyContent: keyboardHeight > 0 ? "flex-start" : "center",
           padding: "1rem",
           width: "100%",
           maxWidth: "400px",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         {/* Step 1: Waiting for choice */}
@@ -691,6 +710,9 @@ export function TruthOrDareGame({
                       ref={responseInputRef}
                       type="text"
                       defaultValue=""
+                      onFocus={(e) => {
+                        setTimeout(() => e.target.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+                      }}
                       onKeyDown={(e) => {
                         const val = (e.target as HTMLInputElement).value.trim();
                         if (e.key === "Enter" && val && !submitting) {
