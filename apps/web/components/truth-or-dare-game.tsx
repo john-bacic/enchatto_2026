@@ -72,6 +72,7 @@ export function TruthOrDareGame({
   onClose,
 }: TruthOrDareGameProps) {
   const [responseText, setResponseText] = useState("");
+  const responseInputRef = useRef<HTMLInputElement>(null);
   const [showDrawing, setShowDrawing] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [starRating, setStarRating] = useState<number>(0);
@@ -87,6 +88,8 @@ export function TruthOrDareGame({
     setStarRating(0);
     setHasRated(false);
     setSubmitting(null); // clear any stale submitting state
+    setResponseText("");
+    if (responseInputRef.current) responseInputRef.current.value = "";
   }, [game.currentTurn?._id]);
 
   // Show round break at every 10-turn milestone.
@@ -686,13 +689,16 @@ export function TruthOrDareGame({
                 {(turn.promptResponseType === "text" || !turn.promptResponseType) && (
                   <div style={{ width: "100%" }}>
                     <input
+                      ref={responseInputRef}
                       type="text"
-                      value={responseText}
-                      onChange={(e) => setResponseText(e.target.value)}
+                      defaultValue=""
+                      onInput={(e) => setResponseText((e.target as HTMLInputElement).value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && responseText.trim() && !submitting) {
+                        const val = (e.target as HTMLInputElement).value.trim();
+                        if (e.key === "Enter" && val && !submitting) {
                           setSubmitting("response");
-                          onSubmitResponse(game._id, responseText.trim());
+                          onSubmitResponse(game._id, val);
+                          (e.target as HTMLInputElement).value = "";
                           setResponseText("");
                         }
                       }}
@@ -712,9 +718,11 @@ export function TruthOrDareGame({
                       <button
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
-                          if (responseText.trim() && !submitting) {
+                          const val = responseInputRef.current?.value.trim() || "";
+                          if (val && !submitting) {
                             setSubmitting("response");
-                            onSubmitResponse(game._id, responseText.trim());
+                            onSubmitResponse(game._id, val);
+                            if (responseInputRef.current) responseInputRef.current.value = "";
                             setResponseText("");
                           }
                         }}
