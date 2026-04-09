@@ -116,12 +116,23 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         if (!listeningRef.current) return;
-        let sessionTranscript = "";
+        // Build transcript from final + latest interim results only.
+        // On Android Chrome, iterating all results can produce duplicates.
+        let finalText = "";
+        let interimText = "";
         for (let i = 0; i < event.results.length; i++) {
-          sessionTranscript += event.results[i][0].transcript;
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalText += result[0].transcript;
+          } else {
+            interimText += result[0].transcript;
+          }
         }
+        const sessionTranscript = finalText + interimText;
         const prefix = committedTextRef.current;
         const full = prefix ? prefix + sessionTranscript : sessionTranscript;
+        // Deduplicate: if full text equals what we already have, skip the update
+        if (full === lastTranscriptRef.current) return;
         lastTranscriptRef.current = full;
         onTranscriptRef.current?.(full);
       };
