@@ -455,16 +455,23 @@ export const advanceTurn = mutation({
     await trace(ctx, args.gameId, "advanceTurn", args.participantId.toString(), `from=${game.currentTurnIndex}`);
 
     // Advance to next player in rotation (no participants read to avoid write conflicts)
+    if (!game.playerOrder || game.playerOrder.length === 0) {
+      throw new Error("Invalid game state: no players in game");
+    }
     const nextIndex = (game.currentTurnIndex + 1) % game.playerOrder.length;
+    const nextPlayer = game.playerOrder[nextIndex];
+    if (!nextPlayer) {
+      throw new Error("Invalid game state: player not found at index " + nextIndex);
+    }
     const now = Date.now();
     await ctx.db.patch(args.gameId, {
       currentTurnIndex: nextIndex,
-      currentTurnParticipantId: game.playerOrder[nextIndex],
+      currentTurnParticipantId: nextPlayer,
     });
     await ctx.db.insert("truthOrDareTurns", {
       gameId: args.gameId,
       turnIndex: nextIndex,
-      participantId: game.playerOrder[nextIndex],
+      participantId: nextPlayer,
       status: "waiting_for_choice",
       createdAt: now,
     });
@@ -528,7 +535,8 @@ export const submitRating = mutation({
     score: v.number(),
   },
   handler: async (ctx, args) => {
-    if (args.score < 1 || args.score > 10 || (args.score * 2) % 1 !== 0) throw new Error("Score must be 1-10 in 0.5 increments");
+    const score = Math.round(args.score * 2) / 2; // snap to nearest 0.5
+    if (score < 1 || score > 10) throw new Error("Score must be 1-10");
 
     const turn = await ctx.db.get(args.turnId);
     if (!turn) throw new Error("Turn not found");
@@ -537,12 +545,12 @@ export const submitRating = mutation({
     // Don't let the active player rate themselves
     if (turn.participantId === args.participantId) return;
 
-    await trace(ctx, turn.gameId, "submitRating", args.participantId.toString(), `score=${args.score} turn=${args.turnId}`);
+    await trace(ctx, turn.gameId, "submitRating", args.participantId.toString(), `score=${score} turn=${args.turnId}`);
 
     const ratings = turn.ratings ?? [];
     // Replace existing rating from this participant
     const filtered = ratings.filter((r) => r.participantId !== args.participantId);
-    filtered.push({ participantId: args.participantId, score: args.score });
+    filtered.push({ participantId: args.participantId, score });
 
     await ctx.db.patch(args.turnId, { ratings: filtered });
   },

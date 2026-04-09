@@ -16,13 +16,31 @@ class ConvexHTTPClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Retry once on transient errors (500, 503)
+        var lastError: Error?
+        for attempt in 0..<2 {
+            if attempt > 0 {
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5s backoff
+            }
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.networkError
-        }
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        if httpResponse.statusCode != 200 {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError
+            }
+
+            if httpResponse.statusCode == 200 {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .millisecondsSince1970
+                return try decoder.decode(T.self, from: data)
+            }
+
+            // Retry on transient server errors
+            if httpResponse.statusCode >= 500 && attempt < 1 {
+                lastError = APIError.serverError("HTTP \(httpResponse.statusCode)")
+                continue
+            }
+
             if let errorBody = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let message = errorBody["error"] as? String {
                 throw APIError.serverError(message)
@@ -30,9 +48,7 @@ class ConvexHTTPClient {
             throw APIError.serverError("HTTP \(httpResponse.statusCode)")
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .millisecondsSince1970
-        return try decoder.decode(T.self, from: data)
+        throw lastError ?? APIError.networkError
     }
 
     func postVoid(_ path: String, body: [String: Any]) async throws {

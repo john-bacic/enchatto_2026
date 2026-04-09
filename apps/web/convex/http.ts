@@ -24,8 +24,12 @@ function jsonAction(handler: (ctx: any, body: any) => Promise<any>) {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
-        status: 400,
+      const message = e?.message ?? String(e);
+      // Convex OCC / transient errors surface as system errors — return 503
+      // so the iOS client can distinguish retryable from permanent failures.
+      const isTransient = message.includes("OCC") || message.includes("overloaded") || message.includes("rate limit");
+      return new Response(JSON.stringify({ error: message }), {
+        status: isTransient ? 503 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -781,6 +785,132 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     return await ctx.runQuery(api.truthOrDare.getActiveTruthOrDare, {
       roomId: body.roomId,
+    });
+  }),
+});
+
+// --- Emoji Bingo ---
+
+http.route({
+  path: "/api/emoji-bingo/create-lobby",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const gameId = await ctx.runMutation(api.emojiBingo.createLobby, {
+      roomId: body.roomId,
+      hostParticipantId: body.hostParticipantId,
+      winPattern: body.winPattern,
+      callIntervalMs: body.callIntervalMs,
+    });
+    return { gameId };
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/join",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiBingo.joinLobby, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/leave",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiBingo.leaveLobby, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/start",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiBingo.startGame, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/roll",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiBingo.rollEmoji, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/mark-cell",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiBingo.markCell, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      cellIndex: body.cellIndex,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/claim-bingo",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runMutation(api.emojiBingo.claimBingo, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/cancel",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.emojiBingo.cancelGame, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/play-again",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const gameId = await ctx.runMutation(api.emojiBingo.playAgain, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    });
+    return { gameId };
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/active",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.emojiBingo.getActiveEmojiBingo, {
+      roomId: body.roomId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/emoji-bingo/state",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runQuery(api.emojiBingo.getEmojiBingoById, {
+      gameId: body.gameId,
     });
   }),
 });
