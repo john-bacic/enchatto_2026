@@ -76,12 +76,19 @@ export default function JoinPage() {
     setError(null);
 
     try {
+      // Derive display settings from language choice
+      const displaySettings = {
+        showEnglish: true,
+        showJapanese: language === "ja",
+        showRomaji: language === "ja",
+      };
       const participantId = await joinRoom({
         roomId: room._id,
         nickname: nickname.trim(),
         platform: "web",
         avatar: { type: "preset", value: avatar },
         preferredLanguage: language,
+        displaySettings,
       });
 
       localStorage.setItem("enchatto_lastNickname", nickname.trim());
@@ -294,7 +301,7 @@ export default function JoinPage() {
             fontSize: "1rem",
           }}
         >
-          {joining ? t("Joining...", language) : `${t("Join as", language)} ${selectedEmoji} ${nickname || "..."}`}
+          {joining ? t("Joining...", language) : language === "ja" ? `${selectedEmoji} ${nickname || "..."}として参加します` : `${t("Join as", language)} ${selectedEmoji} ${nickname || "..."}`}
         </button>
       </div>
 
