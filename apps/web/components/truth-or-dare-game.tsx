@@ -72,6 +72,7 @@ export function TruthOrDareGame({
   onClose,
 }: TruthOrDareGameProps) {
   const responseInputRef = useRef<HTMLInputElement>(null);
+  const responseSectionRef = useRef<HTMLDivElement>(null);
   const [showDrawing, setShowDrawing] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [starRating, setStarRating] = useState<number>(0);
@@ -666,7 +667,7 @@ export function TruthOrDareGame({
 
         {/* Step 2: Waiting for response */}
         {turn?.status === "waiting_for_response" && (
-          <div style={{ textAlign: "center", width: "100%" }}>
+          <div ref={responseSectionRef} style={{ textAlign: "center", width: "100%" }}>
             {/* Show choice badge */}
             <div
               style={{
@@ -708,8 +709,10 @@ export function TruthOrDareGame({
                       ref={responseInputRef}
                       type="text"
                       defaultValue=""
-                      onFocus={(e) => {
-                        setTimeout(() => e.target.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+                      onFocus={() => {
+                        setTimeout(() => {
+                          responseSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 300);
                       }}
                       onKeyDown={(e) => {
                         const val = (e.target as HTMLInputElement).value.trim();
