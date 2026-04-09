@@ -71,7 +71,6 @@ export function TruthOrDareGame({
   onDrawingStateChange,
   onClose,
 }: TruthOrDareGameProps) {
-  const [responseText, setResponseText] = useState("");
   const responseInputRef = useRef<HTMLInputElement>(null);
   const [showDrawing, setShowDrawing] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
@@ -88,7 +87,6 @@ export function TruthOrDareGame({
     setStarRating(0);
     setHasRated(false);
     setSubmitting(null); // clear any stale submitting state
-    setResponseText("");
     if (responseInputRef.current) responseInputRef.current.value = "";
   }, [game.currentTurn?._id]);
 
@@ -692,14 +690,12 @@ export function TruthOrDareGame({
                       ref={responseInputRef}
                       type="text"
                       defaultValue=""
-                      onInput={(e) => setResponseText((e.target as HTMLInputElement).value)}
                       onKeyDown={(e) => {
                         const val = (e.target as HTMLInputElement).value.trim();
                         if (e.key === "Enter" && val && !submitting) {
                           setSubmitting("response");
                           onSubmitResponse(game._id, val);
                           (e.target as HTMLInputElement).value = "";
-                          setResponseText("");
                         }
                       }}
                       placeholder={t("Type your answer...", lang)}
@@ -723,19 +719,17 @@ export function TruthOrDareGame({
                             setSubmitting("response");
                             onSubmitResponse(game._id, val);
                             if (responseInputRef.current) responseInputRef.current.value = "";
-                            setResponseText("");
                           }
                         }}
-                        disabled={!responseText.trim() || !!submitting}
                         style={{
                           flex: 1,
                           padding: "0.65rem",
                           borderRadius: "8px",
-                          background: responseText.trim() && !submitting ? "#ea580c" : "rgba(255,255,255,0.15)",
+                          background: submitting ? "rgba(255,255,255,0.15)" : "#ea580c",
                           color: "#fff",
                           fontWeight: 600,
                           border: "none",
-                          cursor: responseText.trim() && !submitting ? "pointer" : "default",
+                          cursor: submitting ? "default" : "pointer",
                         }}
                       >
                         {submitting === "response" ? "..." : t("Send Answer", lang)}
