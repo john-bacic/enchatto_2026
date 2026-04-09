@@ -295,17 +295,15 @@ export function TruthOrDareGame({
     <div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: keyboardHeight,
+        inset: 0,
+        paddingBottom: keyboardHeight,
         background: "linear-gradient(135deg, #451a03 0%, #7c2d12 50%, #92400e 100%)",
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         overflow: "hidden",
-        transition: "bottom 0.15s ease-out",
+        transition: "padding-bottom 0.15s ease-out",
       }}
     >
       {/* Header */}
