@@ -82,13 +82,14 @@ export function TruthOrDareGame({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
 
-  // Reset local state when turn changes (new turn arrived from server)
+  // Reset local state when turn changes or turn status advances
+  const turnStatus = game.currentTurn?.status;
   useEffect(() => {
     setStarRating(0);
     setHasRated(false);
     setSubmitting(null); // clear any stale submitting state
     if (responseInputRef.current) responseInputRef.current.value = "";
-  }, [game.currentTurn?._id]);
+  }, [game.currentTurn?._id, turnStatus]);
 
   // Show round break at every 10-turn milestone.
   // Track which turnIndex triggered the round break so we can detect
