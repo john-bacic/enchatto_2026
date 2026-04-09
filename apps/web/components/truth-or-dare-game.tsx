@@ -83,9 +83,13 @@ export function TruthOrDareGame({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
 
-  // Track keyboard height via visualViewport for mobile
+  // Track keyboard height via visualViewport for Android only.
+  // iOS Safari handles keyboard avoidance natively — adding paddingBottom
+  // on iOS causes the content to scroll too high.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) return; // let iOS handle it natively
     const vv = window.visualViewport;
     if (!vv) return;
     const onResize = () => {
@@ -710,9 +714,13 @@ export function TruthOrDareGame({
                       type="text"
                       defaultValue=""
                       onFocus={() => {
-                        setTimeout(() => {
-                          responseSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                        }, 300);
+                        // Only scroll on Android — iOS handles keyboard scroll natively
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                        if (!isIOS) {
+                          setTimeout(() => {
+                            responseSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }, 300);
+                        }
                       }}
                       onKeyDown={(e) => {
                         const val = (e.target as HTMLInputElement).value.trim();
