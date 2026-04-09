@@ -710,6 +710,7 @@ export function TruthOrDareGame({
                     />
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       <button
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           if (responseText.trim() && !submitting) {
                             setSubmitting("response");
@@ -733,6 +734,7 @@ export function TruthOrDareGame({
                       </button>
                       {turn.choice === "dare" && (
                         <button
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => { if (!submitting) { setSubmitting("response"); onSubmitResponse(game._id, "✅ Done!"); } }}
                           style={{
                             flex: 1,
