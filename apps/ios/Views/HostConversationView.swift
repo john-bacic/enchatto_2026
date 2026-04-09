@@ -48,6 +48,7 @@ struct HostConversationView: View {
     @State private var showEmojifyrGame = false
     @State private var showEmojiMatchGame = false
     @State private var showTruthOrDareGame = false
+    @State private var showEmojiBingoGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
     init(roomId: String, hostId: String) {
@@ -545,7 +546,7 @@ struct HostConversationView: View {
                             gameCompleteBubble
                         }
 
-                        if message.kind == .system, let text = message.text, text.hasPrefix("game_summary:") || text.hasPrefix("emoji_match_summary:") || text.hasPrefix("truth_or_dare_summary:") {
+                        if message.kind == .system, let text = message.text, text.hasPrefix("game_summary:") || text.hasPrefix("emoji_match_summary:") || text.hasPrefix("emoji_bingo_summary:") || text.hasPrefix("truth_or_dare_summary:") {
                             GameSummaryBanner(text: text, lang: hostLanguage)
                                 .id(message.id)
                         } else if message.kind == .system {
@@ -963,6 +964,12 @@ struct HostConversationView: View {
                         await viewModel.createEmojiMatchLobby()
                     }
                 },
+                onStartEmojiBingo: {
+                    showGamePicker = false
+                    Task {
+                        await viewModel.createEmojiBingoLobby()
+                    }
+                },
                 onStartTruthOrDare: { mode in
                     showGamePicker = false
                     Task {
@@ -1076,6 +1083,25 @@ struct HostConversationView: View {
                 }
             } else if game == nil || game?.status == .canceled {
                 showEmojiMatchGame = false
+            }
+        }
+        // MARK: - Emoji Bingo full-screen game
+        .fullScreenCover(isPresented: $showEmojiBingoGame) {
+            EmojiBingoGameView(
+                viewModel: viewModel,
+                lang: hostLanguage,
+                onDismiss: { showEmojiBingoGame = false }
+            )
+            .overlay { DebugConsoleView() }
+            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
+        }
+        .onChange(of: viewModel.activeEmojiBingoGame) { game in
+            if let g = game, g.status != .canceled, g.status != .completed {
+                if !showEmojiBingoGame {
+                    showEmojiBingoGame = true
+                }
+            } else if game == nil || game?.status == .canceled {
+                showEmojiBingoGame = false
             }
         }
         // MARK: - Truth or Dare full-screen game
@@ -1333,8 +1359,23 @@ private struct GameSummaryBanner: View {
         let turnsRated: Int
     }
 
+    private struct BingoPlayerScore: Identifiable {
+        let id = UUID()
+        let name: String
+        let avatar: String
+        let marked: Int
+        let placement: Int
+    }
+
+    private struct BingoRoundData: Identifiable {
+        let id = UUID()
+        let players: [BingoPlayerScore]
+        let winPattern: String
+    }
+
     private enum SummaryData {
         case emojiMatch(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore])
+        case emojiBingo(title: String, subtitle: String, games: [BingoRoundData], aggregated: [BingoPlayerScore])
         case litGame(title: String, subtitle: String, players: [PlayerScore])
         case truthOrDare(title: String, subtitle: String, players: [TodPlayerRating])
     }
@@ -1433,7 +1474,65 @@ private struct GameSummaryBanner: View {
                 PlayerScore(name: $0.name, avatar: $0.avatar, score: $0.score, total: $0.total, isWinner: $0.score == maxScore && maxScore > 0)
             }
 
+            // If gameType is "Emoji Bingo", route to the bingo renderer (green gradient)
+            if gameType.contains("Bingo") {
+                let bingoPlayers = aggregated.map { p in
+                    BingoPlayerScore(name: p.name, avatar: p.avatar, marked: p.score, placement: p.isWinner ? 1 : 0)
+                }
+                let bingoRounds = gameRounds.map { round in
+                    let bp = round.players.map { p in
+                        BingoPlayerScore(name: p.name, avatar: p.avatar, marked: p.score, placement: p.isWinner ? 1 : 0)
+                    }
+                    return BingoRoundData(players: bp, winPattern: "line")
+                }
+                return .emojiBingo(title: gameType, subtitle: subtitle, games: bingoRounds, aggregated: bingoPlayers)
+            }
+
             return .emojiMatch(title: gameType, subtitle: subtitle, games: gameRounds, aggregated: aggregated)
+        } else if text.hasPrefix("emoji_bingo_summary:") {
+            let json = String(text.dropFirst("emoji_bingo_summary:".count))
+            guard let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            let gameType = obj["gameType"] as? String ?? "Emoji Bingo"
+            let cancelled = obj["cancelled"] as? Bool ?? false
+
+            var bingoRounds: [BingoRoundData] = []
+            if let gamesArr = obj["games"] as? [[String: Any]] {
+                for g in gamesArr {
+                    let playersArr = g["players"] as? [[String: Any]] ?? []
+                    let winPattern = g["winPattern"] as? String ?? "line"
+                    let scores = playersArr.map { p in
+                        BingoPlayerScore(
+                            name: p["name"] as? String ?? "?",
+                            avatar: p["avatar"] as? String ?? "default",
+                            marked: p["marked"] as? Int ?? 0,
+                            placement: p["placement"] as? Int ?? 0
+                        )
+                    }
+                    bingoRounds.append(BingoRoundData(players: scores, winPattern: winPattern))
+                }
+            }
+
+            let gameCount = bingoRounds.count
+            let subtitle = cancelled ? L.t("Game ended early", lang) : "\(L.t("Game Complete", lang)) · \(gameCount) \(gameCount == 1 ? "game" : "games")"
+
+            // Aggregate across rounds
+            var agg: [String: (name: String, avatar: String, wins: Int, totalMarked: Int)] = [:]
+            for g in bingoRounds {
+                for p in g.players {
+                    let key = "\(p.name)|\(p.avatar)"
+                    var entry = agg[key] ?? (name: p.name, avatar: p.avatar, wins: 0, totalMarked: 0)
+                    if p.placement == 1 { entry.wins += 1 }
+                    entry.totalMarked += p.marked
+                    agg[key] = entry
+                }
+            }
+            var aggregated = agg.values.map { e in
+                BingoPlayerScore(name: e.name, avatar: e.avatar, marked: e.totalMarked, placement: e.wins > 0 ? 1 : 0)
+            }
+            aggregated.sort { $0.placement > $1.placement || ($0.placement == $1.placement && $0.marked > $1.marked) }
+
+            return .emojiBingo(title: gameType, subtitle: subtitle, games: bingoRounds, aggregated: aggregated)
         } else if text.hasPrefix("truth_or_dare_summary:") {
             let json = String(text.dropFirst("truth_or_dare_summary:".count))
             guard let data = json.data(using: .utf8),
@@ -1469,10 +1568,21 @@ private struct GameSummaryBanner: View {
         return false
     }
 
+    private var isEmojiBingo: Bool {
+        if let data = parsed, case .emojiBingo = data { return true }
+        return false
+    }
+
     private var bannerGradient: LinearGradient {
         if isTruthOrDare {
             return LinearGradient(
                 colors: [Color(red: 0.92, green: 0.35, blue: 0.05), Color(red: 0.96, green: 0.62, blue: 0.04), Color(red: 0.85, green: 0.47, blue: 0.02)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        }
+        if isEmojiBingo {
+            return LinearGradient(
+                colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.02, green: 0.59, blue: 0.40), Color(red: 0.01, green: 0.47, blue: 0.34)],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
         }
@@ -1486,6 +1596,9 @@ private struct GameSummaryBanner: View {
         if isTruthOrDare {
             return Color(red: 0.92, green: 0.35, blue: 0.05).opacity(0.3)
         }
+        if isEmojiBingo {
+            return Color(red: 0.06, green: 0.73, blue: 0.51).opacity(0.3)
+        }
         return Color(red: 0.39, green: 0.4, blue: 0.95).opacity(0.3)
     }
 
@@ -1495,6 +1608,8 @@ private struct GameSummaryBanner: View {
                 switch data {
                 case .emojiMatch(let title, let subtitle, let games, let aggregated):
                     emojiMatchBody(title: title, subtitle: subtitle, games: games, aggregated: aggregated)
+                case .emojiBingo(let title, let subtitle, let games, let aggregated):
+                    emojiBingoBody(title: title, subtitle: subtitle, games: games, aggregated: aggregated)
                 case .litGame(let title, let subtitle, let players):
                     litGameBody(title: title, subtitle: subtitle, players: players)
                 case .truthOrDare(let title, let subtitle, let players):
@@ -1575,6 +1690,74 @@ private struct GameSummaryBanner: View {
                     detail: "\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))",
                     placeEmoji: placeEmoji,
                     isHighlighted: player.isWinner
+                )
+            }
+        }
+    }
+
+    // MARK: - Emoji Bingo body
+
+    @ViewBuilder
+    private func emojiBingoBody(title: String, subtitle: String, games: [BingoRoundData], aggregated: [BingoPlayerScore]) -> some View {
+        VStack(spacing: 2) {
+            Text("🎰 \(title)")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.white)
+            Text(subtitle)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.85))
+        }
+
+        let patternLabels: [String: String] = ["line": "Line", "four_corners": "4 Corners", "blackout": "Blackout"]
+        ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
+            let winners = game.players.filter { $0.placement > 0 }.sorted { $0.placement < $1.placement }
+            let others = game.players.filter { $0.placement == 0 }.sorted { $0.marked > $1.marked }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(games.count > 1 ? "Game \(idx + 1) · " : "")\(patternLabels[game.winPattern] ?? game.winPattern)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.8))
+                HStack(spacing: 8) {
+                    ForEach(winners) { p in
+                        let placeEmoji = p.placement == 1 ? "🏆" : p.placement == 2 ? "🥈" : "🥉"
+                        HStack(spacing: 3) {
+                            Text(presetAvatar(for: p.avatar).emoji).font(.system(size: 12))
+                            Text(p.name).font(.system(size: 11))
+                            Text(placeEmoji).font(.system(size: 10))
+                        }
+                        .foregroundColor(.white)
+                    }
+                    ForEach(others) { p in
+                        HStack(spacing: 3) {
+                            Text(presetAvatar(for: p.avatar).emoji).font(.system(size: 12))
+                            Text("\(p.name): \(p.marked)/25").font(.system(size: 11))
+                        }
+                        .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+
+        emojiBingoPodium(aggregated: aggregated)
+    }
+
+    @ViewBuilder
+    private func emojiBingoPodium(aggregated: [BingoPlayerScore]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(aggregated) { player in
+                let isWinner = player.placement > 0
+                let placeEmoji = isWinner ? "🏆" : ""
+                let detail = isWinner ? "\(player.placement) \(player.placement == 1 ? "win" : "wins")" : "\(player.marked) marked"
+                playerCard(
+                    emoji: presetAvatar(for: player.avatar).emoji,
+                    name: player.name,
+                    detail: detail,
+                    placeEmoji: placeEmoji,
+                    isHighlighted: isWinner
                 )
             }
         }
@@ -1688,6 +1871,9 @@ private struct SystemMessageRow: View {
             return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
         } else if action == "game" {
             // name is like "Lost in Translation Level 2" or "Emojifyr" or "Emoji Match"
+            if name.hasPrefix("Emoji Bingo") {
+                return "🎰 \(L.t("Game Started: Emoji Bingo", lang))"
+            }
             if name.hasPrefix("Emojifyr") {
                 return "🔥 \(L.t("Game Started: Emojifyr", lang))"
             }

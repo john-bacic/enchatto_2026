@@ -20,6 +20,8 @@
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
 		5718E78DEE601BCE2326427C /* EmojiMatchGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */; };
+		EB01BINGO0001000000000001 /* EmojiBingoGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB01BINGO0002000000000001 /* EmojiBingoGame.swift */; };
+		EB01BINGO0001000000000002 /* EmojiBingoGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB01BINGO0002000000000002 /* EmojiBingoGameView.swift */; };
 		AA1111111111111111111111 /* TruthOrDareGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222222222222222222222 /* TruthOrDareGame.swift */; };
 		AA3333333333333333333333 /* TruthOrDareGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4444444444444444444444 /* TruthOrDareGameView.swift */; };
 		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
@@ -83,6 +85,8 @@
 		56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomViewModel.swift; sourceTree = "<group>"; };
 		5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMemoryTranslationService.swift; sourceTree = "<group>"; };
 		5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatchGame.swift; sourceTree = "<group>"; };
+		EB01BINGO0002000000000001 /* EmojiBingoGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiBingoGame.swift; sourceTree = "<group>"; };
+		EB01BINGO0002000000000002 /* EmojiBingoGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiBingoGameView.swift; sourceTree = "<group>"; };
 		AA2222222222222222222222 /* TruthOrDareGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGame.swift; sourceTree = "<group>"; };
 		AA4444444444444444444444 /* TruthOrDareGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGameView.swift; sourceTree = "<group>"; };
 		5D4D07C9C52F8ADCC4EDD899 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
@@ -234,6 +238,7 @@
 			isa = PBXGroup;
 			children = (
 				E1A8E6C8CA5049AA09657E16 /* EmojifyrRandomPhrases.swift */,
+				EB01BINGO0002000000000001 /* EmojiBingoGame.swift */,
 				5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */,
 				8B0373DCCC2C38FB107E44A1 /* Game.swift */,
 				AA2222222222222222222222 /* TruthOrDareGame.swift */,
@@ -260,6 +265,7 @@
 			isa = PBXGroup;
 			children = (
 				CEF6597A402DBBB3A83EB4DC /* EmojifyrGameView.swift */,
+				EB01BINGO0002000000000002 /* EmojiBingoGameView.swift */,
 				5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */,
 				AA4444444444444444444444 /* TruthOrDareGameView.swift */,
 				C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */,
@@ -376,6 +382,8 @@
 				7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */,
 				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,
 				F7BECF54111959B75BF31E1A /* EmojiClueGenerationService.swift in Sources */,
+				EB01BINGO0001000000000001 /* EmojiBingoGame.swift in Sources */,
+				EB01BINGO0001000000000002 /* EmojiBingoGameView.swift in Sources */,
 				5718E78DEE601BCE2326427C /* EmojiMatchGame.swift in Sources */,
 				7385117BD75BA9926C3619E1 /* EmojiMatchGameView.swift in Sources */,
 				AA1111111111111111111111 /* TruthOrDareGame.swift in Sources */,

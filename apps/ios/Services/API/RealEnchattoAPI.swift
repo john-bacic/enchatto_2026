@@ -553,4 +553,72 @@ class RealEnchattoAPI: EnchattoAPI {
         }
     }
 
+    // MARK: - Emoji Bingo
+
+    func createEmojiBingoLobby(roomId: String, hostParticipantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/emoji-bingo/create-lobby", body: [
+            "roomId": roomId,
+            "hostParticipantId": hostParticipantId,
+        ])
+        return response.gameId
+    }
+
+    func startEmojiBingo(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/emoji-bingo/start", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func rollEmojiBingo(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/emoji-bingo/roll", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func markEmojiBingoCell(gameId: String, participantId: String, cellIndex: Int) async throws {
+        try await client.postVoid("/api/emoji-bingo/mark-cell", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "cellIndex": cellIndex,
+        ] as [String: Any])
+    }
+
+    func claimEmojiBingo(gameId: String, participantId: String) async throws {
+        // Response varies ({valid, placement} or {valid, reason}) — just fire-and-forget, polling picks up state
+        try await client.postVoid("/api/emoji-bingo/claim-bingo", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func cancelEmojiBingo(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/emoji-bingo/cancel", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func playAgainEmojiBingo(gameId: String, participantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/emoji-bingo/play-again", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+        return response.gameId
+    }
+
+    func getActiveEmojiBingo(roomId: String) async throws -> EmojiBingoGame? {
+        do {
+            let game: EmojiBingoGame = try await client.post("/api/emoji-bingo/active", body: [
+                "roomId": roomId,
+            ])
+            return game
+        } catch is DecodingError {
+            return nil
+        }
+    }
+
 }

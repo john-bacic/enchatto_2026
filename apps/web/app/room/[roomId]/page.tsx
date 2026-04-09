@@ -15,6 +15,7 @@ import { GameStatusBar } from "@/components/game-status-bar";
 import { EmojifyrGameScreen } from "@/components/emojifyr-game-screen";
 import { EmojiMatchGame } from "@/components/emoji-match-game";
 import { TruthOrDareGame } from "@/components/truth-or-dare-game";
+import { EmojiBingoGame } from "@/components/emoji-bingo-game";
 import { TodDebugPanel, todTrace, tracedMutation } from "@/components/tod-debug-panel";
 import { getAvatarById } from "@/lib/types";
 import { t } from "@/lib/i18n";
@@ -46,6 +47,7 @@ function RoomContent() {
   const [showGameReplay, setShowGameReplay] = useState(false);
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
   const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
+  const [dismissedEmojiBingoId, setDismissedEmojiBingoId] = useState<string | null>(null);
   const [dismissedTruthOrDareId, setDismissedTruthOrDareId] = useState<string | null>(null);
 
   // Network status & offline queue
@@ -96,6 +98,9 @@ function RoomContent() {
 
   // Emoji Match real-time subscription
   const emojiMatchGame = useQuery(api.emojiMatch.getActiveEmojiMatch, {
+    roomId: roomId as Id<"rooms">,
+  });
+  const emojiBingoGame = useQuery(api.emojiBingo.getActiveEmojiBingo, {
     roomId: roomId as Id<"rooms">,
   });
 
@@ -203,6 +208,16 @@ function RoomContent() {
   const addReaction = useMutation(api.reactions.addReaction);
   const removeReaction = useMutation(api.reactions.removeReaction);
   const setTypingAction = useMutation(api.participants.setTypingAction);
+  const updateDisplaySettings = useMutation(api.participants.updateDisplaySettings);
+
+  // Sync display settings to Convex whenever toggles change
+  useEffect(() => {
+    if (!participantId) return;
+    updateDisplaySettings({
+      participantId: participantId as Id<"participants">,
+      displaySettings: { showEnglish, showJapanese, showRomaji },
+    }).catch(() => {});
+  }, [showEnglish, showJapanese, showRomaji, participantId, updateDisplaySettings]);
 
   // Set typing action to "drawing" while on a draw step so other players see pencil indicator
   useEffect(() => {
@@ -227,6 +242,17 @@ function RoomContent() {
 
   const me = participants.find((p) => p._id === participantId);
   const lang = me?.preferredLanguage ?? "ja";
+
+  // Initialize display toggles from participant's saved settings (once on load)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (me?.displaySettings && !initializedRef.current) {
+      initializedRef.current = true;
+      setShowEnglish(me.displaySettings.showEnglish);
+      setShowJapanese(me.displaySettings.showJapanese);
+      setShowRomaji(me.displaySettings.showRomaji);
+    }
+  }, [me?.displaySettings]);
 
   // Redirect to join screen if participant was removed (kicked)
   useEffect(() => {
@@ -451,6 +477,18 @@ function RoomContent() {
   const cancelEmojiMatch = useMutation(api.emojiMatch.cancelGame);
   const timeoutEmojiMatchTurn = useMutation(api.emojiMatch.timeoutTurn);
   const playAgainEmojiMatch = useMutation(api.emojiMatch.playAgain);
+
+  // Emoji Bingo mutations
+  const createEmojiBingoLobby = useMutation(api.emojiBingo.createLobby);
+  const joinEmojiBingoLobby = useMutation(api.emojiBingo.joinLobby);
+  const leaveEmojiBingoLobby = useMutation(api.emojiBingo.leaveLobby);
+  const updateEmojiBingoSettings = useMutation(api.emojiBingo.updateSettings);
+  const startEmojiBingo = useMutation(api.emojiBingo.startGame);
+  const rollEmojiBingo = useMutation(api.emojiBingo.rollEmoji);
+  const markEmojiBingoCell = useMutation(api.emojiBingo.markCell);
+  const claimEmojiBingo = useMutation(api.emojiBingo.claimBingo);
+  const cancelEmojiBingo = useMutation(api.emojiBingo.cancelGame);
+  const playAgainEmojiBingo = useMutation(api.emojiBingo.playAgain);
 
   const cancelGameMutation = useMutation(api.games.cancelGame);
   const handleStartGame = useCallback(
@@ -749,6 +787,162 @@ function RoomContent() {
       }
     },
     [playAgainEmojiMatch, participantId]
+  );
+
+  // Emoji Bingo handlers
+  const handleCreateEmojiBingoLobby = useCallback(
+    async () => {
+      if (!participantId) return;
+      try {
+        await createEmojiBingoLobby({
+          roomId: roomId as Id<"rooms">,
+          hostParticipantId: participantId as Id<"participants">,
+        });
+        setDismissedEmojiBingoId(null);
+        setShowGamePicker(false);
+      } catch (err) {
+        console.error("Failed to create Emoji Bingo lobby:", err);
+      }
+    },
+    [createEmojiBingoLobby, roomId, participantId]
+  );
+
+  const handleJoinEmojiBingoLobby = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await joinEmojiBingoLobby({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to join Emoji Bingo lobby:", err);
+      }
+    },
+    [joinEmojiBingoLobby, participantId]
+  );
+
+  const handleLeaveEmojiBingoLobby = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await leaveEmojiBingoLobby({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to leave Emoji Bingo lobby:", err);
+      }
+    },
+    [leaveEmojiBingoLobby, participantId]
+  );
+
+  const handleUpdateEmojiBingoSettings = useCallback(
+    async (gameId: string, winPattern?: string) => {
+      if (!participantId) return;
+      try {
+        await updateEmojiBingoSettings({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+          winPattern: winPattern as any,
+        });
+      } catch (err) {
+        console.error("Failed to update Emoji Bingo settings:", err);
+      }
+    },
+    [updateEmojiBingoSettings, participantId]
+  );
+
+  const handleStartEmojiBingo = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await startEmojiBingo({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to start Emoji Bingo:", err);
+      }
+    },
+    [startEmojiBingo, participantId]
+  );
+
+  const handleRollEmojiBingo = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await rollEmojiBingo({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to roll emoji:", err);
+      }
+    },
+    [rollEmojiBingo, participantId]
+  );
+
+  const handleMarkEmojiBingoCell = useCallback(
+    async (gameId: string, cellIndex: number) => {
+      if (!participantId) return;
+      try {
+        await markEmojiBingoCell({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+          cellIndex,
+        });
+      } catch (err) {
+        console.error("Failed to mark bingo cell:", err);
+      }
+    },
+    [markEmojiBingoCell, participantId]
+  );
+
+  const handleClaimEmojiBingo = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        return await claimEmojiBingo({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to claim bingo:", err);
+      }
+    },
+    [claimEmojiBingo, participantId]
+  );
+
+  const handleCancelEmojiBingo = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await cancelEmojiBingo({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+      } catch (err) {
+        console.error("Failed to cancel Emoji Bingo:", err);
+      }
+    },
+    [cancelEmojiBingo, participantId]
+  );
+
+  const handlePlayAgainEmojiBingo = useCallback(
+    async (gameId: string) => {
+      if (!participantId) return;
+      try {
+        await playAgainEmojiBingo({
+          gameId: gameId as Id<"emojiBingoGames">,
+          participantId: participantId as Id<"participants">,
+        });
+        setDismissedEmojiBingoId(null);
+      } catch (err) {
+        console.error("Failed to play again:", err);
+      }
+    },
+    [playAgainEmojiBingo, participantId]
   );
 
   // Truth or Dare mutations
@@ -1270,11 +1464,13 @@ function RoomContent() {
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
           onGameTap={() => setShowGamePicker(true)}
-          isGameActive={(activeGameSession != null || emojifyrSession != null || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
+          isGameActive={(activeGameSession != null || emojifyrSession != null || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
           onEndGame={me?.role === "host" ? async () => {
             if (confirm(t("This will end the game for all players and show results.", lang))) {
               if (truthOrDareGame && truthOrDareGame.status === "active") {
                 await endTruthOrDare({ gameId: truthOrDareGame._id as Id<"truthOrDareGames">, participantId: participantId as Id<"participants"> });
+              } else if (emojiBingoGame && !["completed", "canceled"].includes(emojiBingoGame.status)) {
+                await cancelEmojiBingo({ gameId: emojiBingoGame._id as Id<"emojiBingoGames">, participantId: participantId as Id<"participants"> });
               } else if (emojiMatchGame && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") {
                 await cancelEmojiMatch({ gameId: emojiMatchGame._id as Id<"emojiMatchGames">, participantId: participantId as Id<"participants"> });
               } else if (emojifyrSession) {
@@ -1431,6 +1627,26 @@ function RoomContent() {
         />
       )}
 
+      {/* Emoji Bingo game overlay */}
+      {emojiBingoGame && emojiBingoGame.status !== "canceled" && dismissedEmojiBingoId !== emojiBingoGame._id && (
+        <EmojiBingoGame
+          game={emojiBingoGame}
+          myParticipantId={participantId}
+          isHost={me?.role === "host"}
+          lang={lang}
+          onJoinLobby={handleJoinEmojiBingoLobby}
+          onLeaveLobby={handleLeaveEmojiBingoLobby}
+          onStartGame={handleStartEmojiBingo}
+          onUpdateSettings={handleUpdateEmojiBingoSettings}
+          onRollEmoji={handleRollEmojiBingo}
+          onMarkCell={handleMarkEmojiBingoCell}
+          onClaimBingo={handleClaimEmojiBingo}
+          onCancelGame={handleCancelEmojiBingo}
+          onPlayAgain={handlePlayAgainEmojiBingo}
+          onClose={() => setDismissedEmojiBingoId(emojiBingoGame._id)}
+        />
+      )}
+
       {/* Truth or Dare game overlay — only show for active games */}
       {truthOrDareGame && truthOrDareGame.status === "active" && dismissedTruthOrDareId !== truthOrDareGame._id && (
         <TruthOrDareGame
@@ -1489,6 +1705,7 @@ function RoomContent() {
         onStartGame={handleStartGame}
         onStartEmojifyr={handleStartEmojifyr}
         onStartEmojiMatch={handleCreateEmojiMatchLobby}
+        onStartEmojiBingo={handleCreateEmojiBingoLobby}
         onStartTruthOrDare={handleCreateTruthOrDare}
         onRequestGame={(msg) => handleSend(msg)}
         onClose={() => setShowGamePicker(false)}

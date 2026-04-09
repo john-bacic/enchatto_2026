@@ -11,6 +11,11 @@ export const joinRoom = mutation({
       value: v.string(),
     }),
     preferredLanguage: v.string(),
+    displaySettings: v.optional(v.object({
+      showEnglish: v.boolean(),
+      showJapanese: v.boolean(),
+      showRomaji: v.boolean(),
+    })),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
@@ -45,6 +50,7 @@ export const joinRoom = mutation({
         lastSeenAt: now,
         platform: args.platform,
         preferredLanguage: args.preferredLanguage,
+        displaySettings: args.displaySettings,
       });
 
       // Insert system message for rejoin
@@ -79,6 +85,7 @@ export const joinRoom = mutation({
       platform: args.platform,
       avatar: args.avatar,
       preferredLanguage: args.preferredLanguage,
+      displaySettings: args.displaySettings,
       online: true,
       presence: "online",
       lastSeenAt: now,
@@ -203,6 +210,22 @@ export const updateParticipantAvatar = mutation({
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.participantId, { avatar: args.avatar });
+  },
+});
+
+export const updateDisplaySettings = mutation({
+  args: {
+    participantId: v.id("participants"),
+    displaySettings: v.object({
+      showEnglish: v.boolean(),
+      showJapanese: v.boolean(),
+      showRomaji: v.boolean(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.participantId, {
+      displaySettings: args.displaySettings,
+    });
   },
 });
 

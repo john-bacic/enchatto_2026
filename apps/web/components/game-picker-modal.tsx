@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { t } from "@/lib/i18n";
 
-type GameTab = "lost-in-translation" | "emojifyr" | "emoji-match" | "truth-or-dare";
+type GameTab = "lost-in-translation" | "emoji-bingo" | "emojifyr" | "emoji-match" | "truth-or-dare";
 
 interface GamePickerModalProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ interface GamePickerModalProps {
   onStartGame: (gameType: string, level: number, timerSeconds: number) => void;
   onStartEmojifyr?: () => void;
   onStartEmojiMatch?: () => void;
+  onStartEmojiBingo?: () => void;
   onStartTruthOrDare?: (mode: "normal" | "deep") => void;
   onRequestGame: (message: string) => void;
   onClose: () => void;
@@ -29,6 +30,7 @@ export function GamePickerModal({
   onStartGame,
   onStartEmojifyr,
   onStartEmojiMatch,
+  onStartEmojiBingo,
   onStartTruthOrDare,
   onRequestGame,
   onClose,
@@ -42,6 +44,7 @@ export function GamePickerModal({
 
   const gameColors: Record<GameTab, string> = {
     "lost-in-translation": "linear-gradient(135deg, #3b82f6, #2563eb)",
+    "emoji-bingo": "linear-gradient(135deg, #10b981, #059669)",
     "emojifyr": "linear-gradient(135deg, #ef4444, #dc2626)",
     "emoji-match": "linear-gradient(135deg, #8b5cf6, #7c3aed)",
     "truth-or-dare": "linear-gradient(135deg, #ea580c, #d97706)",
@@ -101,6 +104,12 @@ export function GamePickerModal({
             style={tabStyle(selectedGame === "lost-in-translation", "lost-in-translation")}
           >
             🎨 {t("Lost in Translation", lang)}
+          </button>
+          <button
+            onClick={() => setSelectedGame("emoji-bingo")}
+            style={tabStyle(selectedGame === "emoji-bingo", "emoji-bingo")}
+          >
+            🎰 {t("Emoji Bingo", lang)}
           </button>
           <button
             onClick={() => setSelectedGame("emojifyr")}
@@ -253,6 +262,112 @@ export function GamePickerModal({
                     }}
                   >
                     {nextLevel > 1 ? `${t("Level", lang)} ${nextLevel}` : t("Start Game", lang)}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Emoji Bingo content */}
+        {selectedGame === "emoji-bingo" && (
+          <>
+            {!isHost ? (
+              <>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🎰</div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+                  {t("Emoji Bingo", lang)}
+                </h2>
+                <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
+                  {t("Mark emojis on your card as they're called. First to complete the pattern wins!", lang)}
+                </p>
+                <div style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "0.5rem 0.75rem",
+                  marginBottom: "1rem",
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  textAlign: "left",
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: "0.25rem", color: "var(--foreground)" }}>
+                    {t("How it works", lang)}
+                  </div>
+                  {t("Emojis are called automatically", lang)} → {t("Tap matching emojis on your card", lang)} → {t("Complete the pattern and hit BINGO!", lang)}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "1rem" }}>
+                  {t("Only the host can start a game.", lang)}
+                </p>
+                <button
+                  onClick={() => {
+                    onRequestGame(`${hostName} ${t("can we play \"Emoji Bingo\"? 🎰", lang)}`);
+                    onClose();
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem",
+                    borderRadius: "8px",
+                    background: "linear-gradient(135deg, #10b981, #059669)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "none",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {t("Ask to play!", lang)}
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🎰</div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+                  {t("Emoji Bingo", lang)}
+                </h2>
+                <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "0.75rem", lineHeight: 1.4 }}>
+                  {t("Mark emojis on your card as they're called. First to complete the pattern wins!", lang)}
+                </p>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "0.75rem",
+                  color: "var(--muted)",
+                  marginBottom: "1rem",
+                }}>
+                  <span>{playerCount} {t("players", lang)}</span>
+                  <span>~3–5 {t("min", lang)}</span>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button
+                    onClick={onClose}
+                    style={{
+                      flex: 1,
+                      padding: "0.6rem",
+                      borderRadius: "8px",
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t("Cancel", lang)}
+                  </button>
+                  <button
+                    onClick={() => onStartEmojiBingo?.()}
+                    style={{
+                      flex: 1,
+                      padding: "0.6rem",
+                      borderRadius: "8px",
+                      background: "linear-gradient(135deg, #10b981, #059669)",
+                      color: "#fff",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "none",
+                    }}
+                  >
+                    {t("Start Game", lang)}
                   </button>
                 </div>
               </>

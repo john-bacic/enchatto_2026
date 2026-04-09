@@ -22,6 +22,7 @@ const translations: Record<string, Record<string, string>> = {
   "Enter your name": { ja: "名前を入力" },
   "Choose an avatar": { ja: "アバターを選ぶ" },
   "Your language": { ja: "あなたの言語" },
+  "Display languages": { ja: "表示言語" },
   "Joining...": { ja: "参加中…" },
   "Join as": { ja: "として参加" },
   "Looking up room...": { ja: "ルームを検索中…" },
@@ -268,6 +269,33 @@ const translations: Record<string, Record<string, string>> = {
   "Done Dare": { ja: "チャレンジ完了" },
   "Normal": { ja: "ノーマル" },
   "Deep": { ja: "ディープ" },
+
+  // Emoji Bingo
+  "Emoji Bingo": { ja: "絵文字ビンゴ" },
+  "Mark emojis on your card as they're called. First to complete the pattern wins!": {
+    ja: "呼ばれた絵文字をカードにマーク。パターンを最初に完成させた人の勝ち！",
+  },
+  "Emojis are called automatically": { ja: "絵文字が自動で呼ばれます" },
+  "Tap matching emojis on your card": { ja: "カードの絵文字をタップ" },
+  "Complete the pattern and hit BINGO!": { ja: "パターンを完成してBINGO！" },
+  'can we play "Emoji Bingo"? 🎰': { ja: '「絵文字ビンゴ」で遊びませんか？🎰' },
+  "Win Pattern": { ja: "勝利パターン" },
+  "Speed": { ja: "スピード" },
+  "Join Game": { ja: "参加する" },
+  "Leave Lobby": { ja: "ロビーを出る" },
+  "host": { ja: "ホスト" },
+  "called": { ja: "コール済み" },
+  "remaining": { ja: "残り" },
+  "Game in progress": { ja: "ゲーム中" },
+  "End": { ja: "終了" },
+  "Not yet!": { ja: "まだです！" },
+  "Game Canceled": { ja: "ゲーム中止" },
+  "No Winner": { ja: "勝者なし" },
+  "min": { ja: "分" },
+  "Game Started: Emoji Bingo": { ja: "ゲーム開始：絵文字ビンゴ" },
+  "Roll!": { ja: "ロール！" },
+  "is rolling...": { ja: "がロール中…" },
+  "Waiting for first roll...": { ja: "最初のロールを待っています…" },
 };
 
 /**

@@ -29,6 +29,11 @@ export default defineSchema({
       value: v.string(),
     }),
     preferredLanguage: v.string(),
+    displaySettings: v.optional(v.object({
+      showEnglish: v.boolean(),
+      showJapanese: v.boolean(),
+      showRomaji: v.boolean(),
+    })),
     online: v.boolean(),
     departed: v.optional(v.boolean()),
     presence: v.optional(v.union(v.literal("online"), v.literal("away"))),
@@ -293,4 +298,56 @@ export default defineSchema({
     .index("by_gameSessionId", ["gameSessionId"])
     .index("by_chainId", ["chainId"])
     .index("by_assignedParticipantId_status", ["assignedParticipantId", "status"]),
+
+  // ─── Emoji Bingo ────────────────────────────────────────────────────────────
+  emojiBingoGames: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(
+      v.literal("lobby"),
+      v.literal("active"),
+      v.literal("won"),
+      v.literal("completed"),
+      v.literal("canceled")
+    ),
+    hostParticipantId: v.id("participants"),
+    winPattern: v.union(
+      v.literal("line"),
+      v.literal("four_corners"),
+      v.literal("blackout")
+    ),
+    callIntervalMs: v.number(),
+    turnOrder: v.optional(v.array(v.string())),
+    currentTurnParticipantId: v.optional(v.string()),
+    turnStartedAt: v.optional(v.number()),
+    turnTimeoutMs: v.optional(v.number()),
+    players: v.array(v.object({
+      participantId: v.id("participants"),
+      nickname: v.string(),
+      avatarValue: v.string(),
+      joinedAt: v.number(),
+      card: v.array(v.string()),
+      markedCells: v.array(v.number()),
+      placement: v.number(),
+    })),
+    drawDeck: v.array(v.string()),
+    calledEmojis: v.array(v.string()),
+    drawIndex: v.number(),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+    firstBingoAt: v.optional(v.number()),
+    nextDrawScheduledAt: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_roomId_status", ["roomId", "status"]),
+
+  bingoTrace: defineTable({
+    gameId: v.id("emojiBingoGames"),
+    action: v.string(),
+    participantId: v.optional(v.string()),
+    detail: v.optional(v.string()),
+    ts: v.number(),
+  })
+    .index("by_gameId", ["gameId"])
+    .index("by_ts", ["ts"]),
 });

@@ -187,4 +187,30 @@ protocol EnchattoAPI {
 
     /// Get active Truth or Dare game state
     func getActiveTruthOrDare(roomId: String) async throws -> TruthOrDareGame?
+
+    // MARK: - Emoji Bingo
+
+    /// Create an Emoji Bingo lobby
+    func createEmojiBingoLobby(roomId: String, hostParticipantId: String) async throws -> String
+
+    /// Start an Emoji Bingo game
+    func startEmojiBingo(gameId: String, participantId: String) async throws
+
+    /// Roll the next emoji (turn-based)
+    func rollEmojiBingo(gameId: String, participantId: String) async throws
+
+    /// Mark a cell on the host's bingo card
+    func markEmojiBingoCell(gameId: String, participantId: String, cellIndex: Int) async throws
+
+    /// Claim bingo (fire-and-forget; polling picks up result)
+    func claimEmojiBingo(gameId: String, participantId: String) async throws
+
+    /// Cancel an Emoji Bingo game
+    func cancelEmojiBingo(gameId: String, participantId: String) async throws
+
+    /// Play again after an Emoji Bingo game
+    func playAgainEmojiBingo(gameId: String, participantId: String) async throws -> String
+
+    /// Get the active Emoji Bingo game for a room
+    func getActiveEmojiBingo(roomId: String) async throws -> EmojiBingoGame?
 }

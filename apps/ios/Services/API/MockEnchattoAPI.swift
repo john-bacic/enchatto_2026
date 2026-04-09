@@ -334,6 +334,28 @@ class MockEnchattoAPI: EnchattoAPI {
         return nil
     }
 
+    func createEmojiBingoLobby(roomId: String, hostParticipantId: String) async throws -> String {
+        return "mock-bingo-\(UUID().uuidString.prefix(8))"
+    }
+
+    func startEmojiBingo(gameId: String, participantId: String) async throws {}
+
+    func rollEmojiBingo(gameId: String, participantId: String) async throws {}
+
+    func markEmojiBingoCell(gameId: String, participantId: String, cellIndex: Int) async throws {}
+
+    func claimEmojiBingo(gameId: String, participantId: String) async throws {}
+
+    func cancelEmojiBingo(gameId: String, participantId: String) async throws {}
+
+    func playAgainEmojiBingo(gameId: String, participantId: String) async throws -> String {
+        return "mock-bingo-\(UUID().uuidString.prefix(8))"
+    }
+
+    func getActiveEmojiBingo(roomId: String) async throws -> EmojiBingoGame? {
+        return nil
+    }
+
 }
 
 enum APIError: LocalizedError {

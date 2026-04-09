@@ -2,6 +2,7 @@ import SwiftUI
 
 enum GamePickerTab: String, CaseIterable {
     case lostInTranslation = "Lost in Translation"
+    case emojiBingo = "Emoji Bingo"
     case emojifyr = "Emojifyr"
     case emojiMatch = "Emoji Match"
     case truthOrDare = "Truth or Dare"
@@ -15,6 +16,7 @@ struct GamePickerView: View {
     let onStartGame: (String, Int, Int) -> Void
     let onStartEmojifyr: () -> Void
     let onStartEmojiMatch: () -> Void
+    let onStartEmojiBingo: () -> Void
     let onStartTruthOrDare: (String) -> Void
     let onDismiss: () -> Void
 
@@ -63,6 +65,8 @@ struct GamePickerView: View {
             switch selectedGame {
             case .lostInTranslation:
                 lostInTranslationContent
+            case .emojiBingo:
+                emojiBingoContent
             case .emojifyr:
                 emojifyrContent
             case .emojiMatch:
@@ -104,6 +108,7 @@ struct GamePickerView: View {
     private func gameTabIcon(_ tab: GamePickerTab) -> String {
         switch tab {
         case .lostInTranslation: return "🎨"
+        case .emojiBingo: return "🎰"
         case .emojifyr: return "🔥"
         case .emojiMatch: return "🃏"
         case .truthOrDare: return "🎲"
@@ -114,6 +119,8 @@ struct GamePickerView: View {
         switch tab {
         case .lostInTranslation:
             return LinearGradient(colors: [Color(red: 0.23, green: 0.51, blue: 0.96), Color(red: 0.15, green: 0.39, blue: 0.93)], startPoint: .leading, endPoint: .trailing)
+        case .emojiBingo:
+            return LinearGradient(colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.02, green: 0.59, blue: 0.40)], startPoint: .leading, endPoint: .trailing)
         case .emojifyr:
             return LinearGradient(colors: [Color(red: 0.94, green: 0.27, blue: 0.27), Color(red: 0.86, green: 0.15, blue: 0.15)], startPoint: .leading, endPoint: .trailing)
         case .emojiMatch:
@@ -168,6 +175,39 @@ struct GamePickerView: View {
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
             .disabled(playerCount < 2)
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Emoji Bingo
+
+    private var emojiBingoContent: some View {
+        VStack(spacing: 8) {
+            Text(L.t("Emoji Bingo", lang))
+                .font(.headline)
+
+            Text(L.t("Mark emojis on your card as they're called. First to complete the pattern wins!", lang))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            HStack {
+                Text("\(playerCount) \(L.t("players", lang))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("·")
+                    .foregroundStyle(.secondary)
+                Text("~3–5 min")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button(L.t("Start Game", lang)) {
+                onStartEmojiBingo()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Color(red: 0.06, green: 0.73, blue: 0.51))
+            .frame(maxWidth: .infinity)
             .padding(.top, 8)
         }
     }

@@ -17,6 +17,39 @@ export const sendTextMessage = mutation({
     if (!text) throw new Error("Message cannot be empty");
     if (text.length > 2000) throw new Error("Message too long (max 2000 characters)");
 
+    // If all online participants only want English (no Japanese/Romaji), skip translation
+    const participants = await ctx.db
+      .query("participants")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    const onlineParticipants = participants.filter((p) => p.online);
+    const allEnglishOnly = onlineParticipants.length > 0 &&
+      onlineParticipants.every((p) => {
+        const ds = p.displaySettings;
+        if (ds) {
+          // If they have display settings, check that Japanese and Romaji are off
+          return !ds.showJapanese && !ds.showRomaji;
+        }
+        // No display settings saved yet — fall back to preferredLanguage
+        return p.preferredLanguage === "en";
+      });
+
+    const now = Date.now();
+
+    if (allEnglishOnly) {
+      // Simple chat mode — no translation needed
+      return await ctx.db.insert("messages", {
+        roomId: args.roomId,
+        senderId: args.senderId,
+        kind: "text",
+        status: "processed",
+        text,
+        replyToId: args.replyToId,
+        createdAt: now,
+        processedAt: now,
+      });
+    }
+
     return await ctx.db.insert("messages", {
       roomId: args.roomId,
       senderId: args.senderId,
@@ -24,7 +57,7 @@ export const sendTextMessage = mutation({
       status: "pending",
       text,
       replyToId: args.replyToId,
-      createdAt: Date.now(),
+      createdAt: now,
     });
   },
 });

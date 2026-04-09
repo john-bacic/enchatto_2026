@@ -380,6 +380,8 @@ export function MessageList({
                 displayText = `🔥 ${t("Game Started: Emojifyr", lang)}`;
               } else if (name.startsWith("Emoji Match")) {
                 displayText = `🃏 ${t("Game Started: Match Emoji", lang)}`;
+              } else if (name.startsWith("Emoji Bingo")) {
+                displayText = `🎰 ${t("Game Started: Emoji Bingo", lang)}`;
               } else if (name.startsWith("Truth or Dare")) {
                 displayText = `🎲 ${t("Game Started: Truth or Dare", lang)}`;
               } else {
@@ -449,22 +451,31 @@ export function MessageList({
                   const sortedAgg = Object.values(aggregated).sort((a, b) => b.totalScore - a.totalScore);
                   const maxScore = sortedAgg[0]?.totalScore ?? 0;
 
+                  const isBingoGame = (data.gameType ?? "").includes("Bingo");
+                  const matchGradient = isBingoGame
+                    ? "linear-gradient(135deg, #10b981, #059669, #047857)"
+                    : "linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)";
+                  const matchShadow = isBingoGame
+                    ? "0 4px 16px rgba(16, 185, 129, 0.3)"
+                    : "0 4px 16px rgba(99, 102, 241, 0.3)";
+                  const matchIcon = isBingoGame ? "🎰" : "🃏";
+
                   elements.push(
                     <div
                       key={message._id}
                       style={{
                         margin: "0.75rem 0",
                         borderRadius: "16px",
-                        background: "linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)",
+                        background: matchGradient,
                         padding: "1rem",
                         color: "#fff",
-                        boxShadow: "0 4px 16px rgba(99, 102, 241, 0.3)",
+                        boxShadow: matchShadow,
                       }}
                     >
                       {/* Header */}
                       <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
                         <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
-                          🃏 {data.gameType ?? "Match Emoji"}
+                          {matchIcon} {data.gameType ?? "Match Emoji"}
                         </div>
                         <div style={{ fontSize: "0.75rem", opacity: 0.85, marginTop: "0.15rem" }}>
                           {gameCount} {gameCount === 1 ? "game" : "games"} {t("played", lang)}
@@ -543,7 +554,7 @@ export function MessageList({
                               {p.name}
                             </span>
                             <span style={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                              {p.totalScore} {p.totalScore === 1 ? t("pair", lang) : t("pairs", lang)}
+                              {p.totalScore} {isBingoGame ? "marked" : p.totalScore === 1 ? t("pair", lang) : t("pairs", lang)}
                             </span>
                           </div>
                         ); })}
@@ -607,7 +618,8 @@ export function MessageList({
                   );
                   return elements;
                 }
-              } catch {
+              } catch (summaryErr) {
+                console.error("[BINGO/MATCH/LIT] Summary render error:", action, summaryErr);
                 displayText = action === "emoji_match_summary" ? "🃏 Match Emoji Summary" : "🎮 Game Summary";
               }
             } else if (action === "game_correct") {
