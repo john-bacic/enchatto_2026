@@ -37,8 +37,12 @@ export const sendTextMessage = mutation({
 
     const now = Date.now();
 
-    if (allEnglishOnly) {
-      // Simple chat mode — no translation needed
+    const iosHost = participants.find(
+      (p) => p.role === "host" && p.platform === "ios" && p.online
+    );
+
+    if (allEnglishOnly && iosHost) {
+      // Simple chat mode — iOS host is online and nobody needs translation
       return await ctx.db.insert("messages", {
         roomId: args.roomId,
         senderId: args.senderId,
@@ -61,10 +65,7 @@ export const sendTextMessage = mutation({
       createdAt: now,
     });
 
-    // Check if an iOS host is online — if not, translate server-side
-    const iosHost = participants.find(
-      (p) => p.role === "host" && p.platform === "ios" && p.online
-    );
+    // No iOS host online — translate server-side
     if (!iosHost) {
       await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
         messageId,
