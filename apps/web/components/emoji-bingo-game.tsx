@@ -53,6 +53,7 @@ interface EmojiBingoGameProps {
   onCancelGame: (gameId: string) => void;
   onPlayAgain: (gameId: string) => void;
   onClose: () => void;
+  onMinimize?: () => void;
 }
 
 // ─── Helpers ────────────────────────────────���────────────────────────────���───
@@ -325,6 +326,7 @@ function GamePlayView({
   onClaimBingo,
   onCancelGame,
   onClose,
+  onMinimize,
 }: EmojiBingoGameProps & { game: BingoGame }) {
   const me = game.players.find((p) => p.participantId === myParticipantId);
   const calledSet = new Set(game.calledEmojis);
@@ -353,18 +355,9 @@ function GamePlayView({
     return () => clearInterval(interval);
   }, [game.turnStartedAt, game.turnTimeoutMs, game.status]);
 
-  // Grace period countdown
-  const [graceCountdown, setGraceCountdown] = useState<number | null>(null);
-  useEffect(() => {
-    if (game.status !== "won" || !game.firstBingoAt) return;
-    const tick = () => {
-      const remaining = Math.max(0, Math.ceil((game.firstBingoAt! + 10000 - Date.now()) / 1000));
-      setGraceCountdown(remaining);
-    };
-    tick();
-    const interval = setInterval(tick, 250);
-    return () => clearInterval(interval);
-  }, [game.status, game.firstBingoAt]);
+  // Track how many players have finished
+  const placedCount = game.players.filter((p: any) => p.placement > 0).length;
+  const totalPlayers = game.players.length;
 
   // Latest called emoji animation
   const latestEmoji = game.calledEmojis.length > 0
@@ -452,21 +445,45 @@ function GamePlayView({
               {t("End", lang)}
             </button>
           )}
+          {onMinimize && (
+            <button
+              onClick={onMinimize}
+              aria-label={t("Minimize", lang)}
+              title={t("Minimize", lang)}
+              style={{
+                width: "1.75rem",
+                height: "1.75rem",
+                borderRadius: "6px",
+                background: "var(--surface)",
+                color: "var(--foreground)",
+                fontSize: "1rem",
+                fontWeight: 700,
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              –
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Grace period banner */}
+      {/* BINGO progress banner */}
       {game.status === "won" && (
         <div style={{
           background: "linear-gradient(135deg, #fbbf24, #f59e0b)",
           color: "#000", textAlign: "center", padding: "0.4rem",
           fontWeight: 700, fontSize: "0.85rem",
         }}>
-          BINGO! {graceCountdown != null && `${graceCountdown}s ${t("remaining", lang)}`}
+          BINGO! {placedCount}/{totalPlayers} {t("finished", lang)}
         </div>
       )}
 
-      {/* Turn indicator + Roll button */}
+      {/* Turn indicator */}
       {game.status === "active" && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -474,24 +491,11 @@ function GamePlayView({
           background: isMyTurn ? "rgba(16,185,129,0.1)" : "transparent",
           borderBottom: "1px solid var(--border)", flexShrink: 0,
         }}>
-          {isMyTurn ? (
-            <button
-              onClick={handleRoll}
-              style={{
-                padding: "0.5rem 1.5rem", borderRadius: "12px",
-                background: "linear-gradient(135deg, #10b981, #059669)",
-                color: "#fff", fontWeight: 800, fontSize: "1rem",
-                border: "none", cursor: "pointer",
-                animation: "bingo-pulse 1.5s ease-in-out infinite",
-              }}
-            >
-              🎲 {t("Roll!", lang)}
-            </button>
-          ) : (
-            <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              {currentTurnPlayer ? `${getEmoji(currentTurnPlayer.avatarValue)} ${currentTurnPlayer.nickname}` : "..."} {t("is rolling...", lang)}
-            </span>
-          )}
+          <span style={{ fontSize: "0.85rem", color: isMyTurn ? "#059669" : "var(--muted)", fontWeight: isMyTurn ? 700 : 400 }}>
+            {isMyTurn
+              ? t("Your turn to roll!", lang)
+              : `${currentTurnPlayer ? `${getEmoji(currentTurnPlayer.avatarValue)} ${currentTurnPlayer.nickname}` : "..."} ${t("is rolling...", lang)}`}
+          </span>
           {countdown != null && countdown > 0 && (
             <span style={{ fontSize: "0.75rem", color: countdown <= 3 ? "#ef4444" : "var(--muted)" }}>
               {countdown}s
@@ -597,29 +601,65 @@ function GamePlayView({
         </div>
       </div>
 
-      {/* BINGO! button */}
+      {/* Roll / BINGO button */}
       <div style={{ padding: "0.5rem 0.75rem 1rem", flexShrink: 0 }}>
-        <button
-          onClick={handleBingo}
-          disabled={!canBingo}
-          style={{
-            width: "100%",
-            padding: "0.85rem",
-            borderRadius: "12px",
-            background: canBingo
-              ? "linear-gradient(135deg, #10b981, #059669)"
-              : "var(--border)",
-            color: canBingo ? "#fff" : "var(--muted)",
-            fontWeight: 800,
-            fontSize: "1.2rem",
-            cursor: canBingo ? "pointer" : "default",
-            border: "none",
-            letterSpacing: "0.1em",
-            animation: canBingo ? "bingo-pulse 1.5s ease-in-out infinite" : "none",
-          }}
-        >
-          BINGO!
-        </button>
+        {canBingo ? (
+          <button
+            onClick={handleBingo}
+            style={{
+              width: "100%",
+              padding: "0.85rem",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #10b981, #059669)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "1.2rem",
+              cursor: "pointer",
+              border: "none",
+              letterSpacing: "0.1em",
+              animation: "bingo-pulse 1.5s ease-in-out infinite",
+            }}
+          >
+            BINGO!
+          </button>
+        ) : game.status === "active" && isMyTurn ? (
+          <button
+            onClick={handleRoll}
+            style={{
+              width: "100%",
+              padding: "0.85rem",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #10b981, #059669)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: "1.2rem",
+              cursor: "pointer",
+              border: "none",
+              letterSpacing: "0.05em",
+              animation: "bingo-pulse 1.5s ease-in-out infinite",
+            }}
+          >
+            🎲 {t("Roll!", lang)}
+          </button>
+        ) : (
+          <button
+            disabled
+            style={{
+              width: "100%",
+              padding: "0.85rem",
+              borderRadius: "12px",
+              background: "var(--border)",
+              color: "var(--muted)",
+              fontWeight: 800,
+              fontSize: "1.2rem",
+              cursor: "default",
+              border: "none",
+              letterSpacing: "0.1em",
+            }}
+          >
+            BINGO!
+          </button>
+        )}
       </div>
 
       {/* Toast */}

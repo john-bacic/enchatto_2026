@@ -4,6 +4,7 @@ struct EmojifyrGameView: View {
     @ObservedObject var viewModel: HostRoomViewModel
     let lang: String
     let onDismiss: () -> Void
+    var onMinimize: (() -> Void)? = nil
 
     @State private var sentenceText = ""
     @State private var guessText = ""
@@ -102,6 +103,20 @@ struct EmojifyrGameView: View {
                     .padding(.vertical, 6)
                     .background(Color.red.opacity(0.7))
                     .clipShape(Capsule())
+            }
+
+            if let onMinimize {
+                Button {
+                    onMinimize()
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.18))
+                        .cornerRadius(6)
+                }
+                .accessibilityLabel(L.t("Minimize", lang))
             }
         }
         .padding(.horizontal)

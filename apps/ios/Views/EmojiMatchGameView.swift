@@ -4,6 +4,7 @@ struct EmojiMatchGameView: View {
     @ObservedObject var viewModel: HostRoomViewModel
     let lang: String
     let onDismiss: () -> Void
+    var onMinimize: (() -> Void)? = nil
 
     @State private var showCompleted = false
 
@@ -42,6 +43,21 @@ struct EmojiMatchGameView: View {
             } else {
                 showCompleted = false
             }
+        }
+    }
+
+    @ViewBuilder
+    private var inlineMinimizeButton: some View {
+        if let onMinimize {
+            Button(action: onMinimize) {
+                Image(systemName: "minus")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.18))
+                    .cornerRadius(6)
+            }
+            .accessibilityLabel(L.t("Minimize", lang))
         }
     }
 
@@ -165,6 +181,8 @@ struct EmojiMatchGameView: View {
                         .background(Color.red.opacity(0.7))
                         .clipShape(Capsule())
                 }
+
+                inlineMinimizeButton
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -207,7 +225,7 @@ struct EmojiMatchGameView: View {
                                 .fill(Color.white.opacity(isCurrent ? 0.3 : 0.15))
                                 .frame(width: 20, height: 20)
                                 .overlay(Text(avatarEmoji(player.avatarValue)).font(.system(size: 9)))
-                            Text("\(player.score)")
+                            Text("\(player.turns ?? 0)/\(player.score)/\(game.totalPairs)")
                                 .font(.caption.bold())
                                 .foregroundStyle(.white)
                         }
@@ -297,7 +315,7 @@ struct EmojiMatchGameView: View {
                                 .foregroundStyle(.yellow)
                         }
                         Spacer()
-                        Text("\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))")
+                        Text("\(player.turns ?? 0)/\(player.score)/\(game.totalPairs)")
                             .font(.subheadline.bold())
                             .foregroundStyle(.white)
                     }

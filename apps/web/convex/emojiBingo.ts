@@ -535,34 +535,46 @@ export const claimBingo = mutation({
       ? 1
       : Math.max(...existingPlacements) + 1;
 
-    if (nextPlacement > 3) {
-      return { valid: false, reason: "podium_full" };
-    }
-
     const updatedPlayers = [...game.players];
     updatedPlayers[playerIndex] = { ...player, placement: nextPlacement };
 
     const now = Date.now();
     const patch: any = { players: updatedPlayers };
 
-    if (game.status === "active") {
-      // First bingo! Switch to grace period with auto-rolling
+    // Check if ALL players have now placed
+    const allPlaced = updatedPlayers.every((p) => p.placement > 0);
+
+    if (allPlaced) {
+      // Everyone finished — complete the game
+      patch.status = "completed";
+      patch.endedAt = now;
+    } else if (game.status === "active") {
+      // First bingo — switch to "won" and keep auto-rolling
       patch.status = "won";
       patch.firstBingoAt = now;
 
-      // Schedule auto-rolls during grace period
+      // Schedule auto-rolls so the game keeps going
       await ctx.scheduler.runAfter(GRACE_ROLL_INTERVAL_MS, internal.emojiBingo.internalAutoRoll, {
         gameId: args.gameId,
         expectedDrawIndex: game.drawIndex,
       });
-
-      // Schedule end of grace period
-      await ctx.scheduler.runAfter(10000, internal.emojiBingo.internalEndGracePeriod, {
-        gameId: args.gameId,
-      });
+    } else if (game.status === "won") {
+      // Another player finished but not all yet — check again
+      // (no state change needed, auto-rolling is already scheduled)
     }
 
     await ctx.db.patch(args.gameId, patch);
+
+    // Post summary if game just completed
+    if (allPlaced) {
+      const round: BingoRound = {
+        players: updatedPlayers.map((p) => ({
+          name: p.nickname, avatar: p.avatarValue, marked: p.markedCells.length, placement: p.placement,
+        })),
+        winPattern: game.winPattern,
+      };
+      await upsertBingoSummary(ctx, game.roomId, game.hostParticipantId, round);
+    }
 
     await bingoTrace(ctx, args.gameId, "claimBingo", args.participantId.toString(),
       `placement=${nextPlacement} pattern=${game.winPattern}`);
@@ -766,14 +778,16 @@ export const getActiveEmojiBingo = query({
         .first();
       if (game) return game;
     }
-    const completed = await ctx.db
-      .query("emojiBingoGames")
-      .withIndex("by_roomId_status", (q) =>
-        q.eq("roomId", args.roomId).eq("status", "completed")
-      )
-      .order("desc")
-      .first();
-    if (completed) return completed;
+    for (const endStatus of ["completed", "canceled"] as const) {
+      const game = await ctx.db
+        .query("emojiBingoGames")
+        .withIndex("by_roomId_status", (q) =>
+          q.eq("roomId", args.roomId).eq("status", endStatus)
+        )
+        .order("desc")
+        .first();
+      if (game) return game;
+    }
     return null;
   },
 });

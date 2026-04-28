@@ -1,0 +1,7891 @@
+{
+  "config": {
+    "players": 30,
+    "rounds": 30,
+    "mode": "normal",
+    "concurrent": true
+  },
+  "summary": {
+    "totalMs": 101144,
+    "totalCalls": 1113,
+    "failures": 0,
+    "avgRoundMs": 3371
+  },
+  "latencies": {
+    "heartbeat": {
+      "count": 30,
+      "p50": 1047,
+      "p95": 1925,
+      "max": 1984,
+      "avg": 1021
+    },
+    "participants/join": {
+      "count": 29,
+      "p50": 77,
+      "p95": 94,
+      "max": 101,
+      "avg": 78
+    },
+    "rooms/close": {
+      "count": 1,
+      "p50": 98,
+      "p95": 98,
+      "max": 98,
+      "avg": 98
+    },
+    "rooms/create": {
+      "count": 1,
+      "p50": 198,
+      "p95": 198,
+      "max": 198,
+      "avg": 198
+    },
+    "tod/advance": {
+      "count": 30,
+      "p50": 75,
+      "p95": 2103,
+      "max": 2115,
+      "avg": 601
+    },
+    "tod/choice": {
+      "count": 30,
+      "p50": 76,
+      "p95": 169,
+      "max": 180,
+      "avg": 85
+    },
+    "tod/create": {
+      "count": 1,
+      "p50": 75,
+      "p95": 75,
+      "max": 75,
+      "avg": 75
+    },
+    "tod/end": {
+      "count": 1,
+      "p50": 96,
+      "p95": 96,
+      "max": 96,
+      "avg": 96
+    },
+    "tod/poll": {
+      "count": 90,
+      "p50": 66,
+      "p95": 101,
+      "max": 182,
+      "avg": 69
+    },
+    "tod/rate": {
+      "count": 870,
+      "p50": 1077,
+      "p95": 1991,
+      "max": 2691,
+      "avg": 1070
+    },
+    "tod/response:drawing": {
+      "count": 10,
+      "p50": 414,
+      "p95": 532,
+      "max": 532,
+      "avg": 408
+    },
+    "tod/response:text": {
+      "count": 20,
+      "p50": 71,
+      "p95": 2057,
+      "max": 2057,
+      "avg": 176
+    }
+  },
+  "errors": [],
+  "log": [
+    {
+      "ts": 1775161765639,
+      "action": "rooms/create",
+      "latencyMs": 198,
+      "ok": true
+    },
+    {
+      "ts": 1775161765709,
+      "action": "participants/join",
+      "latencyMs": 69,
+      "ok": true,
+      "detail": "Player1"
+    },
+    {
+      "ts": 1775161765788,
+      "action": "participants/join",
+      "latencyMs": 79,
+      "ok": true,
+      "detail": "Player2"
+    },
+    {
+      "ts": 1775161765882,
+      "action": "participants/join",
+      "latencyMs": 94,
+      "ok": true,
+      "detail": "Player3"
+    },
+    {
+      "ts": 1775161765980,
+      "action": "participants/join",
+      "latencyMs": 94,
+      "ok": true,
+      "detail": "Player4"
+    },
+    {
+      "ts": 1775161766068,
+      "action": "participants/join",
+      "latencyMs": 88,
+      "ok": true,
+      "detail": "Player5"
+    },
+    {
+      "ts": 1775161766157,
+      "action": "participants/join",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "Player6"
+    },
+    {
+      "ts": 1775161766240,
+      "action": "participants/join",
+      "latencyMs": 83,
+      "ok": true,
+      "detail": "Player7"
+    },
+    {
+      "ts": 1775161766304,
+      "action": "participants/join",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "Player8"
+    },
+    {
+      "ts": 1775161766372,
+      "action": "participants/join",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "Player9"
+    },
+    {
+      "ts": 1775161766441,
+      "action": "participants/join",
+      "latencyMs": 69,
+      "ok": true,
+      "detail": "Player10"
+    },
+    {
+      "ts": 1775161766513,
+      "action": "participants/join",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "Player11"
+    },
+    {
+      "ts": 1775161766581,
+      "action": "participants/join",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "Player12"
+    },
+    {
+      "ts": 1775161766667,
+      "action": "participants/join",
+      "latencyMs": 85,
+      "ok": true,
+      "detail": "Player13"
+    },
+    {
+      "ts": 1775161766746,
+      "action": "participants/join",
+      "latencyMs": 79,
+      "ok": true,
+      "detail": "Player14"
+    },
+    {
+      "ts": 1775161766827,
+      "action": "participants/join",
+      "latencyMs": 81,
+      "ok": true,
+      "detail": "Player15"
+    },
+    {
+      "ts": 1775161766913,
+      "action": "participants/join",
+      "latencyMs": 85,
+      "ok": true,
+      "detail": "Player16"
+    },
+    {
+      "ts": 1775161766989,
+      "action": "participants/join",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "Player17"
+    },
+    {
+      "ts": 1775161767066,
+      "action": "participants/join",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "Player18"
+    },
+    {
+      "ts": 1775161767134,
+      "action": "participants/join",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "Player19"
+    },
+    {
+      "ts": 1775161767214,
+      "action": "participants/join",
+      "latencyMs": 80,
+      "ok": true,
+      "detail": "Player20"
+    },
+    {
+      "ts": 1775161767296,
+      "action": "participants/join",
+      "latencyMs": 82,
+      "ok": true,
+      "detail": "Player21"
+    },
+    {
+      "ts": 1775161767373,
+      "action": "participants/join",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "Player22"
+    },
+    {
+      "ts": 1775161767475,
+      "action": "participants/join",
+      "latencyMs": 101,
+      "ok": true,
+      "detail": "Player23"
+    },
+    {
+      "ts": 1775161767568,
+      "action": "participants/join",
+      "latencyMs": 74,
+      "ok": true,
+      "detail": "Player24"
+    },
+    {
+      "ts": 1775161767636,
+      "action": "participants/join",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "Player25"
+    },
+    {
+      "ts": 1775161767710,
+      "action": "participants/join",
+      "latencyMs": 74,
+      "ok": true,
+      "detail": "Player26"
+    },
+    {
+      "ts": 1775161767787,
+      "action": "participants/join",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "Player27"
+    },
+    {
+      "ts": 1775161767868,
+      "action": "participants/join",
+      "latencyMs": 80,
+      "ok": true,
+      "detail": "Player28"
+    },
+    {
+      "ts": 1775161767953,
+      "action": "participants/join",
+      "latencyMs": 86,
+      "ok": true,
+      "detail": "Player29"
+    },
+    {
+      "ts": 1775161768026,
+      "action": "heartbeat",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "StressHost"
+    },
+    {
+      "ts": 1775161768104,
+      "action": "heartbeat",
+      "latencyMs": 150,
+      "ok": true,
+      "detail": "Player1"
+    },
+    {
+      "ts": 1775161768176,
+      "action": "heartbeat",
+      "latencyMs": 221,
+      "ok": true,
+      "detail": "Player2"
+    },
+    {
+      "ts": 1775161768238,
+      "action": "heartbeat",
+      "latencyMs": 284,
+      "ok": true,
+      "detail": "Player3"
+    },
+    {
+      "ts": 1775161768299,
+      "action": "heartbeat",
+      "latencyMs": 345,
+      "ok": true,
+      "detail": "Player4"
+    },
+    {
+      "ts": 1775161768360,
+      "action": "heartbeat",
+      "latencyMs": 406,
+      "ok": true,
+      "detail": "Player5"
+    },
+    {
+      "ts": 1775161768415,
+      "action": "heartbeat",
+      "latencyMs": 461,
+      "ok": true,
+      "detail": "Player6"
+    },
+    {
+      "ts": 1775161768475,
+      "action": "heartbeat",
+      "latencyMs": 521,
+      "ok": true,
+      "detail": "Player7"
+    },
+    {
+      "ts": 1775161768547,
+      "action": "heartbeat",
+      "latencyMs": 593,
+      "ok": true,
+      "detail": "Player8"
+    },
+    {
+      "ts": 1775161768612,
+      "action": "heartbeat",
+      "latencyMs": 658,
+      "ok": true,
+      "detail": "Player9"
+    },
+    {
+      "ts": 1775161768676,
+      "action": "heartbeat",
+      "latencyMs": 722,
+      "ok": true,
+      "detail": "Player10"
+    },
+    {
+      "ts": 1775161768735,
+      "action": "heartbeat",
+      "latencyMs": 781,
+      "ok": true,
+      "detail": "Player11"
+    },
+    {
+      "ts": 1775161768798,
+      "action": "heartbeat",
+      "latencyMs": 843,
+      "ok": true,
+      "detail": "Player12"
+    },
+    {
+      "ts": 1775161768875,
+      "action": "heartbeat",
+      "latencyMs": 921,
+      "ok": true,
+      "detail": "Player13"
+    },
+    {
+      "ts": 1775161768938,
+      "action": "heartbeat",
+      "latencyMs": 984,
+      "ok": true,
+      "detail": "Player14"
+    },
+    {
+      "ts": 1775161769002,
+      "action": "heartbeat",
+      "latencyMs": 1047,
+      "ok": true,
+      "detail": "Player15"
+    },
+    {
+      "ts": 1775161769073,
+      "action": "heartbeat",
+      "latencyMs": 1119,
+      "ok": true,
+      "detail": "Player16"
+    },
+    {
+      "ts": 1775161769139,
+      "action": "heartbeat",
+      "latencyMs": 1185,
+      "ok": true,
+      "detail": "Player17"
+    },
+    {
+      "ts": 1775161769195,
+      "action": "heartbeat",
+      "latencyMs": 1241,
+      "ok": true,
+      "detail": "Player18"
+    },
+    {
+      "ts": 1775161769263,
+      "action": "heartbeat",
+      "latencyMs": 1309,
+      "ok": true,
+      "detail": "Player19"
+    },
+    {
+      "ts": 1775161769329,
+      "action": "heartbeat",
+      "latencyMs": 1375,
+      "ok": true,
+      "detail": "Player20"
+    },
+    {
+      "ts": 1775161769386,
+      "action": "heartbeat",
+      "latencyMs": 1431,
+      "ok": true,
+      "detail": "Player21"
+    },
+    {
+      "ts": 1775161769451,
+      "action": "heartbeat",
+      "latencyMs": 1497,
+      "ok": true,
+      "detail": "Player22"
+    },
+    {
+      "ts": 1775161769513,
+      "action": "heartbeat",
+      "latencyMs": 1559,
+      "ok": true,
+      "detail": "Player23"
+    },
+    {
+      "ts": 1775161769601,
+      "action": "heartbeat",
+      "latencyMs": 1647,
+      "ok": true,
+      "detail": "Player24"
+    },
+    {
+      "ts": 1775161769670,
+      "action": "heartbeat",
+      "latencyMs": 1716,
+      "ok": true,
+      "detail": "Player25"
+    },
+    {
+      "ts": 1775161769733,
+      "action": "heartbeat",
+      "latencyMs": 1779,
+      "ok": true,
+      "detail": "Player26"
+    },
+    {
+      "ts": 1775161769806,
+      "action": "heartbeat",
+      "latencyMs": 1851,
+      "ok": true,
+      "detail": "Player27"
+    },
+    {
+      "ts": 1775161769880,
+      "action": "heartbeat",
+      "latencyMs": 1925,
+      "ok": true,
+      "detail": "Player28"
+    },
+    {
+      "ts": 1775161769939,
+      "action": "heartbeat",
+      "latencyMs": 1984,
+      "ok": true,
+      "detail": "Player29"
+    },
+    {
+      "ts": 1775161770014,
+      "action": "tod/create",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "mode=normal"
+    },
+    {
+      "ts": 1775161770063,
+      "action": "tod/poll",
+      "latencyMs": 50,
+      "ok": true,
+      "detail": "R  1/30"
+    },
+    {
+      "ts": 1775161770129,
+      "action": "tod/choice",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R  1/30 Player25 → dare"
+    },
+    {
+      "ts": 1775161770187,
+      "action": "tod/poll",
+      "latencyMs": 58,
+      "ok": true,
+      "detail": "R  1/30 after-choice"
+    },
+    {
+      "ts": 1775161770252,
+      "action": "tod/response:text",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R  1/30 Player25"
+    },
+    {
+      "ts": 1775161770305,
+      "action": "tod/poll",
+      "latencyMs": 54,
+      "ok": true,
+      "detail": "R  1/30 after-response"
+    },
+    {
+      "ts": 1775161770372,
+      "action": "tod/rate",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R  1/30 StressHost"
+    },
+    {
+      "ts": 1775161770450,
+      "action": "tod/rate",
+      "latencyMs": 140,
+      "ok": true,
+      "detail": "R  1/30 Player1"
+    },
+    {
+      "ts": 1775161770515,
+      "action": "tod/rate",
+      "latencyMs": 206,
+      "ok": true,
+      "detail": "R  1/30 Player2"
+    },
+    {
+      "ts": 1775161770594,
+      "action": "tod/rate",
+      "latencyMs": 285,
+      "ok": true,
+      "detail": "R  1/30 Player3"
+    },
+    {
+      "ts": 1775161770650,
+      "action": "tod/rate",
+      "latencyMs": 341,
+      "ok": true,
+      "detail": "R  1/30 Player4"
+    },
+    {
+      "ts": 1775161770729,
+      "action": "tod/rate",
+      "latencyMs": 420,
+      "ok": true,
+      "detail": "R  1/30 Player5"
+    },
+    {
+      "ts": 1775161770798,
+      "action": "tod/rate",
+      "latencyMs": 489,
+      "ok": true,
+      "detail": "R  1/30 Player6"
+    },
+    {
+      "ts": 1775161770865,
+      "action": "tod/rate",
+      "latencyMs": 555,
+      "ok": true,
+      "detail": "R  1/30 Player7"
+    },
+    {
+      "ts": 1775161770935,
+      "action": "tod/rate",
+      "latencyMs": 626,
+      "ok": true,
+      "detail": "R  1/30 Player8"
+    },
+    {
+      "ts": 1775161771006,
+      "action": "tod/rate",
+      "latencyMs": 696,
+      "ok": true,
+      "detail": "R  1/30 Player9"
+    },
+    {
+      "ts": 1775161771069,
+      "action": "tod/rate",
+      "latencyMs": 760,
+      "ok": true,
+      "detail": "R  1/30 Player10"
+    },
+    {
+      "ts": 1775161771135,
+      "action": "tod/rate",
+      "latencyMs": 826,
+      "ok": true,
+      "detail": "R  1/30 Player11"
+    },
+    {
+      "ts": 1775161771204,
+      "action": "tod/rate",
+      "latencyMs": 894,
+      "ok": true,
+      "detail": "R  1/30 Player12"
+    },
+    {
+      "ts": 1775161771275,
+      "action": "tod/rate",
+      "latencyMs": 966,
+      "ok": true,
+      "detail": "R  1/30 Player13"
+    },
+    {
+      "ts": 1775161771345,
+      "action": "tod/rate",
+      "latencyMs": 1036,
+      "ok": true,
+      "detail": "R  1/30 Player14"
+    },
+    {
+      "ts": 1775161771412,
+      "action": "tod/rate",
+      "latencyMs": 1103,
+      "ok": true,
+      "detail": "R  1/30 Player15"
+    },
+    {
+      "ts": 1775161771485,
+      "action": "tod/rate",
+      "latencyMs": 1176,
+      "ok": true,
+      "detail": "R  1/30 Player16"
+    },
+    {
+      "ts": 1775161771555,
+      "action": "tod/rate",
+      "latencyMs": 1246,
+      "ok": true,
+      "detail": "R  1/30 Player17"
+    },
+    {
+      "ts": 1775161771621,
+      "action": "tod/rate",
+      "latencyMs": 1311,
+      "ok": true,
+      "detail": "R  1/30 Player18"
+    },
+    {
+      "ts": 1775161771684,
+      "action": "tod/rate",
+      "latencyMs": 1374,
+      "ok": true,
+      "detail": "R  1/30 Player19"
+    },
+    {
+      "ts": 1775161771751,
+      "action": "tod/rate",
+      "latencyMs": 1441,
+      "ok": true,
+      "detail": "R  1/30 Player20"
+    },
+    {
+      "ts": 1775161771836,
+      "action": "tod/rate",
+      "latencyMs": 1527,
+      "ok": true,
+      "detail": "R  1/30 Player21"
+    },
+    {
+      "ts": 1775161771899,
+      "action": "tod/rate",
+      "latencyMs": 1590,
+      "ok": true,
+      "detail": "R  1/30 Player22"
+    },
+    {
+      "ts": 1775161771983,
+      "action": "tod/rate",
+      "latencyMs": 1673,
+      "ok": true,
+      "detail": "R  1/30 Player23"
+    },
+    {
+      "ts": 1775161772046,
+      "action": "tod/rate",
+      "latencyMs": 1736,
+      "ok": true,
+      "detail": "R  1/30 Player24"
+    },
+    {
+      "ts": 1775161772122,
+      "action": "tod/rate",
+      "latencyMs": 1813,
+      "ok": true,
+      "detail": "R  1/30 Player26"
+    },
+    {
+      "ts": 1775161772208,
+      "action": "tod/rate",
+      "latencyMs": 1898,
+      "ok": true,
+      "detail": "R  1/30 Player27"
+    },
+    {
+      "ts": 1775161772287,
+      "action": "tod/rate",
+      "latencyMs": 1977,
+      "ok": true,
+      "detail": "R  1/30 Player28"
+    },
+    {
+      "ts": 1775161772353,
+      "action": "tod/rate",
+      "latencyMs": 2044,
+      "ok": true,
+      "detail": "R  1/30 Player29"
+    },
+    {
+      "ts": 1775161772438,
+      "action": "tod/advance",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R  1/30"
+    },
+    {
+      "ts": 1775161772504,
+      "action": "tod/poll",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R  2/30"
+    },
+    {
+      "ts": 1775161772621,
+      "action": "tod/choice",
+      "latencyMs": 101,
+      "ok": true,
+      "detail": "R  2/30 Player27 → truth"
+    },
+    {
+      "ts": 1775161772672,
+      "action": "tod/poll",
+      "latencyMs": 51,
+      "ok": true,
+      "detail": "R  2/30 after-choice"
+    },
+    {
+      "ts": 1775161772729,
+      "action": "tod/response:text",
+      "latencyMs": 57,
+      "ok": true,
+      "detail": "R  2/30 Player27"
+    },
+    {
+      "ts": 1775161772792,
+      "action": "tod/poll",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R  2/30 after-response"
+    },
+    {
+      "ts": 1775161772853,
+      "action": "tod/rate",
+      "latencyMs": 61,
+      "ok": true,
+      "detail": "R  2/30 StressHost"
+    },
+    {
+      "ts": 1775161772913,
+      "action": "tod/rate",
+      "latencyMs": 121,
+      "ok": true,
+      "detail": "R  2/30 Player1"
+    },
+    {
+      "ts": 1775161773029,
+      "action": "tod/rate",
+      "latencyMs": 237,
+      "ok": true,
+      "detail": "R  2/30 Player2"
+    },
+    {
+      "ts": 1775161773087,
+      "action": "tod/rate",
+      "latencyMs": 295,
+      "ok": true,
+      "detail": "R  2/30 Player3"
+    },
+    {
+      "ts": 1775161773148,
+      "action": "tod/rate",
+      "latencyMs": 355,
+      "ok": true,
+      "detail": "R  2/30 Player4"
+    },
+    {
+      "ts": 1775161773212,
+      "action": "tod/rate",
+      "latencyMs": 419,
+      "ok": true,
+      "detail": "R  2/30 Player5"
+    },
+    {
+      "ts": 1775161773286,
+      "action": "tod/rate",
+      "latencyMs": 493,
+      "ok": true,
+      "detail": "R  2/30 Player6"
+    },
+    {
+      "ts": 1775161773354,
+      "action": "tod/rate",
+      "latencyMs": 562,
+      "ok": true,
+      "detail": "R  2/30 Player7"
+    },
+    {
+      "ts": 1775161773425,
+      "action": "tod/rate",
+      "latencyMs": 633,
+      "ok": true,
+      "detail": "R  2/30 Player8"
+    },
+    {
+      "ts": 1775161773493,
+      "action": "tod/rate",
+      "latencyMs": 701,
+      "ok": true,
+      "detail": "R  2/30 Player9"
+    },
+    {
+      "ts": 1775161773555,
+      "action": "tod/rate",
+      "latencyMs": 763,
+      "ok": true,
+      "detail": "R  2/30 Player10"
+    },
+    {
+      "ts": 1775161773615,
+      "action": "tod/rate",
+      "latencyMs": 823,
+      "ok": true,
+      "detail": "R  2/30 Player11"
+    },
+    {
+      "ts": 1775161773676,
+      "action": "tod/rate",
+      "latencyMs": 884,
+      "ok": true,
+      "detail": "R  2/30 Player12"
+    },
+    {
+      "ts": 1775161773743,
+      "action": "tod/rate",
+      "latencyMs": 951,
+      "ok": true,
+      "detail": "R  2/30 Player13"
+    },
+    {
+      "ts": 1775161773810,
+      "action": "tod/rate",
+      "latencyMs": 1018,
+      "ok": true,
+      "detail": "R  2/30 Player14"
+    },
+    {
+      "ts": 1775161773878,
+      "action": "tod/rate",
+      "latencyMs": 1086,
+      "ok": true,
+      "detail": "R  2/30 Player15"
+    },
+    {
+      "ts": 1775161773947,
+      "action": "tod/rate",
+      "latencyMs": 1155,
+      "ok": true,
+      "detail": "R  2/30 Player16"
+    },
+    {
+      "ts": 1775161774019,
+      "action": "tod/rate",
+      "latencyMs": 1226,
+      "ok": true,
+      "detail": "R  2/30 Player17"
+    },
+    {
+      "ts": 1775161774087,
+      "action": "tod/rate",
+      "latencyMs": 1295,
+      "ok": true,
+      "detail": "R  2/30 Player18"
+    },
+    {
+      "ts": 1775161774145,
+      "action": "tod/rate",
+      "latencyMs": 1353,
+      "ok": true,
+      "detail": "R  2/30 Player19"
+    },
+    {
+      "ts": 1775161774218,
+      "action": "tod/rate",
+      "latencyMs": 1426,
+      "ok": true,
+      "detail": "R  2/30 Player20"
+    },
+    {
+      "ts": 1775161774307,
+      "action": "tod/rate",
+      "latencyMs": 1515,
+      "ok": true,
+      "detail": "R  2/30 Player21"
+    },
+    {
+      "ts": 1775161774376,
+      "action": "tod/rate",
+      "latencyMs": 1584,
+      "ok": true,
+      "detail": "R  2/30 Player22"
+    },
+    {
+      "ts": 1775161774437,
+      "action": "tod/rate",
+      "latencyMs": 1645,
+      "ok": true,
+      "detail": "R  2/30 Player23"
+    },
+    {
+      "ts": 1775161774513,
+      "action": "tod/rate",
+      "latencyMs": 1720,
+      "ok": true,
+      "detail": "R  2/30 Player24"
+    },
+    {
+      "ts": 1775161774597,
+      "action": "tod/rate",
+      "latencyMs": 1805,
+      "ok": true,
+      "detail": "R  2/30 Player25"
+    },
+    {
+      "ts": 1775161774660,
+      "action": "tod/rate",
+      "latencyMs": 1867,
+      "ok": true,
+      "detail": "R  2/30 Player26"
+    },
+    {
+      "ts": 1775161774719,
+      "action": "tod/rate",
+      "latencyMs": 1926,
+      "ok": true,
+      "detail": "R  2/30 Player28"
+    },
+    {
+      "ts": 1775161774807,
+      "action": "tod/rate",
+      "latencyMs": 2015,
+      "ok": true,
+      "detail": "R  2/30 Player29"
+    },
+    {
+      "ts": 1775161774909,
+      "action": "tod/advance",
+      "latencyMs": 102,
+      "ok": true,
+      "detail": "R  2/30"
+    },
+    {
+      "ts": 1775161774962,
+      "action": "tod/poll",
+      "latencyMs": 53,
+      "ok": true,
+      "detail": "R  3/30"
+    },
+    {
+      "ts": 1775161775035,
+      "action": "tod/choice",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "R  3/30 Player19 → dare"
+    },
+    {
+      "ts": 1775161775084,
+      "action": "tod/poll",
+      "latencyMs": 49,
+      "ok": true,
+      "detail": "R  3/30 after-choice"
+    },
+    {
+      "ts": 1775161775606,
+      "action": "tod/response:drawing",
+      "latencyMs": 517,
+      "ok": true,
+      "detail": "R  3/30 Player19 (13KB)"
+    },
+    {
+      "ts": 1775161775685,
+      "action": "tod/poll",
+      "latencyMs": 79,
+      "ok": true,
+      "detail": "R  3/30 after-response"
+    },
+    {
+      "ts": 1775161775745,
+      "action": "tod/rate",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R  3/30 StressHost"
+    },
+    {
+      "ts": 1775161775817,
+      "action": "tod/rate",
+      "latencyMs": 131,
+      "ok": true,
+      "detail": "R  3/30 Player1"
+    },
+    {
+      "ts": 1775161775884,
+      "action": "tod/rate",
+      "latencyMs": 198,
+      "ok": true,
+      "detail": "R  3/30 Player2"
+    },
+    {
+      "ts": 1775161775944,
+      "action": "tod/rate",
+      "latencyMs": 258,
+      "ok": true,
+      "detail": "R  3/30 Player3"
+    },
+    {
+      "ts": 1775161776004,
+      "action": "tod/rate",
+      "latencyMs": 318,
+      "ok": true,
+      "detail": "R  3/30 Player4"
+    },
+    {
+      "ts": 1775161776069,
+      "action": "tod/rate",
+      "latencyMs": 384,
+      "ok": true,
+      "detail": "R  3/30 Player5"
+    },
+    {
+      "ts": 1775161776135,
+      "action": "tod/rate",
+      "latencyMs": 449,
+      "ok": true,
+      "detail": "R  3/30 Player6"
+    },
+    {
+      "ts": 1775161776199,
+      "action": "tod/rate",
+      "latencyMs": 513,
+      "ok": true,
+      "detail": "R  3/30 Player7"
+    },
+    {
+      "ts": 1775161776261,
+      "action": "tod/rate",
+      "latencyMs": 576,
+      "ok": true,
+      "detail": "R  3/30 Player8"
+    },
+    {
+      "ts": 1775161776329,
+      "action": "tod/rate",
+      "latencyMs": 644,
+      "ok": true,
+      "detail": "R  3/30 Player9"
+    },
+    {
+      "ts": 1775161776399,
+      "action": "tod/rate",
+      "latencyMs": 714,
+      "ok": true,
+      "detail": "R  3/30 Player10"
+    },
+    {
+      "ts": 1775161776471,
+      "action": "tod/rate",
+      "latencyMs": 786,
+      "ok": true,
+      "detail": "R  3/30 Player11"
+    },
+    {
+      "ts": 1775161776540,
+      "action": "tod/rate",
+      "latencyMs": 854,
+      "ok": true,
+      "detail": "R  3/30 Player12"
+    },
+    {
+      "ts": 1775161776599,
+      "action": "tod/rate",
+      "latencyMs": 914,
+      "ok": true,
+      "detail": "R  3/30 Player13"
+    },
+    {
+      "ts": 1775161776667,
+      "action": "tod/rate",
+      "latencyMs": 981,
+      "ok": true,
+      "detail": "R  3/30 Player14"
+    },
+    {
+      "ts": 1775161776721,
+      "action": "tod/rate",
+      "latencyMs": 1035,
+      "ok": true,
+      "detail": "R  3/30 Player15"
+    },
+    {
+      "ts": 1775161776799,
+      "action": "tod/rate",
+      "latencyMs": 1113,
+      "ok": true,
+      "detail": "R  3/30 Player16"
+    },
+    {
+      "ts": 1775161776886,
+      "action": "tod/rate",
+      "latencyMs": 1201,
+      "ok": true,
+      "detail": "R  3/30 Player17"
+    },
+    {
+      "ts": 1775161776949,
+      "action": "tod/rate",
+      "latencyMs": 1263,
+      "ok": true,
+      "detail": "R  3/30 Player18"
+    },
+    {
+      "ts": 1775161777009,
+      "action": "tod/rate",
+      "latencyMs": 1323,
+      "ok": true,
+      "detail": "R  3/30 Player20"
+    },
+    {
+      "ts": 1775161777070,
+      "action": "tod/rate",
+      "latencyMs": 1384,
+      "ok": true,
+      "detail": "R  3/30 Player21"
+    },
+    {
+      "ts": 1775161777140,
+      "action": "tod/rate",
+      "latencyMs": 1454,
+      "ok": true,
+      "detail": "R  3/30 Player22"
+    },
+    {
+      "ts": 1775161777208,
+      "action": "tod/rate",
+      "latencyMs": 1522,
+      "ok": true,
+      "detail": "R  3/30 Player23"
+    },
+    {
+      "ts": 1775161777268,
+      "action": "tod/rate",
+      "latencyMs": 1583,
+      "ok": true,
+      "detail": "R  3/30 Player24"
+    },
+    {
+      "ts": 1775161777331,
+      "action": "tod/rate",
+      "latencyMs": 1645,
+      "ok": true,
+      "detail": "R  3/30 Player25"
+    },
+    {
+      "ts": 1775161777415,
+      "action": "tod/rate",
+      "latencyMs": 1729,
+      "ok": true,
+      "detail": "R  3/30 Player26"
+    },
+    {
+      "ts": 1775161777477,
+      "action": "tod/rate",
+      "latencyMs": 1792,
+      "ok": true,
+      "detail": "R  3/30 Player27"
+    },
+    {
+      "ts": 1775161777541,
+      "action": "tod/rate",
+      "latencyMs": 1855,
+      "ok": true,
+      "detail": "R  3/30 Player28"
+    },
+    {
+      "ts": 1775161777623,
+      "action": "tod/rate",
+      "latencyMs": 1937,
+      "ok": true,
+      "detail": "R  3/30 Player29"
+    },
+    {
+      "ts": 1775161777689,
+      "action": "tod/advance",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R  3/30"
+    },
+    {
+      "ts": 1775161777743,
+      "action": "tod/poll",
+      "latencyMs": 55,
+      "ok": true,
+      "detail": "R  4/30"
+    },
+    {
+      "ts": 1775161777924,
+      "action": "tod/choice",
+      "latencyMs": 180,
+      "ok": true,
+      "detail": "R  4/30 Player28 → dare"
+    },
+    {
+      "ts": 1775161777976,
+      "action": "tod/poll",
+      "latencyMs": 52,
+      "ok": true,
+      "detail": "R  4/30 after-choice"
+    },
+    {
+      "ts": 1775161780033,
+      "action": "tod/response:text",
+      "latencyMs": 2057,
+      "ok": true,
+      "detail": "R  4/30 Player28"
+    },
+    {
+      "ts": 1775161780085,
+      "action": "tod/poll",
+      "latencyMs": 52,
+      "ok": true,
+      "detail": "R  4/30 after-response"
+    },
+    {
+      "ts": 1775161780146,
+      "action": "tod/rate",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R  4/30 StressHost"
+    },
+    {
+      "ts": 1775161780223,
+      "action": "tod/rate",
+      "latencyMs": 137,
+      "ok": true,
+      "detail": "R  4/30 Player1"
+    },
+    {
+      "ts": 1775161780277,
+      "action": "tod/rate",
+      "latencyMs": 191,
+      "ok": true,
+      "detail": "R  4/30 Player2"
+    },
+    {
+      "ts": 1775161780355,
+      "action": "tod/rate",
+      "latencyMs": 269,
+      "ok": true,
+      "detail": "R  4/30 Player3"
+    },
+    {
+      "ts": 1775161780417,
+      "action": "tod/rate",
+      "latencyMs": 332,
+      "ok": true,
+      "detail": "R  4/30 Player4"
+    },
+    {
+      "ts": 1775161780478,
+      "action": "tod/rate",
+      "latencyMs": 392,
+      "ok": true,
+      "detail": "R  4/30 Player5"
+    },
+    {
+      "ts": 1775161780545,
+      "action": "tod/rate",
+      "latencyMs": 459,
+      "ok": true,
+      "detail": "R  4/30 Player6"
+    },
+    {
+      "ts": 1775161780626,
+      "action": "tod/rate",
+      "latencyMs": 540,
+      "ok": true,
+      "detail": "R  4/30 Player7"
+    },
+    {
+      "ts": 1775161780687,
+      "action": "tod/rate",
+      "latencyMs": 601,
+      "ok": true,
+      "detail": "R  4/30 Player8"
+    },
+    {
+      "ts": 1775161780750,
+      "action": "tod/rate",
+      "latencyMs": 664,
+      "ok": true,
+      "detail": "R  4/30 Player9"
+    },
+    {
+      "ts": 1775161780814,
+      "action": "tod/rate",
+      "latencyMs": 728,
+      "ok": true,
+      "detail": "R  4/30 Player10"
+    },
+    {
+      "ts": 1775161780883,
+      "action": "tod/rate",
+      "latencyMs": 797,
+      "ok": true,
+      "detail": "R  4/30 Player11"
+    },
+    {
+      "ts": 1775161780978,
+      "action": "tod/rate",
+      "latencyMs": 892,
+      "ok": true,
+      "detail": "R  4/30 Player12"
+    },
+    {
+      "ts": 1775161781044,
+      "action": "tod/rate",
+      "latencyMs": 958,
+      "ok": true,
+      "detail": "R  4/30 Player13"
+    },
+    {
+      "ts": 1775161781109,
+      "action": "tod/rate",
+      "latencyMs": 1023,
+      "ok": true,
+      "detail": "R  4/30 Player14"
+    },
+    {
+      "ts": 1775161781169,
+      "action": "tod/rate",
+      "latencyMs": 1083,
+      "ok": true,
+      "detail": "R  4/30 Player15"
+    },
+    {
+      "ts": 1775161781247,
+      "action": "tod/rate",
+      "latencyMs": 1161,
+      "ok": true,
+      "detail": "R  4/30 Player16"
+    },
+    {
+      "ts": 1775161781310,
+      "action": "tod/rate",
+      "latencyMs": 1224,
+      "ok": true,
+      "detail": "R  4/30 Player17"
+    },
+    {
+      "ts": 1775161781374,
+      "action": "tod/rate",
+      "latencyMs": 1288,
+      "ok": true,
+      "detail": "R  4/30 Player18"
+    },
+    {
+      "ts": 1775161781433,
+      "action": "tod/rate",
+      "latencyMs": 1347,
+      "ok": true,
+      "detail": "R  4/30 Player19"
+    },
+    {
+      "ts": 1775161781504,
+      "action": "tod/rate",
+      "latencyMs": 1418,
+      "ok": true,
+      "detail": "R  4/30 Player20"
+    },
+    {
+      "ts": 1775161781565,
+      "action": "tod/rate",
+      "latencyMs": 1479,
+      "ok": true,
+      "detail": "R  4/30 Player21"
+    },
+    {
+      "ts": 1775161781633,
+      "action": "tod/rate",
+      "latencyMs": 1547,
+      "ok": true,
+      "detail": "R  4/30 Player22"
+    },
+    {
+      "ts": 1775161781695,
+      "action": "tod/rate",
+      "latencyMs": 1609,
+      "ok": true,
+      "detail": "R  4/30 Player23"
+    },
+    {
+      "ts": 1775161781753,
+      "action": "tod/rate",
+      "latencyMs": 1667,
+      "ok": true,
+      "detail": "R  4/30 Player24"
+    },
+    {
+      "ts": 1775161781831,
+      "action": "tod/rate",
+      "latencyMs": 1745,
+      "ok": true,
+      "detail": "R  4/30 Player25"
+    },
+    {
+      "ts": 1775161781904,
+      "action": "tod/rate",
+      "latencyMs": 1818,
+      "ok": true,
+      "detail": "R  4/30 Player26"
+    },
+    {
+      "ts": 1775161781965,
+      "action": "tod/rate",
+      "latencyMs": 1879,
+      "ok": true,
+      "detail": "R  4/30 Player27"
+    },
+    {
+      "ts": 1775161782062,
+      "action": "tod/rate",
+      "latencyMs": 1976,
+      "ok": true,
+      "detail": "R  4/30 Player29"
+    },
+    {
+      "ts": 1775161782129,
+      "action": "tod/advance",
+      "latencyMs": 67,
+      "ok": true,
+      "detail": "R  4/30"
+    },
+    {
+      "ts": 1775161782187,
+      "action": "tod/poll",
+      "latencyMs": 59,
+      "ok": true,
+      "detail": "R  5/30"
+    },
+    {
+      "ts": 1775161782270,
+      "action": "tod/choice",
+      "latencyMs": 82,
+      "ok": true,
+      "detail": "R  5/30 Player1 → truth"
+    },
+    {
+      "ts": 1775161782320,
+      "action": "tod/poll",
+      "latencyMs": 50,
+      "ok": true,
+      "detail": "R  5/30 after-choice"
+    },
+    {
+      "ts": 1775161782379,
+      "action": "tod/response:text",
+      "latencyMs": 59,
+      "ok": true,
+      "detail": "R  5/30 Player1"
+    },
+    {
+      "ts": 1775161782442,
+      "action": "tod/poll",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R  5/30 after-response"
+    },
+    {
+      "ts": 1775161782544,
+      "action": "tod/rate",
+      "latencyMs": 102,
+      "ok": true,
+      "detail": "R  5/30 StressHost"
+    },
+    {
+      "ts": 1775161782607,
+      "action": "tod/rate",
+      "latencyMs": 165,
+      "ok": true,
+      "detail": "R  5/30 Player2"
+    },
+    {
+      "ts": 1775161782677,
+      "action": "tod/rate",
+      "latencyMs": 234,
+      "ok": true,
+      "detail": "R  5/30 Player3"
+    },
+    {
+      "ts": 1775161782735,
+      "action": "tod/rate",
+      "latencyMs": 293,
+      "ok": true,
+      "detail": "R  5/30 Player4"
+    },
+    {
+      "ts": 1775161782800,
+      "action": "tod/rate",
+      "latencyMs": 358,
+      "ok": true,
+      "detail": "R  5/30 Player5"
+    },
+    {
+      "ts": 1775161782862,
+      "action": "tod/rate",
+      "latencyMs": 420,
+      "ok": true,
+      "detail": "R  5/30 Player6"
+    },
+    {
+      "ts": 1775161782952,
+      "action": "tod/rate",
+      "latencyMs": 510,
+      "ok": true,
+      "detail": "R  5/30 Player7"
+    },
+    {
+      "ts": 1775161783033,
+      "action": "tod/rate",
+      "latencyMs": 591,
+      "ok": true,
+      "detail": "R  5/30 Player8"
+    },
+    {
+      "ts": 1775161783095,
+      "action": "tod/rate",
+      "latencyMs": 653,
+      "ok": true,
+      "detail": "R  5/30 Player9"
+    },
+    {
+      "ts": 1775161783157,
+      "action": "tod/rate",
+      "latencyMs": 715,
+      "ok": true,
+      "detail": "R  5/30 Player10"
+    },
+    {
+      "ts": 1775161783249,
+      "action": "tod/rate",
+      "latencyMs": 807,
+      "ok": true,
+      "detail": "R  5/30 Player11"
+    },
+    {
+      "ts": 1775161783307,
+      "action": "tod/rate",
+      "latencyMs": 865,
+      "ok": true,
+      "detail": "R  5/30 Player12"
+    },
+    {
+      "ts": 1775161783365,
+      "action": "tod/rate",
+      "latencyMs": 922,
+      "ok": true,
+      "detail": "R  5/30 Player13"
+    },
+    {
+      "ts": 1775161783435,
+      "action": "tod/rate",
+      "latencyMs": 993,
+      "ok": true,
+      "detail": "R  5/30 Player14"
+    },
+    {
+      "ts": 1775161783497,
+      "action": "tod/rate",
+      "latencyMs": 1055,
+      "ok": true,
+      "detail": "R  5/30 Player15"
+    },
+    {
+      "ts": 1775161783567,
+      "action": "tod/rate",
+      "latencyMs": 1124,
+      "ok": true,
+      "detail": "R  5/30 Player16"
+    },
+    {
+      "ts": 1775161783635,
+      "action": "tod/rate",
+      "latencyMs": 1193,
+      "ok": true,
+      "detail": "R  5/30 Player17"
+    },
+    {
+      "ts": 1775161783695,
+      "action": "tod/rate",
+      "latencyMs": 1253,
+      "ok": true,
+      "detail": "R  5/30 Player18"
+    },
+    {
+      "ts": 1775161783759,
+      "action": "tod/rate",
+      "latencyMs": 1317,
+      "ok": true,
+      "detail": "R  5/30 Player19"
+    },
+    {
+      "ts": 1775161783845,
+      "action": "tod/rate",
+      "latencyMs": 1403,
+      "ok": true,
+      "detail": "R  5/30 Player20"
+    },
+    {
+      "ts": 1775161783911,
+      "action": "tod/rate",
+      "latencyMs": 1469,
+      "ok": true,
+      "detail": "R  5/30 Player21"
+    },
+    {
+      "ts": 1775161783973,
+      "action": "tod/rate",
+      "latencyMs": 1530,
+      "ok": true,
+      "detail": "R  5/30 Player22"
+    },
+    {
+      "ts": 1775161784043,
+      "action": "tod/rate",
+      "latencyMs": 1601,
+      "ok": true,
+      "detail": "R  5/30 Player23"
+    },
+    {
+      "ts": 1775161784111,
+      "action": "tod/rate",
+      "latencyMs": 1669,
+      "ok": true,
+      "detail": "R  5/30 Player24"
+    },
+    {
+      "ts": 1775161784171,
+      "action": "tod/rate",
+      "latencyMs": 1729,
+      "ok": true,
+      "detail": "R  5/30 Player25"
+    },
+    {
+      "ts": 1775161784242,
+      "action": "tod/rate",
+      "latencyMs": 1799,
+      "ok": true,
+      "detail": "R  5/30 Player26"
+    },
+    {
+      "ts": 1775161784336,
+      "action": "tod/rate",
+      "latencyMs": 1893,
+      "ok": true,
+      "detail": "R  5/30 Player27"
+    },
+    {
+      "ts": 1775161784448,
+      "action": "tod/rate",
+      "latencyMs": 2005,
+      "ok": true,
+      "detail": "R  5/30 Player28"
+    },
+    {
+      "ts": 1775161784527,
+      "action": "tod/rate",
+      "latencyMs": 2084,
+      "ok": true,
+      "detail": "R  5/30 Player29"
+    },
+    {
+      "ts": 1775161784593,
+      "action": "tod/advance",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R  5/30"
+    },
+    {
+      "ts": 1775161784648,
+      "action": "tod/poll",
+      "latencyMs": 54,
+      "ok": true,
+      "detail": "R  6/30"
+    },
+    {
+      "ts": 1775161784718,
+      "action": "tod/choice",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R  6/30 Player23 → dare"
+    },
+    {
+      "ts": 1775161784781,
+      "action": "tod/poll",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R  6/30 after-choice"
+    },
+    {
+      "ts": 1775161785142,
+      "action": "tod/response:drawing",
+      "latencyMs": 358,
+      "ok": true,
+      "detail": "R  6/30 Player23 (13KB)"
+    },
+    {
+      "ts": 1775161785194,
+      "action": "tod/poll",
+      "latencyMs": 52,
+      "ok": true,
+      "detail": "R  6/30 after-response"
+    },
+    {
+      "ts": 1775161785375,
+      "action": "tod/rate",
+      "latencyMs": 181,
+      "ok": true,
+      "detail": "R  6/30 StressHost"
+    },
+    {
+      "ts": 1775161785445,
+      "action": "tod/rate",
+      "latencyMs": 251,
+      "ok": true,
+      "detail": "R  6/30 Player1"
+    },
+    {
+      "ts": 1775161785508,
+      "action": "tod/rate",
+      "latencyMs": 314,
+      "ok": true,
+      "detail": "R  6/30 Player2"
+    },
+    {
+      "ts": 1775161785590,
+      "action": "tod/rate",
+      "latencyMs": 396,
+      "ok": true,
+      "detail": "R  6/30 Player3"
+    },
+    {
+      "ts": 1775161785652,
+      "action": "tod/rate",
+      "latencyMs": 458,
+      "ok": true,
+      "detail": "R  6/30 Player4"
+    },
+    {
+      "ts": 1775161785718,
+      "action": "tod/rate",
+      "latencyMs": 524,
+      "ok": true,
+      "detail": "R  6/30 Player5"
+    },
+    {
+      "ts": 1775161785799,
+      "action": "tod/rate",
+      "latencyMs": 605,
+      "ok": true,
+      "detail": "R  6/30 Player6"
+    },
+    {
+      "ts": 1775161785861,
+      "action": "tod/rate",
+      "latencyMs": 667,
+      "ok": true,
+      "detail": "R  6/30 Player7"
+    },
+    {
+      "ts": 1775161785929,
+      "action": "tod/rate",
+      "latencyMs": 735,
+      "ok": true,
+      "detail": "R  6/30 Player8"
+    },
+    {
+      "ts": 1775161785999,
+      "action": "tod/rate",
+      "latencyMs": 805,
+      "ok": true,
+      "detail": "R  6/30 Player9"
+    },
+    {
+      "ts": 1775161786061,
+      "action": "tod/rate",
+      "latencyMs": 867,
+      "ok": true,
+      "detail": "R  6/30 Player10"
+    },
+    {
+      "ts": 1775161786121,
+      "action": "tod/rate",
+      "latencyMs": 927,
+      "ok": true,
+      "detail": "R  6/30 Player11"
+    },
+    {
+      "ts": 1775161786211,
+      "action": "tod/rate",
+      "latencyMs": 1017,
+      "ok": true,
+      "detail": "R  6/30 Player12"
+    },
+    {
+      "ts": 1775161786275,
+      "action": "tod/rate",
+      "latencyMs": 1081,
+      "ok": true,
+      "detail": "R  6/30 Player13"
+    },
+    {
+      "ts": 1775161786335,
+      "action": "tod/rate",
+      "latencyMs": 1141,
+      "ok": true,
+      "detail": "R  6/30 Player14"
+    },
+    {
+      "ts": 1775161786397,
+      "action": "tod/rate",
+      "latencyMs": 1203,
+      "ok": true,
+      "detail": "R  6/30 Player15"
+    },
+    {
+      "ts": 1775161786458,
+      "action": "tod/rate",
+      "latencyMs": 1263,
+      "ok": true,
+      "detail": "R  6/30 Player16"
+    },
+    {
+      "ts": 1775161786519,
+      "action": "tod/rate",
+      "latencyMs": 1325,
+      "ok": true,
+      "detail": "R  6/30 Player17"
+    },
+    {
+      "ts": 1775161786613,
+      "action": "tod/rate",
+      "latencyMs": 1419,
+      "ok": true,
+      "detail": "R  6/30 Player18"
+    },
+    {
+      "ts": 1775161786682,
+      "action": "tod/rate",
+      "latencyMs": 1487,
+      "ok": true,
+      "detail": "R  6/30 Player19"
+    },
+    {
+      "ts": 1775161786741,
+      "action": "tod/rate",
+      "latencyMs": 1547,
+      "ok": true,
+      "detail": "R  6/30 Player20"
+    },
+    {
+      "ts": 1775161786802,
+      "action": "tod/rate",
+      "latencyMs": 1608,
+      "ok": true,
+      "detail": "R  6/30 Player21"
+    },
+    {
+      "ts": 1775161786861,
+      "action": "tod/rate",
+      "latencyMs": 1667,
+      "ok": true,
+      "detail": "R  6/30 Player22"
+    },
+    {
+      "ts": 1775161786933,
+      "action": "tod/rate",
+      "latencyMs": 1739,
+      "ok": true,
+      "detail": "R  6/30 Player24"
+    },
+    {
+      "ts": 1775161786993,
+      "action": "tod/rate",
+      "latencyMs": 1799,
+      "ok": true,
+      "detail": "R  6/30 Player25"
+    },
+    {
+      "ts": 1775161787053,
+      "action": "tod/rate",
+      "latencyMs": 1859,
+      "ok": true,
+      "detail": "R  6/30 Player26"
+    },
+    {
+      "ts": 1775161787122,
+      "action": "tod/rate",
+      "latencyMs": 1927,
+      "ok": true,
+      "detail": "R  6/30 Player27"
+    },
+    {
+      "ts": 1775161787183,
+      "action": "tod/rate",
+      "latencyMs": 1989,
+      "ok": true,
+      "detail": "R  6/30 Player28"
+    },
+    {
+      "ts": 1775161787255,
+      "action": "tod/rate",
+      "latencyMs": 2060,
+      "ok": true,
+      "detail": "R  6/30 Player29"
+    },
+    {
+      "ts": 1775161787325,
+      "action": "tod/advance",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R  6/30"
+    },
+    {
+      "ts": 1775161787382,
+      "action": "tod/poll",
+      "latencyMs": 57,
+      "ok": true,
+      "detail": "R  7/30"
+    },
+    {
+      "ts": 1775161787465,
+      "action": "tod/choice",
+      "latencyMs": 71,
+      "ok": true,
+      "detail": "R  7/30 Player6 → dare"
+    },
+    {
+      "ts": 1775161787532,
+      "action": "tod/poll",
+      "latencyMs": 67,
+      "ok": true,
+      "detail": "R  7/30 after-choice"
+    },
+    {
+      "ts": 1775161787843,
+      "action": "tod/response:drawing",
+      "latencyMs": 308,
+      "ok": true,
+      "detail": "R  7/30 Player6 (13KB)"
+    },
+    {
+      "ts": 1775161787906,
+      "action": "tod/poll",
+      "latencyMs": 62,
+      "ok": true,
+      "detail": "R  7/30 after-response"
+    },
+    {
+      "ts": 1775161787966,
+      "action": "tod/rate",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R  7/30 StressHost"
+    },
+    {
+      "ts": 1775161788031,
+      "action": "tod/rate",
+      "latencyMs": 125,
+      "ok": true,
+      "detail": "R  7/30 Player1"
+    },
+    {
+      "ts": 1775161788095,
+      "action": "tod/rate",
+      "latencyMs": 188,
+      "ok": true,
+      "detail": "R  7/30 Player2"
+    },
+    {
+      "ts": 1775161788161,
+      "action": "tod/rate",
+      "latencyMs": 255,
+      "ok": true,
+      "detail": "R  7/30 Player3"
+    },
+    {
+      "ts": 1775161788220,
+      "action": "tod/rate",
+      "latencyMs": 313,
+      "ok": true,
+      "detail": "R  7/30 Player4"
+    },
+    {
+      "ts": 1775161788279,
+      "action": "tod/rate",
+      "latencyMs": 373,
+      "ok": true,
+      "detail": "R  7/30 Player5"
+    },
+    {
+      "ts": 1775161788345,
+      "action": "tod/rate",
+      "latencyMs": 439,
+      "ok": true,
+      "detail": "R  7/30 Player7"
+    },
+    {
+      "ts": 1775161788401,
+      "action": "tod/rate",
+      "latencyMs": 495,
+      "ok": true,
+      "detail": "R  7/30 Player8"
+    },
+    {
+      "ts": 1775161788658,
+      "action": "tod/rate",
+      "latencyMs": 752,
+      "ok": true,
+      "detail": "R  7/30 Player9"
+    },
+    {
+      "ts": 1775161788722,
+      "action": "tod/rate",
+      "latencyMs": 815,
+      "ok": true,
+      "detail": "R  7/30 Player10"
+    },
+    {
+      "ts": 1775161788785,
+      "action": "tod/rate",
+      "latencyMs": 879,
+      "ok": true,
+      "detail": "R  7/30 Player11"
+    },
+    {
+      "ts": 1775161788872,
+      "action": "tod/rate",
+      "latencyMs": 966,
+      "ok": true,
+      "detail": "R  7/30 Player12"
+    },
+    {
+      "ts": 1775161788933,
+      "action": "tod/rate",
+      "latencyMs": 1027,
+      "ok": true,
+      "detail": "R  7/30 Player13"
+    },
+    {
+      "ts": 1775161788994,
+      "action": "tod/rate",
+      "latencyMs": 1088,
+      "ok": true,
+      "detail": "R  7/30 Player14"
+    },
+    {
+      "ts": 1775161789065,
+      "action": "tod/rate",
+      "latencyMs": 1159,
+      "ok": true,
+      "detail": "R  7/30 Player15"
+    },
+    {
+      "ts": 1775161789127,
+      "action": "tod/rate",
+      "latencyMs": 1220,
+      "ok": true,
+      "detail": "R  7/30 Player16"
+    },
+    {
+      "ts": 1775161789203,
+      "action": "tod/rate",
+      "latencyMs": 1296,
+      "ok": true,
+      "detail": "R  7/30 Player17"
+    },
+    {
+      "ts": 1775161789287,
+      "action": "tod/rate",
+      "latencyMs": 1381,
+      "ok": true,
+      "detail": "R  7/30 Player18"
+    },
+    {
+      "ts": 1775161789348,
+      "action": "tod/rate",
+      "latencyMs": 1442,
+      "ok": true,
+      "detail": "R  7/30 Player19"
+    },
+    {
+      "ts": 1775161789417,
+      "action": "tod/rate",
+      "latencyMs": 1511,
+      "ok": true,
+      "detail": "R  7/30 Player20"
+    },
+    {
+      "ts": 1775161789481,
+      "action": "tod/rate",
+      "latencyMs": 1575,
+      "ok": true,
+      "detail": "R  7/30 Player21"
+    },
+    {
+      "ts": 1775161789541,
+      "action": "tod/rate",
+      "latencyMs": 1635,
+      "ok": true,
+      "detail": "R  7/30 Player22"
+    },
+    {
+      "ts": 1775161789613,
+      "action": "tod/rate",
+      "latencyMs": 1706,
+      "ok": true,
+      "detail": "R  7/30 Player23"
+    },
+    {
+      "ts": 1775161789669,
+      "action": "tod/rate",
+      "latencyMs": 1763,
+      "ok": true,
+      "detail": "R  7/30 Player24"
+    },
+    {
+      "ts": 1775161789733,
+      "action": "tod/rate",
+      "latencyMs": 1826,
+      "ok": true,
+      "detail": "R  7/30 Player25"
+    },
+    {
+      "ts": 1775161789797,
+      "action": "tod/rate",
+      "latencyMs": 1891,
+      "ok": true,
+      "detail": "R  7/30 Player26"
+    },
+    {
+      "ts": 1775161789897,
+      "action": "tod/rate",
+      "latencyMs": 1990,
+      "ok": true,
+      "detail": "R  7/30 Player27"
+    },
+    {
+      "ts": 1775161789959,
+      "action": "tod/rate",
+      "latencyMs": 2053,
+      "ok": true,
+      "detail": "R  7/30 Player28"
+    },
+    {
+      "ts": 1775161790018,
+      "action": "tod/rate",
+      "latencyMs": 2112,
+      "ok": true,
+      "detail": "R  7/30 Player29"
+    },
+    {
+      "ts": 1775161792029,
+      "action": "tod/advance",
+      "latencyMs": 2010,
+      "ok": true,
+      "detail": "R  7/30"
+    },
+    {
+      "ts": 1775161792089,
+      "action": "tod/poll",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R  8/30"
+    },
+    {
+      "ts": 1775161792155,
+      "action": "tod/choice",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R  8/30 Player14 → dare"
+    },
+    {
+      "ts": 1775161792214,
+      "action": "tod/poll",
+      "latencyMs": 59,
+      "ok": true,
+      "detail": "R  8/30 after-choice"
+    },
+    {
+      "ts": 1775161792569,
+      "action": "tod/response:drawing",
+      "latencyMs": 348,
+      "ok": true,
+      "detail": "R  8/30 Player14 (13KB)"
+    },
+    {
+      "ts": 1775161792626,
+      "action": "tod/poll",
+      "latencyMs": 57,
+      "ok": true,
+      "detail": "R  8/30 after-response"
+    },
+    {
+      "ts": 1775161792689,
+      "action": "tod/rate",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R  8/30 StressHost"
+    },
+    {
+      "ts": 1775161792743,
+      "action": "tod/rate",
+      "latencyMs": 116,
+      "ok": true,
+      "detail": "R  8/30 Player1"
+    },
+    {
+      "ts": 1775161792810,
+      "action": "tod/rate",
+      "latencyMs": 183,
+      "ok": true,
+      "detail": "R  8/30 Player2"
+    },
+    {
+      "ts": 1775161792886,
+      "action": "tod/rate",
+      "latencyMs": 259,
+      "ok": true,
+      "detail": "R  8/30 Player3"
+    },
+    {
+      "ts": 1775161792947,
+      "action": "tod/rate",
+      "latencyMs": 320,
+      "ok": true,
+      "detail": "R  8/30 Player4"
+    },
+    {
+      "ts": 1775161793012,
+      "action": "tod/rate",
+      "latencyMs": 385,
+      "ok": true,
+      "detail": "R  8/30 Player5"
+    },
+    {
+      "ts": 1775161793082,
+      "action": "tod/rate",
+      "latencyMs": 455,
+      "ok": true,
+      "detail": "R  8/30 Player6"
+    },
+    {
+      "ts": 1775161793154,
+      "action": "tod/rate",
+      "latencyMs": 527,
+      "ok": true,
+      "detail": "R  8/30 Player7"
+    },
+    {
+      "ts": 1775161793215,
+      "action": "tod/rate",
+      "latencyMs": 588,
+      "ok": true,
+      "detail": "R  8/30 Player8"
+    },
+    {
+      "ts": 1775161793291,
+      "action": "tod/rate",
+      "latencyMs": 664,
+      "ok": true,
+      "detail": "R  8/30 Player9"
+    },
+    {
+      "ts": 1775161793358,
+      "action": "tod/rate",
+      "latencyMs": 731,
+      "ok": true,
+      "detail": "R  8/30 Player10"
+    },
+    {
+      "ts": 1775161793446,
+      "action": "tod/rate",
+      "latencyMs": 818,
+      "ok": true,
+      "detail": "R  8/30 Player11"
+    },
+    {
+      "ts": 1775161793524,
+      "action": "tod/rate",
+      "latencyMs": 897,
+      "ok": true,
+      "detail": "R  8/30 Player12"
+    },
+    {
+      "ts": 1775161793589,
+      "action": "tod/rate",
+      "latencyMs": 962,
+      "ok": true,
+      "detail": "R  8/30 Player13"
+    },
+    {
+      "ts": 1775161793655,
+      "action": "tod/rate",
+      "latencyMs": 1028,
+      "ok": true,
+      "detail": "R  8/30 Player15"
+    },
+    {
+      "ts": 1775161793719,
+      "action": "tod/rate",
+      "latencyMs": 1092,
+      "ok": true,
+      "detail": "R  8/30 Player16"
+    },
+    {
+      "ts": 1775161793791,
+      "action": "tod/rate",
+      "latencyMs": 1164,
+      "ok": true,
+      "detail": "R  8/30 Player17"
+    },
+    {
+      "ts": 1775161793851,
+      "action": "tod/rate",
+      "latencyMs": 1224,
+      "ok": true,
+      "detail": "R  8/30 Player18"
+    },
+    {
+      "ts": 1775161793909,
+      "action": "tod/rate",
+      "latencyMs": 1282,
+      "ok": true,
+      "detail": "R  8/30 Player19"
+    },
+    {
+      "ts": 1775161793971,
+      "action": "tod/rate",
+      "latencyMs": 1344,
+      "ok": true,
+      "detail": "R  8/30 Player20"
+    },
+    {
+      "ts": 1775161794033,
+      "action": "tod/rate",
+      "latencyMs": 1406,
+      "ok": true,
+      "detail": "R  8/30 Player21"
+    },
+    {
+      "ts": 1775161794101,
+      "action": "tod/rate",
+      "latencyMs": 1474,
+      "ok": true,
+      "detail": "R  8/30 Player22"
+    },
+    {
+      "ts": 1775161794167,
+      "action": "tod/rate",
+      "latencyMs": 1540,
+      "ok": true,
+      "detail": "R  8/30 Player23"
+    },
+    {
+      "ts": 1775161794229,
+      "action": "tod/rate",
+      "latencyMs": 1602,
+      "ok": true,
+      "detail": "R  8/30 Player24"
+    },
+    {
+      "ts": 1775161794322,
+      "action": "tod/rate",
+      "latencyMs": 1695,
+      "ok": true,
+      "detail": "R  8/30 Player25"
+    },
+    {
+      "ts": 1775161794387,
+      "action": "tod/rate",
+      "latencyMs": 1760,
+      "ok": true,
+      "detail": "R  8/30 Player26"
+    },
+    {
+      "ts": 1775161794450,
+      "action": "tod/rate",
+      "latencyMs": 1823,
+      "ok": true,
+      "detail": "R  8/30 Player27"
+    },
+    {
+      "ts": 1775161794513,
+      "action": "tod/rate",
+      "latencyMs": 1886,
+      "ok": true,
+      "detail": "R  8/30 Player28"
+    },
+    {
+      "ts": 1775161794571,
+      "action": "tod/rate",
+      "latencyMs": 1944,
+      "ok": true,
+      "detail": "R  8/30 Player29"
+    },
+    {
+      "ts": 1775161794667,
+      "action": "tod/advance",
+      "latencyMs": 96,
+      "ok": true,
+      "detail": "R  8/30"
+    },
+    {
+      "ts": 1775161794729,
+      "action": "tod/poll",
+      "latencyMs": 62,
+      "ok": true,
+      "detail": "R  9/30"
+    },
+    {
+      "ts": 1775161794807,
+      "action": "tod/choice",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "R  9/30 Player21 → dare"
+    },
+    {
+      "ts": 1775161794862,
+      "action": "tod/poll",
+      "latencyMs": 55,
+      "ok": true,
+      "detail": "R  9/30 after-choice"
+    },
+    {
+      "ts": 1775161794929,
+      "action": "tod/response:text",
+      "latencyMs": 67,
+      "ok": true,
+      "detail": "R  9/30 Player21"
+    },
+    {
+      "ts": 1775161794995,
+      "action": "tod/poll",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R  9/30 after-response"
+    },
+    {
+      "ts": 1775161795049,
+      "action": "tod/rate",
+      "latencyMs": 54,
+      "ok": true,
+      "detail": "R  9/30 StressHost"
+    },
+    {
+      "ts": 1775161795103,
+      "action": "tod/rate",
+      "latencyMs": 108,
+      "ok": true,
+      "detail": "R  9/30 Player1"
+    },
+    {
+      "ts": 1775161795162,
+      "action": "tod/rate",
+      "latencyMs": 167,
+      "ok": true,
+      "detail": "R  9/30 Player2"
+    },
+    {
+      "ts": 1775161795222,
+      "action": "tod/rate",
+      "latencyMs": 226,
+      "ok": true,
+      "detail": "R  9/30 Player3"
+    },
+    {
+      "ts": 1775161795301,
+      "action": "tod/rate",
+      "latencyMs": 306,
+      "ok": true,
+      "detail": "R  9/30 Player4"
+    },
+    {
+      "ts": 1775161795357,
+      "action": "tod/rate",
+      "latencyMs": 362,
+      "ok": true,
+      "detail": "R  9/30 Player5"
+    },
+    {
+      "ts": 1775161795415,
+      "action": "tod/rate",
+      "latencyMs": 420,
+      "ok": true,
+      "detail": "R  9/30 Player6"
+    },
+    {
+      "ts": 1775161795477,
+      "action": "tod/rate",
+      "latencyMs": 482,
+      "ok": true,
+      "detail": "R  9/30 Player7"
+    },
+    {
+      "ts": 1775161795535,
+      "action": "tod/rate",
+      "latencyMs": 540,
+      "ok": true,
+      "detail": "R  9/30 Player8"
+    },
+    {
+      "ts": 1775161795619,
+      "action": "tod/rate",
+      "latencyMs": 624,
+      "ok": true,
+      "detail": "R  9/30 Player9"
+    },
+    {
+      "ts": 1775161795681,
+      "action": "tod/rate",
+      "latencyMs": 686,
+      "ok": true,
+      "detail": "R  9/30 Player10"
+    },
+    {
+      "ts": 1775161795759,
+      "action": "tod/rate",
+      "latencyMs": 764,
+      "ok": true,
+      "detail": "R  9/30 Player11"
+    },
+    {
+      "ts": 1775161795821,
+      "action": "tod/rate",
+      "latencyMs": 826,
+      "ok": true,
+      "detail": "R  9/30 Player12"
+    },
+    {
+      "ts": 1775161795886,
+      "action": "tod/rate",
+      "latencyMs": 890,
+      "ok": true,
+      "detail": "R  9/30 Player13"
+    },
+    {
+      "ts": 1775161795940,
+      "action": "tod/rate",
+      "latencyMs": 944,
+      "ok": true,
+      "detail": "R  9/30 Player14"
+    },
+    {
+      "ts": 1775161795997,
+      "action": "tod/rate",
+      "latencyMs": 1002,
+      "ok": true,
+      "detail": "R  9/30 Player15"
+    },
+    {
+      "ts": 1775161796061,
+      "action": "tod/rate",
+      "latencyMs": 1066,
+      "ok": true,
+      "detail": "R  9/30 Player16"
+    },
+    {
+      "ts": 1775161796120,
+      "action": "tod/rate",
+      "latencyMs": 1125,
+      "ok": true,
+      "detail": "R  9/30 Player17"
+    },
+    {
+      "ts": 1775161796180,
+      "action": "tod/rate",
+      "latencyMs": 1184,
+      "ok": true,
+      "detail": "R  9/30 Player18"
+    },
+    {
+      "ts": 1775161796240,
+      "action": "tod/rate",
+      "latencyMs": 1244,
+      "ok": true,
+      "detail": "R  9/30 Player19"
+    },
+    {
+      "ts": 1775161796315,
+      "action": "tod/rate",
+      "latencyMs": 1320,
+      "ok": true,
+      "detail": "R  9/30 Player20"
+    },
+    {
+      "ts": 1775161796377,
+      "action": "tod/rate",
+      "latencyMs": 1382,
+      "ok": true,
+      "detail": "R  9/30 Player22"
+    },
+    {
+      "ts": 1775161796445,
+      "action": "tod/rate",
+      "latencyMs": 1450,
+      "ok": true,
+      "detail": "R  9/30 Player23"
+    },
+    {
+      "ts": 1775161796507,
+      "action": "tod/rate",
+      "latencyMs": 1512,
+      "ok": true,
+      "detail": "R  9/30 Player24"
+    },
+    {
+      "ts": 1775161796568,
+      "action": "tod/rate",
+      "latencyMs": 1572,
+      "ok": true,
+      "detail": "R  9/30 Player25"
+    },
+    {
+      "ts": 1775161796633,
+      "action": "tod/rate",
+      "latencyMs": 1638,
+      "ok": true,
+      "detail": "R  9/30 Player26"
+    },
+    {
+      "ts": 1775161796702,
+      "action": "tod/rate",
+      "latencyMs": 1706,
+      "ok": true,
+      "detail": "R  9/30 Player27"
+    },
+    {
+      "ts": 1775161796761,
+      "action": "tod/rate",
+      "latencyMs": 1766,
+      "ok": true,
+      "detail": "R  9/30 Player28"
+    },
+    {
+      "ts": 1775161796831,
+      "action": "tod/rate",
+      "latencyMs": 1835,
+      "ok": true,
+      "detail": "R  9/30 Player29"
+    },
+    {
+      "ts": 1775161796909,
+      "action": "tod/advance",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R  9/30"
+    },
+    {
+      "ts": 1775161796966,
+      "action": "tod/poll",
+      "latencyMs": 57,
+      "ok": true,
+      "detail": "R 10/30"
+    },
+    {
+      "ts": 1775161797051,
+      "action": "tod/choice",
+      "latencyMs": 84,
+      "ok": true,
+      "detail": "R 10/30 Player4 → dare"
+    },
+    {
+      "ts": 1775161797106,
+      "action": "tod/poll",
+      "latencyMs": 55,
+      "ok": true,
+      "detail": "R 10/30 after-choice"
+    },
+    {
+      "ts": 1775161797177,
+      "action": "tod/response:text",
+      "latencyMs": 71,
+      "ok": true,
+      "detail": "R 10/30 Player4"
+    },
+    {
+      "ts": 1775161797232,
+      "action": "tod/poll",
+      "latencyMs": 55,
+      "ok": true,
+      "detail": "R 10/30 after-response"
+    },
+    {
+      "ts": 1775161797314,
+      "action": "tod/rate",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R 10/30 StressHost"
+    },
+    {
+      "ts": 1775161797375,
+      "action": "tod/rate",
+      "latencyMs": 124,
+      "ok": true,
+      "detail": "R 10/30 Player1"
+    },
+    {
+      "ts": 1775161797433,
+      "action": "tod/rate",
+      "latencyMs": 182,
+      "ok": true,
+      "detail": "R 10/30 Player2"
+    },
+    {
+      "ts": 1775161797526,
+      "action": "tod/rate",
+      "latencyMs": 275,
+      "ok": true,
+      "detail": "R 10/30 Player3"
+    },
+    {
+      "ts": 1775161797596,
+      "action": "tod/rate",
+      "latencyMs": 346,
+      "ok": true,
+      "detail": "R 10/30 Player5"
+    },
+    {
+      "ts": 1775161797657,
+      "action": "tod/rate",
+      "latencyMs": 406,
+      "ok": true,
+      "detail": "R 10/30 Player6"
+    },
+    {
+      "ts": 1775161797715,
+      "action": "tod/rate",
+      "latencyMs": 464,
+      "ok": true,
+      "detail": "R 10/30 Player7"
+    },
+    {
+      "ts": 1775161797790,
+      "action": "tod/rate",
+      "latencyMs": 539,
+      "ok": true,
+      "detail": "R 10/30 Player8"
+    },
+    {
+      "ts": 1775161797878,
+      "action": "tod/rate",
+      "latencyMs": 627,
+      "ok": true,
+      "detail": "R 10/30 Player9"
+    },
+    {
+      "ts": 1775161797935,
+      "action": "tod/rate",
+      "latencyMs": 684,
+      "ok": true,
+      "detail": "R 10/30 Player10"
+    },
+    {
+      "ts": 1775161798006,
+      "action": "tod/rate",
+      "latencyMs": 755,
+      "ok": true,
+      "detail": "R 10/30 Player11"
+    },
+    {
+      "ts": 1775161798070,
+      "action": "tod/rate",
+      "latencyMs": 819,
+      "ok": true,
+      "detail": "R 10/30 Player12"
+    },
+    {
+      "ts": 1775161798137,
+      "action": "tod/rate",
+      "latencyMs": 887,
+      "ok": true,
+      "detail": "R 10/30 Player13"
+    },
+    {
+      "ts": 1775161798193,
+      "action": "tod/rate",
+      "latencyMs": 942,
+      "ok": true,
+      "detail": "R 10/30 Player14"
+    },
+    {
+      "ts": 1775161798249,
+      "action": "tod/rate",
+      "latencyMs": 998,
+      "ok": true,
+      "detail": "R 10/30 Player15"
+    },
+    {
+      "ts": 1775161798323,
+      "action": "tod/rate",
+      "latencyMs": 1072,
+      "ok": true,
+      "detail": "R 10/30 Player16"
+    },
+    {
+      "ts": 1775161798386,
+      "action": "tod/rate",
+      "latencyMs": 1135,
+      "ok": true,
+      "detail": "R 10/30 Player17"
+    },
+    {
+      "ts": 1775161798465,
+      "action": "tod/rate",
+      "latencyMs": 1214,
+      "ok": true,
+      "detail": "R 10/30 Player18"
+    },
+    {
+      "ts": 1775161798530,
+      "action": "tod/rate",
+      "latencyMs": 1279,
+      "ok": true,
+      "detail": "R 10/30 Player19"
+    },
+    {
+      "ts": 1775161798589,
+      "action": "tod/rate",
+      "latencyMs": 1338,
+      "ok": true,
+      "detail": "R 10/30 Player20"
+    },
+    {
+      "ts": 1775161798653,
+      "action": "tod/rate",
+      "latencyMs": 1402,
+      "ok": true,
+      "detail": "R 10/30 Player21"
+    },
+    {
+      "ts": 1775161798753,
+      "action": "tod/rate",
+      "latencyMs": 1502,
+      "ok": true,
+      "detail": "R 10/30 Player22"
+    },
+    {
+      "ts": 1775161798832,
+      "action": "tod/rate",
+      "latencyMs": 1581,
+      "ok": true,
+      "detail": "R 10/30 Player23"
+    },
+    {
+      "ts": 1775161798891,
+      "action": "tod/rate",
+      "latencyMs": 1640,
+      "ok": true,
+      "detail": "R 10/30 Player24"
+    },
+    {
+      "ts": 1775161799062,
+      "action": "tod/rate",
+      "latencyMs": 1811,
+      "ok": true,
+      "detail": "R 10/30 Player25"
+    },
+    {
+      "ts": 1775161799123,
+      "action": "tod/rate",
+      "latencyMs": 1872,
+      "ok": true,
+      "detail": "R 10/30 Player26"
+    },
+    {
+      "ts": 1775161799190,
+      "action": "tod/rate",
+      "latencyMs": 1939,
+      "ok": true,
+      "detail": "R 10/30 Player27"
+    },
+    {
+      "ts": 1775161799258,
+      "action": "tod/rate",
+      "latencyMs": 2007,
+      "ok": true,
+      "detail": "R 10/30 Player28"
+    },
+    {
+      "ts": 1775161799326,
+      "action": "tod/rate",
+      "latencyMs": 2075,
+      "ok": true,
+      "detail": "R 10/30 Player29"
+    },
+    {
+      "ts": 1775161801429,
+      "action": "tod/advance",
+      "latencyMs": 2103,
+      "ok": true,
+      "detail": "R 10/30"
+    },
+    {
+      "ts": 1775161801498,
+      "action": "tod/poll",
+      "latencyMs": 69,
+      "ok": true,
+      "detail": "R 11/30"
+    },
+    {
+      "ts": 1775161801603,
+      "action": "tod/choice",
+      "latencyMs": 105,
+      "ok": true,
+      "detail": "R 11/30 Player16 → truth"
+    },
+    {
+      "ts": 1775161801716,
+      "action": "tod/poll",
+      "latencyMs": 113,
+      "ok": true,
+      "detail": "R 11/30 after-choice"
+    },
+    {
+      "ts": 1775161801781,
+      "action": "tod/response:text",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R 11/30 Player16"
+    },
+    {
+      "ts": 1775161801867,
+      "action": "tod/poll",
+      "latencyMs": 86,
+      "ok": true,
+      "detail": "R 11/30 after-response"
+    },
+    {
+      "ts": 1775161801989,
+      "action": "tod/rate",
+      "latencyMs": 119,
+      "ok": true,
+      "detail": "R 11/30 StressHost"
+    },
+    {
+      "ts": 1775161802060,
+      "action": "tod/rate",
+      "latencyMs": 190,
+      "ok": true,
+      "detail": "R 11/30 Player1"
+    },
+    {
+      "ts": 1775161802139,
+      "action": "tod/rate",
+      "latencyMs": 270,
+      "ok": true,
+      "detail": "R 11/30 Player2"
+    },
+    {
+      "ts": 1775161802206,
+      "action": "tod/rate",
+      "latencyMs": 336,
+      "ok": true,
+      "detail": "R 11/30 Player3"
+    },
+    {
+      "ts": 1775161802273,
+      "action": "tod/rate",
+      "latencyMs": 404,
+      "ok": true,
+      "detail": "R 11/30 Player4"
+    },
+    {
+      "ts": 1775161802332,
+      "action": "tod/rate",
+      "latencyMs": 462,
+      "ok": true,
+      "detail": "R 11/30 Player5"
+    },
+    {
+      "ts": 1775161802405,
+      "action": "tod/rate",
+      "latencyMs": 535,
+      "ok": true,
+      "detail": "R 11/30 Player6"
+    },
+    {
+      "ts": 1775161802476,
+      "action": "tod/rate",
+      "latencyMs": 606,
+      "ok": true,
+      "detail": "R 11/30 Player7"
+    },
+    {
+      "ts": 1775161802558,
+      "action": "tod/rate",
+      "latencyMs": 688,
+      "ok": true,
+      "detail": "R 11/30 Player8"
+    },
+    {
+      "ts": 1775161802638,
+      "action": "tod/rate",
+      "latencyMs": 768,
+      "ok": true,
+      "detail": "R 11/30 Player9"
+    },
+    {
+      "ts": 1775161802701,
+      "action": "tod/rate",
+      "latencyMs": 832,
+      "ok": true,
+      "detail": "R 11/30 Player10"
+    },
+    {
+      "ts": 1775161802808,
+      "action": "tod/rate",
+      "latencyMs": 938,
+      "ok": true,
+      "detail": "R 11/30 Player11"
+    },
+    {
+      "ts": 1775161802879,
+      "action": "tod/rate",
+      "latencyMs": 1010,
+      "ok": true,
+      "detail": "R 11/30 Player12"
+    },
+    {
+      "ts": 1775161802949,
+      "action": "tod/rate",
+      "latencyMs": 1079,
+      "ok": true,
+      "detail": "R 11/30 Player13"
+    },
+    {
+      "ts": 1775161803010,
+      "action": "tod/rate",
+      "latencyMs": 1141,
+      "ok": true,
+      "detail": "R 11/30 Player14"
+    },
+    {
+      "ts": 1775161803108,
+      "action": "tod/rate",
+      "latencyMs": 1238,
+      "ok": true,
+      "detail": "R 11/30 Player15"
+    },
+    {
+      "ts": 1775161803181,
+      "action": "tod/rate",
+      "latencyMs": 1311,
+      "ok": true,
+      "detail": "R 11/30 Player17"
+    },
+    {
+      "ts": 1775161803269,
+      "action": "tod/rate",
+      "latencyMs": 1400,
+      "ok": true,
+      "detail": "R 11/30 Player18"
+    },
+    {
+      "ts": 1775161803346,
+      "action": "tod/rate",
+      "latencyMs": 1476,
+      "ok": true,
+      "detail": "R 11/30 Player19"
+    },
+    {
+      "ts": 1775161803420,
+      "action": "tod/rate",
+      "latencyMs": 1550,
+      "ok": true,
+      "detail": "R 11/30 Player20"
+    },
+    {
+      "ts": 1775161803486,
+      "action": "tod/rate",
+      "latencyMs": 1617,
+      "ok": true,
+      "detail": "R 11/30 Player21"
+    },
+    {
+      "ts": 1775161803541,
+      "action": "tod/rate",
+      "latencyMs": 1672,
+      "ok": true,
+      "detail": "R 11/30 Player22"
+    },
+    {
+      "ts": 1775161803607,
+      "action": "tod/rate",
+      "latencyMs": 1738,
+      "ok": true,
+      "detail": "R 11/30 Player23"
+    },
+    {
+      "ts": 1775161803685,
+      "action": "tod/rate",
+      "latencyMs": 1816,
+      "ok": true,
+      "detail": "R 11/30 Player24"
+    },
+    {
+      "ts": 1775161803745,
+      "action": "tod/rate",
+      "latencyMs": 1876,
+      "ok": true,
+      "detail": "R 11/30 Player25"
+    },
+    {
+      "ts": 1775161803812,
+      "action": "tod/rate",
+      "latencyMs": 1942,
+      "ok": true,
+      "detail": "R 11/30 Player26"
+    },
+    {
+      "ts": 1775161803875,
+      "action": "tod/rate",
+      "latencyMs": 2006,
+      "ok": true,
+      "detail": "R 11/30 Player27"
+    },
+    {
+      "ts": 1775161803979,
+      "action": "tod/rate",
+      "latencyMs": 2109,
+      "ok": true,
+      "detail": "R 11/30 Player28"
+    },
+    {
+      "ts": 1775161804049,
+      "action": "tod/rate",
+      "latencyMs": 2179,
+      "ok": true,
+      "detail": "R 11/30 Player29"
+    },
+    {
+      "ts": 1775161804109,
+      "action": "tod/advance",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R 11/30"
+    },
+    {
+      "ts": 1775161804188,
+      "action": "tod/poll",
+      "latencyMs": 78,
+      "ok": true,
+      "detail": "R 12/30"
+    },
+    {
+      "ts": 1775161804357,
+      "action": "tod/choice",
+      "latencyMs": 169,
+      "ok": true,
+      "detail": "R 12/30 Player13 → truth"
+    },
+    {
+      "ts": 1775161804416,
+      "action": "tod/poll",
+      "latencyMs": 58,
+      "ok": true,
+      "detail": "R 12/30 after-choice"
+    },
+    {
+      "ts": 1775161804568,
+      "action": "tod/response:text",
+      "latencyMs": 151,
+      "ok": true,
+      "detail": "R 12/30 Player13"
+    },
+    {
+      "ts": 1775161804647,
+      "action": "tod/poll",
+      "latencyMs": 79,
+      "ok": true,
+      "detail": "R 12/30 after-response"
+    },
+    {
+      "ts": 1775161804750,
+      "action": "tod/rate",
+      "latencyMs": 103,
+      "ok": true,
+      "detail": "R 12/30 StressHost"
+    },
+    {
+      "ts": 1775161804823,
+      "action": "tod/rate",
+      "latencyMs": 176,
+      "ok": true,
+      "detail": "R 12/30 Player1"
+    },
+    {
+      "ts": 1775161804896,
+      "action": "tod/rate",
+      "latencyMs": 248,
+      "ok": true,
+      "detail": "R 12/30 Player2"
+    },
+    {
+      "ts": 1775161804956,
+      "action": "tod/rate",
+      "latencyMs": 308,
+      "ok": true,
+      "detail": "R 12/30 Player3"
+    },
+    {
+      "ts": 1775161805023,
+      "action": "tod/rate",
+      "latencyMs": 376,
+      "ok": true,
+      "detail": "R 12/30 Player4"
+    },
+    {
+      "ts": 1775161805080,
+      "action": "tod/rate",
+      "latencyMs": 432,
+      "ok": true,
+      "detail": "R 12/30 Player5"
+    },
+    {
+      "ts": 1775161805145,
+      "action": "tod/rate",
+      "latencyMs": 498,
+      "ok": true,
+      "detail": "R 12/30 Player6"
+    },
+    {
+      "ts": 1775161805209,
+      "action": "tod/rate",
+      "latencyMs": 562,
+      "ok": true,
+      "detail": "R 12/30 Player7"
+    },
+    {
+      "ts": 1775161805276,
+      "action": "tod/rate",
+      "latencyMs": 628,
+      "ok": true,
+      "detail": "R 12/30 Player8"
+    },
+    {
+      "ts": 1775161805338,
+      "action": "tod/rate",
+      "latencyMs": 690,
+      "ok": true,
+      "detail": "R 12/30 Player9"
+    },
+    {
+      "ts": 1775161805400,
+      "action": "tod/rate",
+      "latencyMs": 752,
+      "ok": true,
+      "detail": "R 12/30 Player10"
+    },
+    {
+      "ts": 1775161805467,
+      "action": "tod/rate",
+      "latencyMs": 820,
+      "ok": true,
+      "detail": "R 12/30 Player11"
+    },
+    {
+      "ts": 1775161805559,
+      "action": "tod/rate",
+      "latencyMs": 912,
+      "ok": true,
+      "detail": "R 12/30 Player12"
+    },
+    {
+      "ts": 1775161805627,
+      "action": "tod/rate",
+      "latencyMs": 980,
+      "ok": true,
+      "detail": "R 12/30 Player14"
+    },
+    {
+      "ts": 1775161805692,
+      "action": "tod/rate",
+      "latencyMs": 1044,
+      "ok": true,
+      "detail": "R 12/30 Player15"
+    },
+    {
+      "ts": 1775161805770,
+      "action": "tod/rate",
+      "latencyMs": 1122,
+      "ok": true,
+      "detail": "R 12/30 Player16"
+    },
+    {
+      "ts": 1775161805835,
+      "action": "tod/rate",
+      "latencyMs": 1188,
+      "ok": true,
+      "detail": "R 12/30 Player17"
+    },
+    {
+      "ts": 1775161805897,
+      "action": "tod/rate",
+      "latencyMs": 1250,
+      "ok": true,
+      "detail": "R 12/30 Player18"
+    },
+    {
+      "ts": 1775161805969,
+      "action": "tod/rate",
+      "latencyMs": 1322,
+      "ok": true,
+      "detail": "R 12/30 Player19"
+    },
+    {
+      "ts": 1775161806033,
+      "action": "tod/rate",
+      "latencyMs": 1386,
+      "ok": true,
+      "detail": "R 12/30 Player20"
+    },
+    {
+      "ts": 1775161806098,
+      "action": "tod/rate",
+      "latencyMs": 1450,
+      "ok": true,
+      "detail": "R 12/30 Player21"
+    },
+    {
+      "ts": 1775161806156,
+      "action": "tod/rate",
+      "latencyMs": 1509,
+      "ok": true,
+      "detail": "R 12/30 Player22"
+    },
+    {
+      "ts": 1775161806220,
+      "action": "tod/rate",
+      "latencyMs": 1572,
+      "ok": true,
+      "detail": "R 12/30 Player23"
+    },
+    {
+      "ts": 1775161806278,
+      "action": "tod/rate",
+      "latencyMs": 1630,
+      "ok": true,
+      "detail": "R 12/30 Player24"
+    },
+    {
+      "ts": 1775161806350,
+      "action": "tod/rate",
+      "latencyMs": 1703,
+      "ok": true,
+      "detail": "R 12/30 Player25"
+    },
+    {
+      "ts": 1775161806438,
+      "action": "tod/rate",
+      "latencyMs": 1790,
+      "ok": true,
+      "detail": "R 12/30 Player26"
+    },
+    {
+      "ts": 1775161806505,
+      "action": "tod/rate",
+      "latencyMs": 1858,
+      "ok": true,
+      "detail": "R 12/30 Player27"
+    },
+    {
+      "ts": 1775161806578,
+      "action": "tod/rate",
+      "latencyMs": 1930,
+      "ok": true,
+      "detail": "R 12/30 Player28"
+    },
+    {
+      "ts": 1775161806659,
+      "action": "tod/rate",
+      "latencyMs": 2011,
+      "ok": true,
+      "detail": "R 12/30 Player29"
+    },
+    {
+      "ts": 1775161806734,
+      "action": "tod/advance",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 12/30"
+    },
+    {
+      "ts": 1775161806822,
+      "action": "tod/poll",
+      "latencyMs": 88,
+      "ok": true,
+      "detail": "R 13/30"
+    },
+    {
+      "ts": 1775161806893,
+      "action": "tod/choice",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 13/30 Player24 → dare"
+    },
+    {
+      "ts": 1775161806951,
+      "action": "tod/poll",
+      "latencyMs": 59,
+      "ok": true,
+      "detail": "R 13/30 after-choice"
+    },
+    {
+      "ts": 1775161807487,
+      "action": "tod/response:drawing",
+      "latencyMs": 532,
+      "ok": true,
+      "detail": "R 13/30 Player24 (13KB)"
+    },
+    {
+      "ts": 1775161807563,
+      "action": "tod/poll",
+      "latencyMs": 67,
+      "ok": true,
+      "detail": "R 13/30 after-response"
+    },
+    {
+      "ts": 1775161807624,
+      "action": "tod/rate",
+      "latencyMs": 61,
+      "ok": true,
+      "detail": "R 13/30 StressHost"
+    },
+    {
+      "ts": 1775161807692,
+      "action": "tod/rate",
+      "latencyMs": 128,
+      "ok": true,
+      "detail": "R 13/30 Player1"
+    },
+    {
+      "ts": 1775161807759,
+      "action": "tod/rate",
+      "latencyMs": 196,
+      "ok": true,
+      "detail": "R 13/30 Player2"
+    },
+    {
+      "ts": 1775161807839,
+      "action": "tod/rate",
+      "latencyMs": 276,
+      "ok": true,
+      "detail": "R 13/30 Player3"
+    },
+    {
+      "ts": 1775161808032,
+      "action": "tod/rate",
+      "latencyMs": 469,
+      "ok": true,
+      "detail": "R 13/30 Player4"
+    },
+    {
+      "ts": 1775161808111,
+      "action": "tod/rate",
+      "latencyMs": 548,
+      "ok": true,
+      "detail": "R 13/30 Player5"
+    },
+    {
+      "ts": 1775161808177,
+      "action": "tod/rate",
+      "latencyMs": 614,
+      "ok": true,
+      "detail": "R 13/30 Player6"
+    },
+    {
+      "ts": 1775161808377,
+      "action": "tod/rate",
+      "latencyMs": 814,
+      "ok": true,
+      "detail": "R 13/30 Player7"
+    },
+    {
+      "ts": 1775161808451,
+      "action": "tod/rate",
+      "latencyMs": 888,
+      "ok": true,
+      "detail": "R 13/30 Player8"
+    },
+    {
+      "ts": 1775161808520,
+      "action": "tod/rate",
+      "latencyMs": 957,
+      "ok": true,
+      "detail": "R 13/30 Player9"
+    },
+    {
+      "ts": 1775161808582,
+      "action": "tod/rate",
+      "latencyMs": 1018,
+      "ok": true,
+      "detail": "R 13/30 Player10"
+    },
+    {
+      "ts": 1775161808645,
+      "action": "tod/rate",
+      "latencyMs": 1081,
+      "ok": true,
+      "detail": "R 13/30 Player11"
+    },
+    {
+      "ts": 1775161808703,
+      "action": "tod/rate",
+      "latencyMs": 1140,
+      "ok": true,
+      "detail": "R 13/30 Player12"
+    },
+    {
+      "ts": 1775161808790,
+      "action": "tod/rate",
+      "latencyMs": 1226,
+      "ok": true,
+      "detail": "R 13/30 Player13"
+    },
+    {
+      "ts": 1775161808848,
+      "action": "tod/rate",
+      "latencyMs": 1284,
+      "ok": true,
+      "detail": "R 13/30 Player14"
+    },
+    {
+      "ts": 1775161808919,
+      "action": "tod/rate",
+      "latencyMs": 1356,
+      "ok": true,
+      "detail": "R 13/30 Player15"
+    },
+    {
+      "ts": 1775161808984,
+      "action": "tod/rate",
+      "latencyMs": 1420,
+      "ok": true,
+      "detail": "R 13/30 Player16"
+    },
+    {
+      "ts": 1775161809048,
+      "action": "tod/rate",
+      "latencyMs": 1484,
+      "ok": true,
+      "detail": "R 13/30 Player17"
+    },
+    {
+      "ts": 1775161809116,
+      "action": "tod/rate",
+      "latencyMs": 1552,
+      "ok": true,
+      "detail": "R 13/30 Player18"
+    },
+    {
+      "ts": 1775161809183,
+      "action": "tod/rate",
+      "latencyMs": 1620,
+      "ok": true,
+      "detail": "R 13/30 Player19"
+    },
+    {
+      "ts": 1775161809253,
+      "action": "tod/rate",
+      "latencyMs": 1690,
+      "ok": true,
+      "detail": "R 13/30 Player20"
+    },
+    {
+      "ts": 1775161809323,
+      "action": "tod/rate",
+      "latencyMs": 1760,
+      "ok": true,
+      "detail": "R 13/30 Player21"
+    },
+    {
+      "ts": 1775161809381,
+      "action": "tod/rate",
+      "latencyMs": 1818,
+      "ok": true,
+      "detail": "R 13/30 Player22"
+    },
+    {
+      "ts": 1775161809474,
+      "action": "tod/rate",
+      "latencyMs": 1911,
+      "ok": true,
+      "detail": "R 13/30 Player23"
+    },
+    {
+      "ts": 1775161809552,
+      "action": "tod/rate",
+      "latencyMs": 1989,
+      "ok": true,
+      "detail": "R 13/30 Player25"
+    },
+    {
+      "ts": 1775161809624,
+      "action": "tod/rate",
+      "latencyMs": 2060,
+      "ok": true,
+      "detail": "R 13/30 Player26"
+    },
+    {
+      "ts": 1775161809691,
+      "action": "tod/rate",
+      "latencyMs": 2128,
+      "ok": true,
+      "detail": "R 13/30 Player27"
+    },
+    {
+      "ts": 1775161809784,
+      "action": "tod/rate",
+      "latencyMs": 2220,
+      "ok": true,
+      "detail": "R 13/30 Player28"
+    },
+    {
+      "ts": 1775161809848,
+      "action": "tod/rate",
+      "latencyMs": 2284,
+      "ok": true,
+      "detail": "R 13/30 Player29"
+    },
+    {
+      "ts": 1775161811962,
+      "action": "tod/advance",
+      "latencyMs": 2115,
+      "ok": true,
+      "detail": "R 13/30"
+    },
+    {
+      "ts": 1775161812021,
+      "action": "tod/poll",
+      "latencyMs": 59,
+      "ok": true,
+      "detail": "R 14/30"
+    },
+    {
+      "ts": 1775161812095,
+      "action": "tod/choice",
+      "latencyMs": 74,
+      "ok": true,
+      "detail": "R 14/30 StressHost → truth"
+    },
+    {
+      "ts": 1775161812182,
+      "action": "tod/poll",
+      "latencyMs": 74,
+      "ok": true,
+      "detail": "R 14/30 after-choice"
+    },
+    {
+      "ts": 1775161812255,
+      "action": "tod/response:text",
+      "latencyMs": 73,
+      "ok": true,
+      "detail": "R 14/30 StressHost"
+    },
+    {
+      "ts": 1775161812333,
+      "action": "tod/poll",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "R 14/30 after-response"
+    },
+    {
+      "ts": 1775161812400,
+      "action": "tod/rate",
+      "latencyMs": 67,
+      "ok": true,
+      "detail": "R 14/30 Player1"
+    },
+    {
+      "ts": 1775161812472,
+      "action": "tod/rate",
+      "latencyMs": 138,
+      "ok": true,
+      "detail": "R 14/30 Player2"
+    },
+    {
+      "ts": 1775161812578,
+      "action": "tod/rate",
+      "latencyMs": 245,
+      "ok": true,
+      "detail": "R 14/30 Player3"
+    },
+    {
+      "ts": 1775161812642,
+      "action": "tod/rate",
+      "latencyMs": 309,
+      "ok": true,
+      "detail": "R 14/30 Player4"
+    },
+    {
+      "ts": 1775161812701,
+      "action": "tod/rate",
+      "latencyMs": 368,
+      "ok": true,
+      "detail": "R 14/30 Player5"
+    },
+    {
+      "ts": 1775161812775,
+      "action": "tod/rate",
+      "latencyMs": 441,
+      "ok": true,
+      "detail": "R 14/30 Player6"
+    },
+    {
+      "ts": 1775161812833,
+      "action": "tod/rate",
+      "latencyMs": 500,
+      "ok": true,
+      "detail": "R 14/30 Player7"
+    },
+    {
+      "ts": 1775161812898,
+      "action": "tod/rate",
+      "latencyMs": 565,
+      "ok": true,
+      "detail": "R 14/30 Player8"
+    },
+    {
+      "ts": 1775161813000,
+      "action": "tod/rate",
+      "latencyMs": 666,
+      "ok": true,
+      "detail": "R 14/30 Player9"
+    },
+    {
+      "ts": 1775161813064,
+      "action": "tod/rate",
+      "latencyMs": 730,
+      "ok": true,
+      "detail": "R 14/30 Player10"
+    },
+    {
+      "ts": 1775161813123,
+      "action": "tod/rate",
+      "latencyMs": 790,
+      "ok": true,
+      "detail": "R 14/30 Player11"
+    },
+    {
+      "ts": 1775161813190,
+      "action": "tod/rate",
+      "latencyMs": 857,
+      "ok": true,
+      "detail": "R 14/30 Player12"
+    },
+    {
+      "ts": 1775161813260,
+      "action": "tod/rate",
+      "latencyMs": 926,
+      "ok": true,
+      "detail": "R 14/30 Player13"
+    },
+    {
+      "ts": 1775161813317,
+      "action": "tod/rate",
+      "latencyMs": 984,
+      "ok": true,
+      "detail": "R 14/30 Player14"
+    },
+    {
+      "ts": 1775161813387,
+      "action": "tod/rate",
+      "latencyMs": 1054,
+      "ok": true,
+      "detail": "R 14/30 Player15"
+    },
+    {
+      "ts": 1775161813460,
+      "action": "tod/rate",
+      "latencyMs": 1126,
+      "ok": true,
+      "detail": "R 14/30 Player16"
+    },
+    {
+      "ts": 1775161813518,
+      "action": "tod/rate",
+      "latencyMs": 1185,
+      "ok": true,
+      "detail": "R 14/30 Player17"
+    },
+    {
+      "ts": 1775161813592,
+      "action": "tod/rate",
+      "latencyMs": 1259,
+      "ok": true,
+      "detail": "R 14/30 Player18"
+    },
+    {
+      "ts": 1775161813660,
+      "action": "tod/rate",
+      "latencyMs": 1326,
+      "ok": true,
+      "detail": "R 14/30 Player19"
+    },
+    {
+      "ts": 1775161813728,
+      "action": "tod/rate",
+      "latencyMs": 1394,
+      "ok": true,
+      "detail": "R 14/30 Player20"
+    },
+    {
+      "ts": 1775161813809,
+      "action": "tod/rate",
+      "latencyMs": 1475,
+      "ok": true,
+      "detail": "R 14/30 Player21"
+    },
+    {
+      "ts": 1775161813887,
+      "action": "tod/rate",
+      "latencyMs": 1554,
+      "ok": true,
+      "detail": "R 14/30 Player22"
+    },
+    {
+      "ts": 1775161813958,
+      "action": "tod/rate",
+      "latencyMs": 1624,
+      "ok": true,
+      "detail": "R 14/30 Player23"
+    },
+    {
+      "ts": 1775161814028,
+      "action": "tod/rate",
+      "latencyMs": 1695,
+      "ok": true,
+      "detail": "R 14/30 Player24"
+    },
+    {
+      "ts": 1775161814095,
+      "action": "tod/rate",
+      "latencyMs": 1762,
+      "ok": true,
+      "detail": "R 14/30 Player25"
+    },
+    {
+      "ts": 1775161814160,
+      "action": "tod/rate",
+      "latencyMs": 1827,
+      "ok": true,
+      "detail": "R 14/30 Player26"
+    },
+    {
+      "ts": 1775161814229,
+      "action": "tod/rate",
+      "latencyMs": 1895,
+      "ok": true,
+      "detail": "R 14/30 Player27"
+    },
+    {
+      "ts": 1775161814299,
+      "action": "tod/rate",
+      "latencyMs": 1966,
+      "ok": true,
+      "detail": "R 14/30 Player28"
+    },
+    {
+      "ts": 1775161814388,
+      "action": "tod/rate",
+      "latencyMs": 2054,
+      "ok": true,
+      "detail": "R 14/30 Player29"
+    },
+    {
+      "ts": 1775161814528,
+      "action": "tod/advance",
+      "latencyMs": 141,
+      "ok": true,
+      "detail": "R 14/30"
+    },
+    {
+      "ts": 1775161814601,
+      "action": "tod/poll",
+      "latencyMs": 73,
+      "ok": true,
+      "detail": "R 15/30"
+    },
+    {
+      "ts": 1775161814667,
+      "action": "tod/choice",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R 15/30 Player9 → dare"
+    },
+    {
+      "ts": 1775161814732,
+      "action": "tod/poll",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 15/30 after-choice"
+    },
+    {
+      "ts": 1775161815084,
+      "action": "tod/response:drawing",
+      "latencyMs": 350,
+      "ok": true,
+      "detail": "R 15/30 Player9 (13KB)"
+    },
+    {
+      "ts": 1775161815148,
+      "action": "tod/poll",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 15/30 after-response"
+    },
+    {
+      "ts": 1775161815244,
+      "action": "tod/rate",
+      "latencyMs": 96,
+      "ok": true,
+      "detail": "R 15/30 StressHost"
+    },
+    {
+      "ts": 1775161815307,
+      "action": "tod/rate",
+      "latencyMs": 159,
+      "ok": true,
+      "detail": "R 15/30 Player1"
+    },
+    {
+      "ts": 1775161815382,
+      "action": "tod/rate",
+      "latencyMs": 234,
+      "ok": true,
+      "detail": "R 15/30 Player2"
+    },
+    {
+      "ts": 1775161815440,
+      "action": "tod/rate",
+      "latencyMs": 292,
+      "ok": true,
+      "detail": "R 15/30 Player3"
+    },
+    {
+      "ts": 1775161815512,
+      "action": "tod/rate",
+      "latencyMs": 364,
+      "ok": true,
+      "detail": "R 15/30 Player4"
+    },
+    {
+      "ts": 1775161815588,
+      "action": "tod/rate",
+      "latencyMs": 439,
+      "ok": true,
+      "detail": "R 15/30 Player5"
+    },
+    {
+      "ts": 1775161815659,
+      "action": "tod/rate",
+      "latencyMs": 511,
+      "ok": true,
+      "detail": "R 15/30 Player6"
+    },
+    {
+      "ts": 1775161815725,
+      "action": "tod/rate",
+      "latencyMs": 577,
+      "ok": true,
+      "detail": "R 15/30 Player7"
+    },
+    {
+      "ts": 1775161815793,
+      "action": "tod/rate",
+      "latencyMs": 645,
+      "ok": true,
+      "detail": "R 15/30 Player8"
+    },
+    {
+      "ts": 1775161815871,
+      "action": "tod/rate",
+      "latencyMs": 723,
+      "ok": true,
+      "detail": "R 15/30 Player10"
+    },
+    {
+      "ts": 1775161815949,
+      "action": "tod/rate",
+      "latencyMs": 801,
+      "ok": true,
+      "detail": "R 15/30 Player11"
+    },
+    {
+      "ts": 1775161816015,
+      "action": "tod/rate",
+      "latencyMs": 867,
+      "ok": true,
+      "detail": "R 15/30 Player12"
+    },
+    {
+      "ts": 1775161816082,
+      "action": "tod/rate",
+      "latencyMs": 933,
+      "ok": true,
+      "detail": "R 15/30 Player13"
+    },
+    {
+      "ts": 1775161816161,
+      "action": "tod/rate",
+      "latencyMs": 1012,
+      "ok": true,
+      "detail": "R 15/30 Player14"
+    },
+    {
+      "ts": 1775161816233,
+      "action": "tod/rate",
+      "latencyMs": 1085,
+      "ok": true,
+      "detail": "R 15/30 Player15"
+    },
+    {
+      "ts": 1775161816300,
+      "action": "tod/rate",
+      "latencyMs": 1152,
+      "ok": true,
+      "detail": "R 15/30 Player16"
+    },
+    {
+      "ts": 1775161816360,
+      "action": "tod/rate",
+      "latencyMs": 1212,
+      "ok": true,
+      "detail": "R 15/30 Player17"
+    },
+    {
+      "ts": 1775161816424,
+      "action": "tod/rate",
+      "latencyMs": 1276,
+      "ok": true,
+      "detail": "R 15/30 Player18"
+    },
+    {
+      "ts": 1775161816486,
+      "action": "tod/rate",
+      "latencyMs": 1337,
+      "ok": true,
+      "detail": "R 15/30 Player19"
+    },
+    {
+      "ts": 1775161816556,
+      "action": "tod/rate",
+      "latencyMs": 1407,
+      "ok": true,
+      "detail": "R 15/30 Player20"
+    },
+    {
+      "ts": 1775161816628,
+      "action": "tod/rate",
+      "latencyMs": 1480,
+      "ok": true,
+      "detail": "R 15/30 Player21"
+    },
+    {
+      "ts": 1775161816693,
+      "action": "tod/rate",
+      "latencyMs": 1545,
+      "ok": true,
+      "detail": "R 15/30 Player22"
+    },
+    {
+      "ts": 1775161816755,
+      "action": "tod/rate",
+      "latencyMs": 1607,
+      "ok": true,
+      "detail": "R 15/30 Player23"
+    },
+    {
+      "ts": 1775161816824,
+      "action": "tod/rate",
+      "latencyMs": 1676,
+      "ok": true,
+      "detail": "R 15/30 Player24"
+    },
+    {
+      "ts": 1775161816884,
+      "action": "tod/rate",
+      "latencyMs": 1736,
+      "ok": true,
+      "detail": "R 15/30 Player25"
+    },
+    {
+      "ts": 1775161816955,
+      "action": "tod/rate",
+      "latencyMs": 1807,
+      "ok": true,
+      "detail": "R 15/30 Player26"
+    },
+    {
+      "ts": 1775161817016,
+      "action": "tod/rate",
+      "latencyMs": 1868,
+      "ok": true,
+      "detail": "R 15/30 Player27"
+    },
+    {
+      "ts": 1775161817076,
+      "action": "tod/rate",
+      "latencyMs": 1928,
+      "ok": true,
+      "detail": "R 15/30 Player28"
+    },
+    {
+      "ts": 1775161817154,
+      "action": "tod/rate",
+      "latencyMs": 2006,
+      "ok": true,
+      "detail": "R 15/30 Player29"
+    },
+    {
+      "ts": 1775161817215,
+      "action": "tod/advance",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R 15/30"
+    },
+    {
+      "ts": 1775161817274,
+      "action": "tod/poll",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R 16/30"
+    },
+    {
+      "ts": 1775161817360,
+      "action": "tod/choice",
+      "latencyMs": 86,
+      "ok": true,
+      "detail": "R 16/30 Player10 → dare"
+    },
+    {
+      "ts": 1775161817421,
+      "action": "tod/poll",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R 16/30 after-choice"
+    },
+    {
+      "ts": 1775161817717,
+      "action": "tod/response:drawing",
+      "latencyMs": 295,
+      "ok": true,
+      "detail": "R 16/30 Player10 (13KB)"
+    },
+    {
+      "ts": 1775161817792,
+      "action": "tod/poll",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R 16/30 after-response"
+    },
+    {
+      "ts": 1775161817862,
+      "action": "tod/rate",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 16/30 StressHost"
+    },
+    {
+      "ts": 1775161817963,
+      "action": "tod/rate",
+      "latencyMs": 171,
+      "ok": true,
+      "detail": "R 16/30 Player1"
+    },
+    {
+      "ts": 1775161818040,
+      "action": "tod/rate",
+      "latencyMs": 248,
+      "ok": true,
+      "detail": "R 16/30 Player2"
+    },
+    {
+      "ts": 1775161818100,
+      "action": "tod/rate",
+      "latencyMs": 308,
+      "ok": true,
+      "detail": "R 16/30 Player3"
+    },
+    {
+      "ts": 1775161818166,
+      "action": "tod/rate",
+      "latencyMs": 374,
+      "ok": true,
+      "detail": "R 16/30 Player4"
+    },
+    {
+      "ts": 1775161818229,
+      "action": "tod/rate",
+      "latencyMs": 437,
+      "ok": true,
+      "detail": "R 16/30 Player5"
+    },
+    {
+      "ts": 1775161818292,
+      "action": "tod/rate",
+      "latencyMs": 500,
+      "ok": true,
+      "detail": "R 16/30 Player6"
+    },
+    {
+      "ts": 1775161818359,
+      "action": "tod/rate",
+      "latencyMs": 567,
+      "ok": true,
+      "detail": "R 16/30 Player7"
+    },
+    {
+      "ts": 1775161818418,
+      "action": "tod/rate",
+      "latencyMs": 626,
+      "ok": true,
+      "detail": "R 16/30 Player8"
+    },
+    {
+      "ts": 1775161818486,
+      "action": "tod/rate",
+      "latencyMs": 694,
+      "ok": true,
+      "detail": "R 16/30 Player9"
+    },
+    {
+      "ts": 1775161818550,
+      "action": "tod/rate",
+      "latencyMs": 758,
+      "ok": true,
+      "detail": "R 16/30 Player11"
+    },
+    {
+      "ts": 1775161818612,
+      "action": "tod/rate",
+      "latencyMs": 820,
+      "ok": true,
+      "detail": "R 16/30 Player12"
+    },
+    {
+      "ts": 1775161818692,
+      "action": "tod/rate",
+      "latencyMs": 900,
+      "ok": true,
+      "detail": "R 16/30 Player13"
+    },
+    {
+      "ts": 1775161818752,
+      "action": "tod/rate",
+      "latencyMs": 960,
+      "ok": true,
+      "detail": "R 16/30 Player14"
+    },
+    {
+      "ts": 1775161818814,
+      "action": "tod/rate",
+      "latencyMs": 1022,
+      "ok": true,
+      "detail": "R 16/30 Player15"
+    },
+    {
+      "ts": 1775161818891,
+      "action": "tod/rate",
+      "latencyMs": 1099,
+      "ok": true,
+      "detail": "R 16/30 Player16"
+    },
+    {
+      "ts": 1775161818951,
+      "action": "tod/rate",
+      "latencyMs": 1160,
+      "ok": true,
+      "detail": "R 16/30 Player17"
+    },
+    {
+      "ts": 1775161819014,
+      "action": "tod/rate",
+      "latencyMs": 1222,
+      "ok": true,
+      "detail": "R 16/30 Player18"
+    },
+    {
+      "ts": 1775161819072,
+      "action": "tod/rate",
+      "latencyMs": 1280,
+      "ok": true,
+      "detail": "R 16/30 Player19"
+    },
+    {
+      "ts": 1775161819139,
+      "action": "tod/rate",
+      "latencyMs": 1348,
+      "ok": true,
+      "detail": "R 16/30 Player20"
+    },
+    {
+      "ts": 1775161819226,
+      "action": "tod/rate",
+      "latencyMs": 1434,
+      "ok": true,
+      "detail": "R 16/30 Player21"
+    },
+    {
+      "ts": 1775161819282,
+      "action": "tod/rate",
+      "latencyMs": 1490,
+      "ok": true,
+      "detail": "R 16/30 Player22"
+    },
+    {
+      "ts": 1775161819339,
+      "action": "tod/rate",
+      "latencyMs": 1548,
+      "ok": true,
+      "detail": "R 16/30 Player23"
+    },
+    {
+      "ts": 1775161819400,
+      "action": "tod/rate",
+      "latencyMs": 1608,
+      "ok": true,
+      "detail": "R 16/30 Player24"
+    },
+    {
+      "ts": 1775161819475,
+      "action": "tod/rate",
+      "latencyMs": 1683,
+      "ok": true,
+      "detail": "R 16/30 Player25"
+    },
+    {
+      "ts": 1775161819536,
+      "action": "tod/rate",
+      "latencyMs": 1744,
+      "ok": true,
+      "detail": "R 16/30 Player26"
+    },
+    {
+      "ts": 1775161819605,
+      "action": "tod/rate",
+      "latencyMs": 1813,
+      "ok": true,
+      "detail": "R 16/30 Player27"
+    },
+    {
+      "ts": 1775161819670,
+      "action": "tod/rate",
+      "latencyMs": 1878,
+      "ok": true,
+      "detail": "R 16/30 Player28"
+    },
+    {
+      "ts": 1775161819730,
+      "action": "tod/rate",
+      "latencyMs": 1938,
+      "ok": true,
+      "detail": "R 16/30 Player29"
+    },
+    {
+      "ts": 1775161821786,
+      "action": "tod/advance",
+      "latencyMs": 2049,
+      "ok": true,
+      "detail": "R 16/30"
+    },
+    {
+      "ts": 1775161821843,
+      "action": "tod/poll",
+      "latencyMs": 56,
+      "ok": true,
+      "detail": "R 17/30"
+    },
+    {
+      "ts": 1775161821911,
+      "action": "tod/choice",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 17/30 Player5 → truth"
+    },
+    {
+      "ts": 1775161821980,
+      "action": "tod/poll",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 17/30 after-choice"
+    },
+    {
+      "ts": 1775161822045,
+      "action": "tod/response:text",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R 17/30 Player5"
+    },
+    {
+      "ts": 1775161822107,
+      "action": "tod/poll",
+      "latencyMs": 61,
+      "ok": true,
+      "detail": "R 17/30 after-response"
+    },
+    {
+      "ts": 1775161822164,
+      "action": "tod/rate",
+      "latencyMs": 57,
+      "ok": true,
+      "detail": "R 17/30 StressHost"
+    },
+    {
+      "ts": 1775161822232,
+      "action": "tod/rate",
+      "latencyMs": 125,
+      "ok": true,
+      "detail": "R 17/30 Player1"
+    },
+    {
+      "ts": 1775161822296,
+      "action": "tod/rate",
+      "latencyMs": 189,
+      "ok": true,
+      "detail": "R 17/30 Player2"
+    },
+    {
+      "ts": 1775161822358,
+      "action": "tod/rate",
+      "latencyMs": 251,
+      "ok": true,
+      "detail": "R 17/30 Player3"
+    },
+    {
+      "ts": 1775161822422,
+      "action": "tod/rate",
+      "latencyMs": 315,
+      "ok": true,
+      "detail": "R 17/30 Player4"
+    },
+    {
+      "ts": 1775161822480,
+      "action": "tod/rate",
+      "latencyMs": 373,
+      "ok": true,
+      "detail": "R 17/30 Player6"
+    },
+    {
+      "ts": 1775161822551,
+      "action": "tod/rate",
+      "latencyMs": 444,
+      "ok": true,
+      "detail": "R 17/30 Player7"
+    },
+    {
+      "ts": 1775161822636,
+      "action": "tod/rate",
+      "latencyMs": 529,
+      "ok": true,
+      "detail": "R 17/30 Player8"
+    },
+    {
+      "ts": 1775161822694,
+      "action": "tod/rate",
+      "latencyMs": 587,
+      "ok": true,
+      "detail": "R 17/30 Player9"
+    },
+    {
+      "ts": 1775161822778,
+      "action": "tod/rate",
+      "latencyMs": 671,
+      "ok": true,
+      "detail": "R 17/30 Player10"
+    },
+    {
+      "ts": 1775161822854,
+      "action": "tod/rate",
+      "latencyMs": 747,
+      "ok": true,
+      "detail": "R 17/30 Player11"
+    },
+    {
+      "ts": 1775161822912,
+      "action": "tod/rate",
+      "latencyMs": 805,
+      "ok": true,
+      "detail": "R 17/30 Player12"
+    },
+    {
+      "ts": 1775161822969,
+      "action": "tod/rate",
+      "latencyMs": 862,
+      "ok": true,
+      "detail": "R 17/30 Player13"
+    },
+    {
+      "ts": 1775161823030,
+      "action": "tod/rate",
+      "latencyMs": 923,
+      "ok": true,
+      "detail": "R 17/30 Player14"
+    },
+    {
+      "ts": 1775161823100,
+      "action": "tod/rate",
+      "latencyMs": 993,
+      "ok": true,
+      "detail": "R 17/30 Player15"
+    },
+    {
+      "ts": 1775161823158,
+      "action": "tod/rate",
+      "latencyMs": 1051,
+      "ok": true,
+      "detail": "R 17/30 Player16"
+    },
+    {
+      "ts": 1775161823222,
+      "action": "tod/rate",
+      "latencyMs": 1115,
+      "ok": true,
+      "detail": "R 17/30 Player17"
+    },
+    {
+      "ts": 1775161823292,
+      "action": "tod/rate",
+      "latencyMs": 1185,
+      "ok": true,
+      "detail": "R 17/30 Player18"
+    },
+    {
+      "ts": 1775161823350,
+      "action": "tod/rate",
+      "latencyMs": 1243,
+      "ok": true,
+      "detail": "R 17/30 Player19"
+    },
+    {
+      "ts": 1775161823435,
+      "action": "tod/rate",
+      "latencyMs": 1328,
+      "ok": true,
+      "detail": "R 17/30 Player20"
+    },
+    {
+      "ts": 1775161823508,
+      "action": "tod/rate",
+      "latencyMs": 1401,
+      "ok": true,
+      "detail": "R 17/30 Player21"
+    },
+    {
+      "ts": 1775161823567,
+      "action": "tod/rate",
+      "latencyMs": 1460,
+      "ok": true,
+      "detail": "R 17/30 Player22"
+    },
+    {
+      "ts": 1775161823637,
+      "action": "tod/rate",
+      "latencyMs": 1530,
+      "ok": true,
+      "detail": "R 17/30 Player23"
+    },
+    {
+      "ts": 1775161823698,
+      "action": "tod/rate",
+      "latencyMs": 1591,
+      "ok": true,
+      "detail": "R 17/30 Player24"
+    },
+    {
+      "ts": 1775161823762,
+      "action": "tod/rate",
+      "latencyMs": 1655,
+      "ok": true,
+      "detail": "R 17/30 Player25"
+    },
+    {
+      "ts": 1775161823822,
+      "action": "tod/rate",
+      "latencyMs": 1715,
+      "ok": true,
+      "detail": "R 17/30 Player26"
+    },
+    {
+      "ts": 1775161823882,
+      "action": "tod/rate",
+      "latencyMs": 1775,
+      "ok": true,
+      "detail": "R 17/30 Player27"
+    },
+    {
+      "ts": 1775161823950,
+      "action": "tod/rate",
+      "latencyMs": 1843,
+      "ok": true,
+      "detail": "R 17/30 Player28"
+    },
+    {
+      "ts": 1775161824016,
+      "action": "tod/rate",
+      "latencyMs": 1909,
+      "ok": true,
+      "detail": "R 17/30 Player29"
+    },
+    {
+      "ts": 1775161824079,
+      "action": "tod/advance",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 17/30"
+    },
+    {
+      "ts": 1775161824143,
+      "action": "tod/poll",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 18/30"
+    },
+    {
+      "ts": 1775161824260,
+      "action": "tod/choice",
+      "latencyMs": 101,
+      "ok": true,
+      "detail": "R 18/30 Player3 → dare"
+    },
+    {
+      "ts": 1775161824337,
+      "action": "tod/poll",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "R 18/30 after-choice"
+    },
+    {
+      "ts": 1775161824406,
+      "action": "tod/response:text",
+      "latencyMs": 69,
+      "ok": true,
+      "detail": "R 18/30 Player3"
+    },
+    {
+      "ts": 1775161824472,
+      "action": "tod/poll",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R 18/30 after-response"
+    },
+    {
+      "ts": 1775161824538,
+      "action": "tod/rate",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R 18/30 StressHost"
+    },
+    {
+      "ts": 1775161824600,
+      "action": "tod/rate",
+      "latencyMs": 128,
+      "ok": true,
+      "detail": "R 18/30 Player1"
+    },
+    {
+      "ts": 1775161824672,
+      "action": "tod/rate",
+      "latencyMs": 200,
+      "ok": true,
+      "detail": "R 18/30 Player2"
+    },
+    {
+      "ts": 1775161824736,
+      "action": "tod/rate",
+      "latencyMs": 263,
+      "ok": true,
+      "detail": "R 18/30 Player4"
+    },
+    {
+      "ts": 1775161824794,
+      "action": "tod/rate",
+      "latencyMs": 322,
+      "ok": true,
+      "detail": "R 18/30 Player5"
+    },
+    {
+      "ts": 1775161824860,
+      "action": "tod/rate",
+      "latencyMs": 387,
+      "ok": true,
+      "detail": "R 18/30 Player6"
+    },
+    {
+      "ts": 1775161824934,
+      "action": "tod/rate",
+      "latencyMs": 461,
+      "ok": true,
+      "detail": "R 18/30 Player7"
+    },
+    {
+      "ts": 1775161825040,
+      "action": "tod/rate",
+      "latencyMs": 568,
+      "ok": true,
+      "detail": "R 18/30 Player8"
+    },
+    {
+      "ts": 1775161825106,
+      "action": "tod/rate",
+      "latencyMs": 634,
+      "ok": true,
+      "detail": "R 18/30 Player9"
+    },
+    {
+      "ts": 1775161825166,
+      "action": "tod/rate",
+      "latencyMs": 694,
+      "ok": true,
+      "detail": "R 18/30 Player10"
+    },
+    {
+      "ts": 1775161825232,
+      "action": "tod/rate",
+      "latencyMs": 760,
+      "ok": true,
+      "detail": "R 18/30 Player11"
+    },
+    {
+      "ts": 1775161825306,
+      "action": "tod/rate",
+      "latencyMs": 834,
+      "ok": true,
+      "detail": "R 18/30 Player12"
+    },
+    {
+      "ts": 1775161825368,
+      "action": "tod/rate",
+      "latencyMs": 896,
+      "ok": true,
+      "detail": "R 18/30 Player13"
+    },
+    {
+      "ts": 1775161825426,
+      "action": "tod/rate",
+      "latencyMs": 954,
+      "ok": true,
+      "detail": "R 18/30 Player14"
+    },
+    {
+      "ts": 1775161825508,
+      "action": "tod/rate",
+      "latencyMs": 1036,
+      "ok": true,
+      "detail": "R 18/30 Player15"
+    },
+    {
+      "ts": 1775161825573,
+      "action": "tod/rate",
+      "latencyMs": 1101,
+      "ok": true,
+      "detail": "R 18/30 Player16"
+    },
+    {
+      "ts": 1775161825698,
+      "action": "tod/rate",
+      "latencyMs": 1226,
+      "ok": true,
+      "detail": "R 18/30 Player17"
+    },
+    {
+      "ts": 1775161825754,
+      "action": "tod/rate",
+      "latencyMs": 1282,
+      "ok": true,
+      "detail": "R 18/30 Player18"
+    },
+    {
+      "ts": 1775161825828,
+      "action": "tod/rate",
+      "latencyMs": 1355,
+      "ok": true,
+      "detail": "R 18/30 Player19"
+    },
+    {
+      "ts": 1775161825896,
+      "action": "tod/rate",
+      "latencyMs": 1424,
+      "ok": true,
+      "detail": "R 18/30 Player20"
+    },
+    {
+      "ts": 1775161825952,
+      "action": "tod/rate",
+      "latencyMs": 1480,
+      "ok": true,
+      "detail": "R 18/30 Player21"
+    },
+    {
+      "ts": 1775161826018,
+      "action": "tod/rate",
+      "latencyMs": 1545,
+      "ok": true,
+      "detail": "R 18/30 Player22"
+    },
+    {
+      "ts": 1775161826087,
+      "action": "tod/rate",
+      "latencyMs": 1615,
+      "ok": true,
+      "detail": "R 18/30 Player23"
+    },
+    {
+      "ts": 1775161826160,
+      "action": "tod/rate",
+      "latencyMs": 1688,
+      "ok": true,
+      "detail": "R 18/30 Player24"
+    },
+    {
+      "ts": 1775161826265,
+      "action": "tod/rate",
+      "latencyMs": 1793,
+      "ok": true,
+      "detail": "R 18/30 Player25"
+    },
+    {
+      "ts": 1775161826363,
+      "action": "tod/rate",
+      "latencyMs": 1891,
+      "ok": true,
+      "detail": "R 18/30 Player26"
+    },
+    {
+      "ts": 1775161826434,
+      "action": "tod/rate",
+      "latencyMs": 1962,
+      "ok": true,
+      "detail": "R 18/30 Player27"
+    },
+    {
+      "ts": 1775161826501,
+      "action": "tod/rate",
+      "latencyMs": 2029,
+      "ok": true,
+      "detail": "R 18/30 Player28"
+    },
+    {
+      "ts": 1775161826565,
+      "action": "tod/rate",
+      "latencyMs": 2093,
+      "ok": true,
+      "detail": "R 18/30 Player29"
+    },
+    {
+      "ts": 1775161826661,
+      "action": "tod/advance",
+      "latencyMs": 89,
+      "ok": true,
+      "detail": "R 18/30"
+    },
+    {
+      "ts": 1775161826763,
+      "action": "tod/poll",
+      "latencyMs": 101,
+      "ok": true,
+      "detail": "R 19/30"
+    },
+    {
+      "ts": 1775161826848,
+      "action": "tod/choice",
+      "latencyMs": 74,
+      "ok": true,
+      "detail": "R 19/30 Player11 → truth"
+    },
+    {
+      "ts": 1775161826913,
+      "action": "tod/poll",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R 19/30 after-choice"
+    },
+    {
+      "ts": 1775161826985,
+      "action": "tod/response:text",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "R 19/30 Player11"
+    },
+    {
+      "ts": 1775161827064,
+      "action": "tod/poll",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "R 19/30 after-response"
+    },
+    {
+      "ts": 1775161827120,
+      "action": "tod/rate",
+      "latencyMs": 55,
+      "ok": true,
+      "detail": "R 19/30 StressHost"
+    },
+    {
+      "ts": 1775161827187,
+      "action": "tod/rate",
+      "latencyMs": 122,
+      "ok": true,
+      "detail": "R 19/30 Player1"
+    },
+    {
+      "ts": 1775161827252,
+      "action": "tod/rate",
+      "latencyMs": 187,
+      "ok": true,
+      "detail": "R 19/30 Player2"
+    },
+    {
+      "ts": 1775161827316,
+      "action": "tod/rate",
+      "latencyMs": 251,
+      "ok": true,
+      "detail": "R 19/30 Player3"
+    },
+    {
+      "ts": 1775161827384,
+      "action": "tod/rate",
+      "latencyMs": 319,
+      "ok": true,
+      "detail": "R 19/30 Player4"
+    },
+    {
+      "ts": 1775161827445,
+      "action": "tod/rate",
+      "latencyMs": 381,
+      "ok": true,
+      "detail": "R 19/30 Player5"
+    },
+    {
+      "ts": 1775161827508,
+      "action": "tod/rate",
+      "latencyMs": 443,
+      "ok": true,
+      "detail": "R 19/30 Player6"
+    },
+    {
+      "ts": 1775161827607,
+      "action": "tod/rate",
+      "latencyMs": 542,
+      "ok": true,
+      "detail": "R 19/30 Player7"
+    },
+    {
+      "ts": 1775161827672,
+      "action": "tod/rate",
+      "latencyMs": 607,
+      "ok": true,
+      "detail": "R 19/30 Player8"
+    },
+    {
+      "ts": 1775161827732,
+      "action": "tod/rate",
+      "latencyMs": 667,
+      "ok": true,
+      "detail": "R 19/30 Player9"
+    },
+    {
+      "ts": 1775161827794,
+      "action": "tod/rate",
+      "latencyMs": 729,
+      "ok": true,
+      "detail": "R 19/30 Player10"
+    },
+    {
+      "ts": 1775161827865,
+      "action": "tod/rate",
+      "latencyMs": 800,
+      "ok": true,
+      "detail": "R 19/30 Player12"
+    },
+    {
+      "ts": 1775161827932,
+      "action": "tod/rate",
+      "latencyMs": 867,
+      "ok": true,
+      "detail": "R 19/30 Player13"
+    },
+    {
+      "ts": 1775161827996,
+      "action": "tod/rate",
+      "latencyMs": 931,
+      "ok": true,
+      "detail": "R 19/30 Player14"
+    },
+    {
+      "ts": 1775161828078,
+      "action": "tod/rate",
+      "latencyMs": 1013,
+      "ok": true,
+      "detail": "R 19/30 Player15"
+    },
+    {
+      "ts": 1775161828136,
+      "action": "tod/rate",
+      "latencyMs": 1071,
+      "ok": true,
+      "detail": "R 19/30 Player16"
+    },
+    {
+      "ts": 1775161828202,
+      "action": "tod/rate",
+      "latencyMs": 1137,
+      "ok": true,
+      "detail": "R 19/30 Player17"
+    },
+    {
+      "ts": 1775161828308,
+      "action": "tod/rate",
+      "latencyMs": 1243,
+      "ok": true,
+      "detail": "R 19/30 Player18"
+    },
+    {
+      "ts": 1775161828382,
+      "action": "tod/rate",
+      "latencyMs": 1317,
+      "ok": true,
+      "detail": "R 19/30 Player19"
+    },
+    {
+      "ts": 1775161828440,
+      "action": "tod/rate",
+      "latencyMs": 1375,
+      "ok": true,
+      "detail": "R 19/30 Player20"
+    },
+    {
+      "ts": 1775161828502,
+      "action": "tod/rate",
+      "latencyMs": 1437,
+      "ok": true,
+      "detail": "R 19/30 Player21"
+    },
+    {
+      "ts": 1775161828564,
+      "action": "tod/rate",
+      "latencyMs": 1499,
+      "ok": true,
+      "detail": "R 19/30 Player22"
+    },
+    {
+      "ts": 1775161828645,
+      "action": "tod/rate",
+      "latencyMs": 1580,
+      "ok": true,
+      "detail": "R 19/30 Player23"
+    },
+    {
+      "ts": 1775161828702,
+      "action": "tod/rate",
+      "latencyMs": 1637,
+      "ok": true,
+      "detail": "R 19/30 Player24"
+    },
+    {
+      "ts": 1775161828762,
+      "action": "tod/rate",
+      "latencyMs": 1697,
+      "ok": true,
+      "detail": "R 19/30 Player25"
+    },
+    {
+      "ts": 1775161828844,
+      "action": "tod/rate",
+      "latencyMs": 1779,
+      "ok": true,
+      "detail": "R 19/30 Player26"
+    },
+    {
+      "ts": 1775161828927,
+      "action": "tod/rate",
+      "latencyMs": 1862,
+      "ok": true,
+      "detail": "R 19/30 Player27"
+    },
+    {
+      "ts": 1775161828981,
+      "action": "tod/rate",
+      "latencyMs": 1917,
+      "ok": true,
+      "detail": "R 19/30 Player28"
+    },
+    {
+      "ts": 1775161829066,
+      "action": "tod/rate",
+      "latencyMs": 2001,
+      "ok": true,
+      "detail": "R 19/30 Player29"
+    },
+    {
+      "ts": 1775161831106,
+      "action": "tod/advance",
+      "latencyMs": 2040,
+      "ok": true,
+      "detail": "R 19/30"
+    },
+    {
+      "ts": 1775161831174,
+      "action": "tod/poll",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 20/30"
+    },
+    {
+      "ts": 1775161831308,
+      "action": "tod/choice",
+      "latencyMs": 121,
+      "ok": true,
+      "detail": "R 20/30 Player8 → dare"
+    },
+    {
+      "ts": 1775161831373,
+      "action": "tod/poll",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R 20/30 after-choice"
+    },
+    {
+      "ts": 1775161831458,
+      "action": "tod/response:text",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 20/30 Player8"
+    },
+    {
+      "ts": 1775161831544,
+      "action": "tod/poll",
+      "latencyMs": 85,
+      "ok": true,
+      "detail": "R 20/30 after-response"
+    },
+    {
+      "ts": 1775161831610,
+      "action": "tod/rate",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R 20/30 StressHost"
+    },
+    {
+      "ts": 1775161831678,
+      "action": "tod/rate",
+      "latencyMs": 134,
+      "ok": true,
+      "detail": "R 20/30 Player1"
+    },
+    {
+      "ts": 1775161831736,
+      "action": "tod/rate",
+      "latencyMs": 192,
+      "ok": true,
+      "detail": "R 20/30 Player2"
+    },
+    {
+      "ts": 1775161831811,
+      "action": "tod/rate",
+      "latencyMs": 267,
+      "ok": true,
+      "detail": "R 20/30 Player3"
+    },
+    {
+      "ts": 1775161831948,
+      "action": "tod/rate",
+      "latencyMs": 404,
+      "ok": true,
+      "detail": "R 20/30 Player4"
+    },
+    {
+      "ts": 1775161832012,
+      "action": "tod/rate",
+      "latencyMs": 468,
+      "ok": true,
+      "detail": "R 20/30 Player5"
+    },
+    {
+      "ts": 1775161832076,
+      "action": "tod/rate",
+      "latencyMs": 532,
+      "ok": true,
+      "detail": "R 20/30 Player6"
+    },
+    {
+      "ts": 1775161832146,
+      "action": "tod/rate",
+      "latencyMs": 602,
+      "ok": true,
+      "detail": "R 20/30 Player7"
+    },
+    {
+      "ts": 1775161832210,
+      "action": "tod/rate",
+      "latencyMs": 666,
+      "ok": true,
+      "detail": "R 20/30 Player9"
+    },
+    {
+      "ts": 1775161832272,
+      "action": "tod/rate",
+      "latencyMs": 728,
+      "ok": true,
+      "detail": "R 20/30 Player10"
+    },
+    {
+      "ts": 1775161832340,
+      "action": "tod/rate",
+      "latencyMs": 796,
+      "ok": true,
+      "detail": "R 20/30 Player11"
+    },
+    {
+      "ts": 1775161832409,
+      "action": "tod/rate",
+      "latencyMs": 865,
+      "ok": true,
+      "detail": "R 20/30 Player12"
+    },
+    {
+      "ts": 1775161832476,
+      "action": "tod/rate",
+      "latencyMs": 932,
+      "ok": true,
+      "detail": "R 20/30 Player13"
+    },
+    {
+      "ts": 1775161832570,
+      "action": "tod/rate",
+      "latencyMs": 1026,
+      "ok": true,
+      "detail": "R 20/30 Player14"
+    },
+    {
+      "ts": 1775161832640,
+      "action": "tod/rate",
+      "latencyMs": 1096,
+      "ok": true,
+      "detail": "R 20/30 Player15"
+    },
+    {
+      "ts": 1775161832702,
+      "action": "tod/rate",
+      "latencyMs": 1158,
+      "ok": true,
+      "detail": "R 20/30 Player16"
+    },
+    {
+      "ts": 1775161832766,
+      "action": "tod/rate",
+      "latencyMs": 1222,
+      "ok": true,
+      "detail": "R 20/30 Player17"
+    },
+    {
+      "ts": 1775161832838,
+      "action": "tod/rate",
+      "latencyMs": 1294,
+      "ok": true,
+      "detail": "R 20/30 Player18"
+    },
+    {
+      "ts": 1775161832912,
+      "action": "tod/rate",
+      "latencyMs": 1368,
+      "ok": true,
+      "detail": "R 20/30 Player19"
+    },
+    {
+      "ts": 1775161832976,
+      "action": "tod/rate",
+      "latencyMs": 1432,
+      "ok": true,
+      "detail": "R 20/30 Player20"
+    },
+    {
+      "ts": 1775161833056,
+      "action": "tod/rate",
+      "latencyMs": 1512,
+      "ok": true,
+      "detail": "R 20/30 Player21"
+    },
+    {
+      "ts": 1775161833119,
+      "action": "tod/rate",
+      "latencyMs": 1575,
+      "ok": true,
+      "detail": "R 20/30 Player22"
+    },
+    {
+      "ts": 1775161833186,
+      "action": "tod/rate",
+      "latencyMs": 1642,
+      "ok": true,
+      "detail": "R 20/30 Player23"
+    },
+    {
+      "ts": 1775161833260,
+      "action": "tod/rate",
+      "latencyMs": 1716,
+      "ok": true,
+      "detail": "R 20/30 Player24"
+    },
+    {
+      "ts": 1775161833330,
+      "action": "tod/rate",
+      "latencyMs": 1786,
+      "ok": true,
+      "detail": "R 20/30 Player25"
+    },
+    {
+      "ts": 1775161833386,
+      "action": "tod/rate",
+      "latencyMs": 1842,
+      "ok": true,
+      "detail": "R 20/30 Player26"
+    },
+    {
+      "ts": 1775161833454,
+      "action": "tod/rate",
+      "latencyMs": 1910,
+      "ok": true,
+      "detail": "R 20/30 Player27"
+    },
+    {
+      "ts": 1775161833524,
+      "action": "tod/rate",
+      "latencyMs": 1980,
+      "ok": true,
+      "detail": "R 20/30 Player28"
+    },
+    {
+      "ts": 1775161833591,
+      "action": "tod/rate",
+      "latencyMs": 2047,
+      "ok": true,
+      "detail": "R 20/30 Player29"
+    },
+    {
+      "ts": 1775161833675,
+      "action": "tod/advance",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "R 20/30"
+    },
+    {
+      "ts": 1775161833736,
+      "action": "tod/poll",
+      "latencyMs": 60,
+      "ok": true,
+      "detail": "R 21/30"
+    },
+    {
+      "ts": 1775161833812,
+      "action": "tod/choice",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "R 21/30 Player18 → dare"
+    },
+    {
+      "ts": 1775161833883,
+      "action": "tod/poll",
+      "latencyMs": 71,
+      "ok": true,
+      "detail": "R 21/30 after-choice"
+    },
+    {
+      "ts": 1775161833949,
+      "action": "tod/response:text",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R 21/30 Player18"
+    },
+    {
+      "ts": 1775161834024,
+      "action": "tod/poll",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 21/30 after-response"
+    },
+    {
+      "ts": 1775161834092,
+      "action": "tod/rate",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 21/30 StressHost"
+    },
+    {
+      "ts": 1775161834153,
+      "action": "tod/rate",
+      "latencyMs": 129,
+      "ok": true,
+      "detail": "R 21/30 Player1"
+    },
+    {
+      "ts": 1775161834208,
+      "action": "tod/rate",
+      "latencyMs": 184,
+      "ok": true,
+      "detail": "R 21/30 Player2"
+    },
+    {
+      "ts": 1775161834306,
+      "action": "tod/rate",
+      "latencyMs": 282,
+      "ok": true,
+      "detail": "R 21/30 Player3"
+    },
+    {
+      "ts": 1775161834448,
+      "action": "tod/rate",
+      "latencyMs": 424,
+      "ok": true,
+      "detail": "R 21/30 Player4"
+    },
+    {
+      "ts": 1775161834558,
+      "action": "tod/rate",
+      "latencyMs": 534,
+      "ok": true,
+      "detail": "R 21/30 Player5"
+    },
+    {
+      "ts": 1775161834642,
+      "action": "tod/rate",
+      "latencyMs": 618,
+      "ok": true,
+      "detail": "R 21/30 Player6"
+    },
+    {
+      "ts": 1775161834703,
+      "action": "tod/rate",
+      "latencyMs": 679,
+      "ok": true,
+      "detail": "R 21/30 Player7"
+    },
+    {
+      "ts": 1775161834771,
+      "action": "tod/rate",
+      "latencyMs": 747,
+      "ok": true,
+      "detail": "R 21/30 Player8"
+    },
+    {
+      "ts": 1775161834836,
+      "action": "tod/rate",
+      "latencyMs": 812,
+      "ok": true,
+      "detail": "R 21/30 Player9"
+    },
+    {
+      "ts": 1775161834899,
+      "action": "tod/rate",
+      "latencyMs": 875,
+      "ok": true,
+      "detail": "R 21/30 Player10"
+    },
+    {
+      "ts": 1775161834964,
+      "action": "tod/rate",
+      "latencyMs": 940,
+      "ok": true,
+      "detail": "R 21/30 Player11"
+    },
+    {
+      "ts": 1775161835028,
+      "action": "tod/rate",
+      "latencyMs": 1004,
+      "ok": true,
+      "detail": "R 21/30 Player12"
+    },
+    {
+      "ts": 1775161835116,
+      "action": "tod/rate",
+      "latencyMs": 1092,
+      "ok": true,
+      "detail": "R 21/30 Player13"
+    },
+    {
+      "ts": 1775161835188,
+      "action": "tod/rate",
+      "latencyMs": 1164,
+      "ok": true,
+      "detail": "R 21/30 Player14"
+    },
+    {
+      "ts": 1775161835256,
+      "action": "tod/rate",
+      "latencyMs": 1232,
+      "ok": true,
+      "detail": "R 21/30 Player15"
+    },
+    {
+      "ts": 1775161835320,
+      "action": "tod/rate",
+      "latencyMs": 1296,
+      "ok": true,
+      "detail": "R 21/30 Player16"
+    },
+    {
+      "ts": 1775161835382,
+      "action": "tod/rate",
+      "latencyMs": 1358,
+      "ok": true,
+      "detail": "R 21/30 Player17"
+    },
+    {
+      "ts": 1775161835445,
+      "action": "tod/rate",
+      "latencyMs": 1420,
+      "ok": true,
+      "detail": "R 21/30 Player19"
+    },
+    {
+      "ts": 1775161835518,
+      "action": "tod/rate",
+      "latencyMs": 1494,
+      "ok": true,
+      "detail": "R 21/30 Player20"
+    },
+    {
+      "ts": 1775161835587,
+      "action": "tod/rate",
+      "latencyMs": 1563,
+      "ok": true,
+      "detail": "R 21/30 Player21"
+    },
+    {
+      "ts": 1775161835648,
+      "action": "tod/rate",
+      "latencyMs": 1624,
+      "ok": true,
+      "detail": "R 21/30 Player22"
+    },
+    {
+      "ts": 1775161835712,
+      "action": "tod/rate",
+      "latencyMs": 1688,
+      "ok": true,
+      "detail": "R 21/30 Player23"
+    },
+    {
+      "ts": 1775161835782,
+      "action": "tod/rate",
+      "latencyMs": 1758,
+      "ok": true,
+      "detail": "R 21/30 Player24"
+    },
+    {
+      "ts": 1775161835858,
+      "action": "tod/rate",
+      "latencyMs": 1834,
+      "ok": true,
+      "detail": "R 21/30 Player25"
+    },
+    {
+      "ts": 1775161835923,
+      "action": "tod/rate",
+      "latencyMs": 1899,
+      "ok": true,
+      "detail": "R 21/30 Player26"
+    },
+    {
+      "ts": 1775161835984,
+      "action": "tod/rate",
+      "latencyMs": 1960,
+      "ok": true,
+      "detail": "R 21/30 Player27"
+    },
+    {
+      "ts": 1775161836048,
+      "action": "tod/rate",
+      "latencyMs": 2024,
+      "ok": true,
+      "detail": "R 21/30 Player28"
+    },
+    {
+      "ts": 1775161836106,
+      "action": "tod/rate",
+      "latencyMs": 2082,
+      "ok": true,
+      "detail": "R 21/30 Player29"
+    },
+    {
+      "ts": 1775161836177,
+      "action": "tod/advance",
+      "latencyMs": 71,
+      "ok": true,
+      "detail": "R 21/30"
+    },
+    {
+      "ts": 1775161836254,
+      "action": "tod/poll",
+      "latencyMs": 77,
+      "ok": true,
+      "detail": "R 22/30"
+    },
+    {
+      "ts": 1775161836324,
+      "action": "tod/choice",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 22/30 Player15 → dare"
+    },
+    {
+      "ts": 1775161836388,
+      "action": "tod/poll",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 22/30 after-choice"
+    },
+    {
+      "ts": 1775161836817,
+      "action": "tod/response:drawing",
+      "latencyMs": 427,
+      "ok": true,
+      "detail": "R 22/30 Player15 (13KB)"
+    },
+    {
+      "ts": 1775161836886,
+      "action": "tod/poll",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R 22/30 after-response"
+    },
+    {
+      "ts": 1775161836954,
+      "action": "tod/rate",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 22/30 StressHost"
+    },
+    {
+      "ts": 1775161837014,
+      "action": "tod/rate",
+      "latencyMs": 128,
+      "ok": true,
+      "detail": "R 22/30 Player1"
+    },
+    {
+      "ts": 1775161837081,
+      "action": "tod/rate",
+      "latencyMs": 195,
+      "ok": true,
+      "detail": "R 22/30 Player2"
+    },
+    {
+      "ts": 1775161837146,
+      "action": "tod/rate",
+      "latencyMs": 260,
+      "ok": true,
+      "detail": "R 22/30 Player3"
+    },
+    {
+      "ts": 1775161837204,
+      "action": "tod/rate",
+      "latencyMs": 318,
+      "ok": true,
+      "detail": "R 22/30 Player4"
+    },
+    {
+      "ts": 1775161837282,
+      "action": "tod/rate",
+      "latencyMs": 396,
+      "ok": true,
+      "detail": "R 22/30 Player5"
+    },
+    {
+      "ts": 1775161837344,
+      "action": "tod/rate",
+      "latencyMs": 458,
+      "ok": true,
+      "detail": "R 22/30 Player6"
+    },
+    {
+      "ts": 1775161837423,
+      "action": "tod/rate",
+      "latencyMs": 536,
+      "ok": true,
+      "detail": "R 22/30 Player7"
+    },
+    {
+      "ts": 1775161837491,
+      "action": "tod/rate",
+      "latencyMs": 605,
+      "ok": true,
+      "detail": "R 22/30 Player8"
+    },
+    {
+      "ts": 1775161837584,
+      "action": "tod/rate",
+      "latencyMs": 698,
+      "ok": true,
+      "detail": "R 22/30 Player9"
+    },
+    {
+      "ts": 1775161837640,
+      "action": "tod/rate",
+      "latencyMs": 754,
+      "ok": true,
+      "detail": "R 22/30 Player10"
+    },
+    {
+      "ts": 1775161837708,
+      "action": "tod/rate",
+      "latencyMs": 822,
+      "ok": true,
+      "detail": "R 22/30 Player11"
+    },
+    {
+      "ts": 1775161837770,
+      "action": "tod/rate",
+      "latencyMs": 884,
+      "ok": true,
+      "detail": "R 22/30 Player12"
+    },
+    {
+      "ts": 1775161837841,
+      "action": "tod/rate",
+      "latencyMs": 955,
+      "ok": true,
+      "detail": "R 22/30 Player13"
+    },
+    {
+      "ts": 1775161837900,
+      "action": "tod/rate",
+      "latencyMs": 1014,
+      "ok": true,
+      "detail": "R 22/30 Player14"
+    },
+    {
+      "ts": 1775161837963,
+      "action": "tod/rate",
+      "latencyMs": 1077,
+      "ok": true,
+      "detail": "R 22/30 Player16"
+    },
+    {
+      "ts": 1775161838022,
+      "action": "tod/rate",
+      "latencyMs": 1136,
+      "ok": true,
+      "detail": "R 22/30 Player17"
+    },
+    {
+      "ts": 1775161838084,
+      "action": "tod/rate",
+      "latencyMs": 1198,
+      "ok": true,
+      "detail": "R 22/30 Player18"
+    },
+    {
+      "ts": 1775161838143,
+      "action": "tod/rate",
+      "latencyMs": 1257,
+      "ok": true,
+      "detail": "R 22/30 Player19"
+    },
+    {
+      "ts": 1775161838206,
+      "action": "tod/rate",
+      "latencyMs": 1320,
+      "ok": true,
+      "detail": "R 22/30 Player20"
+    },
+    {
+      "ts": 1775161838292,
+      "action": "tod/rate",
+      "latencyMs": 1406,
+      "ok": true,
+      "detail": "R 22/30 Player21"
+    },
+    {
+      "ts": 1775161838356,
+      "action": "tod/rate",
+      "latencyMs": 1470,
+      "ok": true,
+      "detail": "R 22/30 Player22"
+    },
+    {
+      "ts": 1775161838420,
+      "action": "tod/rate",
+      "latencyMs": 1534,
+      "ok": true,
+      "detail": "R 22/30 Player23"
+    },
+    {
+      "ts": 1775161838490,
+      "action": "tod/rate",
+      "latencyMs": 1604,
+      "ok": true,
+      "detail": "R 22/30 Player24"
+    },
+    {
+      "ts": 1775161838552,
+      "action": "tod/rate",
+      "latencyMs": 1666,
+      "ok": true,
+      "detail": "R 22/30 Player25"
+    },
+    {
+      "ts": 1775161838619,
+      "action": "tod/rate",
+      "latencyMs": 1732,
+      "ok": true,
+      "detail": "R 22/30 Player26"
+    },
+    {
+      "ts": 1775161838687,
+      "action": "tod/rate",
+      "latencyMs": 1800,
+      "ok": true,
+      "detail": "R 22/30 Player27"
+    },
+    {
+      "ts": 1775161838757,
+      "action": "tod/rate",
+      "latencyMs": 1871,
+      "ok": true,
+      "detail": "R 22/30 Player28"
+    },
+    {
+      "ts": 1775161838864,
+      "action": "tod/rate",
+      "latencyMs": 1978,
+      "ok": true,
+      "detail": "R 22/30 Player29"
+    },
+    {
+      "ts": 1775161840837,
+      "action": "tod/advance",
+      "latencyMs": 1973,
+      "ok": true,
+      "detail": "R 22/30"
+    },
+    {
+      "ts": 1775161840903,
+      "action": "tod/poll",
+      "latencyMs": 66,
+      "ok": true,
+      "detail": "R 23/30"
+    },
+    {
+      "ts": 1775161840966,
+      "action": "tod/choice",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R 23/30 Player20 → dare"
+    },
+    {
+      "ts": 1775161841059,
+      "action": "tod/poll",
+      "latencyMs": 93,
+      "ok": true,
+      "detail": "R 23/30 after-choice"
+    },
+    {
+      "ts": 1775161841130,
+      "action": "tod/response:text",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 23/30 Player20"
+    },
+    {
+      "ts": 1775161841205,
+      "action": "tod/poll",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 23/30 after-response"
+    },
+    {
+      "ts": 1775161841270,
+      "action": "tod/rate",
+      "latencyMs": 65,
+      "ok": true,
+      "detail": "R 23/30 StressHost"
+    },
+    {
+      "ts": 1775161841336,
+      "action": "tod/rate",
+      "latencyMs": 131,
+      "ok": true,
+      "detail": "R 23/30 Player1"
+    },
+    {
+      "ts": 1775161841410,
+      "action": "tod/rate",
+      "latencyMs": 205,
+      "ok": true,
+      "detail": "R 23/30 Player2"
+    },
+    {
+      "ts": 1775161841484,
+      "action": "tod/rate",
+      "latencyMs": 279,
+      "ok": true,
+      "detail": "R 23/30 Player3"
+    },
+    {
+      "ts": 1775161841550,
+      "action": "tod/rate",
+      "latencyMs": 345,
+      "ok": true,
+      "detail": "R 23/30 Player4"
+    },
+    {
+      "ts": 1775161841606,
+      "action": "tod/rate",
+      "latencyMs": 401,
+      "ok": true,
+      "detail": "R 23/30 Player5"
+    },
+    {
+      "ts": 1775161842267,
+      "action": "tod/rate",
+      "latencyMs": 1062,
+      "ok": true,
+      "detail": "R 23/30 Player6"
+    },
+    {
+      "ts": 1775161842335,
+      "action": "tod/rate",
+      "latencyMs": 1130,
+      "ok": true,
+      "detail": "R 23/30 Player7"
+    },
+    {
+      "ts": 1775161842404,
+      "action": "tod/rate",
+      "latencyMs": 1198,
+      "ok": true,
+      "detail": "R 23/30 Player8"
+    },
+    {
+      "ts": 1775161842462,
+      "action": "tod/rate",
+      "latencyMs": 1257,
+      "ok": true,
+      "detail": "R 23/30 Player9"
+    },
+    {
+      "ts": 1775161842587,
+      "action": "tod/rate",
+      "latencyMs": 1382,
+      "ok": true,
+      "detail": "R 23/30 Player10"
+    },
+    {
+      "ts": 1775161842683,
+      "action": "tod/rate",
+      "latencyMs": 1478,
+      "ok": true,
+      "detail": "R 23/30 Player11"
+    },
+    {
+      "ts": 1775161842748,
+      "action": "tod/rate",
+      "latencyMs": 1543,
+      "ok": true,
+      "detail": "R 23/30 Player12"
+    },
+    {
+      "ts": 1775161842820,
+      "action": "tod/rate",
+      "latencyMs": 1615,
+      "ok": true,
+      "detail": "R 23/30 Player13"
+    },
+    {
+      "ts": 1775161842931,
+      "action": "tod/rate",
+      "latencyMs": 1726,
+      "ok": true,
+      "detail": "R 23/30 Player14"
+    },
+    {
+      "ts": 1775161843000,
+      "action": "tod/rate",
+      "latencyMs": 1795,
+      "ok": true,
+      "detail": "R 23/30 Player15"
+    },
+    {
+      "ts": 1775161843066,
+      "action": "tod/rate",
+      "latencyMs": 1861,
+      "ok": true,
+      "detail": "R 23/30 Player16"
+    },
+    {
+      "ts": 1775161843136,
+      "action": "tod/rate",
+      "latencyMs": 1931,
+      "ok": true,
+      "detail": "R 23/30 Player17"
+    },
+    {
+      "ts": 1775161843215,
+      "action": "tod/rate",
+      "latencyMs": 2010,
+      "ok": true,
+      "detail": "R 23/30 Player18"
+    },
+    {
+      "ts": 1775161843274,
+      "action": "tod/rate",
+      "latencyMs": 2069,
+      "ok": true,
+      "detail": "R 23/30 Player19"
+    },
+    {
+      "ts": 1775161843336,
+      "action": "tod/rate",
+      "latencyMs": 2131,
+      "ok": true,
+      "detail": "R 23/30 Player21"
+    },
+    {
+      "ts": 1775161843397,
+      "action": "tod/rate",
+      "latencyMs": 2192,
+      "ok": true,
+      "detail": "R 23/30 Player22"
+    },
+    {
+      "ts": 1775161843461,
+      "action": "tod/rate",
+      "latencyMs": 2256,
+      "ok": true,
+      "detail": "R 23/30 Player23"
+    },
+    {
+      "ts": 1775161843524,
+      "action": "tod/rate",
+      "latencyMs": 2319,
+      "ok": true,
+      "detail": "R 23/30 Player24"
+    },
+    {
+      "ts": 1775161843597,
+      "action": "tod/rate",
+      "latencyMs": 2392,
+      "ok": true,
+      "detail": "R 23/30 Player25"
+    },
+    {
+      "ts": 1775161843665,
+      "action": "tod/rate",
+      "latencyMs": 2460,
+      "ok": true,
+      "detail": "R 23/30 Player26"
+    },
+    {
+      "ts": 1775161843737,
+      "action": "tod/rate",
+      "latencyMs": 2532,
+      "ok": true,
+      "detail": "R 23/30 Player27"
+    },
+    {
+      "ts": 1775161843794,
+      "action": "tod/rate",
+      "latencyMs": 2589,
+      "ok": true,
+      "detail": "R 23/30 Player28"
+    },
+    {
+      "ts": 1775161843896,
+      "action": "tod/rate",
+      "latencyMs": 2691,
+      "ok": true,
+      "detail": "R 23/30 Player29"
+    },
+    {
+      "ts": 1775161843984,
+      "action": "tod/advance",
+      "latencyMs": 88,
+      "ok": true,
+      "detail": "R 23/30"
+    },
+    {
+      "ts": 1775161844054,
+      "action": "tod/poll",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 24/30"
+    },
+    {
+      "ts": 1775161844142,
+      "action": "tod/choice",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "R 24/30 Player7 → dare"
+    },
+    {
+      "ts": 1775161844226,
+      "action": "tod/poll",
+      "latencyMs": 85,
+      "ok": true,
+      "detail": "R 24/30 after-choice"
+    },
+    {
+      "ts": 1775161844756,
+      "action": "tod/response:drawing",
+      "latencyMs": 529,
+      "ok": true,
+      "detail": "R 24/30 Player7 (13KB)"
+    },
+    {
+      "ts": 1775161844828,
+      "action": "tod/poll",
+      "latencyMs": 71,
+      "ok": true,
+      "detail": "R 24/30 after-response"
+    },
+    {
+      "ts": 1775161844890,
+      "action": "tod/rate",
+      "latencyMs": 62,
+      "ok": true,
+      "detail": "R 24/30 StressHost"
+    },
+    {
+      "ts": 1775161844964,
+      "action": "tod/rate",
+      "latencyMs": 136,
+      "ok": true,
+      "detail": "R 24/30 Player1"
+    },
+    {
+      "ts": 1775161845024,
+      "action": "tod/rate",
+      "latencyMs": 196,
+      "ok": true,
+      "detail": "R 24/30 Player2"
+    },
+    {
+      "ts": 1775161845102,
+      "action": "tod/rate",
+      "latencyMs": 274,
+      "ok": true,
+      "detail": "R 24/30 Player3"
+    },
+    {
+      "ts": 1775161845174,
+      "action": "tod/rate",
+      "latencyMs": 346,
+      "ok": true,
+      "detail": "R 24/30 Player4"
+    },
+    {
+      "ts": 1775161845236,
+      "action": "tod/rate",
+      "latencyMs": 408,
+      "ok": true,
+      "detail": "R 24/30 Player5"
+    },
+    {
+      "ts": 1775161845322,
+      "action": "tod/rate",
+      "latencyMs": 495,
+      "ok": true,
+      "detail": "R 24/30 Player6"
+    },
+    {
+      "ts": 1775161845386,
+      "action": "tod/rate",
+      "latencyMs": 558,
+      "ok": true,
+      "detail": "R 24/30 Player8"
+    },
+    {
+      "ts": 1775161845438,
+      "action": "tod/rate",
+      "latencyMs": 610,
+      "ok": true,
+      "detail": "R 24/30 Player9"
+    },
+    {
+      "ts": 1775161845547,
+      "action": "tod/rate",
+      "latencyMs": 719,
+      "ok": true,
+      "detail": "R 24/30 Player10"
+    },
+    {
+      "ts": 1775161845612,
+      "action": "tod/rate",
+      "latencyMs": 784,
+      "ok": true,
+      "detail": "R 24/30 Player11"
+    },
+    {
+      "ts": 1775161845676,
+      "action": "tod/rate",
+      "latencyMs": 848,
+      "ok": true,
+      "detail": "R 24/30 Player12"
+    },
+    {
+      "ts": 1775161845740,
+      "action": "tod/rate",
+      "latencyMs": 912,
+      "ok": true,
+      "detail": "R 24/30 Player13"
+    },
+    {
+      "ts": 1775161845814,
+      "action": "tod/rate",
+      "latencyMs": 986,
+      "ok": true,
+      "detail": "R 24/30 Player14"
+    },
+    {
+      "ts": 1775161845877,
+      "action": "tod/rate",
+      "latencyMs": 1050,
+      "ok": true,
+      "detail": "R 24/30 Player15"
+    },
+    {
+      "ts": 1775161845950,
+      "action": "tod/rate",
+      "latencyMs": 1122,
+      "ok": true,
+      "detail": "R 24/30 Player16"
+    },
+    {
+      "ts": 1775161846012,
+      "action": "tod/rate",
+      "latencyMs": 1184,
+      "ok": true,
+      "detail": "R 24/30 Player17"
+    },
+    {
+      "ts": 1775161846079,
+      "action": "tod/rate",
+      "latencyMs": 1251,
+      "ok": true,
+      "detail": "R 24/30 Player18"
+    },
+    {
+      "ts": 1775161846139,
+      "action": "tod/rate",
+      "latencyMs": 1311,
+      "ok": true,
+      "detail": "R 24/30 Player19"
+    },
+    {
+      "ts": 1775161846202,
+      "action": "tod/rate",
+      "latencyMs": 1374,
+      "ok": true,
+      "detail": "R 24/30 Player20"
+    },
+    {
+      "ts": 1775161846270,
+      "action": "tod/rate",
+      "latencyMs": 1442,
+      "ok": true,
+      "detail": "R 24/30 Player21"
+    },
+    {
+      "ts": 1775161846330,
+      "action": "tod/rate",
+      "latencyMs": 1502,
+      "ok": true,
+      "detail": "R 24/30 Player22"
+    },
+    {
+      "ts": 1775161846396,
+      "action": "tod/rate",
+      "latencyMs": 1568,
+      "ok": true,
+      "detail": "R 24/30 Player23"
+    },
+    {
+      "ts": 1775161846462,
+      "action": "tod/rate",
+      "latencyMs": 1634,
+      "ok": true,
+      "detail": "R 24/30 Player24"
+    },
+    {
+      "ts": 1775161846533,
+      "action": "tod/rate",
+      "latencyMs": 1705,
+      "ok": true,
+      "detail": "R 24/30 Player25"
+    },
+    {
+      "ts": 1775161846598,
+      "action": "tod/rate",
+      "latencyMs": 1770,
+      "ok": true,
+      "detail": "R 24/30 Player26"
+    },
+    {
+      "ts": 1775161846676,
+      "action": "tod/rate",
+      "latencyMs": 1848,
+      "ok": true,
+      "detail": "R 24/30 Player27"
+    },
+    {
+      "ts": 1775161846730,
+      "action": "tod/rate",
+      "latencyMs": 1902,
+      "ok": true,
+      "detail": "R 24/30 Player28"
+    },
+    {
+      "ts": 1775161846790,
+      "action": "tod/rate",
+      "latencyMs": 1962,
+      "ok": true,
+      "detail": "R 24/30 Player29"
+    },
+    {
+      "ts": 1775161846847,
+      "action": "tod/advance",
+      "latencyMs": 57,
+      "ok": true,
+      "detail": "R 24/30"
+    },
+    {
+      "ts": 1775161846932,
+      "action": "tod/poll",
+      "latencyMs": 69,
+      "ok": true,
+      "detail": "R 25/30"
+    },
+    {
+      "ts": 1775161847004,
+      "action": "tod/choice",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "R 25/30 Player2 → dare"
+    },
+    {
+      "ts": 1775161847079,
+      "action": "tod/poll",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 25/30 after-choice"
+    },
+    {
+      "ts": 1775161847496,
+      "action": "tod/response:drawing",
+      "latencyMs": 414,
+      "ok": true,
+      "detail": "R 25/30 Player2 (13KB)"
+    },
+    {
+      "ts": 1775161847571,
+      "action": "tod/poll",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 25/30 after-response"
+    },
+    {
+      "ts": 1775161847634,
+      "action": "tod/rate",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R 25/30 StressHost"
+    },
+    {
+      "ts": 1775161847694,
+      "action": "tod/rate",
+      "latencyMs": 123,
+      "ok": true,
+      "detail": "R 25/30 Player1"
+    },
+    {
+      "ts": 1775161847764,
+      "action": "tod/rate",
+      "latencyMs": 192,
+      "ok": true,
+      "detail": "R 25/30 Player3"
+    },
+    {
+      "ts": 1775161847828,
+      "action": "tod/rate",
+      "latencyMs": 256,
+      "ok": true,
+      "detail": "R 25/30 Player4"
+    },
+    {
+      "ts": 1775161847891,
+      "action": "tod/rate",
+      "latencyMs": 320,
+      "ok": true,
+      "detail": "R 25/30 Player5"
+    },
+    {
+      "ts": 1775161847972,
+      "action": "tod/rate",
+      "latencyMs": 401,
+      "ok": true,
+      "detail": "R 25/30 Player6"
+    },
+    {
+      "ts": 1775161848038,
+      "action": "tod/rate",
+      "latencyMs": 466,
+      "ok": true,
+      "detail": "R 25/30 Player7"
+    },
+    {
+      "ts": 1775161848105,
+      "action": "tod/rate",
+      "latencyMs": 533,
+      "ok": true,
+      "detail": "R 25/30 Player8"
+    },
+    {
+      "ts": 1775161848168,
+      "action": "tod/rate",
+      "latencyMs": 597,
+      "ok": true,
+      "detail": "R 25/30 Player9"
+    },
+    {
+      "ts": 1775161848222,
+      "action": "tod/rate",
+      "latencyMs": 651,
+      "ok": true,
+      "detail": "R 25/30 Player10"
+    },
+    {
+      "ts": 1775161848278,
+      "action": "tod/rate",
+      "latencyMs": 707,
+      "ok": true,
+      "detail": "R 25/30 Player11"
+    },
+    {
+      "ts": 1775161848338,
+      "action": "tod/rate",
+      "latencyMs": 767,
+      "ok": true,
+      "detail": "R 25/30 Player12"
+    },
+    {
+      "ts": 1775161848404,
+      "action": "tod/rate",
+      "latencyMs": 832,
+      "ok": true,
+      "detail": "R 25/30 Player13"
+    },
+    {
+      "ts": 1775161848465,
+      "action": "tod/rate",
+      "latencyMs": 894,
+      "ok": true,
+      "detail": "R 25/30 Player14"
+    },
+    {
+      "ts": 1775161848528,
+      "action": "tod/rate",
+      "latencyMs": 957,
+      "ok": true,
+      "detail": "R 25/30 Player15"
+    },
+    {
+      "ts": 1775161848594,
+      "action": "tod/rate",
+      "latencyMs": 1023,
+      "ok": true,
+      "detail": "R 25/30 Player16"
+    },
+    {
+      "ts": 1775161848654,
+      "action": "tod/rate",
+      "latencyMs": 1082,
+      "ok": true,
+      "detail": "R 25/30 Player17"
+    },
+    {
+      "ts": 1775161848730,
+      "action": "tod/rate",
+      "latencyMs": 1159,
+      "ok": true,
+      "detail": "R 25/30 Player18"
+    },
+    {
+      "ts": 1775161848793,
+      "action": "tod/rate",
+      "latencyMs": 1221,
+      "ok": true,
+      "detail": "R 25/30 Player19"
+    },
+    {
+      "ts": 1775161848857,
+      "action": "tod/rate",
+      "latencyMs": 1286,
+      "ok": true,
+      "detail": "R 25/30 Player20"
+    },
+    {
+      "ts": 1775161848934,
+      "action": "tod/rate",
+      "latencyMs": 1362,
+      "ok": true,
+      "detail": "R 25/30 Player21"
+    },
+    {
+      "ts": 1775161848991,
+      "action": "tod/rate",
+      "latencyMs": 1419,
+      "ok": true,
+      "detail": "R 25/30 Player22"
+    },
+    {
+      "ts": 1775161849054,
+      "action": "tod/rate",
+      "latencyMs": 1482,
+      "ok": true,
+      "detail": "R 25/30 Player23"
+    },
+    {
+      "ts": 1775161849164,
+      "action": "tod/rate",
+      "latencyMs": 1593,
+      "ok": true,
+      "detail": "R 25/30 Player24"
+    },
+    {
+      "ts": 1775161849236,
+      "action": "tod/rate",
+      "latencyMs": 1665,
+      "ok": true,
+      "detail": "R 25/30 Player25"
+    },
+    {
+      "ts": 1775161849301,
+      "action": "tod/rate",
+      "latencyMs": 1730,
+      "ok": true,
+      "detail": "R 25/30 Player26"
+    },
+    {
+      "ts": 1775161849370,
+      "action": "tod/rate",
+      "latencyMs": 1799,
+      "ok": true,
+      "detail": "R 25/30 Player27"
+    },
+    {
+      "ts": 1775161849440,
+      "action": "tod/rate",
+      "latencyMs": 1869,
+      "ok": true,
+      "detail": "R 25/30 Player28"
+    },
+    {
+      "ts": 1775161849504,
+      "action": "tod/rate",
+      "latencyMs": 1932,
+      "ok": true,
+      "detail": "R 25/30 Player29"
+    },
+    {
+      "ts": 1775161851551,
+      "action": "tod/advance",
+      "latencyMs": 2047,
+      "ok": true,
+      "detail": "R 25/30"
+    },
+    {
+      "ts": 1775161851626,
+      "action": "tod/poll",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 26/30"
+    },
+    {
+      "ts": 1775161851702,
+      "action": "tod/choice",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "R 26/30 Player29 → truth"
+    },
+    {
+      "ts": 1775161851764,
+      "action": "tod/poll",
+      "latencyMs": 62,
+      "ok": true,
+      "detail": "R 26/30 after-choice"
+    },
+    {
+      "ts": 1775161851840,
+      "action": "tod/response:text",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "R 26/30 Player29"
+    },
+    {
+      "ts": 1775161851919,
+      "action": "tod/poll",
+      "latencyMs": 79,
+      "ok": true,
+      "detail": "R 26/30 after-response"
+    },
+    {
+      "ts": 1775161851982,
+      "action": "tod/rate",
+      "latencyMs": 63,
+      "ok": true,
+      "detail": "R 26/30 StressHost"
+    },
+    {
+      "ts": 1775161852044,
+      "action": "tod/rate",
+      "latencyMs": 125,
+      "ok": true,
+      "detail": "R 26/30 Player1"
+    },
+    {
+      "ts": 1775161852125,
+      "action": "tod/rate",
+      "latencyMs": 205,
+      "ok": true,
+      "detail": "R 26/30 Player2"
+    },
+    {
+      "ts": 1775161852190,
+      "action": "tod/rate",
+      "latencyMs": 271,
+      "ok": true,
+      "detail": "R 26/30 Player3"
+    },
+    {
+      "ts": 1775161852250,
+      "action": "tod/rate",
+      "latencyMs": 331,
+      "ok": true,
+      "detail": "R 26/30 Player4"
+    },
+    {
+      "ts": 1775161852316,
+      "action": "tod/rate",
+      "latencyMs": 397,
+      "ok": true,
+      "detail": "R 26/30 Player5"
+    },
+    {
+      "ts": 1775161852381,
+      "action": "tod/rate",
+      "latencyMs": 462,
+      "ok": true,
+      "detail": "R 26/30 Player6"
+    },
+    {
+      "ts": 1775161852450,
+      "action": "tod/rate",
+      "latencyMs": 531,
+      "ok": true,
+      "detail": "R 26/30 Player7"
+    },
+    {
+      "ts": 1775161852527,
+      "action": "tod/rate",
+      "latencyMs": 608,
+      "ok": true,
+      "detail": "R 26/30 Player8"
+    },
+    {
+      "ts": 1775161852615,
+      "action": "tod/rate",
+      "latencyMs": 695,
+      "ok": true,
+      "detail": "R 26/30 Player9"
+    },
+    {
+      "ts": 1775161852678,
+      "action": "tod/rate",
+      "latencyMs": 759,
+      "ok": true,
+      "detail": "R 26/30 Player10"
+    },
+    {
+      "ts": 1775161852768,
+      "action": "tod/rate",
+      "latencyMs": 849,
+      "ok": true,
+      "detail": "R 26/30 Player11"
+    },
+    {
+      "ts": 1775161852830,
+      "action": "tod/rate",
+      "latencyMs": 911,
+      "ok": true,
+      "detail": "R 26/30 Player12"
+    },
+    {
+      "ts": 1775161852892,
+      "action": "tod/rate",
+      "latencyMs": 973,
+      "ok": true,
+      "detail": "R 26/30 Player13"
+    },
+    {
+      "ts": 1775161852974,
+      "action": "tod/rate",
+      "latencyMs": 1055,
+      "ok": true,
+      "detail": "R 26/30 Player14"
+    },
+    {
+      "ts": 1775161853036,
+      "action": "tod/rate",
+      "latencyMs": 1117,
+      "ok": true,
+      "detail": "R 26/30 Player15"
+    },
+    {
+      "ts": 1775161853104,
+      "action": "tod/rate",
+      "latencyMs": 1185,
+      "ok": true,
+      "detail": "R 26/30 Player16"
+    },
+    {
+      "ts": 1775161853166,
+      "action": "tod/rate",
+      "latencyMs": 1247,
+      "ok": true,
+      "detail": "R 26/30 Player17"
+    },
+    {
+      "ts": 1775161853234,
+      "action": "tod/rate",
+      "latencyMs": 1315,
+      "ok": true,
+      "detail": "R 26/30 Player18"
+    },
+    {
+      "ts": 1775161853298,
+      "action": "tod/rate",
+      "latencyMs": 1379,
+      "ok": true,
+      "detail": "R 26/30 Player19"
+    },
+    {
+      "ts": 1775161853400,
+      "action": "tod/rate",
+      "latencyMs": 1481,
+      "ok": true,
+      "detail": "R 26/30 Player20"
+    },
+    {
+      "ts": 1775161853466,
+      "action": "tod/rate",
+      "latencyMs": 1547,
+      "ok": true,
+      "detail": "R 26/30 Player21"
+    },
+    {
+      "ts": 1775161853532,
+      "action": "tod/rate",
+      "latencyMs": 1613,
+      "ok": true,
+      "detail": "R 26/30 Player22"
+    },
+    {
+      "ts": 1775161853596,
+      "action": "tod/rate",
+      "latencyMs": 1677,
+      "ok": true,
+      "detail": "R 26/30 Player23"
+    },
+    {
+      "ts": 1775161853662,
+      "action": "tod/rate",
+      "latencyMs": 1743,
+      "ok": true,
+      "detail": "R 26/30 Player24"
+    },
+    {
+      "ts": 1775161853733,
+      "action": "tod/rate",
+      "latencyMs": 1813,
+      "ok": true,
+      "detail": "R 26/30 Player25"
+    },
+    {
+      "ts": 1775161853804,
+      "action": "tod/rate",
+      "latencyMs": 1885,
+      "ok": true,
+      "detail": "R 26/30 Player26"
+    },
+    {
+      "ts": 1775161853865,
+      "action": "tod/rate",
+      "latencyMs": 1946,
+      "ok": true,
+      "detail": "R 26/30 Player27"
+    },
+    {
+      "ts": 1775161853932,
+      "action": "tod/rate",
+      "latencyMs": 2012,
+      "ok": true,
+      "detail": "R 26/30 Player28"
+    },
+    {
+      "ts": 1775161853996,
+      "action": "tod/advance",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 26/30"
+    },
+    {
+      "ts": 1775161854068,
+      "action": "tod/poll",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "R 27/30"
+    },
+    {
+      "ts": 1775161854143,
+      "action": "tod/choice",
+      "latencyMs": 75,
+      "ok": true,
+      "detail": "R 27/30 Player17 → dare"
+    },
+    {
+      "ts": 1775161854239,
+      "action": "tod/poll",
+      "latencyMs": 95,
+      "ok": true,
+      "detail": "R 27/30 after-choice"
+    },
+    {
+      "ts": 1775161854358,
+      "action": "tod/response:text",
+      "latencyMs": 120,
+      "ok": true,
+      "detail": "R 27/30 Player17"
+    },
+    {
+      "ts": 1775161854419,
+      "action": "tod/poll",
+      "latencyMs": 61,
+      "ok": true,
+      "detail": "R 27/30 after-response"
+    },
+    {
+      "ts": 1775161854482,
+      "action": "tod/rate",
+      "latencyMs": 62,
+      "ok": true,
+      "detail": "R 27/30 StressHost"
+    },
+    {
+      "ts": 1775161854548,
+      "action": "tod/rate",
+      "latencyMs": 128,
+      "ok": true,
+      "detail": "R 27/30 Player1"
+    },
+    {
+      "ts": 1775161854634,
+      "action": "tod/rate",
+      "latencyMs": 214,
+      "ok": true,
+      "detail": "R 27/30 Player2"
+    },
+    {
+      "ts": 1775161854696,
+      "action": "tod/rate",
+      "latencyMs": 276,
+      "ok": true,
+      "detail": "R 27/30 Player3"
+    },
+    {
+      "ts": 1775161854763,
+      "action": "tod/rate",
+      "latencyMs": 344,
+      "ok": true,
+      "detail": "R 27/30 Player4"
+    },
+    {
+      "ts": 1775161854832,
+      "action": "tod/rate",
+      "latencyMs": 412,
+      "ok": true,
+      "detail": "R 27/30 Player5"
+    },
+    {
+      "ts": 1775161854943,
+      "action": "tod/rate",
+      "latencyMs": 524,
+      "ok": true,
+      "detail": "R 27/30 Player6"
+    },
+    {
+      "ts": 1775161855014,
+      "action": "tod/rate",
+      "latencyMs": 594,
+      "ok": true,
+      "detail": "R 27/30 Player7"
+    },
+    {
+      "ts": 1775161855073,
+      "action": "tod/rate",
+      "latencyMs": 653,
+      "ok": true,
+      "detail": "R 27/30 Player8"
+    },
+    {
+      "ts": 1775161855140,
+      "action": "tod/rate",
+      "latencyMs": 720,
+      "ok": true,
+      "detail": "R 27/30 Player9"
+    },
+    {
+      "ts": 1775161855210,
+      "action": "tod/rate",
+      "latencyMs": 790,
+      "ok": true,
+      "detail": "R 27/30 Player10"
+    },
+    {
+      "ts": 1775161855278,
+      "action": "tod/rate",
+      "latencyMs": 858,
+      "ok": true,
+      "detail": "R 27/30 Player11"
+    },
+    {
+      "ts": 1775161855347,
+      "action": "tod/rate",
+      "latencyMs": 927,
+      "ok": true,
+      "detail": "R 27/30 Player12"
+    },
+    {
+      "ts": 1775161855404,
+      "action": "tod/rate",
+      "latencyMs": 984,
+      "ok": true,
+      "detail": "R 27/30 Player13"
+    },
+    {
+      "ts": 1775161855473,
+      "action": "tod/rate",
+      "latencyMs": 1054,
+      "ok": true,
+      "detail": "R 27/30 Player14"
+    },
+    {
+      "ts": 1775161855537,
+      "action": "tod/rate",
+      "latencyMs": 1117,
+      "ok": true,
+      "detail": "R 27/30 Player15"
+    },
+    {
+      "ts": 1775161855606,
+      "action": "tod/rate",
+      "latencyMs": 1186,
+      "ok": true,
+      "detail": "R 27/30 Player16"
+    },
+    {
+      "ts": 1775161855670,
+      "action": "tod/rate",
+      "latencyMs": 1250,
+      "ok": true,
+      "detail": "R 27/30 Player18"
+    },
+    {
+      "ts": 1775161855732,
+      "action": "tod/rate",
+      "latencyMs": 1312,
+      "ok": true,
+      "detail": "R 27/30 Player19"
+    },
+    {
+      "ts": 1775161855790,
+      "action": "tod/rate",
+      "latencyMs": 1370,
+      "ok": true,
+      "detail": "R 27/30 Player20"
+    },
+    {
+      "ts": 1775161855860,
+      "action": "tod/rate",
+      "latencyMs": 1440,
+      "ok": true,
+      "detail": "R 27/30 Player21"
+    },
+    {
+      "ts": 1775161855923,
+      "action": "tod/rate",
+      "latencyMs": 1503,
+      "ok": true,
+      "detail": "R 27/30 Player22"
+    },
+    {
+      "ts": 1775161855988,
+      "action": "tod/rate",
+      "latencyMs": 1569,
+      "ok": true,
+      "detail": "R 27/30 Player23"
+    },
+    {
+      "ts": 1775161856056,
+      "action": "tod/rate",
+      "latencyMs": 1637,
+      "ok": true,
+      "detail": "R 27/30 Player24"
+    },
+    {
+      "ts": 1775161856129,
+      "action": "tod/rate",
+      "latencyMs": 1709,
+      "ok": true,
+      "detail": "R 27/30 Player25"
+    },
+    {
+      "ts": 1775161856203,
+      "action": "tod/rate",
+      "latencyMs": 1783,
+      "ok": true,
+      "detail": "R 27/30 Player26"
+    },
+    {
+      "ts": 1775161856265,
+      "action": "tod/rate",
+      "latencyMs": 1845,
+      "ok": true,
+      "detail": "R 27/30 Player27"
+    },
+    {
+      "ts": 1775161856332,
+      "action": "tod/rate",
+      "latencyMs": 1912,
+      "ok": true,
+      "detail": "R 27/30 Player28"
+    },
+    {
+      "ts": 1775161856398,
+      "action": "tod/rate",
+      "latencyMs": 1978,
+      "ok": true,
+      "detail": "R 27/30 Player29"
+    },
+    {
+      "ts": 1775161856462,
+      "action": "tod/advance",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 27/30"
+    },
+    {
+      "ts": 1775161856535,
+      "action": "tod/poll",
+      "latencyMs": 73,
+      "ok": true,
+      "detail": "R 28/30"
+    },
+    {
+      "ts": 1775161856632,
+      "action": "tod/choice",
+      "latencyMs": 97,
+      "ok": true,
+      "detail": "R 28/30 Player22 → truth"
+    },
+    {
+      "ts": 1775161856696,
+      "action": "tod/poll",
+      "latencyMs": 64,
+      "ok": true,
+      "detail": "R 28/30 after-choice"
+    },
+    {
+      "ts": 1775161856780,
+      "action": "tod/response:text",
+      "latencyMs": 72,
+      "ok": true,
+      "detail": "R 28/30 Player22"
+    },
+    {
+      "ts": 1775161856847,
+      "action": "tod/poll",
+      "latencyMs": 67,
+      "ok": true,
+      "detail": "R 28/30 after-response"
+    },
+    {
+      "ts": 1775161856928,
+      "action": "tod/rate",
+      "latencyMs": 81,
+      "ok": true,
+      "detail": "R 28/30 StressHost"
+    },
+    {
+      "ts": 1775161856990,
+      "action": "tod/rate",
+      "latencyMs": 143,
+      "ok": true,
+      "detail": "R 28/30 Player1"
+    },
+    {
+      "ts": 1775161857054,
+      "action": "tod/rate",
+      "latencyMs": 207,
+      "ok": true,
+      "detail": "R 28/30 Player2"
+    },
+    {
+      "ts": 1775161857123,
+      "action": "tod/rate",
+      "latencyMs": 276,
+      "ok": true,
+      "detail": "R 28/30 Player3"
+    },
+    {
+      "ts": 1775161857191,
+      "action": "tod/rate",
+      "latencyMs": 343,
+      "ok": true,
+      "detail": "R 28/30 Player4"
+    },
+    {
+      "ts": 1775161857266,
+      "action": "tod/rate",
+      "latencyMs": 419,
+      "ok": true,
+      "detail": "R 28/30 Player5"
+    },
+    {
+      "ts": 1775161857330,
+      "action": "tod/rate",
+      "latencyMs": 483,
+      "ok": true,
+      "detail": "R 28/30 Player6"
+    },
+    {
+      "ts": 1775161857399,
+      "action": "tod/rate",
+      "latencyMs": 552,
+      "ok": true,
+      "detail": "R 28/30 Player7"
+    },
+    {
+      "ts": 1775161857459,
+      "action": "tod/rate",
+      "latencyMs": 611,
+      "ok": true,
+      "detail": "R 28/30 Player8"
+    },
+    {
+      "ts": 1775161857524,
+      "action": "tod/rate",
+      "latencyMs": 677,
+      "ok": true,
+      "detail": "R 28/30 Player9"
+    },
+    {
+      "ts": 1775161857583,
+      "action": "tod/rate",
+      "latencyMs": 736,
+      "ok": true,
+      "detail": "R 28/30 Player10"
+    },
+    {
+      "ts": 1775161857672,
+      "action": "tod/rate",
+      "latencyMs": 825,
+      "ok": true,
+      "detail": "R 28/30 Player11"
+    },
+    {
+      "ts": 1775161857730,
+      "action": "tod/rate",
+      "latencyMs": 882,
+      "ok": true,
+      "detail": "R 28/30 Player12"
+    },
+    {
+      "ts": 1775161857812,
+      "action": "tod/rate",
+      "latencyMs": 965,
+      "ok": true,
+      "detail": "R 28/30 Player13"
+    },
+    {
+      "ts": 1775161857880,
+      "action": "tod/rate",
+      "latencyMs": 1033,
+      "ok": true,
+      "detail": "R 28/30 Player14"
+    },
+    {
+      "ts": 1775161858036,
+      "action": "tod/rate",
+      "latencyMs": 1189,
+      "ok": true,
+      "detail": "R 28/30 Player15"
+    },
+    {
+      "ts": 1775161858098,
+      "action": "tod/rate",
+      "latencyMs": 1251,
+      "ok": true,
+      "detail": "R 28/30 Player16"
+    },
+    {
+      "ts": 1775161858220,
+      "action": "tod/rate",
+      "latencyMs": 1373,
+      "ok": true,
+      "detail": "R 28/30 Player17"
+    },
+    {
+      "ts": 1775161858280,
+      "action": "tod/rate",
+      "latencyMs": 1433,
+      "ok": true,
+      "detail": "R 28/30 Player18"
+    },
+    {
+      "ts": 1775161858341,
+      "action": "tod/rate",
+      "latencyMs": 1493,
+      "ok": true,
+      "detail": "R 28/30 Player19"
+    },
+    {
+      "ts": 1775161858407,
+      "action": "tod/rate",
+      "latencyMs": 1560,
+      "ok": true,
+      "detail": "R 28/30 Player20"
+    },
+    {
+      "ts": 1775161858466,
+      "action": "tod/rate",
+      "latencyMs": 1619,
+      "ok": true,
+      "detail": "R 28/30 Player21"
+    },
+    {
+      "ts": 1775161858532,
+      "action": "tod/rate",
+      "latencyMs": 1685,
+      "ok": true,
+      "detail": "R 28/30 Player23"
+    },
+    {
+      "ts": 1775161858597,
+      "action": "tod/rate",
+      "latencyMs": 1750,
+      "ok": true,
+      "detail": "R 28/30 Player24"
+    },
+    {
+      "ts": 1775161858838,
+      "action": "tod/rate",
+      "latencyMs": 1991,
+      "ok": true,
+      "detail": "R 28/30 Player25"
+    },
+    {
+      "ts": 1775161858902,
+      "action": "tod/rate",
+      "latencyMs": 2055,
+      "ok": true,
+      "detail": "R 28/30 Player26"
+    },
+    {
+      "ts": 1775161858978,
+      "action": "tod/rate",
+      "latencyMs": 2131,
+      "ok": true,
+      "detail": "R 28/30 Player27"
+    },
+    {
+      "ts": 1775161859038,
+      "action": "tod/rate",
+      "latencyMs": 2191,
+      "ok": true,
+      "detail": "R 28/30 Player28"
+    },
+    {
+      "ts": 1775161859104,
+      "action": "tod/rate",
+      "latencyMs": 2257,
+      "ok": true,
+      "detail": "R 28/30 Player29"
+    },
+    {
+      "ts": 1775161861174,
+      "action": "tod/advance",
+      "latencyMs": 2059,
+      "ok": true,
+      "detail": "R 28/30"
+    },
+    {
+      "ts": 1775161861313,
+      "action": "tod/poll",
+      "latencyMs": 139,
+      "ok": true,
+      "detail": "R 29/30"
+    },
+    {
+      "ts": 1775161861406,
+      "action": "tod/choice",
+      "latencyMs": 79,
+      "ok": true,
+      "detail": "R 29/30 Player26 → truth"
+    },
+    {
+      "ts": 1775161861474,
+      "action": "tod/poll",
+      "latencyMs": 68,
+      "ok": true,
+      "detail": "R 29/30 after-choice"
+    },
+    {
+      "ts": 1775161861550,
+      "action": "tod/response:text",
+      "latencyMs": 76,
+      "ok": true,
+      "detail": "R 29/30 Player26"
+    },
+    {
+      "ts": 1775161861662,
+      "action": "tod/poll",
+      "latencyMs": 112,
+      "ok": true,
+      "detail": "R 29/30 after-response"
+    },
+    {
+      "ts": 1775161861724,
+      "action": "tod/rate",
+      "latencyMs": 62,
+      "ok": true,
+      "detail": "R 29/30 StressHost"
+    },
+    {
+      "ts": 1775161861842,
+      "action": "tod/rate",
+      "latencyMs": 180,
+      "ok": true,
+      "detail": "R 29/30 Player1"
+    },
+    {
+      "ts": 1775161861938,
+      "action": "tod/rate",
+      "latencyMs": 275,
+      "ok": true,
+      "detail": "R 29/30 Player2"
+    },
+    {
+      "ts": 1775161862046,
+      "action": "tod/rate",
+      "latencyMs": 383,
+      "ok": true,
+      "detail": "R 29/30 Player3"
+    },
+    {
+      "ts": 1775161862110,
+      "action": "tod/rate",
+      "latencyMs": 447,
+      "ok": true,
+      "detail": "R 29/30 Player4"
+    },
+    {
+      "ts": 1775161862180,
+      "action": "tod/rate",
+      "latencyMs": 518,
+      "ok": true,
+      "detail": "R 29/30 Player5"
+    },
+    {
+      "ts": 1775161862242,
+      "action": "tod/rate",
+      "latencyMs": 579,
+      "ok": true,
+      "detail": "R 29/30 Player6"
+    },
+    {
+      "ts": 1775161862300,
+      "action": "tod/rate",
+      "latencyMs": 637,
+      "ok": true,
+      "detail": "R 29/30 Player7"
+    },
+    {
+      "ts": 1775161862360,
+      "action": "tod/rate",
+      "latencyMs": 697,
+      "ok": true,
+      "detail": "R 29/30 Player8"
+    },
+    {
+      "ts": 1775161862421,
+      "action": "tod/rate",
+      "latencyMs": 759,
+      "ok": true,
+      "detail": "R 29/30 Player9"
+    },
+    {
+      "ts": 1775161862486,
+      "action": "tod/rate",
+      "latencyMs": 823,
+      "ok": true,
+      "detail": "R 29/30 Player10"
+    },
+    {
+      "ts": 1775161862558,
+      "action": "tod/rate",
+      "latencyMs": 895,
+      "ok": true,
+      "detail": "R 29/30 Player11"
+    },
+    {
+      "ts": 1775161862642,
+      "action": "tod/rate",
+      "latencyMs": 979,
+      "ok": true,
+      "detail": "R 29/30 Player12"
+    },
+    {
+      "ts": 1775161862704,
+      "action": "tod/rate",
+      "latencyMs": 1041,
+      "ok": true,
+      "detail": "R 29/30 Player13"
+    },
+    {
+      "ts": 1775161862770,
+      "action": "tod/rate",
+      "latencyMs": 1107,
+      "ok": true,
+      "detail": "R 29/30 Player14"
+    },
+    {
+      "ts": 1775161862878,
+      "action": "tod/rate",
+      "latencyMs": 1215,
+      "ok": true,
+      "detail": "R 29/30 Player15"
+    },
+    {
+      "ts": 1775161862961,
+      "action": "tod/rate",
+      "latencyMs": 1298,
+      "ok": true,
+      "detail": "R 29/30 Player16"
+    },
+    {
+      "ts": 1775161863034,
+      "action": "tod/rate",
+      "latencyMs": 1371,
+      "ok": true,
+      "detail": "R 29/30 Player17"
+    },
+    {
+      "ts": 1775161863092,
+      "action": "tod/rate",
+      "latencyMs": 1429,
+      "ok": true,
+      "detail": "R 29/30 Player18"
+    },
+    {
+      "ts": 1775161863164,
+      "action": "tod/rate",
+      "latencyMs": 1501,
+      "ok": true,
+      "detail": "R 29/30 Player19"
+    },
+    {
+      "ts": 1775161863236,
+      "action": "tod/rate",
+      "latencyMs": 1573,
+      "ok": true,
+      "detail": "R 29/30 Player20"
+    },
+    {
+      "ts": 1775161863304,
+      "action": "tod/rate",
+      "latencyMs": 1641,
+      "ok": true,
+      "detail": "R 29/30 Player21"
+    },
+    {
+      "ts": 1775161863362,
+      "action": "tod/rate",
+      "latencyMs": 1699,
+      "ok": true,
+      "detail": "R 29/30 Player22"
+    },
+    {
+      "ts": 1775161863430,
+      "action": "tod/rate",
+      "latencyMs": 1767,
+      "ok": true,
+      "detail": "R 29/30 Player23"
+    },
+    {
+      "ts": 1775161863494,
+      "action": "tod/rate",
+      "latencyMs": 1831,
+      "ok": true,
+      "detail": "R 29/30 Player24"
+    },
+    {
+      "ts": 1775161863563,
+      "action": "tod/rate",
+      "latencyMs": 1900,
+      "ok": true,
+      "detail": "R 29/30 Player25"
+    },
+    {
+      "ts": 1775161863636,
+      "action": "tod/rate",
+      "latencyMs": 1974,
+      "ok": true,
+      "detail": "R 29/30 Player27"
+    },
+    {
+      "ts": 1775161863700,
+      "action": "tod/rate",
+      "latencyMs": 2037,
+      "ok": true,
+      "detail": "R 29/30 Player28"
+    },
+    {
+      "ts": 1775161863762,
+      "action": "tod/rate",
+      "latencyMs": 2099,
+      "ok": true,
+      "detail": "R 29/30 Player29"
+    },
+    {
+      "ts": 1775161863832,
+      "action": "tod/advance",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 29/30"
+    },
+    {
+      "ts": 1775161863906,
+      "action": "tod/poll",
+      "latencyMs": 74,
+      "ok": true,
+      "detail": "R 30/30"
+    },
+    {
+      "ts": 1775161863984,
+      "action": "tod/choice",
+      "latencyMs": 78,
+      "ok": true,
+      "detail": "R 30/30 Player12 → truth"
+    },
+    {
+      "ts": 1775161864046,
+      "action": "tod/poll",
+      "latencyMs": 61,
+      "ok": true,
+      "detail": "R 30/30 after-choice"
+    },
+    {
+      "ts": 1775161864154,
+      "action": "tod/response:text",
+      "latencyMs": 108,
+      "ok": true,
+      "detail": "R 30/30 Player12"
+    },
+    {
+      "ts": 1775161864337,
+      "action": "tod/poll",
+      "latencyMs": 182,
+      "ok": true,
+      "detail": "R 30/30 after-response"
+    },
+    {
+      "ts": 1775161864421,
+      "action": "tod/rate",
+      "latencyMs": 84,
+      "ok": true,
+      "detail": "R 30/30 StressHost"
+    },
+    {
+      "ts": 1775161864499,
+      "action": "tod/rate",
+      "latencyMs": 162,
+      "ok": true,
+      "detail": "R 30/30 Player1"
+    },
+    {
+      "ts": 1775161864578,
+      "action": "tod/rate",
+      "latencyMs": 241,
+      "ok": true,
+      "detail": "R 30/30 Player2"
+    },
+    {
+      "ts": 1775161864638,
+      "action": "tod/rate",
+      "latencyMs": 300,
+      "ok": true,
+      "detail": "R 30/30 Player3"
+    },
+    {
+      "ts": 1775161864703,
+      "action": "tod/rate",
+      "latencyMs": 366,
+      "ok": true,
+      "detail": "R 30/30 Player4"
+    },
+    {
+      "ts": 1775161864765,
+      "action": "tod/rate",
+      "latencyMs": 427,
+      "ok": true,
+      "detail": "R 30/30 Player5"
+    },
+    {
+      "ts": 1775161864838,
+      "action": "tod/rate",
+      "latencyMs": 501,
+      "ok": true,
+      "detail": "R 30/30 Player6"
+    },
+    {
+      "ts": 1775161864899,
+      "action": "tod/rate",
+      "latencyMs": 562,
+      "ok": true,
+      "detail": "R 30/30 Player7"
+    },
+    {
+      "ts": 1775161864965,
+      "action": "tod/rate",
+      "latencyMs": 628,
+      "ok": true,
+      "detail": "R 30/30 Player8"
+    },
+    {
+      "ts": 1775161865031,
+      "action": "tod/rate",
+      "latencyMs": 693,
+      "ok": true,
+      "detail": "R 30/30 Player9"
+    },
+    {
+      "ts": 1775161865086,
+      "action": "tod/rate",
+      "latencyMs": 749,
+      "ok": true,
+      "detail": "R 30/30 Player10"
+    },
+    {
+      "ts": 1775161865146,
+      "action": "tod/rate",
+      "latencyMs": 809,
+      "ok": true,
+      "detail": "R 30/30 Player11"
+    },
+    {
+      "ts": 1775161865204,
+      "action": "tod/rate",
+      "latencyMs": 867,
+      "ok": true,
+      "detail": "R 30/30 Player13"
+    },
+    {
+      "ts": 1775161865262,
+      "action": "tod/rate",
+      "latencyMs": 925,
+      "ok": true,
+      "detail": "R 30/30 Player14"
+    },
+    {
+      "ts": 1775161865318,
+      "action": "tod/rate",
+      "latencyMs": 981,
+      "ok": true,
+      "detail": "R 30/30 Player15"
+    },
+    {
+      "ts": 1775161865382,
+      "action": "tod/rate",
+      "latencyMs": 1045,
+      "ok": true,
+      "detail": "R 30/30 Player16"
+    },
+    {
+      "ts": 1775161865448,
+      "action": "tod/rate",
+      "latencyMs": 1111,
+      "ok": true,
+      "detail": "R 30/30 Player17"
+    },
+    {
+      "ts": 1775161865511,
+      "action": "tod/rate",
+      "latencyMs": 1174,
+      "ok": true,
+      "detail": "R 30/30 Player18"
+    },
+    {
+      "ts": 1775161865576,
+      "action": "tod/rate",
+      "latencyMs": 1239,
+      "ok": true,
+      "detail": "R 30/30 Player19"
+    },
+    {
+      "ts": 1775161865636,
+      "action": "tod/rate",
+      "latencyMs": 1299,
+      "ok": true,
+      "detail": "R 30/30 Player20"
+    },
+    {
+      "ts": 1775161865696,
+      "action": "tod/rate",
+      "latencyMs": 1359,
+      "ok": true,
+      "detail": "R 30/30 Player21"
+    },
+    {
+      "ts": 1775161865798,
+      "action": "tod/rate",
+      "latencyMs": 1461,
+      "ok": true,
+      "detail": "R 30/30 Player22"
+    },
+    {
+      "ts": 1775161865894,
+      "action": "tod/rate",
+      "latencyMs": 1557,
+      "ok": true,
+      "detail": "R 30/30 Player23"
+    },
+    {
+      "ts": 1775161865952,
+      "action": "tod/rate",
+      "latencyMs": 1615,
+      "ok": true,
+      "detail": "R 30/30 Player24"
+    },
+    {
+      "ts": 1775161866025,
+      "action": "tod/rate",
+      "latencyMs": 1687,
+      "ok": true,
+      "detail": "R 30/30 Player25"
+    },
+    {
+      "ts": 1775161866092,
+      "action": "tod/rate",
+      "latencyMs": 1755,
+      "ok": true,
+      "detail": "R 30/30 Player26"
+    },
+    {
+      "ts": 1775161866170,
+      "action": "tod/rate",
+      "latencyMs": 1833,
+      "ok": true,
+      "detail": "R 30/30 Player27"
+    },
+    {
+      "ts": 1775161866238,
+      "action": "tod/rate",
+      "latencyMs": 1901,
+      "ok": true,
+      "detail": "R 30/30 Player28"
+    },
+    {
+      "ts": 1775161866322,
+      "action": "tod/rate",
+      "latencyMs": 1985,
+      "ok": true,
+      "detail": "R 30/30 Player29"
+    },
+    {
+      "ts": 1775161866392,
+      "action": "tod/advance",
+      "latencyMs": 70,
+      "ok": true,
+      "detail": "R 30/30"
+    },
+    {
+      "ts": 1775161866488,
+      "action": "tod/end",
+      "latencyMs": 96,
+      "ok": true
+    },
+    {
+      "ts": 1775161866587,
+      "action": "rooms/close",
+      "latencyMs": 98,
+      "ok": true
+    }
+  ]
+}

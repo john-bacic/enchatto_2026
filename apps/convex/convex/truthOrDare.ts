@@ -714,10 +714,10 @@ export const getActiveTruthOrDare = query({
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    // Prefer active, fall back to most recently completed
+    // Prefer active, fall back to most recently completed/canceled
     const game = allGames.find((g) => g.status === "active")
       ?? allGames
-          .filter((g) => g.status === "completed")
+          .filter((g) => g.status === "completed" || g.status === "canceled")
           .sort((a, b) => (b.completedAt ?? b.createdAt) - (a.completedAt ?? a.createdAt))[0]
       ?? null;
     if (!game) return null;

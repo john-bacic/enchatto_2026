@@ -55,6 +55,7 @@ interface TruthOrDareGameProps {
   onSubmitRating: (turnId: string, score: number) => void;
   onDrawingStateChange?: (isDrawing: boolean) => void;
   onClose: () => void;
+  onMinimize?: () => void;
 }
 
 export function TruthOrDareGame({
@@ -70,6 +71,7 @@ export function TruthOrDareGame({
   onSubmitRating,
   onDrawingStateChange,
   onClose,
+  onMinimize,
 }: TruthOrDareGameProps) {
   const responseInputRef = useRef<HTMLInputElement>(null);
   const responseSectionRef = useRef<HTMLDivElement>(null);
@@ -195,7 +197,7 @@ export function TruthOrDareGame({
         style={{
           position: "fixed",
           inset: 0,
-          background: "linear-gradient(135deg, #ea580c, #f59e0b, #d97706)",
+          background: "linear-gradient(135deg, #f59e0b, #ea580c, #7c3aed)",
           zIndex: 200,
           display: "flex",
           alignItems: "center",
@@ -248,7 +250,7 @@ export function TruthOrDareGame({
 
             return (
               <div style={{
-                background: "rgba(0,0,0,0.15)",
+                background: "rgba(255,255,255,0.15)",
                 borderRadius: "8px",
                 padding: "0.75rem",
                 marginBottom: "1rem",
@@ -282,7 +284,7 @@ export function TruthOrDareGame({
             style={{
               padding: "0.6rem 2rem",
               borderRadius: "8px",
-              background: "rgba(0,0,0,0.25)",
+              background: "rgba(255,255,255,0.25)",
               color: "#fff",
               fontWeight: 600,
               border: "none",
@@ -302,7 +304,7 @@ export function TruthOrDareGame({
         position: "fixed",
         inset: 0,
         paddingBottom: keyboardHeight,
-        background: "linear-gradient(135deg, #451a03 0%, #7c2d12 50%, #92400e 100%)",
+        background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 50%, #7c3aed 100%)",
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
@@ -332,7 +334,7 @@ export function TruthOrDareGame({
             </span>
           )}
         </span>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {isHost && (
             <button
               onClick={() => onEndGame(game._id)}
@@ -348,6 +350,30 @@ export function TruthOrDareGame({
               }}
             >
               {t("🛑 End Game", lang)}
+            </button>
+          )}
+          {onMinimize && (
+            <button
+              onClick={onMinimize}
+              aria-label={t("Minimize", lang)}
+              title={t("Minimize", lang)}
+              style={{
+                width: "2rem",
+                height: "2rem",
+                borderRadius: "6px",
+                background: "rgba(255,255,255,0.15)",
+                color: "#fff",
+                fontSize: "1.1rem",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              –
             </button>
           )}
         </div>
@@ -412,7 +438,7 @@ export function TruthOrDareGame({
                     {p.nickname}
                   </span>
                   {avgRating !== null && (
-                    <span style={{ fontSize: "0.6rem", color: "#f59e0b", marginTop: "0.1rem" }}>
+                    <span style={{ fontSize: "0.6rem", color: "#fff", marginTop: "0.1rem" }}>
                       ⭐ {avgRating.toFixed(1)}
                     </span>
                   )}
@@ -439,7 +465,7 @@ export function TruthOrDareGame({
         >
           <div
             style={{
-              background: "linear-gradient(135deg, #7c2d12, #9a3412)",
+              background: "linear-gradient(135deg, #ea580c, #d97706)",
               borderRadius: "20px",
               padding: "2rem 1.5rem",
               textAlign: "center",
@@ -500,7 +526,7 @@ export function TruthOrDareGame({
                         padding: "0.2rem 0",
                       }}>
                         <span>{medal} {emoji} {player?.nickname ?? "?"}</span>
-                        <span style={{ fontWeight: 600, color: "#f59e0b" }}>⭐ {avg.toFixed(1)}</span>
+                        <span style={{ fontWeight: 600, color: "#fff" }}>⭐ {avg.toFixed(1)}</span>
                       </div>
                     );
                   })}
@@ -607,7 +633,7 @@ export function TruthOrDareGame({
                       maxWidth: "150px",
                       padding: "1rem",
                       borderRadius: "12px",
-                      background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+                      background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
                       color: "#fff",
                       fontWeight: 700,
                       fontSize: "1.1rem",
@@ -679,7 +705,7 @@ export function TruthOrDareGame({
                 padding: "0.3rem 1rem",
                 borderRadius: "20px",
                 background: turn.choice === "truth"
-                  ? "linear-gradient(135deg, #3b82f6, #2563eb)"
+                  ? "linear-gradient(135deg, #7c3aed, #6d28d9)"
                   : "linear-gradient(135deg, #ea580c, #d97706)",
                 color: "#fff",
                 fontWeight: 700,
@@ -757,7 +783,7 @@ export function TruthOrDareGame({
                           flex: 1,
                           padding: "0.65rem",
                           borderRadius: "8px",
-                          background: submitting ? "rgba(255,255,255,0.15)" : "#ea580c",
+                          background: submitting ? "rgba(255,255,255,0.15)" : "#7c3aed",
                           color: "#fff",
                           fontWeight: 600,
                           border: "none",
@@ -1083,7 +1109,7 @@ export function TruthOrDareGame({
                           padding: "0.5rem 1.5rem",
                           borderRadius: "8px",
                           background: starRating > 0 && !submitting
-                            ? "linear-gradient(135deg, #f59e0b, #d97706)"
+                            ? "linear-gradient(135deg, #7c3aed, #6d28d9)"
                             : "rgba(255,255,255,0.15)",
                           color: "#fff",
                           fontWeight: 700,

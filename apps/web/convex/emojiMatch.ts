@@ -190,6 +190,7 @@ export const createLobby = mutation({
           joinedAt: now,
           isActive: true,
           score: 0,
+          turns: 0,
         },
       ],
       turnOrder: [],
@@ -239,6 +240,7 @@ export const joinLobby = mutation({
           joinedAt: Date.now(),
           isActive: true,
           score: 0,
+          turns: 0,
         },
       ],
     });
@@ -420,7 +422,7 @@ export const flipCard = mutation({
       const newMatchedCount = game.matchedPairCount + 1;
       const updatedPlayers = game.players.map((p) =>
         p.participantId === args.participantId
-          ? { ...p, score: p.score + 1 }
+          ? { ...p, score: p.score + 1, turns: (p.turns ?? 0) + 1 }
           : p
       );
 
@@ -473,12 +475,18 @@ export const flipCard = mutation({
       return { action: "match" };
     }
 
-    // Mismatch
+    // Mismatch — increment turns for this player
+    const mismatchPlayers = game.players.map((p: any) =>
+      p.participantId === args.participantId
+        ? { ...p, turns: (p.turns ?? 0) + 1 }
+        : p
+    );
     await emTrace(ctx, args.gameId, "flipCard:mismatch", args.participantId.toString(), `cards=${firstCard.pairKey}+${secondCard.pairKey}`);
     const resolveAt = Date.now() + game.mismatchRevealMs;
     await ctx.db.patch(args.gameId, {
       board: updatedBoard,
       selectedCardIds: updatedSelectedIds,
+      players: mismatchPlayers,
       status: "resolving",
       resolveAt,
     });
@@ -718,6 +726,7 @@ export const playAgain = mutation({
           joinedAt: now,
           isActive: true,
           score: 0,
+          turns: 0,
         });
       }
     }
@@ -768,16 +777,18 @@ export const getActiveEmojiMatch = query({
         .first();
       if (game) return game;
     }
-    // If no in-progress game, return the most recently completed game
-    // so the results screen can display. Use order("desc") to get newest.
-    const completed = await ctx.db
-      .query("emojiMatchGames")
-      .withIndex("by_roomId_status", (q) =>
-        q.eq("roomId", args.roomId).eq("status", "completed")
-      )
-      .order("desc")
-      .first();
-    if (completed) return completed;
+    // If no in-progress game, return the most recently completed/canceled game
+    // so the results screen can display.
+    for (const endStatus of ["completed", "canceled"] as const) {
+      const game = await ctx.db
+        .query("emojiMatchGames")
+        .withIndex("by_roomId_status", (q) =>
+          q.eq("roomId", args.roomId).eq("status", endStatus)
+        )
+        .order("desc")
+        .first();
+      if (game) return game;
+    }
     return null;
   },
 });

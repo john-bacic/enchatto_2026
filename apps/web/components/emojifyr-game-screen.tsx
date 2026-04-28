@@ -26,6 +26,7 @@ interface EmojifyrGameScreenProps {
   onReveal: () => void;
   onNextRound: () => void;
   onEndGame: () => void;
+  onMinimize?: () => void;
 }
 
 export function EmojifyrGameScreen({
@@ -44,6 +45,7 @@ export function EmojifyrGameScreen({
   onReveal,
   onNextRound,
   onEndGame,
+  onMinimize,
 }: EmojifyrGameScreenProps) {
   const [sentence, setSentence] = useState("");
   const [guess, setGuess] = useState("");
@@ -883,25 +885,51 @@ export function EmojifyrGameScreen({
             </span>
           )}
         </div>
-        <button
-          onClick={() => {
-            if (confirm(t("End game?", lang))) {
-              onEndGame();
-            }
-          }}
-          style={{
-            padding: "0.4rem 0.85rem",
-            borderRadius: "8px",
-            background: "rgba(255,255,255,0.15)",
-            color: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-            border: "1px solid rgba(255,255,255,0.2)",
-            fontSize: "0.8rem",
-          }}
-        >
-          {t("End Game", lang)}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={() => {
+              if (confirm(t("End game?", lang))) {
+                onEndGame();
+              }
+            }}
+            style={{
+              padding: "0.4rem 0.85rem",
+              borderRadius: "8px",
+              background: "rgba(255,255,255,0.15)",
+              color: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: "1px solid rgba(255,255,255,0.2)",
+              fontSize: "0.8rem",
+            }}
+          >
+            {t("End Game", lang)}
+          </button>
+          {onMinimize && (
+            <button
+              onClick={onMinimize}
+              aria-label={t("Minimize", lang)}
+              title={t("Minimize", lang)}
+              style={{
+                width: "2rem",
+                height: "2rem",
+                borderRadius: "8px",
+                background: "rgba(255,255,255,0.15)",
+                color: "#fff",
+                fontSize: "1.2rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                border: "1px solid rgba(255,255,255,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              –
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main content area */}

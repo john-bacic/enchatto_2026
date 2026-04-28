@@ -5,6 +5,7 @@ struct EmojiBingoGameView: View {
     @ObservedObject var viewModel: HostRoomViewModel
     let lang: String
     let onDismiss: () -> Void
+    var onMinimize: (() -> Void)? = nil
 
     @State private var showCompleted = false
     @State private var lastCalledCount = 0
@@ -53,6 +54,21 @@ struct EmojiBingoGameView: View {
                 AudioServicesPlaySystemSound(1104)
             }
             lastCalledCount = newCount
+        }
+    }
+
+    @ViewBuilder
+    private var inlineMinimizeButton: some View {
+        if let onMinimize {
+            Button(action: onMinimize) {
+                Image(systemName: "minus")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.18))
+                    .cornerRadius(6)
+            }
+            .accessibilityLabel(L.t("Minimize", lang))
         }
     }
 
@@ -182,15 +198,18 @@ struct EmojiBingoGameView: View {
                         .background(Color.red.opacity(0.7))
                         .clipShape(Capsule())
                 }
+
+                inlineMinimizeButton
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
 
-            // Won banner
+            // Won banner — show progress
             if showWonBanner {
+                let placed = game.players.filter { $0.placement > 0 }.count
                 HStack {
                     Text("\u{1F389}")
-                    Text(L.t("BINGO! Verifying winners...", lang))
+                    Text("BINGO! \(placed)/\(game.players.count) \(L.t("finished", lang))")
                         .font(.subheadline.bold())
                         .foregroundStyle(.yellow)
                     Text("\u{1F389}")
@@ -200,33 +219,16 @@ struct EmojiBingoGameView: View {
                 .background(Color.yellow.opacity(0.2))
             }
 
-            // Turn indicator + Roll button
+            // Turn indicator
             if game.status == .active {
                 let isMyTurn = game.currentTurnParticipantId == viewModel.hostId
                 let currentPlayer = game.players.first { $0.participantId == game.currentTurnParticipantId }
 
                 HStack(spacing: 12) {
                     if isMyTurn {
-                        Button {
-                            Task { await viewModel.rollEmojiBingo() }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text("\u{1F3B2}") // 🎲
-                                    .font(.title2)
-                                Text(L.t("Roll!", lang))
-                                    .font(.headline.bold())
-                            }
+                        Text(L.t("Your turn to roll!", lang))
+                            .font(.subheadline.bold())
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 10)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.04, green: 0.55, blue: 0.38)],
-                                    startPoint: .leading, endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(14)
-                        }
                     } else if let player = currentPlayer {
                         HStack(spacing: 6) {
                             Circle()
@@ -358,8 +360,17 @@ struct EmojiBingoGameView: View {
                 Spacer()
             }
 
-            // BINGO button
+            // Roll / BINGO button
             if hostPlayer != nil {
+                bottomActionButton(game: game, canClaimBingo: canClaimBingo)
+            }
+        }
+    }
+
+    private func bottomActionButton(game: EmojiBingoGame, canClaimBingo: Bool) -> AnyView {
+        let isMyTurn = game.currentTurnParticipantId == viewModel.hostId
+        if canClaimBingo {
+            return AnyView(
                 Button {
                     Task { await viewModel.claimEmojiBingo() }
                 } label: {
@@ -368,13 +379,48 @@ struct EmojiBingoGameView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(canClaimBingo ? Color.yellow.opacity(0.8) : Color.white.opacity(0.15))
+                        .background(Color.yellow.opacity(0.8))
                         .cornerRadius(16)
                 }
-                .disabled(!canClaimBingo)
                 .padding(.horizontal)
                 .padding(.bottom, 16)
-            }
+            )
+        } else if game.status == .active && isMyTurn {
+            return AnyView(
+                Button {
+                    Task { await viewModel.rollEmojiBingo() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("\u{1F3B2}")
+                        Text(L.t("Roll!", lang))
+                    }
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.04, green: 0.55, blue: 0.38)],
+                            startPoint: .leading, endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+            )
+        } else {
+            return AnyView(
+                Text("BINGO!")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.white.opacity(0.15))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
+            )
         }
     }
 

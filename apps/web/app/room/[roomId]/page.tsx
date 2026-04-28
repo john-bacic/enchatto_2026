@@ -48,6 +48,7 @@ function RoomContent() {
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
   const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
   const [dismissedEmojiBingoId, setDismissedEmojiBingoId] = useState<string | null>(null);
+  const [dismissedEmojifyrId, setDismissedEmojifyrId] = useState<string | null>(null);
   const [dismissedTruthOrDareId, setDismissedTruthOrDareId] = useState<string | null>(null);
 
   // Network status & offline queue
@@ -166,11 +167,11 @@ function RoomContent() {
     }, 15_000);
 
     // Fire-and-forget "away" on page close via sendBeacon + fetch keepalive
-    const markAwayBeacon = () => {
+    const markLeftBeacon = () => {
       const url = `https://helpful-bulldog-420.convex.cloud/api/mutation`;
       const body = JSON.stringify({
-        path: "participants:setParticipantOnline",
-        args: { participantId, online: true, presence: "away" },
+        path: "participants:leaveRoom",
+        args: { participantId },
       });
       const blob = new Blob([body], { type: "application/json" });
       navigator.sendBeacon(url, blob);
@@ -193,14 +194,14 @@ function RoomContent() {
       }
     };
 
-    window.addEventListener("beforeunload", markAwayBeacon);
-    window.addEventListener("pagehide", markAwayBeacon);
+    window.addEventListener("beforeunload", markLeftBeacon);
+    window.addEventListener("pagehide", markLeftBeacon);
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       clearInterval(heartbeat);
-      window.removeEventListener("beforeunload", markAwayBeacon);
-      window.removeEventListener("pagehide", markAwayBeacon);
+      window.removeEventListener("beforeunload", markLeftBeacon);
+      window.removeEventListener("pagehide", markLeftBeacon);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [participantId, setParticipantOnline]);
@@ -1587,7 +1588,7 @@ function RoomContent() {
       )}
 
       {/* Emojifyr full-screen game */}
-      {emojifyrSession && emojifyrSession.status === "active" && (
+      {emojifyrSession && emojifyrSession.status === "active" && dismissedEmojifyrId !== emojifyrSession._id && (
         <EmojifyrGameScreen
           session={emojifyrSession}
           currentRound={emojifyrRound}
@@ -1604,6 +1605,7 @@ function RoomContent() {
           onReveal={handleRevealEmojifyr}
           onNextRound={handleEmojifyrNextRound}
           onEndGame={handleCancelEmojifyr}
+          onMinimize={() => setDismissedEmojifyrId(emojifyrSession._id)}
         />
       )}
 
@@ -1624,6 +1626,7 @@ function RoomContent() {
           onCancelGame={handleCancelEmojiMatch}
           onPlayAgain={handlePlayAgainEmojiMatch}
           onClose={() => setDismissedEmojiMatchId(emojiMatchGame._id)}
+          onMinimize={() => setDismissedEmojiMatchId(emojiMatchGame._id)}
         />
       )}
 
@@ -1644,6 +1647,7 @@ function RoomContent() {
           onCancelGame={handleCancelEmojiBingo}
           onPlayAgain={handlePlayAgainEmojiBingo}
           onClose={() => setDismissedEmojiBingoId(emojiBingoGame._id)}
+          onMinimize={() => setDismissedEmojiBingoId(emojiBingoGame._id)}
         />
       )}
 
@@ -1669,8 +1673,117 @@ function RoomContent() {
             }
           }}
           onClose={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
+          onMinimize={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
         />
       )}
+
+      {/* Floating resume buttons when games are minimized */}
+      <div
+        style={{
+          position: "fixed",
+          top: "0.75rem",
+          right: "0.75rem",
+          zIndex: 150,
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.4rem",
+          alignItems: "flex-end",
+          pointerEvents: "none",
+        }}
+      >
+        {truthOrDareGame && truthOrDareGame.status === "active" && dismissedTruthOrDareId === truthOrDareGame._id && (
+          <button
+            onClick={() => setDismissedTruthOrDareId(null)}
+            aria-label={t("Resume Truth or Dare", lang)}
+            style={{
+              pointerEvents: "auto",
+              padding: "0.5rem 0.9rem",
+              borderRadius: "999px",
+              background: "linear-gradient(135deg, #f59e0b, #ea580c, #7c3aed)",
+              color: "#fff",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            🎲 {t("Resume", lang)}
+          </button>
+        )}
+        {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId === emojiMatchGame._id && (
+          <button
+            onClick={() => setDismissedEmojiMatchId(null)}
+            aria-label={t("Resume Emoji Match", lang)}
+            style={{
+              pointerEvents: "auto",
+              padding: "0.5rem 0.9rem",
+              borderRadius: "999px",
+              background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+              color: "#fff",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            🃏 {t("Resume", lang)}
+          </button>
+        )}
+        {emojiBingoGame && emojiBingoGame.status !== "canceled" && dismissedEmojiBingoId === emojiBingoGame._id && (
+          <button
+            onClick={() => setDismissedEmojiBingoId(null)}
+            aria-label={t("Resume Emoji Bingo", lang)}
+            style={{
+              pointerEvents: "auto",
+              padding: "0.5rem 0.9rem",
+              borderRadius: "999px",
+              background: "linear-gradient(135deg, #be123c, #e11d48)",
+              color: "#fff",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            🎰 {t("Resume", lang)}
+          </button>
+        )}
+        {emojifyrSession && emojifyrSession.status === "active" && dismissedEmojifyrId === emojifyrSession._id && (
+          <button
+            onClick={() => setDismissedEmojifyrId(null)}
+            aria-label={t("Resume Emojifyr", lang)}
+            style={{
+              pointerEvents: "auto",
+              padding: "0.5rem 0.9rem",
+              borderRadius: "999px",
+              background: "linear-gradient(135deg, #4f46e5, #7c3aed, #6d28d9)",
+              color: "#fff",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            🔥 {t("Resume", lang)}
+          </button>
+        )}
+      </div>
 
       {/* Game task overlay */}
       {myActiveStep && myActiveStep._id !== dismissedGameStepId && (

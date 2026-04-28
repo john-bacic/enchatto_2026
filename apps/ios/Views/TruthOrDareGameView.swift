@@ -5,6 +5,7 @@ struct TruthOrDareGameView: View {
     @ObservedObject var viewModel: HostRoomViewModel
     let lang: String
     let onDismiss: () -> Void
+    var onMinimize: (() -> Void)? = nil
 
     @State private var responseText = ""
     @State private var showPhotoPicker = false
@@ -27,108 +28,14 @@ struct TruthOrDareGameView: View {
         }
     }
 
-    // MARK: - Active Game View
-
-    private func activeGameView(game: TruthOrDareGame) -> some View {
-        let isMyTurn = game.currentTurnParticipantId == viewModel.hostId
-        let currentPlayer = game.playerInfo?.first(where: { $0.participantId == game.currentTurnParticipantId })
-        let avatarEmoji = avatarEmojiFor(currentPlayer?.avatarValue ?? "cat")
-
-        return ZStack {
-            LinearGradient(
-                colors: [Color(hex: "#451a03"), Color(hex: "#7c2d12"), Color(hex: "#92400e")],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    HStack(spacing: 6) {
-                        Text("🎲 \(L.t("Truth or Dare", lang))")
-                            .font(.headline)
-                            .foregroundColor(.white)
-
-                        let completed = game.completedTurns ?? 0
-                        let inProgress = (game.currentTurn?.status == .waiting_for_choice || game.currentTurn?.status == .waiting_for_response) ? 1 : 0
-                        let current = completed + inProgress
-                        let roundOf = max(10, Int(ceil(Double(completed + 1) / 10.0)) * 10)
-                        Text("\(current)/\(roundOf)")
-                            .font(.caption.bold())
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.15))
-                            .cornerRadius(10)
-                    }
-                    Spacer()
-                    Button {
-                        Task { await viewModel.endTruthOrDare() }
-                    } label: {
-                        Text(L.t("🛑 End Game", lang))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.red.opacity(0.8))
-                            .cornerRadius(6)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-
-                // Player strip
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        if let players = game.playerInfo?.filter({ $0.online }) {
-                            let pRatings = playerRatingsMap(turns: game.completedTurnsList ?? [])
-                            ForEach(players) { p in
-                                let emoji = avatarEmojiFor(p.avatarValue)
-                                let isActive = p.participantId == game.currentTurnParticipantId
-                                let avgRating = pRatings[p.participantId]
-                                VStack(spacing: 2) {
-                                    Text(emoji)
-                                        .font(.system(size: 28))
-                                        .frame(width: 44, height: 44)
-                                        .background(isActive ? Color.orange.opacity(0.4) : Color.clear)
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(isActive ? Color.orange : Color.clear, lineWidth: 2))
-                                    Text(p.nickname)
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.white)
-                                    if let avg = avgRating {
-                                        Text("⭐ \(String(format: "%.1f", avg))")
-                                            .font(.system(size: 9))
-                                            .foregroundColor(.yellow)
-                                    }
-                                }
-                                .opacity(isActive ? 1 : 0.5)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-                .padding(.vertical, 8)
-
-                Spacer()
-
-                // Main content
-                if let turn = game.currentTurn {
-                    turnContent(turn: turn, isMyTurn: isMyTurn, currentPlayer: currentPlayer, avatarEmoji: avatarEmoji, game: game)
-                }
-
-                Spacer()
-            }
-
-            // Round break interstitial — every 10 turns
-            if let completedTurns = game.completedTurns,
-               completedTurns > 0,
-               completedTurns % 10 == 0,
-               game.currentTurn?.status == .waiting_for_choice,
-               dismissedRoundBreak != completedTurns {
-
+    @ViewBuilder
+    private func roundBreakInterstitial(game: TruthOrDareGame) -> some View {
+        if let completedTurns = game.completedTurns,
+           completedTurns > 0,
+           completedTurns % 10 == 0,
+           game.currentTurn?.status == .waiting_for_choice,
+           dismissedRoundBreak != completedTurns {
+            ZStack {
                 Color.black.opacity(0.7)
                     .ignoresSafeArea()
 
@@ -142,31 +49,7 @@ struct TruthOrDareGameView: View {
                         .foregroundColor(.white.opacity(0.6))
                         .font(.subheadline)
 
-                    // Mini ratings
-                    if let turns = game.completedTurnsList, !turns.isEmpty {
-                        let ratedTurns = turns.filter { !$0.ratings.isEmpty }
-                        if !ratedTurns.isEmpty {
-                            let summary = ratingSummary(turns: ratedTurns, players: game.playerInfo ?? [])
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(Array(summary.prefix(3).enumerated()), id: \.element.pid) { index, entry in
-                                    let medal = index == 0 ? "🥇" : index == 1 ? "🥈" : "🥉"
-                                    HStack {
-                                        Text("\(medal) \(entry.emoji) \(entry.name)")
-                                            .font(.caption)
-                                            .foregroundColor(.white)
-                                        Spacer()
-                                        Text("⭐ \(String(format: "%.1f", entry.avg))")
-                                            .font(.caption.bold())
-                                            .foregroundColor(.yellow)
-                                    }
-                                }
-                            }
-                            .padding(10)
-                            .background(Color.white.opacity(0.08))
-                            .cornerRadius(10)
-                            .padding(.horizontal, 32)
-                        }
-                    }
+                    roundBreakRatings(game: game)
 
                     HStack(spacing: 16) {
                         Button {
@@ -204,7 +87,7 @@ struct TruthOrDareGameView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 20)
                         .fill(
-                            LinearGradient(colors: [Color(hex: "#7c2d12"), Color(hex: "#9a3412")],
+                            LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")],
                                            startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
                         .overlay(
@@ -214,6 +97,163 @@ struct TruthOrDareGameView: View {
                 )
                 .padding(.horizontal, 16)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func roundBreakRatings(game: TruthOrDareGame) -> some View {
+        if let turns = game.completedTurnsList, !turns.isEmpty {
+            let ratedTurns = turns.filter { !$0.ratings.isEmpty }
+            if !ratedTurns.isEmpty {
+                let summary = ratingSummary(turns: ratedTurns, players: game.playerInfo ?? [])
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(summary.prefix(3).enumerated()), id: \.element.pid) { index, entry in
+                        let medal = index == 0 ? "🥇" : index == 1 ? "🥈" : "🥉"
+                        HStack {
+                            Text("\(medal) \(entry.emoji) \(entry.name)")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("⭐ \(String(format: "%.1f", entry.avg))")
+                                .font(.caption.bold())
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(10)
+                .padding(.horizontal, 32)
+            }
+        }
+    }
+
+    private func playerStrip(game: TruthOrDareGame) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                if let players = game.playerInfo?.filter({ $0.online }) {
+                    let pRatings = playerRatingsMap(turns: game.completedTurnsList ?? [])
+                    ForEach(players) { p in
+                        let isActive = p.participantId == game.currentTurnParticipantId
+                        playerStripCell(
+                            emoji: avatarEmojiFor(p.avatarValue),
+                            nickname: p.nickname,
+                            isActive: isActive,
+                            avgRating: pRatings[p.participantId]
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func playerStripCell(emoji: String, nickname: String, isActive: Bool, avgRating: Double?) -> some View {
+        VStack(spacing: 2) {
+            Text(emoji)
+                .font(.system(size: 28))
+                .frame(width: 44, height: 44)
+                .background(isActive ? Color.orange.opacity(0.4) : Color.clear)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(isActive ? Color.orange : Color.clear, lineWidth: 2))
+            Text(nickname)
+                .font(.system(size: 10))
+                .foregroundColor(.white)
+            if let avg = avgRating {
+                Text("⭐ \(String(format: "%.1f", avg))")
+                    .font(.system(size: 9))
+                    .foregroundColor(.white)
+            }
+        }
+        .opacity(isActive ? 1 : 0.5)
+    }
+
+    private func headerBar(game: TruthOrDareGame) -> some View {
+        HStack {
+            HStack(spacing: 6) {
+                Text("🎲 \(L.t("Truth or Dare", lang))")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                let completed = game.completedTurns ?? 0
+                let inProgress = (game.currentTurn?.status == .waiting_for_choice || game.currentTurn?.status == .waiting_for_response) ? 1 : 0
+                let current = completed + inProgress
+                let roundOf = max(10, Int(ceil(Double(completed + 1) / 10.0)) * 10)
+                Text("\(current)/\(roundOf)")
+                    .font(.caption.bold())
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.15))
+                    .cornerRadius(10)
+            }
+            Spacer()
+            headerActionButtons
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
+    private var headerActionButtons: some View {
+        HStack(spacing: 8) {
+            Button {
+                Task { await viewModel.endTruthOrDare() }
+            } label: {
+                Text(L.t("🛑 End Game", lang))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.8))
+                    .cornerRadius(6)
+            }
+            Button {
+                (onMinimize ?? onDismiss)()
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.18))
+                    .cornerRadius(6)
+            }
+            .accessibilityLabel(L.t("Minimize", lang))
+        }
+    }
+
+    // MARK: - Active Game View
+
+    private func activeGameView(game: TruthOrDareGame) -> some View {
+        let isMyTurn = game.currentTurnParticipantId == viewModel.hostId
+        let currentPlayer = game.playerInfo?.first(where: { $0.participantId == game.currentTurnParticipantId })
+        let avatarEmoji = avatarEmojiFor(currentPlayer?.avatarValue ?? "cat")
+
+        return ZStack {
+            LinearGradient(
+                colors: [Color(hex: "#f59e0b"), Color(hex: "#ea580c"), Color(hex: "#7c3aed")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                headerBar(game: game)
+
+                playerStrip(game: game)
+
+                Spacer()
+
+                // Main content
+                if let turn = game.currentTurn {
+                    turnContent(turn: turn, isMyTurn: isMyTurn, currentPlayer: currentPlayer, avatarEmoji: avatarEmoji, game: game)
+                }
+
+                Spacer()
+            }
+
+            roundBreakInterstitial(game: game)
 
             // Full-screen image overlay
             if let imageUrl = fullScreenImageUrl, let url = URL(string: imageUrl) {
@@ -288,7 +328,7 @@ struct TruthOrDareGameView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
                                 .background(
-                                    LinearGradient(colors: [.blue, .blue.opacity(0.7)],
+                                    LinearGradient(colors: [Color(hex: "#7c3aed"), Color(hex: "#6d28d9")],
                                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                                 )
                                 .cornerRadius(12)
@@ -346,7 +386,7 @@ struct TruthOrDareGameView: View {
                 .padding(.vertical, 6)
                 .background(
                     turn.choice == .truth
-                        ? LinearGradient(colors: [.blue, .blue.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
+                        ? LinearGradient(colors: [Color(hex: "#7c3aed"), Color(hex: "#6d28d9")], startPoint: .leading, endPoint: .trailing)
                         : LinearGradient(colors: [Color(hex: "#ea580c"), Color(hex: "#d97706")], startPoint: .leading, endPoint: .trailing)
                 )
                 .cornerRadius(20)
@@ -420,7 +460,7 @@ struct TruthOrDareGameView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(responseText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color(hex: "#ea580c"))
+                        .background(responseText.trimmingCharacters(in: .whitespaces).isEmpty ? Color(hex: "#7c3aed").opacity(0.3) : Color(hex: "#7c3aed"))
                         .cornerRadius(10)
                 }
                 .disabled(responseText.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -536,7 +576,7 @@ struct TruthOrDareGameView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
                     .background(
-                        Capsule().fill(choice == .truth ? Color.blue.opacity(0.3) : Color(hex: "#ea580c").opacity(0.3))
+                        Capsule().fill(choice == .truth ? Color(hex: "#7c3aed").opacity(0.3) : Color(hex: "#ea580c").opacity(0.3))
                     )
 
                 Text(turn.localizedPrompt(lang: lang))
@@ -640,7 +680,7 @@ struct TruthOrDareGameView: View {
                                         .padding(.vertical, 10)
                                         .background(
                                             starRating > 0
-                                                ? LinearGradient(colors: [.yellow, .orange], startPoint: .leading, endPoint: .trailing)
+                                                ? LinearGradient(colors: [Color(hex: "#7c3aed"), Color(hex: "#6d28d9")], startPoint: .leading, endPoint: .trailing)
                                                 : LinearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.3)], startPoint: .leading, endPoint: .trailing)
                                         )
                                         .cornerRadius(8)
@@ -730,7 +770,7 @@ struct TruthOrDareGameView: View {
     private func completedView(game: TruthOrDareGame) -> some View {
         ZStack {
             LinearGradient(
-                colors: [Color(hex: "#ea580c"), Color(hex: "#f59e0b"), Color(hex: "#d97706")],
+                colors: [Color(hex: "#f59e0b"), Color(hex: "#ea580c"), Color(hex: "#7c3aed")],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

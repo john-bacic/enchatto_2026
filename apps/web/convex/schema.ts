@@ -159,6 +159,7 @@ export default defineSchema({
       joinedAt: v.number(),
       isActive: v.boolean(),
       score: v.number(),
+      turns: v.optional(v.number()),
     })),
     turnOrder: v.array(v.id("participants")),
     currentTurnParticipantId: v.optional(v.id("participants")),

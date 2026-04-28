@@ -47,6 +47,7 @@ struct EmojiMatchPlayer: Codable, Identifiable, Equatable {
     var joinedAt: Double
     var isActive: Bool
     var score: Int
+    var turns: Int?
 
     var id: String { participantId }
 }

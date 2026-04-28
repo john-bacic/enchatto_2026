@@ -48,6 +48,10 @@ struct HostConversationView: View {
     @State private var showEmojifyrGame = false
     @State private var showEmojiMatchGame = false
     @State private var showTruthOrDareGame = false
+    @State private var minimizedTruthOrDareGameId: String? = nil
+    @State private var minimizedEmojiMatchGameId: String? = nil
+    @State private var minimizedEmojiBingoGameId: String? = nil
+    @State private var minimizedEmojifyrSessionId: String? = nil
     @State private var showEmojiBingoGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
@@ -120,6 +124,7 @@ struct HostConversationView: View {
         .overlay { contextMenuOverlay }
         .overlay { qrOverlay }
         .overlay { fullScreenImageOverlay }
+        .overlay(alignment: .topTrailing) { minimizedGameResumeButtons }
         .overlay { DebugConsoleView() }
         .onTapGesture(count: 3) {
             DebugConsole.shared.isEnabled.toggle()
@@ -1056,14 +1061,23 @@ struct HostConversationView: View {
             EmojifyrGameView(
                 viewModel: viewModel,
                 lang: hostLanguage,
-                onDismiss: { showEmojifyrGame = false }
+                onDismiss: { showEmojifyrGame = false },
+                onMinimize: {
+                    if let s = viewModel.activeEmojifyrSession {
+                        minimizedEmojifyrSessionId = s.id
+                    }
+                    showEmojifyrGame = false
+                }
             )
             .overlay { DebugConsoleView() }
             .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeEmojifyrSession) { session in
-            if session != nil && !showEmojifyrGame {
+            if let s = session, !showEmojifyrGame, minimizedEmojifyrSessionId != s.id {
                 showEmojifyrGame = true
+            }
+            if session == nil {
+                minimizedEmojifyrSessionId = nil
             }
         }
         // MARK: - Emoji Match full-screen game
@@ -1071,18 +1085,25 @@ struct HostConversationView: View {
             EmojiMatchGameView(
                 viewModel: viewModel,
                 lang: hostLanguage,
-                onDismiss: { showEmojiMatchGame = false }
+                onDismiss: { showEmojiMatchGame = false },
+                onMinimize: {
+                    if let g = viewModel.activeEmojiMatchGame {
+                        minimizedEmojiMatchGameId = g.id
+                    }
+                    showEmojiMatchGame = false
+                }
             )
             .overlay { DebugConsoleView() }
             .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeEmojiMatchGame) { game in
             if let g = game, g.status != .canceled, g.status != .completed {
-                if !showEmojiMatchGame {
+                if !showEmojiMatchGame && minimizedEmojiMatchGameId != g.id {
                     showEmojiMatchGame = true
                 }
             } else if game == nil || game?.status == .canceled {
                 showEmojiMatchGame = false
+                minimizedEmojiMatchGameId = nil
             }
         }
         // MARK: - Emoji Bingo full-screen game
@@ -1090,18 +1111,25 @@ struct HostConversationView: View {
             EmojiBingoGameView(
                 viewModel: viewModel,
                 lang: hostLanguage,
-                onDismiss: { showEmojiBingoGame = false }
+                onDismiss: { showEmojiBingoGame = false },
+                onMinimize: {
+                    if let g = viewModel.activeEmojiBingoGame {
+                        minimizedEmojiBingoGameId = g.id
+                    }
+                    showEmojiBingoGame = false
+                }
             )
             .overlay { DebugConsoleView() }
             .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeEmojiBingoGame) { game in
             if let g = game, g.status != .canceled, g.status != .completed {
-                if !showEmojiBingoGame {
+                if !showEmojiBingoGame && minimizedEmojiBingoGameId != g.id {
                     showEmojiBingoGame = true
                 }
             } else if game == nil || game?.status == .canceled {
                 showEmojiBingoGame = false
+                minimizedEmojiBingoGameId = nil
             }
         }
         // MARK: - Truth or Dare full-screen game
@@ -1109,20 +1137,116 @@ struct HostConversationView: View {
             TruthOrDareGameView(
                 viewModel: viewModel,
                 lang: hostLanguage,
-                onDismiss: { showTruthOrDareGame = false }
+                onDismiss: { showTruthOrDareGame = false },
+                onMinimize: {
+                    if let g = viewModel.activeTruthOrDareGame {
+                        minimizedTruthOrDareGameId = g.id
+                    }
+                    showTruthOrDareGame = false
+                }
             )
             .overlay { DebugConsoleView() }
             .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
         .onChange(of: viewModel.activeTruthOrDareGame) { game in
             if let g = game, g.status == .active {
-                if !showTruthOrDareGame {
+                if !showTruthOrDareGame && minimizedTruthOrDareGameId != g.id {
                     showTruthOrDareGame = true
                 }
             } else if game == nil || game?.status == .completed || game?.status == .canceled {
                 showTruthOrDareGame = false
+                minimizedTruthOrDareGameId = nil
             }
         }
+    }
+
+    // MARK: - Minimized game resume buttons
+
+    @ViewBuilder
+    private var minimizedGameResumeButtons: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            if let game = viewModel.activeTruthOrDareGame,
+               game.status == .active,
+               minimizedTruthOrDareGameId == game.id,
+               !showTruthOrDareGame {
+                resumePill(
+                    emoji: "🎲",
+                    colors: [Color(hex: "#f59e0b"), Color(hex: "#ea580c"), Color(hex: "#7c3aed")],
+                    accessibility: L.t("Resume Truth or Dare", hostLanguage)
+                ) {
+                    minimizedTruthOrDareGameId = nil
+                    showTruthOrDareGame = true
+                }
+            }
+            if let game = viewModel.activeEmojiMatchGame,
+               game.status != .canceled, game.status != .completed,
+               minimizedEmojiMatchGameId == game.id,
+               !showEmojiMatchGame {
+                resumePill(
+                    emoji: "🃏",
+                    colors: [Color.indigo, Color.purple],
+                    accessibility: L.t("Resume Emoji Match", hostLanguage)
+                ) {
+                    minimizedEmojiMatchGameId = nil
+                    showEmojiMatchGame = true
+                }
+            }
+            if let game = viewModel.activeEmojiBingoGame,
+               game.status != .canceled, game.status != .completed,
+               minimizedEmojiBingoGameId == game.id,
+               !showEmojiBingoGame {
+                resumePill(
+                    emoji: "🎰",
+                    colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.04, green: 0.55, blue: 0.38)],
+                    accessibility: L.t("Resume Emoji Bingo", hostLanguage)
+                ) {
+                    minimizedEmojiBingoGameId = nil
+                    showEmojiBingoGame = true
+                }
+            }
+            if let session = viewModel.activeEmojifyrSession,
+               minimizedEmojifyrSessionId == session.id,
+               !showEmojifyrGame {
+                resumePill(
+                    emoji: "🔥",
+                    colors: [Color.indigo, Color.purple],
+                    accessibility: L.t("Resume Emojifyr", hostLanguage)
+                ) {
+                    minimizedEmojifyrSessionId = nil
+                    showEmojifyrGame = true
+                }
+            }
+        }
+        .padding(.top, 60)
+        .padding(.trailing, 12)
+    }
+
+    private func resumePill(
+        emoji: String,
+        colors: [Color],
+        accessibility: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(emoji)
+                Text(L.t("Resume", hostLanguage))
+                    .font(.caption.bold())
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                LinearGradient(
+                    colors: colors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(Capsule())
+            .shadow(color: Color.black.opacity(0.25), radius: 6, x: 0, y: 3)
+        }
+        .accessibilityLabel(accessibility)
     }
 
     // MARK: - Closed banner

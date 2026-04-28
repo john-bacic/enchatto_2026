@@ -134,6 +134,15 @@ enum L {
         "Quit": ["ja": "やめる"],
         "Waiting for other players...": ["ja": "他のプレイヤーを待っています…"],
         "Close": ["ja": "閉じる"],
+        "Minimize": ["ja": "最小化"],
+        "Resume": ["ja": "再開"],
+        "Resume Truth or Dare": ["ja": "真実か挑戦を再開"],
+        "Resume Emoji Match": ["ja": "絵文字マッチを再開"],
+        "Resume Emoji Bingo": ["ja": "絵文字ビンゴを再開"],
+        "Roll!": ["ja": "ロール！"],
+        "Your turn to roll!": ["ja": "あなたのロール番です！"],
+        "is rolling...": ["ja": "がロール中…"],
+        "Resume Emojifyr": ["ja": "Emojifyrを再開"],
 
         // Game levels
         "Level": ["ja": "レベル"],

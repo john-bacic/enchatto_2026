@@ -14,6 +14,12 @@ const translations: Record<string, Record<string, string>> = {
     ja: "カメラへのアクセスが拒否されました。カメラの権限を許可してください。",
   },
   "Close": { ja: "閉じる" },
+  "Minimize": { ja: "最小化" },
+  "Resume": { ja: "再開" },
+  "Resume Truth or Dare": { ja: "真実か挑戦を再開" },
+  "Resume Emoji Match": { ja: "絵文字マッチを再開" },
+  "Resume Emoji Bingo": { ja: "絵文字ビンゴを再開" },
+  "Resume Emojifyr": { ja: "Emojifyrを再開" },
 
   // Join page
   "Join Conversation": { ja: "会話に参加" },
@@ -294,6 +300,7 @@ const translations: Record<string, Record<string, string>> = {
   "min": { ja: "分" },
   "Game Started: Emoji Bingo": { ja: "ゲーム開始：絵文字ビンゴ" },
   "Roll!": { ja: "ロール！" },
+  "Your turn to roll!": { ja: "あなたのロール番です！" },
   "is rolling...": { ja: "がロール中…" },
   "Waiting for first roll...": { ja: "最初のロールを待っています…" },
 };

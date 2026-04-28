@@ -19,6 +19,7 @@ interface EmojiMatchGameProps {
   onCancelGame: (gameId: string) => void;
   onPlayAgain: (gameId: string) => void;
   onClose: () => void;
+  onMinimize?: () => void;
 }
 
 export function EmojiMatchGame({
@@ -36,6 +37,7 @@ export function EmojiMatchGame({
   onCancelGame,
   onPlayAgain,
   onClose,
+  onMinimize,
 }: EmojiMatchGameProps) {
   const isMyTurn = game.currentTurnParticipantId === myParticipantId;
   const amJoined = game.players.some(
@@ -126,11 +128,12 @@ export function EmojiMatchGame({
         onFlipCard={stableOnFlipCard}
         onTimeoutTurn={stableOnTimeoutTurn}
         onCancel={stableOnCancel}
+        onMinimize={onMinimize}
       />
     );
   }
 
-  if (game.status === "completed" && showCompleted) {
+  if ((game.status === "completed" && showCompleted) || game.status === "canceled") {
     return (
       <CompletedView
         game={game}
@@ -257,6 +260,7 @@ function GameBoardView({
   onFlipCard,
   onTimeoutTurn,
   onCancel,
+  onMinimize,
 }: {
   game: any;
   myParticipantId: string;
@@ -266,6 +270,7 @@ function GameBoardView({
   onFlipCard: (cardId: string) => void;
   onTimeoutTurn: () => void;
   onCancel: () => void;
+  onMinimize?: () => void;
 }) {
   const currentPlayer = game.players.find(
     (p: any) => p.participantId === game.currentTurnParticipantId
@@ -323,6 +328,30 @@ function GameBoardView({
             {game.matchedPairCount}/{game.totalPairs}
           </span>
           {/* End Game is controlled by the iOS host only */}
+          {onMinimize && (
+            <button
+              onClick={onMinimize}
+              aria-label={t("Minimize", lang)}
+              title={t("Minimize", lang)}
+              style={{
+                width: "1.75rem",
+                height: "1.75rem",
+                borderRadius: "6px",
+                background: "var(--bg)",
+                color: "var(--foreground)",
+                fontSize: "1rem",
+                fontWeight: 700,
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              –
+            </button>
+          )}
         </div>
       </div>
 
@@ -392,7 +421,7 @@ function GameBoardView({
                 {avatar?.emoji ?? "?"}
               </span>
               <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>
-                {p.score}
+                {p.turns ?? 0}/{p.score}/{game.totalPairs}
               </span>
             </div>
           );
@@ -603,7 +632,7 @@ function CompletedView({
                   )}
                 </span>
                 <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>
-                  {p.score} {p.score === 1 ? t("pair", lang) : t("pairs", lang)}
+                  {p.turns ?? 0}/{p.score}/{game.totalPairs}
                 </span>
               </div>
             );

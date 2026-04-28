@@ -76,20 +76,18 @@ struct HostMessageRow: View {
 
     private var avatarColumn: some View {
         VStack(spacing: 2) {
-            if let sender {
-                ZStack {
-                    Circle()
-                        .fill(sender.avatarColor)
-                        .frame(width: 28, height: 28)
-                    Text(sender.avatarEmoji)
-                        .font(.system(size: 16))
-                }
-                Text(sender.nickname)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .frame(maxWidth: 40)
+            ZStack {
+                Circle()
+                    .fill(sender?.avatarColor ?? Color(.systemGray5))
+                    .frame(width: 28, height: 28)
+                Text(sender?.avatarEmoji ?? "👤")
+                    .font(.system(size: 16))
             }
+            Text(sender?.nickname ?? "Unknown")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(maxWidth: 40)
         }
     }
 

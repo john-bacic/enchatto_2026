@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const sendTextMessage = mutation({
   args: {
@@ -50,7 +51,7 @@ export const sendTextMessage = mutation({
       });
     }
 
-    return await ctx.db.insert("messages", {
+    const messageId = await ctx.db.insert("messages", {
       roomId: args.roomId,
       senderId: args.senderId,
       kind: "text",
@@ -59,6 +60,19 @@ export const sendTextMessage = mutation({
       replyToId: args.replyToId,
       createdAt: now,
     });
+
+    // Check if an iOS host is online — if not, translate server-side
+    const iosHost = participants.find(
+      (p) => p.role === "host" && p.platform === "ios" && p.online
+    );
+    if (!iosHost) {
+      await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
+        messageId,
+        roomId: args.roomId,
+      });
+    }
+
+    return messageId;
   },
 });
 
@@ -199,5 +213,131 @@ export const getPendingMessagesForProcessor = query({
         q.eq("roomId", args.roomId).eq("status", "pending")
       )
       .collect();
+  },
+});
+
+// --- Server-side translation (fallback when no iOS host is online) ---
+
+function detectLanguage(text: string): "en" | "ja" {
+  const cjkRegex = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]/;
+  return cjkRegex.test(text) ? "ja" : "en";
+}
+
+async function callClaude(apiKey: string, prompt: string, maxTokens = 512): Promise<string | null> {
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.content?.[0]?.text?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export const translateMessageServerSide = internalAction({
+  args: {
+    messageId: v.id("messages"),
+    roomId: v.id("rooms"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.runQuery(
+      internal.messages.getMessageByIdInternal,
+      { messageId: args.messageId }
+    );
+    if (!message || message.status !== "pending" || !message.text) return;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      await ctx.runMutation(internal.messages.markMessageFailedInternal, {
+        messageId: args.messageId,
+        error: "Translation unavailable (no API key)",
+      });
+      return;
+    }
+
+    const text = message.text;
+    const sourceLang = detectLanguage(text);
+    const targetLang = sourceLang === "ja" ? "en" : "ja";
+    const fromName = sourceLang === "ja" ? "Japanese" : "English";
+    const toName = targetLang === "ja" ? "Japanese" : "English";
+
+    // Translate
+    const translatedText = await callClaude(
+      apiKey,
+      `Translate the following ${fromName} text to ${toName}. Output only the translation, nothing else.\n\n${text}`,
+      512
+    );
+
+    // Generate romaji if the result or source is Japanese
+    let romaji: string | undefined;
+    const japaneseText = sourceLang === "ja" ? text : translatedText;
+    if (japaneseText) {
+      const romajiResult = await callClaude(
+        apiKey,
+        `Convert the following Japanese text to romaji. Output only the romaji, nothing else.\n\n${japaneseText}`,
+        256
+      );
+      if (romajiResult) romaji = romajiResult;
+    }
+
+    await ctx.runMutation(internal.messages.submitProcessedInternal, {
+      messageId: args.messageId,
+      processing: {
+        translatedText: translatedText ?? undefined,
+        romaji,
+      },
+    });
+  },
+});
+
+export const getMessageByIdInternal = internalQuery({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.messageId);
+  },
+});
+
+export const submitProcessedInternal = internalMutation({
+  args: {
+    messageId: v.id("messages"),
+    processing: v.object({
+      translatedText: v.optional(v.string()),
+      romaji: v.optional(v.string()),
+      suggestions: v.optional(v.array(v.string())),
+      error: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, {
+      status: "processed",
+      processing: args.processing,
+      processedAt: Date.now(),
+    });
+  },
+});
+
+export const markMessageFailedInternal = internalMutation({
+  args: {
+    messageId: v.id("messages"),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, {
+      status: "failed",
+      processing: { error: args.error },
+      processedAt: Date.now(),
+    });
   },
 });

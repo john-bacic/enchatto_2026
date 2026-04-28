@@ -32,11 +32,11 @@ export const joinRoom = mutation({
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
 
-    // Check for existing offline participant with same nickname + avatar
+    // Check for existing offline participant with same nickname + avatar (case-insensitive)
     const existing = participants.find(
       (p) =>
         !p.online &&
-        p.nickname === nickname &&
+        p.nickname.toLowerCase().trim() === nickname.toLowerCase() &&
         p.avatar.value === args.avatar.value &&
         p.role !== "host"
     );
@@ -280,9 +280,8 @@ export const cleanupStaleParticipants = internalMutation({
     for (const p of allParticipants) {
       if (!p.online) continue;
       if (p.presence === "away" && p.lastSeenAt < awayOfflineCutoff) {
-        // Mark offline but do NOT create a "leave" system message.
-        // "leave" messages are only created when the room is explicitly closed.
-        await ctx.db.patch(p._id, { online: false, presence: undefined, typingAction: undefined });
+        // Mark offline and departed — remove from participant list
+        await ctx.db.patch(p._id, { online: false, departed: true, presence: undefined, typingAction: undefined });
       } else if (p.presence !== "away" && p.lastSeenAt < onlineAwayCutoff) {
         await ctx.db.patch(p._id, { presence: "away", typingAction: undefined });
       }
