@@ -18,42 +18,12 @@ export const sendTextMessage = mutation({
     if (!text) throw new Error("Message cannot be empty");
     if (text.length > 2000) throw new Error("Message too long (max 2000 characters)");
 
-    // If all online participants only want English (no Japanese/Romaji), skip translation
     const participants = await ctx.db
       .query("participants")
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
-    const onlineParticipants = participants.filter((p) => p.online);
-    const allEnglishOnly = onlineParticipants.length > 0 &&
-      onlineParticipants.every((p) => {
-        const ds = p.displaySettings;
-        if (ds) {
-          // If they have display settings, check that Japanese and Romaji are off
-          return !ds.showJapanese && !ds.showRomaji;
-        }
-        // No display settings saved yet — fall back to preferredLanguage
-        return p.preferredLanguage === "en";
-      });
 
     const now = Date.now();
-
-    const iosHost = participants.find(
-      (p) => p.role === "host" && p.platform === "ios" && p.online
-    );
-
-    if (allEnglishOnly && iosHost) {
-      // Simple chat mode — iOS host is online and nobody needs translation
-      return await ctx.db.insert("messages", {
-        roomId: args.roomId,
-        senderId: args.senderId,
-        kind: "text",
-        status: "processed",
-        text,
-        replyToId: args.replyToId,
-        createdAt: now,
-        processedAt: now,
-      });
-    }
 
     const messageId = await ctx.db.insert("messages", {
       roomId: args.roomId,
@@ -65,13 +35,11 @@ export const sendTextMessage = mutation({
       createdAt: now,
     });
 
-    // No iOS host online — translate server-side
-    if (!iosHost) {
-      await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
-        messageId,
-        roomId: args.roomId,
-      });
-    }
+    // Always translate server-side (EN↔JA + romaji)
+    await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
+      messageId,
+      roomId: args.roomId,
+    });
 
     return messageId;
   },
