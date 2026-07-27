@@ -3,9 +3,10 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
+// Was every 10s (~8.6k calls/day) even with zero rooms — hourly is enough.
 crons.interval(
   "cleanup stale participants",
-  { seconds: 10 },
+  { hours: 1 },
   internal.participants.cleanupStaleParticipants
 );
 
