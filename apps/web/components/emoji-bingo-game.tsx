@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, memo, useRef } from "react";
-import { PRESET_AVATARS } from "@/lib/types";
 import { t } from "@/lib/i18n";
+import { AvatarDisc } from "@/components/ui/avatar";
+import { Chatto } from "@/components/ui/chatto";
+import { EmojiArt, Icon } from "@/components/ui/icon";
+import { Confetti, CutIn } from "@/components/ui/effects";
 
-// ─── Types ─────────────────────────────────��───────────────────���─────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface BingoPlayer {
   participantId: string;
@@ -56,11 +59,7 @@ interface EmojiBingoGameProps {
   onMinimize?: () => void;
 }
 
-// ─── Helpers ────────────────────────────────���────────────────────────────���───
-
-function getEmoji(avatarValue: string): string {
-  return PRESET_AVATARS.find((a) => a.id === avatarValue)?.emoji ?? "👤";
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const FREE_SPACE = "⭐";
 
@@ -106,12 +105,86 @@ function cellsAwayFromWin(markedCells: number[], winPattern: string): number {
   return count;
 }
 
-const PATTERN_LABELS: Record<string, string> = {
-  line: "Line",
-  four_corners: "4 Corners",
-  blackout: "Blackout",
+const PATTERN_LABELS: Record<string, { en: string; ja: string }> = {
+  line: { en: "Line", ja: "ライン" },
+  four_corners: { en: "4 Corners", ja: "四隅" },
+  blackout: { en: "Blackout", ja: "ぜんぶ" },
+};
+const patternLabel = (p: string, lang?: string) => {
+  const l = PATTERN_LABELS[p];
+  return l ? (lang === "ja" ? l.ja : l.en) : p;
 };
 
+// Names for the server's bingo pool, shown bilingually when an emoji is called.
+const EMOJI_NAMES: Record<string, [string, string]> = {
+  "☀️": ["Sun", "たいよう"], "☁️": ["Cloud", "くも"], "☂️": ["Umbrella", "かさ"], "⛄": ["Snowman", "ゆきだるま"],
+  "🌙": ["Moon", "つき"], "🏠": ["House", "いえ"], "☕": ["Coffee", "コーヒー"], "🌷": ["Tulip", "チューリップ"],
+  "🍒": ["Cherry", "さくらんぼ"], "🍞": ["Bread", "パン"], "🍰": ["Cake", "ケーキ"], "🚗": ["Car", "くるま"],
+  "🍦": ["Ice Cream", "アイス"], "🍉": ["Watermelon", "すいか"], "💎": ["Diamond", "ダイヤ"], "🦋": ["Butterfly", "ちょうちょ"],
+  "📷": ["Camera", "カメラ"], "📺": ["TV", "テレビ"], "🚃": ["Train", "でんしゃ"], "🥨": ["Pretzel", "プレッツェル"],
+  "🌠": ["Shooting Star", "ながれぼし"], "🌸": ["Flower", "はな"], "🐈": ["Kitty", "こねこ"], "🎁": ["Gift", "プレゼント"],
+  "🐰": ["Bunny", "うさぎ"], "🐼": ["Panda", "パンダ"], "🐻": ["Bear", "くま"], "👻": ["Ghost", "おばけ"],
+  "🐥": ["Chick", "ひよこ"], "🪼": ["Jellyfish", "くらげ"], "🐶": ["Dog", "いぬ"], "🐹": ["Hamster", "ハムスター"],
+  "🐱": ["Cat", "ねこ"], "🐢": ["Turtle", "かめ"], "🦭": ["Seal", "アザラシ"], "🐝": ["Bee", "はち"],
+  "🐑": ["Sheep", "ひつじ"], "🐷": ["Pig", "ぶた"], "🐳": ["Whale", "くじら"], "🐕": ["Chihuahua", "チワワ"],
+  "💡": ["Light Bulb", "でんきゅう"], "✏️": ["Pencil", "えんぴつ"], "👑": ["Crown", "おうかん"], "⚡": ["Lightning", "かみなり"],
+  "❓": ["Question", "はてな"], "🍀": ["Clover", "クローバー"], "🎵": ["Music", "おんがく"], "🎀": ["Ribbon", "リボン"],
+};
+
+const COPY = {
+  en: { oneAway: "1 AWAY!", bingo: "BINGO!", roll: "ROLL!", you: "YOU", gotBingo: "got BINGO!", players: "players" },
+  ja: { oneAway: "あと1つ！", bingo: "ビンゴ！", roll: "ロール！", you: "あなた", gotBingo: "ビンゴ！", players: "人" },
+};
+const copy = (lang?: string) => (lang === "ja" ? COPY.ja : COPY.en);
+
+const SCREEN_BG =
+  "repeating-linear-gradient(-45deg, rgba(63, 220, 176, 0.1) 0 14px, transparent 14px 28px), var(--paper)";
+
+function TitlePill({ lang }: { lang?: string }) {
+  return (
+    <span
+      className="ec-chunky"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 12px 3px 6px",
+        border: "2.5px solid var(--ink)",
+        borderRadius: 999,
+        background: "#fff",
+        boxShadow: "0 3px 0 var(--ink)",
+        fontSize: 13,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Icon name="g-clover" size={24} />
+      {t("Emoji Bingo", lang)}
+    </span>
+  );
+}
+
+function ModalBackdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="ec-sheet-backdrop" style={{ zIndex: 95, alignItems: "center", padding: 16 }} onClick={onClose}>
+      <div
+        className="ec-card"
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          maxHeight: "90dvh",
+          overflowY: "auto",
+          padding: "22px 18px 18px",
+          textAlign: "center",
+          background: "var(--paper)",
+          animation: "ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // ─── BingoCell ───────────────────────────────────────────────────────────────
 
@@ -136,53 +209,72 @@ const BingoCell = memo(function BingoCell({
     <button
       onClick={() => canMark && onMark(index)}
       style={{
-        aspectRatio: "1",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: "1.8rem",
-        border: isMarked
-          ? "2px solid #22c55e"
-          : isCalled && !isMarked
-            ? "2px solid #facc15"
-            : "1px solid var(--border)",
-        borderRadius: "8px",
-        background: isMarked
-          ? isFree
-            ? "linear-gradient(135deg, #fbbf24, #f59e0b)"
-            : "linear-gradient(135deg, #22c55e, #16a34a)"
-          : isFree
-            ? "linear-gradient(135deg, #fef3c7, #fde68a)"
-            : isCalled
-              ? "rgba(250, 204, 21, 0.15)"
-              : "var(--surface)",
-        cursor: canMark ? "pointer" : "default",
-        transition: "all 0.15s ease",
         position: "relative",
+        aspectRatio: "1",
+        display: "grid",
+        placeItems: "center",
         padding: 0,
+        border: "2.5px solid var(--ink)",
+        borderRadius: 12,
+        background: isFree ? "var(--yellow)" : canMark ? "var(--mint-soft)" : "#fff",
+        boxShadow: "0 3px 0 var(--ink)",
+        cursor: canMark ? "pointer" : "default",
+        animation: canMark ? "ec-pulse 1s ease-in-out infinite" : undefined,
+        overflow: "visible",
       }}
     >
-      <span style={{ opacity: isMarked && !isFree ? 0.6 : 1 }}>{emoji}</span>
-      {isMarked && !isFree && (
-        <span style={{
-          position: "absolute",
-          fontSize: "1.1rem",
-          color: "#fff",
-          fontWeight: 700,
-        }}>
-          ✓
-        </span>
+      {isFree ? (
+        <Chatto size={40} bob={false} wave={false} />
+      ) : (
+        <EmojiArt emoji={emoji} size="78%" />
+      )}
+      {isMarked && (
+        <>
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 4,
+              border: "4px solid var(--pink)",
+              borderRadius: "50%",
+              background: "rgba(255, 122, 182, 0.22)",
+              animation: "bingo-stamp 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) both",
+              pointerEvents: "none",
+            }}
+          />
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              right: -5,
+              bottom: -5,
+              display: "grid",
+              placeItems: "center",
+              width: 18,
+              height: 18,
+              border: "2px solid var(--ink)",
+              borderRadius: "50%",
+              background: "var(--pink)",
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 900,
+              lineHeight: 1,
+              animation: "ec-pop-in 0.3s 0.15s cubic-bezier(0.3, 1.8, 0.5, 1) both",
+            }}
+          >
+            ✓
+          </span>
+        </>
       )}
     </button>
   );
 });
 
-// ─── LobbyView ──────────────────────────────────────────��───────────────────
+// ─── LobbyView ───────────────────────────────────────────────────────────────
 
 function LobbyView({
   game,
   myParticipantId,
-  isHost,
   lang,
   onJoinLobby,
   onLeaveLobby,
@@ -195,127 +287,115 @@ function LobbyView({
   const isGameHost = game.hostParticipantId === myParticipantId;
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-      zIndex: 95, display: "flex", alignItems: "center", justifyContent: "center",
-    }} onClick={onClose}>
-      <div style={{
-        background: "var(--surface)", borderRadius: "16px", padding: "1.5rem",
-        width: "100%", maxWidth: "340px", margin: "1rem", textAlign: "center",
-      }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🎰</div>
-        <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-          {t("Emoji Bingo", lang)}
-        </h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "1rem", lineHeight: 1.4 }}>
-          {t("Mark emojis on your card as they're called. First to complete the pattern wins!", lang)}
-        </p>
+    <ModalBackdrop onClose={onClose}>
+      <Icon name="g-clover" size={64} style={{ animation: "ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)" }} />
+      <h2 className="ec-chunky" style={{ fontSize: 24, margin: "4px 0 4px", textShadow: "0 3px 0 var(--mint)" }}>
+        {t("Emoji Bingo", lang)}
+      </h2>
+      <p style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.75, marginBottom: 14, lineHeight: 1.45 }}>
+        {t("Mark emojis on your card as they're called. First to complete the pattern wins!", lang)}
+      </p>
 
-        {/* Pattern selector (host only) */}
-        {isGameHost && (
-          <>
-            <div style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.35rem", textAlign: "left" }}>
-              {t("Win Pattern", lang)}
-            </div>
-            <div style={{
-              display: "flex", gap: 0, marginBottom: "0.75rem",
-              borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)",
-            }}>
-              {(["line", "four_corners", "blackout"] as const).map((p) => (
+      {/* Pattern selector (host only) */}
+      {isGameHost && (
+        <>
+          <div className="ec-label" style={{ justifyContent: "flex-start", marginBottom: 6 }}>
+            {t("Win Pattern", lang)}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {(["line", "four_corners", "blackout"] as const).map((p) => {
+              const on = game.winPattern === p;
+              return (
                 <button
                   key={p}
                   onClick={() => onUpdateSettings(game._id, p, undefined)}
                   style={{
-                    flex: 1, padding: "0.45rem 0", fontSize: "0.75rem",
-                    fontWeight: game.winPattern === p ? 700 : 500,
-                    background: game.winPattern === p ? "linear-gradient(135deg, #10b981, #059669)" : "var(--bg)",
-                    color: game.winPattern === p ? "#fff" : "var(--muted)",
-                    border: "none", cursor: "pointer",
+                    flex: 1,
+                    padding: "6px 0",
+                    border: "2.5px solid var(--ink)",
+                    borderRadius: 999,
+                    background: on ? "var(--mint)" : "#fff",
+                    boxShadow: on ? "0 3px 0 var(--ink)" : "none",
+                    transform: on ? "translateY(-2px)" : "none",
+                    fontSize: 12.5,
+                    fontWeight: 900,
                   }}
                 >
-                  {PATTERN_LABELS[p]}
+                  {patternLabel(p, lang)}
                 </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Player list */}
-        <div style={{
-          background: "var(--bg)", border: "1px solid var(--border)",
-          borderRadius: "8px", padding: "0.5rem 0.75rem", marginBottom: "1rem",
-          maxHeight: "120px", overflowY: "auto",
-        }}>
-          <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.35rem" }}>
-            {game.players.length} {t("players", lang)}
+              );
+            })}
           </div>
+        </>
+      )}
+
+      {/* Player list */}
+      <div
+        style={{
+          padding: "8px 10px",
+          marginBottom: 16,
+          border: "2.5px solid var(--ink)",
+          borderRadius: 16,
+          background: "#fff",
+          maxHeight: 150,
+          overflowY: "auto",
+          textAlign: "left",
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.6, marginBottom: 6 }}>
+          {game.players.length} {t("players", lang)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {game.players.map((p) => (
-            <div key={p.participantId} style={{
-              display: "flex", alignItems: "center", gap: "0.4rem",
-              padding: "0.2rem 0", fontSize: "0.8rem",
-            }}>
-              <span>{getEmoji(p.avatarValue)}</span>
-              <span>{p.nickname}</span>
+            <span
+              key={p.participantId}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "2px 10px 2px 2px",
+                border: "2px solid var(--ink)",
+                borderRadius: 999,
+                background: p.participantId === game.hostParticipantId ? "var(--yellow-soft)" : "var(--paper)",
+                fontSize: 12.5,
+                fontWeight: 900,
+                animation: "ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)",
+              }}
+            >
+              <AvatarDisc id={p.avatarValue} size={24} border={2} />
+              {p.nickname}
               {p.participantId === game.hostParticipantId && (
-                <span style={{ fontSize: "0.65rem", color: "var(--muted)" }}>({t("host", lang)})</span>
+                <span style={{ fontSize: 10, opacity: 0.6 }}>({t("host", lang)})</span>
               )}
-            </div>
+            </span>
           ))}
         </div>
-
-        {/* Actions */}
-        {!isInLobby ? (
-          <button
-            onClick={() => onJoinLobby(game._id)}
-            style={{
-              width: "100%", padding: "0.6rem", borderRadius: "8px",
-              background: "linear-gradient(135deg, #10b981, #059669)",
-              color: "#fff", fontWeight: 600, cursor: "pointer", border: "none",
-            }}
-          >
-            {t("Join Game", lang)}
-          </button>
-        ) : isGameHost ? (
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              onClick={() => onCancelGame(game._id)}
-              style={{
-                flex: 1, padding: "0.6rem", borderRadius: "8px",
-                background: "var(--bg)", border: "1px solid var(--border)",
-                fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              {t("Cancel", lang)}
-            </button>
-            <button
-              onClick={() => onStartGame(game._id)}
-              style={{
-                flex: 1, padding: "0.6rem", borderRadius: "8px",
-                background: "linear-gradient(135deg, #10b981, #059669)",
-                color: "#fff", fontWeight: 600, cursor: "pointer", border: "none",
-              }}
-            >
-              {t("Start Game", lang)}
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => onLeaveLobby(game._id)}
-            style={{
-              width: "100%", padding: "0.6rem", borderRadius: "8px",
-              background: "var(--bg)", border: "1px solid var(--border)",
-              fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            {t("Leave Lobby", lang)}
-          </button>
-        )}
       </div>
-    </div>
+
+      {/* Actions */}
+      {!isInLobby ? (
+        <button className="ec-btn mint wiggle" onClick={() => onJoinLobby(game._id)}>
+          {t("Join Game", lang)}
+        </button>
+      ) : isGameHost ? (
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="ec-btn white" style={{ flex: 1, fontSize: 17 }} onClick={() => onCancelGame(game._id)}>
+            {t("Cancel", lang)}
+          </button>
+          <button className="ec-btn pink wiggle" style={{ flex: 1.3, fontSize: 17 }} onClick={() => onStartGame(game._id)}>
+            {t("Start Game", lang)}
+          </button>
+        </div>
+      ) : (
+        <button className="ec-btn white" style={{ fontSize: 17 }} onClick={() => onLeaveLobby(game._id)}>
+          {t("Leave Lobby", lang)}
+        </button>
+      )}
+    </ModalBackdrop>
   );
 }
 
-// ─── GamePlayView ────────────────────────────────���───────────────────────────
+// ─── GamePlayView ────────────────────────────────────────────────────────────
 
 function GamePlayView({
   game,
@@ -328,6 +408,7 @@ function GamePlayView({
   onClose,
   onMinimize,
 }: EmojiBingoGameProps & { game: BingoGame }) {
+  const c = copy(lang);
   const me = game.players.find((p) => p.participantId === myParticipantId);
   const calledSet = new Set(game.calledEmojis);
   const markedSet = me ? new Set(me.markedCells) : new Set<number>();
@@ -356,7 +437,7 @@ function GamePlayView({
   }, [game.turnStartedAt, game.turnTimeoutMs, game.status]);
 
   // Track how many players have finished
-  const placedCount = game.players.filter((p: any) => p.placement > 0).length;
+  const placedCount = game.players.filter((p) => p.placement > 0).length;
   const totalPlayers = game.players.length;
 
   // Latest called emoji animation
@@ -372,6 +453,19 @@ function GamePlayView({
     prevCountRef.current = game.calledEmojis.length;
   }, [game.calledEmojis.length]);
 
+  // Celebrate each new BINGO (mine gets the big slam + confetti, others a cut-in)
+  const [celebrate, setCelebrate] = useState<{ key: number; name: string; mine: boolean } | null>(null);
+  const prevPlacedRef = useRef(placedCount);
+  useEffect(() => {
+    if (placedCount > prevPlacedRef.current) {
+      const latest = [...game.players].filter((p) => p.placement > 0).sort((a, b) => b.placement - a.placement)[0];
+      if (latest) {
+        setCelebrate({ key: Date.now(), name: latest.nickname, mine: latest.participantId === myParticipantId });
+      }
+    }
+    prevPlacedRef.current = placedCount;
+  }, [placedCount, game.players, myParticipantId]);
+
   const handleRoll = useCallback(() => {
     onRollEmoji(game._id);
   }, [game._id, onRollEmoji]);
@@ -381,7 +475,7 @@ function GamePlayView({
   }, [game._id, onMarkCell]);
 
   const handleBingo = useCallback(async () => {
-    const result = await (onClaimBingo as any)(game._id);
+    const result = await (onClaimBingo as (id: string) => unknown)(game._id) as { valid?: boolean } | undefined;
     if (result && result.valid === false) {
       setToast(t("Not yet!", lang));
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -392,307 +486,403 @@ function GamePlayView({
   if (!me) {
     // Spectator view
     return (
-      <div style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
-        zIndex: 95, display: "flex", alignItems: "center", justifyContent: "center",
-      }} onClick={onClose}>
-        <div style={{
-          background: "var(--surface)", borderRadius: "16px", padding: "1.5rem",
-          textAlign: "center", maxWidth: "300px",
-        }} onClick={(e) => e.stopPropagation()}>
-          <p style={{ fontSize: "1rem", fontWeight: 600 }}>🎰 {t("Emoji Bingo", lang)}</p>
-          <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: "0.5rem 0" }}>
-            {t("Game in progress", lang)} — {game.calledEmojis.length}/48 {t("called", lang)}
-          </p>
-          <button onClick={onClose} style={{
-            padding: "0.5rem 1.5rem", borderRadius: "8px",
-            background: "var(--bg)", border: "1px solid var(--border)",
-            fontWeight: 600, cursor: "pointer",
-          }}>
-            {t("Close", lang)}
-          </button>
-        </div>
-      </div>
+      <ModalBackdrop onClose={onClose}>
+        <Icon name="g-clover" size={56} />
+        <p className="ec-chunky" style={{ fontSize: 20, marginTop: 4 }}>{t("Emoji Bingo", lang)}</p>
+        <p style={{ fontSize: 13, fontWeight: 700, opacity: 0.7, margin: "6px 0 14px" }}>
+          {t("Game in progress", lang)} — {game.calledEmojis.length}/48 {t("called", lang)}
+        </p>
+        {latestEmoji && (
+          <div style={{ marginBottom: 14 }}>
+            <EmojiArt emoji={latestEmoji} size={56} />
+          </div>
+        )}
+        <button className="ec-btn white sm" onClick={onClose}>
+          {t("Close", lang)}
+        </button>
+      </ModalBackdrop>
     );
   }
 
+  const latestName = latestEmoji ? EMOJI_NAMES[latestEmoji] : undefined;
+  const hurry = countdown != null && countdown <= 3;
+
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "var(--bg)",
-      zIndex: 95, display: "flex", flexDirection: "column",
-      overflow: "hidden",
-    }}>
-      {/* Top bar */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--border)",
-        flexShrink: 0,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          <span style={{ fontSize: "1.1rem" }}>🎰</span>
-          <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{t("Emoji Bingo", lang)}</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-            {game.calledEmojis.length}/48 {t("called", lang)} · {PATTERN_LABELS[game.winPattern]}
-          </span>
-          {isGameHost && (
-            <button onClick={() => onCancelGame(game._id)} style={{
-              padding: "0.3rem 0.6rem", borderRadius: "6px", fontSize: "0.7rem",
-              background: "var(--surface)", border: "1px solid var(--border)",
-              cursor: "pointer", color: "#ef4444",
-            }}>
-              {t("End", lang)}
-            </button>
-          )}
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 95,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: SCREEN_BG,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", maxWidth: 520, margin: "0 auto" }}>
+        {/* Top bar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px 8px", flexShrink: 0 }}>
           {onMinimize && (
             <button
+              className="ec-round-btn"
               onClick={onMinimize}
               aria-label={t("Minimize", lang)}
               title={t("Minimize", lang)}
-              style={{
-                width: "1.75rem",
-                height: "1.75rem",
-                borderRadius: "6px",
-                background: "var(--surface)",
-                color: "var(--foreground)",
-                fontSize: "1rem",
-                fontWeight: 700,
-                border: "1px solid var(--border)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 1,
-              }}
+              style={{ width: 40, height: 40, fontSize: 20, boxShadow: "0 3px 0 var(--ink)" }}
             >
               –
             </button>
           )}
-        </div>
-      </div>
-
-      {/* BINGO progress banner */}
-      {game.status === "won" && (
-        <div style={{
-          background: "linear-gradient(135deg, #fbbf24, #f59e0b)",
-          color: "#000", textAlign: "center", padding: "0.4rem",
-          fontWeight: 700, fontSize: "0.85rem",
-        }}>
-          BINGO! {placedCount}/{totalPlayers} {t("finished", lang)}
-        </div>
-      )}
-
-      {/* Turn indicator */}
-      {game.status === "active" && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          gap: "0.75rem", padding: "0.5rem 0.75rem",
-          background: isMyTurn ? "rgba(16,185,129,0.1)" : "transparent",
-          borderBottom: "1px solid var(--border)", flexShrink: 0,
-        }}>
-          <span style={{ fontSize: "0.85rem", color: isMyTurn ? "#059669" : "var(--muted)", fontWeight: isMyTurn ? 700 : 400 }}>
-            {isMyTurn
-              ? t("Your turn to roll!", lang)
-              : `${currentTurnPlayer ? `${getEmoji(currentTurnPlayer.avatarValue)} ${currentTurnPlayer.nickname}` : "..."} ${t("is rolling...", lang)}`}
+          <TitlePill lang={lang} />
+          <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 900, opacity: 0.6, whiteSpace: "nowrap" }}>
+            {game.calledEmojis.length}/48 {t("called", lang)} · {patternLabel(game.winPattern, lang)}
           </span>
-          {countdown != null && countdown > 0 && (
-            <span style={{ fontSize: "0.75rem", color: countdown <= 3 ? "#ef4444" : "var(--muted)" }}>
-              {countdown}s
-            </span>
+          {isGameHost && (
+            <button
+              onClick={() => onCancelGame(game._id)}
+              style={{
+                flex: "none",
+                padding: "3px 10px",
+                border: "2.5px solid var(--ink)",
+                borderRadius: 999,
+                background: "var(--red)",
+                color: "#fff",
+                boxShadow: "0 2px 0 var(--ink)",
+                fontSize: 11.5,
+                fontWeight: 900,
+              }}
+            >
+              {t("End", lang)}
+            </button>
           )}
         </div>
-      )}
 
-      {/* Called emoji strip */}
-      <div style={{
-        padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--border)",
-        flexShrink: 0,
-      }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: "0.5rem",
-          overflowX: "auto", WebkitOverflowScrolling: "touch",
-        }}>
-          {latestEmoji && (
-            <div key={animKey} style={{
-              fontSize: "2rem", flexShrink: 0,
-              animation: "bingo-bounce 0.4s ease-out",
-            }}>
-              {latestEmoji}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "2px 14px 0" }}>
+          {/* BINGO progress banner */}
+          {game.status === "won" && (
+            <div
+              className="ec-chunky"
+              style={{
+                alignSelf: "center",
+                padding: "3px 16px",
+                border: "3px solid var(--ink)",
+                borderRadius: 999,
+                background: "var(--yellow)",
+                boxShadow: "0 3px 0 var(--ink)",
+                fontSize: 14,
+                transform: "rotate(-2deg)",
+              }}
+            >
+              BINGO! {placedCount}/{totalPlayers} {t("finished", lang)}
             </div>
           )}
-          {game.calledEmojis.slice(0, -1).reverse().slice(0, 7).map((e, i) => (
-            <span key={`${e}-${i}`} style={{
-              fontSize: "1.2rem", opacity: 0.5 - i * 0.05, flexShrink: 0,
-            }}>
-              {e}
-            </span>
-          ))}
-          {game.calledEmojis.length === 0 && (
-            <span style={{
-              fontSize: "0.8rem", color: "var(--muted)", fontStyle: "italic",
-            }}>
-              {t("Waiting for first roll...", lang)}
+
+          {/* Called emoji + turn */}
+          <div className="ec-card" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 22, boxShadow: "0 5px 0 var(--ink)", flexShrink: 0 }}>
+            <div
+              key={animKey}
+              style={{
+                display: "grid",
+                placeItems: "center",
+                flex: "none",
+                width: 76,
+                height: 76,
+                border: "3.5px solid var(--ink)",
+                borderRadius: "50%",
+                background: "radial-gradient(circle at 35% 30%, #fff 0 20%, var(--yellow) 21%)",
+                boxShadow: "0 5px 0 var(--ink)",
+                animation: animKey > 0 ? "ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)" : undefined,
+              }}
+            >
+              {latestEmoji ? (
+                <EmojiArt emoji={latestEmoji} size={52} />
+              ) : (
+                <span className="ec-chunky" style={{ fontSize: 30, opacity: 0.4 }}>?</span>
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {latestEmoji ? (
+                <h3 key={animKey} className="ec-chunky" style={{ fontSize: 18, lineHeight: 1.15, animation: "ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)" }}>
+                  {latestName ? (
+                    <>
+                      {latestName[0]}! <span style={{ color: "var(--pink)" }}>{latestName[1]}！</span>
+                    </>
+                  ) : (
+                    latestEmoji
+                  )}
+                </h3>
+              ) : (
+                <h3 style={{ fontSize: 13, fontWeight: 900, opacity: 0.6 }}>{t("Waiting for first roll...", lang)}</h3>
+              )}
+              {game.status === "active" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4, fontSize: 12, fontWeight: 900 }}>
+                  {currentTurnPlayer && <AvatarDisc id={currentTurnPlayer.avatarValue} size={22} border={2} />}
+                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isMyTurn ? "var(--blue)" : undefined, opacity: isMyTurn ? 1 : 0.65 }}>
+                    {isMyTurn
+                      ? t("Your turn to roll!", lang)
+                      : `${currentTurnPlayer ? currentTurnPlayer.nickname : "..."} ${t("is rolling...", lang)}`}
+                  </span>
+                  {countdown != null && countdown > 0 && (
+                    <span
+                      className="ec-chunky"
+                      style={{
+                        flex: "none",
+                        marginLeft: "auto",
+                        padding: "0 7px",
+                        border: "2px solid var(--ink)",
+                        borderRadius: 999,
+                        background: hurry ? "var(--red)" : "#fff",
+                        color: hurry ? "#fff" : "var(--ink)",
+                        fontSize: 11,
+                      }}
+                    >
+                      {countdown}s
+                    </span>
+                  )}
+                </div>
+              )}
+              {game.calledEmojis.length > 1 && (
+                <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                  {game.calledEmojis.slice(0, -1).reverse().slice(0, 6).map((e, i) => (
+                    <span
+                      key={`${e}-${i}`}
+                      style={{
+                        display: "grid",
+                        placeItems: "center",
+                        width: 26,
+                        height: 26,
+                        border: "2px solid var(--ink)",
+                        borderRadius: "50%",
+                        background: "#fff",
+                        opacity: 1 - i * 0.1,
+                      }}
+                    >
+                      <EmojiArt emoji={e} size={19} />
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Player status */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", flexShrink: 0, padding: "2px 0 4px" }}>
+            {[...game.players]
+              .sort((a, b) => b.markedCells.length - a.markedCells.length)
+              .map((p) => {
+                const turn = p.participantId === game.currentTurnParticipantId && game.status === "active";
+                return (
+                  <span
+                    key={p.participantId}
+                    style={{
+                      position: "relative",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      flex: "none",
+                      padding: "2px 9px 2px 2px",
+                      border: "2px solid var(--ink)",
+                      borderRadius: 999,
+                      background: p.placement > 0 ? "var(--mint-soft)" : turn ? "var(--yellow)" : "#fff",
+                      boxShadow: turn ? "0 3px 0 var(--ink)" : "0 2px 0 var(--ink)",
+                      transform: turn ? "translateY(-1px)" : "none",
+                      fontSize: 11.5,
+                      fontWeight: 900,
+                    }}
+                  >
+                    <AvatarDisc id={p.avatarValue} size={22} border={1.5} />
+                    {p.participantId === myParticipantId ? c.you : p.nickname}
+                    <span className="ec-chunky" style={{ fontSize: 11, opacity: 0.75 }}>{p.markedCells.length}/25</span>
+                    {p.placement === 1 && <Icon name="g-crown" size={18} />}
+                    {p.placement > 1 && (
+                      <span className="ec-chunky" style={{ fontSize: 11, color: "var(--pink)" }}>#{p.placement}</span>
+                    )}
+                  </span>
+                );
+              })}
+          </div>
+
+          {/* 5x5 Bingo Card */}
+          <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", minHeight: 0 }}>
+            <div
+              className="ec-card"
+              style={{
+                width: "min(100%, 440px, calc(100dvh - 330px))",
+                padding: 8,
+                borderRadius: 22,
+                background: "var(--blue)",
+                boxShadow: "0 6px 0 var(--ink)",
+              }}
+            >
+              <div
+                className="ec-chunky"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  marginBottom: 4,
+                  color: "#fff",
+                  fontSize: 20,
+                  textAlign: "center",
+                  textShadow: "var(--outline2), 0 3px 0 var(--ink)",
+                }}
+              >
+                {"BINGO".split("").map((l) => <span key={l}>{l}</span>)}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
+                {me.card.map((emoji, i) => (
+                  <BingoCell
+                    key={i}
+                    emoji={emoji}
+                    index={i}
+                    isMarked={markedSet.has(i)}
+                    isCalled={calledSet.has(emoji)}
+                    isFree={emoji === FREE_SPACE}
+                    onMark={handleMark}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Roll / BINGO buttons */}
+        <div style={{ position: "relative", display: "flex", gap: 10, padding: "14px 14px calc(16px + env(safe-area-inset-bottom))", flexShrink: 0 }}>
+          {away === 1 && me.placement === 0 && (
+            <span
+              className="ec-chunky"
+              style={{
+                position: "absolute",
+                right: 18,
+                top: -18,
+                zIndex: 2,
+                padding: "3px 12px",
+                border: "3px solid var(--ink)",
+                borderRadius: 12,
+                background: "var(--red)",
+                color: "#fff",
+                fontSize: 15,
+                boxShadow: "0 4px 0 var(--ink)",
+                transform: "rotate(8deg)",
+                animation: "ec-kick 0.5s ease-in-out 3",
+                pointerEvents: "none",
+              }}
+            >
+              {c.oneAway}
             </span>
           )}
-        </div>
-      </div>
-
-      {/* Player status bar */}
-      <div style={{
-        display: "flex", gap: "0.5rem", padding: "0.35rem 0.75rem",
-        overflowX: "auto", borderBottom: "1px solid var(--border)", flexShrink: 0,
-      }}>
-        {[...game.players]
-          .sort((a, b) => b.markedCells.length - a.markedCells.length)
-          .map((p) => (
-            <div key={p.participantId} style={{
-              display: "flex", alignItems: "center", gap: "0.2rem",
-              fontSize: "0.7rem", flexShrink: 0,
-              fontWeight: p.participantId === myParticipantId ? 700 : 400,
-              color: p.placement > 0 ? "#22c55e" : "var(--muted)",
-            }}>
-              {p.participantId === game.currentTurnParticipantId && game.status === "active" && <span>🎲</span>}
-              <span>{getEmoji(p.avatarValue)}</span>
-              <span>{p.markedCells.length}/25</span>
-              {p.placement === 1 && <span>🏆</span>}
-              {p.placement === 2 && <span>🥈</span>}
-              {p.placement === 3 && <span>🥉</span>}
-            </div>
-          ))}
-      </div>
-
-      {/* Near-bingo indicator */}
-      {away === 1 && me.placement === 0 && (
-        <div style={{
-          textAlign: "center", padding: "0.3rem",
-          background: "linear-gradient(135deg, rgba(250,204,21,0.2), rgba(245,158,11,0.2))",
-          fontSize: "0.8rem", fontWeight: 700, color: "#b45309",
-        }}>
-          1 {t("away", lang)}!
-        </div>
-      )}
-
-      {/* 5x5 Bingo Card */}
-      <div style={{
-        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "0.5rem",
-        overflow: "hidden",
-      }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
-          gap: "4px",
-          width: "100%",
-          maxWidth: "360px",
-          aspectRatio: "1",
-        }}>
-          {me.card.map((emoji, i) => (
-            <BingoCell
-              key={i}
-              emoji={emoji}
-              index={i}
-              isMarked={markedSet.has(i)}
-              isCalled={calledSet.has(emoji)}
-              isFree={emoji === FREE_SPACE}
-              onMark={handleMark}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Roll / BINGO button */}
-      <div style={{ padding: "0.5rem 0.75rem 1rem", flexShrink: 0 }}>
-        {canBingo ? (
           <button
-            onClick={handleBingo}
-            style={{
-              width: "100%",
-              padding: "0.85rem",
-              borderRadius: "12px",
-              background: "linear-gradient(135deg, #10b981, #059669)",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: "1.2rem",
-              cursor: "pointer",
-              border: "none",
-              letterSpacing: "0.1em",
-              animation: "bingo-pulse 1.5s ease-in-out infinite",
-            }}
-          >
-            BINGO!
-          </button>
-        ) : game.status === "active" && isMyTurn ? (
-          <button
+            className={`ec-btn${isMyTurn && !canBingo ? " wiggle" : ""}`}
+            style={{ flex: 1, minHeight: 62, fontSize: 19 }}
             onClick={handleRoll}
-            style={{
-              width: "100%",
-              padding: "0.85rem",
-              borderRadius: "12px",
-              background: "linear-gradient(135deg, #10b981, #059669)",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: "1.2rem",
-              cursor: "pointer",
-              border: "none",
-              letterSpacing: "0.05em",
-              animation: "bingo-pulse 1.5s ease-in-out infinite",
-            }}
+            disabled={!(game.status === "active" && isMyTurn)}
           >
-            🎲 {t("Roll!", lang)}
+            {c.roll}
+            {isMyTurn && countdown != null && countdown > 0 && (
+              <span
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  minWidth: 28,
+                  height: 28,
+                  border: "2.5px solid var(--ink)",
+                  borderRadius: "50%",
+                  background: hurry ? "var(--red)" : "#fff",
+                  color: hurry ? "#fff" : "var(--ink)",
+                  textShadow: "none",
+                  fontSize: 14,
+                }}
+              >
+                {countdown}
+              </span>
+            )}
           </button>
-        ) : (
           <button
-            disabled
+            className={`ec-btn pink${canBingo ? " wiggle" : ""}`}
             style={{
-              width: "100%",
-              padding: "0.85rem",
-              borderRadius: "12px",
-              background: "var(--border)",
-              color: "var(--muted)",
-              fontWeight: 800,
-              fontSize: "1.2rem",
-              cursor: "default",
-              border: "none",
-              letterSpacing: "0.1em",
+              flex: 1.2,
+              minHeight: 62,
+              fontSize: 24,
+              animation: canBingo ? "ec-kick 0.6s ease-in-out 4" : undefined,
             }}
+            onClick={handleBingo}
+            disabled={!canBingo}
           >
-            BINGO!
+            {c.bingo}
           </button>
-        )}
+        </div>
       </div>
 
       {/* Toast */}
       {toast && (
-        <div style={{
-          position: "fixed", bottom: "6rem", left: "50%", transform: "translateX(-50%)",
-          background: "#ef4444", color: "#fff", padding: "0.5rem 1.25rem",
-          borderRadius: "999px", fontWeight: 700, fontSize: "0.9rem",
-          zIndex: 200, animation: "bingo-shake 0.3s ease-in-out",
-        }}>
+        <div
+          className="ec-chunky"
+          style={{
+            position: "fixed",
+            bottom: 110,
+            left: "50%",
+            zIndex: 200,
+            padding: "6px 18px",
+            border: "3px solid var(--ink)",
+            borderRadius: 14,
+            background: "var(--red)",
+            color: "#fff",
+            boxShadow: "0 4px 0 var(--ink)",
+            fontSize: 18,
+            animation: "bingo-shake 0.35s ease-in-out",
+            transform: "translateX(-50%) rotate(-3deg)",
+          }}
+        >
           {toast}
         </div>
       )}
 
+      {celebrate?.mine && (
+        <>
+          <Confetti burstKey={celebrate.key} />
+          <div
+            key={celebrate.key}
+            className="ec-outline"
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              top: "34%",
+              zIndex: 160,
+              textAlign: "center",
+              fontSize: 64,
+              color: "var(--pink)",
+              pointerEvents: "none",
+              animation: "bingo-slam-out 2.2s cubic-bezier(0.3, 1.8, 0.5, 1) both",
+            }}
+          >
+            BINGO!
+          </div>
+        </>
+      )}
+      {celebrate && !celebrate.mine && (
+        <CutIn burstKey={celebrate.key} colors={["#ffd23f", "#ffe57a"]}>
+          <Icon name="g-crown" size={40} />
+          {celebrate.name} {c.gotBingo}
+        </CutIn>
+      )}
+
       {/* CSS animations */}
       <style>{`
-        @keyframes bingo-bounce {
-          0% { transform: scale(0.3); opacity: 0; }
-          50% { transform: scale(1.3); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        @keyframes bingo-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
-          50% { transform: scale(1.02); box-shadow: 0 0 20px 4px rgba(16,185,129,0.3); }
+        @keyframes bingo-stamp {
+          0% { transform: scale(2.4) rotate(-40deg); opacity: 0; }
+          100% { transform: scale(1) rotate(-12deg); opacity: 1; }
         }
         @keyframes bingo-shake {
-          0%, 100% { transform: translateX(-50%); }
-          25% { transform: translateX(calc(-50% + 8px)); }
-          75% { transform: translateX(calc(-50% - 8px)); }
+          0%, 100% { transform: translateX(-50%) rotate(-3deg); }
+          25% { transform: translateX(calc(-50% + 8px)) rotate(-3deg); }
+          75% { transform: translateX(calc(-50% - 8px)) rotate(-3deg); }
         }
-        @keyframes bingo-confetti {
-          0% { transform: translateY(0) rotate(0); opacity: 1; }
-          100% { transform: translateY(-200px) rotate(720deg); opacity: 0; }
+        @keyframes bingo-slam-out {
+          0% { transform: rotate(-4deg) scale(2.4); opacity: 0; }
+          20% { transform: rotate(-4deg) scale(1); opacity: 1; }
+          30% { transform: rotate(-7deg) scale(1.08); }
+          40%, 85% { transform: rotate(-4deg) scale(1); opacity: 1; }
+          100% { transform: rotate(-4deg) scale(0.9); opacity: 0; }
         }
       `}</style>
     </div>
@@ -703,7 +893,6 @@ function GamePlayView({
 
 function CompletedView({
   game,
-  myParticipantId,
   lang,
   onPlayAgain,
   onClose,
@@ -716,103 +905,98 @@ function CompletedView({
     .sort((a, b) => b.markedCells.length - a.markedCells.length);
   const isCanceled = game.status === "canceled";
 
-  const placementEmoji = ["", "🏆", "🥈", "🥉"];
+  const placeColors = ["", "var(--yellow)", "var(--blue-soft)", "var(--pink-soft)"];
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-      zIndex: 95, display: "flex", alignItems: "center", justifyContent: "center",
-    }} onClick={onClose}>
-      <div style={{
-        background: "var(--surface)", borderRadius: "16px", padding: "1.5rem",
-        width: "100%", maxWidth: "340px", margin: "1rem", textAlign: "center",
-      }} onClick={(e) => e.stopPropagation()}>
-        {isCanceled ? (
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-            {t("Game Canceled", lang)}
-          </h2>
-        ) : winners.length === 0 ? (
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-            {t("No Winner", lang)}
-          </h2>
-        ) : (
-          <>
-            <div style={{ fontSize: "2.5rem", marginBottom: "0.25rem" }}>🎉</div>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-              BINGO!
-            </h2>
-          </>
-        )}
+    <ModalBackdrop onClose={onClose}>
+      {!isCanceled && winners.length > 0 && <Confetti burstKey={game._id} />}
+      {isCanceled ? (
+        <h2 className="ec-chunky" style={{ fontSize: 22, marginBottom: 12 }}>
+          {t("Game Canceled", lang)}
+        </h2>
+      ) : winners.length === 0 ? (
+        <h2 className="ec-chunky" style={{ fontSize: 22, marginBottom: 12 }}>
+          {t("No Winner", lang)}
+        </h2>
+      ) : (
+        <h2
+          className="ec-outline"
+          style={{
+            fontSize: 48,
+            color: "var(--pink)",
+            marginBottom: 14,
+            animation: "ec-slam 0.6s cubic-bezier(0.3, 1.8, 0.5, 1) both",
+          }}
+        >
+          BINGO!
+        </h2>
+      )}
 
-        {/* Winners */}
-        {winners.map((w) => (
-          <div key={w.participantId} style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            gap: "0.5rem", marginBottom: "0.5rem", fontSize: "1rem",
-          }}>
-            <span style={{ fontSize: "1.3rem" }}>{placementEmoji[w.placement]}</span>
-            <span style={{ fontSize: "1.2rem" }}>{getEmoji(w.avatarValue)}</span>
-            <span style={{ fontWeight: 700 }}>{w.nickname}</span>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              {w.markedCells.length}/25
+      {/* Winners */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {winners.map((w, i) => (
+          <div
+            key={w.participantId}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "6px 14px 6px 6px",
+              border: "3px solid var(--ink)",
+              borderRadius: 999,
+              background: placeColors[w.placement] ?? "#fff",
+              boxShadow: "0 4px 0 var(--ink)",
+              transform: w.placement === 1 ? "rotate(-1.5deg)" : "none",
+              animation: `ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) ${0.1 * i}s both`,
+            }}
+          >
+            <span style={{ position: "relative" }}>
+              <AvatarDisc id={w.avatarValue} size={w.placement === 1 ? 46 : 38} />
+              {w.placement === 1 && (
+                <Icon name="g-crown" size={26} style={{ position: "absolute", left: "50%", top: -18, marginLeft: -13, transform: "rotate(-10deg)" }} />
+              )}
             </span>
+            <span style={{ flex: 1, minWidth: 0, textAlign: "left", fontSize: 15, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {w.nickname}
+            </span>
+            <span className="ec-chunky" style={{ fontSize: 13, opacity: 0.7 }}>{w.markedCells.length}/25</span>
+            <span className="ec-chunky" style={{ fontSize: 20 }}>#{w.placement}</span>
           </div>
         ))}
-
-        {/* Other players */}
-        {others.length > 0 && (
-          <div style={{
-            background: "var(--bg)", border: "1px solid var(--border)",
-            borderRadius: "8px", padding: "0.5rem", marginTop: "0.5rem",
-            marginBottom: "1rem",
-          }}>
-            {others.map((p) => (
-              <div key={p.participantId} style={{
-                display: "flex", alignItems: "center", gap: "0.35rem",
-                padding: "0.2rem 0", fontSize: "0.8rem", color: "var(--muted)",
-              }}>
-                <span>{getEmoji(p.avatarValue)}</span>
-                <span>{p.nickname}</span>
-                <span style={{ marginLeft: "auto" }}>{p.markedCells.length}/25</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Stats */}
-        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "1rem" }}>
-          {PATTERN_LABELS[game.winPattern]} · {game.calledEmojis.length} {t("called", lang)}
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1, padding: "0.6rem", borderRadius: "8px",
-              background: "var(--bg)", border: "1px solid var(--border)",
-              fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            {t("Exit", lang)}
-          </button>
-          <button
-            onClick={() => onPlayAgain(game._id)}
-            style={{
-              flex: 1, padding: "0.6rem", borderRadius: "8px",
-              background: "linear-gradient(135deg, #10b981, #059669)",
-              color: "#fff", fontWeight: 600, cursor: "pointer", border: "none",
-            }}
-          >
-            {t("Play Again", lang)}
-          </button>
-        </div>
       </div>
-    </div>
+
+      {/* Other players */}
+      {others.length > 0 && (
+        <div style={{ marginTop: 12, padding: "6px 10px", border: "2.5px dashed var(--ink)", borderRadius: 14, background: "#fff" }}>
+          {others.map((p) => (
+            <div key={p.participantId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", fontSize: 13, fontWeight: 900 }}>
+              <AvatarDisc id={p.avatarValue} size={26} border={2} />
+              <span style={{ opacity: 0.75 }}>{p.nickname}</span>
+              <span className="ec-chunky" style={{ marginLeft: "auto", fontSize: 12, opacity: 0.6 }}>{p.markedCells.length}/25</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stats */}
+      <div style={{ margin: "14px 0 16px", fontSize: 12, fontWeight: 900, opacity: 0.6 }}>
+        {patternLabel(game.winPattern, lang)} · {game.calledEmojis.length} {t("called", lang)}
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="ec-btn white" style={{ flex: 1, fontSize: 17 }} onClick={onClose}>
+          {t("Exit", lang)}
+        </button>
+        <button className="ec-btn pink wiggle" style={{ flex: 1.3, fontSize: 17 }} onClick={() => onPlayAgain(game._id)}>
+          {t("Play Again", lang)}
+        </button>
+      </div>
+    </ModalBackdrop>
   );
 }
 
-// ─── Main Export ────────────────────────────────────────────────────────���─────
+// ─── Main Export ─────────────────────────────────────────────────────────────
 
 export function EmojiBingoGame(props: EmojiBingoGameProps) {
   const { game } = props;

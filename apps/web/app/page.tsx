@@ -1,19 +1,54 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { QrScanner } from "@/components/qr-scanner";
+import { Logo } from "@/components/ui/logo";
+import { Chatto } from "@/components/ui/chatto";
+import { Icon } from "@/components/ui/icon";
+import { RoomBackground } from "@/components/ui/effects";
 import { t } from "@/lib/i18n";
+import "./screens.css";
+
+const CODE_LENGTH = 6;
+const CELL_TONES = [
+  ["var(--pink-soft)", "-4deg"],
+  ["var(--yellow-soft)", "3deg"],
+  ["var(--mint-soft)", "-2deg"],
+  ["var(--blue-soft)", "4deg"],
+  ["var(--violet-soft)", "-3deg"],
+  ["#ffe6dc", "2deg"],
+];
+
+/** Accepts a bare code or a pasted join URL; returns the cleaned, upper-cased code. */
+function cleanCode(value: string) {
+  const fromUrl = value.match(/\/join\/([A-Za-z0-9]+)/);
+  return (fromUrl ? fromUrl[1] : value).replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, CODE_LENGTH);
+}
 
 export default function HomePage() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [lang, setLang] = useState("ja");
+  const [greetEn, setGreetEn] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLang(localStorage.getItem("enchatto_lastLanguage") ?? "ja");
   }, []);
+
+  // Chatto alternates greetings in time with the bubble's wobble.
+  useEffect(() => {
+    const id = setInterval(() => setGreetEn((v) => !v), 2400);
+    return () => clearInterval(id);
+  }, []);
+
+  const toggleLang = () => {
+    const next = lang === "ja" ? "en" : "ja";
+    setLang(next);
+    localStorage.setItem("enchatto_lastLanguage", next);
+  };
 
   const handleJoin = () => {
     const code = joinCode.trim().toUpperCase();
@@ -41,130 +76,94 @@ export default function HomePage() {
     [router]
   );
 
+  const complete = joinCode.length === CODE_LENGTH;
+
   return (
-    <main
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100dvh",
-        padding: "2rem",
-        textAlign: "center",
-      }}
-    >
-      <h1 style={{ fontSize: "2.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-        {t("Enchatto", lang)}
-      </h1>
-      <p style={{ color: "var(--muted)", fontSize: "1.1rem", maxWidth: "400px" }}>
-        {t("Real-time multilingual conversation rooms.", lang)}
-      </p>
-
-      <div
-        style={{
-          marginTop: "2rem",
-          padding: "1.5rem",
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          maxWidth: "400px",
-          width: "100%",
-        }}
+    <main className="ec-home ec-col">
+      <RoomBackground />
+      <button
+        className="ec-round-btn ec-home-lang"
+        onClick={toggleLang}
+        aria-label={t("Switch language", lang)}
       >
-        {/* QR Scanner button */}
-        <button
-          onClick={() => setShowScanner(true)}
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            borderRadius: "8px",
-            background: "var(--primary)",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: "1rem",
-            marginBottom: "1.25rem",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-            <rect x="14" y="14" width="3" height="3" />
-            <line x1="21" y1="14" x2="21" y2="14.01" />
-            <line x1="21" y1="21" x2="21" y2="21.01" />
-            <line x1="17" y1="21" x2="17" y2="21.01" />
-            <line x1="21" y1="17" x2="21" y2="17.01" />
-          </svg>
-          {t("Scan QR Code", lang)}
-        </button>
+        あ/A
+      </button>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginBottom: "1.25rem",
-            color: "var(--muted)",
-            fontSize: "0.8rem",
-          }}
-        >
-          <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
-          <span>{t("or enter code", lang)}</span>
-          <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
-        </div>
+      <Logo tagline={t("CHAT ACROSS LANGUAGES", lang)} style={{ marginTop: 104 }} />
 
-        {/* Join code input */}
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <input
-            type="text"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-            placeholder={t("e.g. ABC123", lang)}
-            maxLength={10}
-            style={{
-              flex: 1,
-              padding: "0.6rem 0.75rem",
-              borderRadius: "8px",
-              border: "1px solid var(--border)",
-              fontSize: "1.1rem",
-              letterSpacing: "0.15em",
-              fontFamily: "monospace",
-              textAlign: "center",
-              outline: "none",
-            }}
-          />
-          <button
-            onClick={handleJoin}
-            disabled={!joinCode.trim()}
-            style={{
-              padding: "0.6rem 1.25rem",
-              borderRadius: "8px",
-              background: joinCode.trim() ? "var(--primary)" : "var(--muted)",
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              cursor: joinCode.trim() ? "pointer" : "default",
-            }}
-          >
-            {t("Join", lang)}
-          </button>
+      <div style={{ position: "relative", marginTop: 26, width: 120 }}>
+        <Chatto size={120} shadow />
+        <div className="ec-say" style={{ left: 104, top: -6 }}>
+          {greetEn ? "Hello!" : "こんにちは！"}
         </div>
       </div>
 
       <div
+        className="ec-card"
         style={{
-          textAlign: "center",
-          fontSize: "0.65rem",
-          color: "#999",
-          marginTop: "0.75rem",
+          width: "100%",
+          marginTop: 24,
+          padding: "20px 18px 22px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
         }}
       >
+        <button
+          className="ec-btn"
+          style={{ minHeight: 64, fontSize: lang === "ja" ? 18 : 21, whiteSpace: "nowrap" }}
+          onClick={() => setShowScanner(true)}
+        >
+          <Icon name="ui-camera" size={40} style={{ filter: "drop-shadow(0 2px 0 rgba(29, 27, 79, 0.5))" }} />
+          {t("SCAN QR CODE", lang)}
+        </button>
+
+        <div className="ec-divider">{t("or type the room code", lang)}</div>
+
+        <div className="ec-code-wrap" onClick={() => inputRef.current?.focus()}>
+          <div className="ec-code-cells" aria-hidden>
+            {Array.from({ length: CODE_LENGTH }, (_, i) => {
+              const ch = joinCode[i];
+              const active = !ch && i === joinCode.length;
+              const [c, r] = CELL_TONES[i % CELL_TONES.length];
+              return (
+                <div
+                  key={ch ? `${i}-${ch}` : `${i}-empty`}
+                  className={`ec-cell${ch ? " filled" : ""}${active ? " active" : ""}`}
+                  style={{ "--c": c, "--r": r } as React.CSSProperties}
+                >
+                  {ch ?? (active ? "?" : "")}
+                </div>
+              );
+            })}
+          </div>
+          <input
+            ref={inputRef}
+            className="ec-code-input"
+            type="text"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-label={t("Room code", lang)}
+            value={joinCode}
+            onChange={(e) => setJoinCode(cleanCode(e.target.value))}
+            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+          />
+        </div>
+
+        <button
+          className={`ec-btn pink${complete ? " wiggle" : ""}`}
+          style={{ minHeight: 64, fontSize: 22 }}
+          onClick={handleJoin}
+          disabled={!joinCode.trim()}
+        >
+          {t("JOIN!", lang)}
+        </button>
+      </div>
+
+      <div className="ec-version" style={{ marginTop: "auto", paddingTop: 24 }}>
         v{(process.env.NEXT_PUBLIC_GIT_SHA || "dev").slice(0, 7)}
       </div>
 

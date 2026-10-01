@@ -8,8 +8,16 @@ const translations: Record<string, Record<string, string>> = {
   "or enter code": { ja: "またはコードを入力" },
   "e.g. ABC123": { ja: "例: ABC123" },
   "Join": { ja: "参加" },
+  "CHAT ACROSS LANGUAGES": { ja: "ことばの壁をこえよう" },
+  "SCAN QR CODE": { ja: "QRコードをスキャン" },
+  "or type the room code": { ja: "またはルームコードを入力" },
+  "JOIN!": { ja: "参加！" },
+  "Hello!": { ja: "こんにちは！" },
+  "Room code": { ja: "ルームコード" },
+  "Switch language": { ja: "言語を切り替える" },
 
   // QR Scanner
+  "Point your camera at the room's QR code": { ja: "ルームのQRコードにカメラを向けてね" },
   "Camera access denied. Please allow camera permissions.": {
     ja: "カメラへのアクセスが拒否されました。カメラの権限を許可してください。",
   },
@@ -43,6 +51,14 @@ const translations: Record<string, Record<string, string>> = {
   "Please enter a nickname": { ja: "ニックネームを入力してください" },
   "This room has been closed": { ja: "このルームは閉鎖されました" },
   "Failed to join room": { ja: "ルームへの参加に失敗しました" },
+  "ROOM": { ja: "ルーム" },
+  "Who's joining?": { ja: "だれが参加する？" },
+  "Choose your avatar": { ja: "アバターを選んでね" },
+  "already in the room": { ja: "人が参加中" },
+  "IN ROOM": { ja: "参加中" },
+  "Your nickname": { ja: "ニックネーム" },
+  "JOIN AS {name}!": { ja: "{name}で参加！" },
+  "Back home": { ja: "ホームへ" },
 
   // Room page
   "Loading room...": { ja: "ルームを読み込み中…" },
@@ -74,6 +90,18 @@ const translations: Record<string, Record<string, string>> = {
   "Processing...": { ja: "処理中…" },
   "Processing failed": { ja: "処理に失敗しました" },
   "↩ Reply": { ja: "↩ 返信" },
+  "Reply": { ja: "返信" },
+  "translating": { ja: "翻訳中" },
+  "React": { ja: "リアクション" },
+
+  // Room header + hype
+  "Display settings": { ja: "表示設定" },
+  "BACK & FORTH!": { ja: "ことばのラリー！" },
+  "{name} JOINED!": { ja: "{name}がきた！" },
+  "In this room": { ja: "このルームのメンバー" },
+  "Nobody else is here yet.": { ja: "まだ誰もいません。" },
+  "Voice": { ja: "音声" },
+  "Say hi to get things started!": { ja: "あいさつして始めよう！" },
 
   // Message input
   "Cancel": { ja: "キャンセル" },
@@ -92,6 +120,8 @@ const translations: Record<string, Record<string, string>> = {
   // Typing indicator
   "is typing": { ja: "が入力中" },
   "is drawing": { ja: "が描画中" },
+  "Drawing…": { ja: "お絵描き中…" },
+  "Speaking…": { ja: "話し中…" },
   "is speaking": { ja: "が話し中" },
 
   // Game status bar
@@ -299,6 +329,25 @@ const translations: Record<string, Record<string, string>> = {
   "No Winner": { ja: "勝者なし" },
   "min": { ja: "分" },
   "Game Started: Emoji Bingo": { ja: "ゲーム開始：絵文字ビンゴ" },
+
+  // Game summaries
+  "Game": { ja: "ゲーム" },
+  "game": { ja: "ゲーム" },
+  "games": { ja: "ゲーム" },
+  "turn": { ja: "ターン" },
+  "turns": { ja: "ターン" },
+  "round": { ja: "ラウンド" },
+  "rounds": { ja: "ラウンド" },
+  "pair": { ja: "ペア" },
+  "pairs": { ja: "ペア" },
+  "marked": { ja: "マーク" },
+  "pts": { ja: "点" },
+  "Match Emoji": { ja: "マッチ絵文字" },
+
+  // Word Rush
+  "Word Rush": { ja: "ワードラッシュ" },
+  "Game Started: Word Rush": { ja: "ゲーム開始：ワードラッシュ" },
+  "Game ended: Word Rush": { ja: "ゲーム終了：ワードラッシュ" },
   "Roll!": { ja: "ロール！" },
   "Your turn to roll!": { ja: "あなたのロール番です！" },
   "is rolling...": { ja: "がロール中…" },

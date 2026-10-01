@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Chatto } from "@/components/ui/chatto";
+import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 
 interface QrScannerProps {
@@ -56,75 +58,36 @@ export function QrScanner({ onScan, onClose, lang }: QrScannerProps) {
   }, [onScan]);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.85)",
-        zIndex: 100,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          background: "var(--surface)",
-          borderRadius: "var(--radius)",
-          padding: "1.5rem",
-          width: "100%",
-          maxWidth: "400px",
-          margin: "1rem",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1rem",
-          }}
-        >
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>{t("Scan QR Code", lang)}</h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              fontSize: "1.5rem",
-              color: "var(--muted)",
-              padding: "0.25rem",
-              lineHeight: 1,
-            }}
-          >
-            &times;
+    <div className="ec-modal-backdrop" style={{ zIndex: 300 }}>
+      <div className="ec-card ec-modal" style={{ maxWidth: 400, padding: "16px 16px 18px", textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <Icon name="ui-camera" size={34} />
+          <h2 className="ec-chunky" style={{ flex: 1, fontSize: 20 }}>
+            {t("SCAN QR CODE", lang)}
+          </h2>
+          <button className="ec-round-btn" onClick={onClose} aria-label={t("Close", lang)}>
+            ✕
           </button>
         </div>
 
         {error ? (
-          <div style={{ textAlign: "center", padding: "2rem 0" }}>
-            <p style={{ color: "#ef4444", fontSize: "0.9rem", marginBottom: "1rem" }}>
-              {error}
-            </p>
-            <button
-              onClick={onClose}
-              style={{
-                padding: "0.5rem 1.5rem",
-                borderRadius: "8px",
-                background: "var(--primary)",
-                color: "#fff",
-                fontWeight: 600,
-              }}
-            >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "10px 0 4px", textAlign: "center" }}>
+            <Chatto size={84} bob={false} wave={false} shadow />
+            <div className="ec-error" style={{ width: "100%" }}>{error}</div>
+            <button className="ec-btn sm" onClick={onClose}>
               {t("Close", lang)}
             </button>
           </div>
         ) : (
-          <div
-            id="qr-reader"
-            ref={containerRef}
-            style={{ width: "100%", borderRadius: "8px", overflow: "hidden" }}
-          />
+          <>
+            <div className="ec-qr-frame">
+              <div id="qr-reader" ref={containerRef} style={{ width: "100%" }} />
+              <div className="ec-qr-corners" aria-hidden><i /><i /><i /><i /></div>
+            </div>
+            <p style={{ marginTop: 12, fontSize: 13, fontWeight: 900, textAlign: "center", opacity: 0.7 }}>
+              {t("Point your camera at the room's QR code", lang)}
+            </p>
+          </>
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { Icon } from "@/components/ui/icon";
 
 interface ImageUploadButtonProps {
   onUpload: (file: File) => void;
@@ -29,19 +30,13 @@ export function ImageUploadButton({ onUpload, disabled }: ImageUploadButtonProps
         style={{ display: "none" }}
       />
       <button
+        className="ec-round-btn"
         onClick={() => inputRef.current?.click()}
         disabled={disabled}
         title="Upload image"
-        style={{
-          background: "none",
-          fontSize: "1.2rem",
-          padding: "0.3rem",
-          color: disabled ? "var(--border)" : "var(--muted)",
-          display: "flex",
-          alignItems: "center",
-        }}
+        style={disabled ? { opacity: 0.4 } : undefined}
       >
-        📷
+        <Icon name="ui-photo" size={28} />
       </button>
     </>
   );

@@ -11,12 +11,18 @@ interface DrawingCanvasProps {
   onCancel: () => void;
   gameMode?: boolean;
   countdownSeconds?: number;
+  lang?: string;
 }
 
-const BW_COLORS = ["#000000", "#ffffff"];
-const RAINBOW_COLORS = ["#ef4444", "#ff8c00", "#facc15", "#22c55e", "#3b82f6", "#4f46e5", "#8b5cf6"];
+const SWATCHES = ["#1d1b4f", "#ffffff", "#ff4f6d", "#ff8c42", "#ffd23f", "#3fdcb0", "#3b6bff", "#a77bff", "#ff7ab6", "#8b5a3c"];
 const MIN_WIDTH = 1;
 const MAX_WIDTH = 40;
+const SIZE_PRESETS = [3, 8, 18];
+
+const COPY = {
+  en: { send: "SEND", undo: "Undo", custom: "Custom colour", size: "Pen size" },
+  ja: { send: "送る", undo: "戻す", custom: "カスタム色", size: "ペンの太さ" },
+};
 
 function hslToHex(h: number, s: number, l: number): string {
   const a = s * Math.min(l, 1 - l);
@@ -43,6 +49,29 @@ function hexToHsl(hex: string): [number, number, number] {
   else h = ((r - g) / d + 4) * 60;
   return [h, s, l];
 }
+
+const barStyle: React.CSSProperties = {
+  height: 26,
+  borderRadius: 13,
+  position: "relative",
+  cursor: "pointer",
+  touchAction: "none",
+  border: "2.5px solid var(--ink)",
+};
+
+const thumbStyle = (pct: number, color: string): React.CSSProperties => ({
+  position: "absolute",
+  top: "50%",
+  left: `${pct}%`,
+  transform: "translate(-50%, -50%)",
+  width: 24,
+  height: 24,
+  borderRadius: "50%",
+  border: "3px solid var(--ink)",
+  boxShadow: "0 2px 0 var(--ink), inset 0 0 0 2px #fff",
+  pointerEvents: "none",
+  background: color,
+});
 
 function SpectrumPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
   const [hsl, setHsl] = useState<[number, number, number]>(() => hexToHsl(color));
@@ -94,31 +123,8 @@ function SpectrumPicker({ color, onChange }: { color: string; onChange: (c: stri
     };
   }, [updateHue, updateBright]);
 
-  const barStyle: React.CSSProperties = {
-    height: "1.75rem",
-    borderRadius: "0.875rem",
-    position: "relative",
-    cursor: "pointer",
-    touchAction: "none",
-    border: "1px solid var(--border)",
-  };
-
-  const thumbStyle = (pct: number): React.CSSProperties => ({
-    position: "absolute",
-    top: "50%",
-    left: `${pct}%`,
-    transform: "translate(-50%, -50%)",
-    width: "1.35rem",
-    height: "1.35rem",
-    borderRadius: "50%",
-    border: "2px solid #fff",
-    boxShadow: "0 0 0 1px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.3)",
-    pointerEvents: "none" as const,
-    background: color,
-  });
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", flex: 1, minWidth: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "ec-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1)" }}>
       {/* Hue bar */}
       <div
         ref={hueRef}
@@ -128,7 +134,7 @@ function SpectrumPicker({ color, onChange }: { color: string; onChange: (c: stri
         }}
         onPointerDown={(e) => { draggingRef.current = "hue"; updateHue(e.clientX); }}
       >
-        <div style={thumbStyle((hsl[0] / 360) * 100)} />
+        <div style={thumbStyle((hsl[0] / 360) * 100, color)} />
       </div>
       {/* Brightness bar */}
       <div
@@ -139,7 +145,7 @@ function SpectrumPicker({ color, onChange }: { color: string; onChange: (c: stri
         }}
         onPointerDown={(e) => { draggingRef.current = "bright"; updateBright(e.clientX); }}
       >
-        <div style={thumbStyle(hsl[2] * 100)} />
+        <div style={thumbStyle(hsl[2] * 100, color)} />
       </div>
     </div>
   );
@@ -177,29 +183,22 @@ function PenSizeBar({ value, min, max, color, onChange }: {
     <div
       ref={barRef}
       style={{
-        height: "1.75rem",
-        borderRadius: "0.875rem",
-        position: "relative",
-        cursor: "pointer",
-        touchAction: "none",
-        border: "1px solid var(--border)",
-        background: "#e5e5e5",
+        ...barStyle,
+        flex: 1,
+        minWidth: 0,
+        background: "#fff",
       }}
       onPointerDown={(e) => { draggingRef.current = true; update(e.clientX); }}
     >
-      <div style={{
-        position: "absolute",
-        top: "50%",
-        left: `${pct}%`,
-        transform: "translate(-50%, -50%)",
-        width: "1.35rem",
-        height: "1.35rem",
-        borderRadius: "50%",
-        border: "2px solid #fff",
-        boxShadow: "0 0 0 1px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.3)",
-        pointerEvents: "none",
-        background: color,
-      }} />
+      <svg
+        aria-hidden
+        viewBox="0 0 100 20"
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: "3px 12px", width: "calc(100% - 24px)", height: "calc(100% - 6px)" }}
+      >
+        <path d="M0 10 L100 2 L100 18 Z" fill="var(--line-soft)" />
+      </svg>
+      <div style={thumbStyle(pct, color)} />
     </div>
   );
 }
@@ -209,15 +208,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
   onCancel,
   gameMode = false,
   countdownSeconds = -1,
+  lang,
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState(BW_COLORS[0]);
+  const [color, setColor] = useState(SWATCHES[0]);
   const [lineWidth, setLineWidth] = useState(4);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [showSpectrum, setShowSpectrum] = useState(false);
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const strokesRef = useRef<{ points: { x: number; y: number }[]; color: string; width: number }[]>([]);
   const currentStrokeRef = useRef<{ points: { x: number; y: number }[]; color: string; width: number } | null>(null);
+  const c = lang === "ja" ? COPY.ja : COPY.en;
 
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
@@ -245,14 +247,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     },
   }));
 
+  // Uses the CSS box size, so no ancestor may be mid scale-animation when this mounts.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const cssW = rect.width;
-    const cssH = rect.height;
+    const cssW = canvas.offsetWidth;
+    const cssH = canvas.offsetHeight;
     canvas.width = cssW * dpr;
     canvas.height = cssH * dpr;
     ctx.scale(dpr, dpr);
@@ -265,17 +267,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
+      const sx = canvas.offsetWidth / (rect.width || 1);
+      const sy = canvas.offsetHeight / (rect.height || 1);
 
       if ("touches" in e) {
         const touch = e.touches[0];
         return {
-          x: touch.clientX - rect.left,
-          y: touch.clientY - rect.top,
+          x: (touch.clientX - rect.left) * sx,
+          y: (touch.clientY - rect.top) * sy,
         };
       }
       return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        x: (e.clientX - rect.left) * sx,
+        y: (e.clientY - rect.top) * sy,
       };
     },
     []
@@ -285,9 +289,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!ctx || !canvas) return;
-    const rect = canvas.getBoundingClientRect();
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.fillRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
     for (const stroke of strokesRef.current) {
       if (stroke.points.length < 2) continue;
       ctx.beginPath();
@@ -372,176 +375,219 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
     onSave(offscreen.toDataURL("image/jpeg", 0.6));
   };
 
+  const counting = countdownSeconds >= 0;
+  const hurry = counting && countdownSeconds <= 3;
+  const isSwatch = SWATCHES.includes(color);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      {/* Spectrum color picker + thickness */}
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-        <SpectrumPicker color={color} onChange={setColor} />
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: "3rem" }}>
-          <span
-            style={{
-              width: `${Math.max(lineWidth, 6)}px`,
-              height: `${Math.max(lineWidth, 6)}px`,
-              borderRadius: "50%",
-              background: color,
-              border: color === "#ffffff" ? "1px solid var(--border)" : "none",
-            }}
-          />
-        </div>
-      </div>
-      <PenSizeBar value={lineWidth} min={MIN_WIDTH} max={MAX_WIDTH} color={color} onChange={setLineWidth} />
-
-      {/* Canvas */}
-      <canvas
-        ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing}
-        onTouchMove={draw}
-        onTouchEnd={stopDrawing}
-        style={{
-          border: "1px solid var(--border)",
-          borderRadius: "8px",
-          width: "100%",
-          aspectRatio: "1 / 1",
-          touchAction: "none",
-          cursor: "crosshair",
-        }}
-      />
-
-      {/* Bottom bar: Close (left) — Send (center) — Clear (right) */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Canvas card */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          padding: "0.75rem 0 0.25rem",
-          minHeight: "40px",
+          padding: 8,
+          border: "3px solid var(--ink)",
+          borderRadius: 24,
+          background: "#fff",
+          boxShadow: "0 6px 0 var(--ink)",
         }}
       >
-        {/* Close — left (hidden in game mode) */}
-        {!gameMode && (
-          <div style={{ position: "absolute", left: 0 }}>
+        <canvas
+          ref={canvasRef}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+          style={{
+            display: "block",
+            border: "2.5px dashed var(--line-soft)",
+            borderRadius: 16,
+            width: "100%",
+            aspectRatio: "1 / 1",
+            touchAction: "none",
+            cursor: "crosshair",
+          }}
+        />
+      </div>
+
+      {/* Colour swatches */}
+      <div style={{ display: "flex", gap: 5, justifyContent: "center", padding: "6px 6px 4px" }}>
+        {SWATCHES.map((sw) => {
+          const on = color === sw;
+          return (
             <button
-              onClick={onCancel}
+              key={sw}
+              onClick={() => setColor(sw)}
+              aria-label={sw}
+              aria-pressed={on}
               style={{
-                width: "32px",
-                height: "32px",
+                flex: "0 1 30px",
+                minWidth: 0,
+                aspectRatio: "1",
                 borderRadius: "50%",
-                background: "var(--surface, #fff)",
-                border: "none",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
+                border: "3px solid var(--ink)",
+                background: sw,
+                boxShadow: on ? "0 0 0 3px #fff, 0 0 0 6px var(--pink)" : "0 3px 0 var(--ink)",
+                transform: on ? "translateY(-2px) scale(1.12)" : "none",
+                transition: "transform 0.12s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.12s",
+              }}
+            />
+          );
+        })}
+        <button
+          onClick={() => setShowSpectrum((v) => !v)}
+          aria-label={c.custom}
+          aria-pressed={showSpectrum}
+          style={{
+            position: "relative",
+            flex: "0 1 30px",
+            minWidth: 0,
+            aspectRatio: "1",
+            borderRadius: "50%",
+            border: "3px solid var(--ink)",
+            background: "conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
+            boxShadow:
+              !isSwatch || showSpectrum ? "0 0 0 3px #fff, 0 0 0 6px var(--pink)" : "0 3px 0 var(--ink)",
+            transform: !isSwatch ? "translateY(-2px) scale(1.12)" : "none",
+          }}
+        >
+          {!isSwatch && (
+            <span
+              style={{
+                position: "absolute",
+                inset: 5,
+                borderRadius: "50%",
+                border: "2px solid var(--ink)",
+                background: color,
+              }}
+            />
+          )}
+        </button>
+      </div>
+      {showSpectrum && <SpectrumPicker color={color} onChange={setColor} />}
+
+      {/* Pen size */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }} aria-label={c.size}>
+        {SIZE_PRESETS.map((sz) => {
+          const on = Math.abs(lineWidth - sz) <= 1;
+          return (
+            <button
+              key={sz}
+              onClick={() => setLineWidth(sz)}
+              aria-label={`${sz}px`}
+              style={{
+                display: "grid",
+                placeItems: "center",
+                flex: "none",
+                width: 34,
+                height: 34,
+                borderRadius: 12,
+                border: "2.5px solid var(--ink)",
+                background: on ? "var(--yellow)" : "#fff",
+                boxShadow: on ? "0 1px 0 var(--ink)" : "0 3px 0 var(--ink)",
+                transform: on ? "translateY(2px)" : "none",
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg, #1a1a1a)" strokeWidth="3" strokeLinecap="round">
-                <line x1="6" y1="6" x2="18" y2="18" />
-                <line x1="18" y1="6" x2="6" y2="18" />
-              </svg>
+              <span
+                style={{
+                  width: Math.max(5, sz * 0.9),
+                  height: Math.max(5, sz * 0.9),
+                  borderRadius: "50%",
+                  background: color === "#ffffff" ? "var(--line-soft)" : color,
+                  border: color === "#ffffff" ? "1.5px solid var(--ink)" : "none",
+                }}
+              />
             </button>
-          </div>
+          );
+        })}
+        <PenSizeBar value={lineWidth} min={MIN_WIDTH} max={MAX_WIDTH} color={color} onChange={setLineWidth} />
+      </div>
+
+      {/* Bottom bar: Close — Send — Undo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 2 }}>
+        {!gameMode && (
+          <button className="ec-round-btn" onClick={onCancel} aria-label="Close" style={{ width: 48, height: 48 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="3.5" strokeLinecap="round">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </button>
         )}
 
-        {/* Send — center */}
-        <div style={{ position: "relative", width: gameMode ? "48px" : "32px", height: gameMode ? "48px" : "32px" }}>
-          {(hasDrawn || countdownSeconds >= 0) && (
+        <div style={{ position: "relative", flex: 1 }}>
+          {(hasDrawn || counting) && (
             <span
-              key={countdownSeconds >= 0 ? countdownSeconds : "idle"}
+              key={counting ? countdownSeconds : "idle"}
               className="drawing-send-pulse"
               style={{
                 position: "absolute",
                 inset: 0,
-                borderRadius: "50%",
-                background: countdownSeconds >= 0
-                  ? (countdownSeconds <= 3 ? "#ef4444" : "var(--primary)")
-                  : "var(--primary)",
+                borderRadius: 22,
+                background: hurry ? "var(--red)" : "var(--blue)",
               }}
             />
           )}
           <button
+            className={`ec-btn${hurry ? " red" : ""}`}
             onClick={handleSave}
-            disabled={!hasDrawn && countdownSeconds < 0}
+            disabled={!hasDrawn && !counting}
             style={{
               position: "relative",
-              width: gameMode ? "48px" : "32px",
-              height: gameMode ? "48px" : "32px",
-              borderRadius: "50%",
-              background: countdownSeconds >= 0
-                ? (countdownSeconds <= 3 ? "#ef4444" : "var(--primary)")
-                : (hasDrawn ? "var(--primary)" : "var(--border)"),
-              border: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: hasDrawn ? "pointer" : "default",
-              transition: "background 0.15s ease",
+              minHeight: gameMode ? 58 : 52,
+              animation: hurry ? "ec-kick 0.5s ease-in-out infinite" : undefined,
             }}
           >
-            {countdownSeconds >= 0 ? (
-              <span style={{
-                color: "#fff",
-                fontSize: gameMode ? "1.25rem" : "0.85rem",
-                fontWeight: 700,
-              }}>
+            {counting && (
+              <span
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  minWidth: 34,
+                  height: 34,
+                  padding: "0 4px",
+                  border: "2.5px solid var(--ink)",
+                  borderRadius: "50%",
+                  background: "#fff",
+                  color: hurry ? "var(--red)" : "var(--ink)",
+                  textShadow: "none",
+                  fontSize: 17,
+                }}
+              >
                 {countdownSeconds}
               </span>
-            ) : (
-              <svg
-                width={gameMode ? "24" : "16"}
-                height={gameMode ? "24" : "16"}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#fff"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-              </svg>
             )}
+            {c.send}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
           </button>
           <style>{`
             .drawing-send-pulse {
-              animation: drawingSendPulse 1s ease-out;
+              animation: drawingSendPulse 1s ease-out forwards;
+              pointer-events: none;
             }
             @keyframes drawingSendPulse {
-              0% { transform: scale(1); opacity: 0.5; }
-              100% { transform: scale(1.8); opacity: 0; }
+              0% { transform: scale(1); opacity: 0.45; }
+              100% { transform: scale(1.25, 1.6); opacity: 0; }
             }
           `}</style>
         </div>
 
-        {/* Undo — right */}
-        <div style={{ position: "absolute", right: 0 }}>
-          <button
-            onClick={handleUndo}
-            disabled={!hasDrawn}
-            style={{
-              position: "relative",
-              border: "none",
-              background: "transparent",
-              cursor: hasDrawn ? "pointer" : "default",
-              padding: 0,
-              width: "44px",
-              height: "32px",
-            }}
-          >
-            <svg width="44" height="32" viewBox="0 0 44 32" fill="none" style={{ position: "absolute", inset: 0 }}>
-              <path d="M0,16 L10,0 L36,0 Q44,0 44,8 L44,24 Q44,32 36,32 L10,32 Z" fill={hasDrawn ? "#ef4444" : "var(--border)"} />
-            </svg>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", top: "50%", left: "55%", transform: "translate(-50%, -50%)" }}>
-              <path d="M3 10h10a5 5 0 0 1 0 10H12" />
-              <polyline points="7 14 3 10 7 6" />
-            </svg>
-          </button>
-        </div>
+        <button
+          className="ec-btn white sm"
+          onClick={handleUndo}
+          disabled={!hasDrawn}
+          style={{ width: "auto", minHeight: gameMode ? 58 : 52, padding: "0 14px", gap: 6 }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 10h10a5 5 0 0 1 0 10H12" />
+            <polyline points="7 14 3 10 7 6" />
+          </svg>
+          {c.undo}
+        </button>
       </div>
     </div>
   );

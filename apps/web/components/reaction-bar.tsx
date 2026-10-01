@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
+import { EmojiArt } from "@/components/ui/icon";
 
 interface ReactionBarProps {
   messageId: string;
@@ -31,36 +32,16 @@ export function ReactionBar({
     ([, data]) => data.count > 0
   );
 
+  if (activeReactions.length === 0) return null;
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
       {activeReactions.map(([emoji, data]) => {
         const isMine = data.participantIds.includes(currentParticipantId);
         return (
-          <button
-            key={emoji}
-            onClick={() => onToggle(emoji, isMine)}
-            style={{
-              fontSize: "0.8rem",
-              padding: "0.15rem 0.45rem",
-              borderRadius: "999px",
-              background: isMine ? "var(--primary-light)" : "var(--bg)",
-              border: isMine ? "1.5px solid var(--primary)" : "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.2rem",
-              transition: "all 0.12s ease",
-            }}
-          >
-            <span>{emoji}</span>
-            <span
-              style={{
-                fontSize: "0.7rem",
-                fontWeight: isMine ? 600 : 400,
-                color: isMine ? "var(--primary)" : "var(--muted)",
-              }}
-            >
-              {data.count}
-            </span>
+          <button key={emoji} className={`ec-react${isMine ? " mine" : ""}`} onClick={() => onToggle(emoji, isMine)}>
+            <EmojiArt emoji={emoji} size={18} />
+            <b>{data.count}</b>
           </button>
         );
       })}

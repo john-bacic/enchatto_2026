@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
-import { PRESET_AVATARS } from "@/lib/types";
 import { ReplyPreview } from "@/components/reply-preview";
 import { ReactionBar } from "@/components/reaction-bar";
 import { SuggestionChips } from "@/components/suggestion-chips";
 import { MessageImage } from "@/components/message-image";
 import { MessageDrawing } from "@/components/message-drawing";
+import { AvatarDisc } from "@/components/ui/avatar";
+import { Chatto } from "@/components/ui/chatto";
+import { EmojiArt, Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 
 interface ProcessingState {
@@ -53,18 +56,14 @@ interface MessageItemProps {
   showJapanese?: boolean;
   showRomaji?: boolean;
   onImageLoad?: () => void;
-}
-
-function getEmoji(avatarValue: string): string {
-  return PRESET_AVATARS.find((a) => a.id === avatarValue)?.emoji ?? "👤";
-}
-
-function getAvatarColor(avatarValue: string): string {
-  return PRESET_AVATARS.find((a) => a.id === avatarValue)?.color ?? "#e5e7eb";
+  /** Little Chatto riding on the bubble while its translation is in flight. */
+  showCarrier?: boolean;
+  /** Marquee lights around the bubble (hype mode, latest message). */
+  highlight?: boolean;
 }
 
 /** Check if text contains Japanese characters (Hiragana, Katakana, CJK) */
-function isJapaneseText(text: string): boolean {
+export function isJapaneseText(text: string): boolean {
   return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text);
 }
 
@@ -79,82 +78,66 @@ function getLanguageTexts(message: MessageData) {
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
+function ReactionPill({
+  emoji,
+  count,
+  mine,
+  onClick,
+}: {
+  emoji: string;
+  count: number;
+  mine: boolean;
+  onClick: () => void;
+}) {
+  const prevCount = useRef(count);
+  const [popKey, setPopKey] = useState(0);
+  useEffect(() => {
+    if (count > prevCount.current) setPopKey((k) => k + 1);
+    prevCount.current = count;
+  }, [count]);
+
+  return (
+    <button className={`ec-react${mine ? " mine" : ""}`} onClick={onClick}>
+      <span key={popKey} className={`ec-react-in${popKey ? " pop" : ""}`}>
+        <EmojiArt emoji={emoji} size={18} />
+        {count > 1 && <b>{count}</b>}
+      </span>
+    </button>
+  );
+}
+
 function InlineReactions({
   messageId,
   currentParticipantId,
-  isOwn,
   onToggleReaction,
-  onShowModal,
 }: {
   messageId: string;
   currentParticipantId: string;
-  isOwn: boolean;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
-  onShowModal: () => void;
 }) {
   const summaryList = useQuery(api.reactions.getReactionSummary, {
     messageId: messageId as Id<"messages">,
   });
 
   const reactions = (summaryList ?? []).filter((r) => r.count > 0);
+  if (reactions.length === 0) return null;
 
-  if (reactions.length > 0) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-        {reactions.map((r) => (
-          <div
+  return (
+    <div className="ec-reacts">
+      {reactions.map((r) => {
+        const isMine = r.participantIds.includes(currentParticipantId);
+        return (
+          <ReactionPill
             key={r.emoji}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "2px",
-              padding: "2px 6px",
-              borderRadius: "999px",
-              background: "var(--bg)",
-              border: "1px solid var(--border)",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-            }}
-            onClick={() => {
-              const isMine = r.participantIds.includes(currentParticipantId);
-              onToggleReaction?.(messageId, r.emoji, isMine);
-            }}
-          >
-            <span style={{ fontSize: "0.8rem" }}>{r.emoji}</span>
-            {r.count > 1 && (
-              <span style={{ fontSize: "0.65rem", color: "var(--muted)" }}>
-                {r.count}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (!isOwn) {
-    return (
-      <button
-        onClick={onShowModal}
-        style={{
-          background: "none",
-          border: "none",
-          padding: "0.15rem",
-          cursor: "pointer",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-        }}
-        title={t("React or reply")}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3 }}>
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-        </svg>
-      </button>
-    );
-  }
-
-  return null;
+            emoji={r.emoji}
+            count={r.count}
+            mine={isMine}
+            onClick={() => onToggleReaction?.(messageId, r.emoji, isMine)}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 export function MessageItem({
@@ -172,16 +155,31 @@ export function MessageItem({
   showJapanese = true,
   showRomaji = true,
   onImageLoad,
+  showCarrier = false,
+  highlight = false,
 }: MessageItemProps) {
   const senderName = sender?.nickname ?? "Unknown";
-  const senderEmoji = sender ? getEmoji(sender.avatar.value) : "👤";
-  const senderColor = sender ? getAvatarColor(sender.avatar.value) : "#e5e7eb";
   const isPending = message.status === "pending";
   const isFailed = message.status === "failed";
   const isMedia = message.kind === "image" || message.kind === "drawing";
 
   const [showModal, setShowModal] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  // "GOT IT!" stamp: only for a pending → processed transition seen in this session.
+  const prevStatus = useRef(message.status);
+  const [stampKey, setStampKey] = useState(0);
+  useEffect(() => {
+    if (prevStatus.current === "pending" && message.status === "processed" && message.kind === "text") {
+      setStampKey((k) => k + 1);
+    }
+    prevStatus.current = message.status;
+  }, [message.status, message.kind]);
+  useEffect(() => {
+    if (!stampKey) return;
+    const timer = setTimeout(() => setStampKey(0), 3000);
+    return () => clearTimeout(timer);
+  }, [stampKey]);
 
   const handlePointerDown = () => {
     if (isOwn) return;
@@ -202,19 +200,21 @@ export function MessageItem({
     setShowModal(true);
   };
 
+  const bubbleClass = [
+    "ec-bubble",
+    isMedia ? "media" : "",
+    isPending ? "pending" : "",
+    isFailed ? "failed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: isOwn ? "flex-end" : "flex-start",
-          marginBottom: "0.75rem",
-        }}
-      >
+      <div className={`ec-msg${isOwn ? " own" : ""}`}>
         {/* Reply preview */}
         {replyToMessage && (
-          <div style={{ marginLeft: isOwn ? 0 : "2.75rem" }}>
+          <div style={{ marginLeft: isOwn ? 0 : 50, maxWidth: "80%" }}>
             <ReplyPreview
               originalText={replyToMessage.text ?? ""}
               senderName={replyToSender?.nickname ?? "Unknown"}
@@ -226,248 +226,136 @@ export function MessageItem({
         )}
 
         {/* Main row: avatar + bubble + reaction button */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: "0.5rem",
-            maxWidth: isOwn ? "75%" : "85%",
-            marginLeft: isOwn ? "auto" : undefined,
-          }}
-        >
+        <div className="ec-msg-row">
           {/* Avatar column (others only) */}
           {!isOwn && (
+            <div className="ec-who">
+              {sender ? (
+                <AvatarDisc id={sender.avatar.value} size={36} border={2.5} />
+              ) : (
+                <span className="ec-stack-empty" style={{ width: 36, height: 36 }}>?</span>
+              )}
+              <small>{senderName}</small>
+            </div>
+          )}
+
+          <div className="ec-bubble-col">
+            {/* Bubble */}
             <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "0.15rem",
-                flexShrink: 0,
-              }}
+              className={bubbleClass}
+              onPointerDown={handlePointerDown}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+              onContextMenu={handleContextMenu}
             >
-              <div
-                style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  background: senderColor,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "0.9rem",
-                }}
-              >
-                {senderEmoji}
-              </div>
-              <span
-                style={{
-                  fontSize: "0.6rem",
-                  color: "var(--muted)",
-                  maxWidth: "40px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  textAlign: "center",
-                }}
-              >
-                {senderName}
-              </span>
-            </div>
-          )}
-
-          {/* Reactions to the left of own bubble */}
-          {isOwn && (
-            <div style={{ alignSelf: "center", flexShrink: 0 }}>
-              <InlineReactions
-                messageId={message._id}
-                currentParticipantId={currentParticipantId}
-                isOwn={isOwn}
-                onToggleReaction={onToggleReaction}
-                onShowModal={() => setShowModal(true)}
-              />
-            </div>
-          )}
-
-          {/* Bubble */}
-          <div
-            style={{
-              background: isMedia
-                ? "transparent"
-                : isOwn
-                  ? "var(--primary)"
-                  : "var(--surface)",
-              color: isOwn && !isMedia ? "#fff" : "var(--fg)",
-              border: isMedia ? "none" : isOwn ? "none" : "1px solid var(--border)",
-              borderRadius: isOwn ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-              padding: isMedia ? "0" : "0.6rem 0.85rem",
-              opacity: isPending ? 0.7 : 1,
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              wordBreak: "break-word",
-              overflowWrap: "break-word",
-              minWidth: 0,
-            }}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            onContextMenu={handleContextMenu}
-          >
-            {message.kind === "image" && message.mediaUrl && (
-              <MessageImage src={message.mediaUrl} onLoad={onImageLoad} />
-            )}
-            {message.kind === "drawing" && message.mediaUrl && (
-              <MessageDrawing src={message.mediaUrl} onLoad={onImageLoad} />
-            )}
-            {message.kind === "text" && (() => {
-              const { english, japanese } = getLanguageTexts(message);
-              const romaji = message.processing?.romaji;
-              // Primary: show preferred language first, fallback to other
-              const primaryText = preferredLanguage === "ja"
-                ? (showJapanese && japanese ? japanese : showEnglish && english ? english : null)
-                : (showEnglish && english ? english : showJapanese && japanese ? japanese : null);
-              // Romaji grouped with Japanese whenever Japanese is the displayed primary text
-              const japaneseIsPrimary = preferredLanguage === "ja"
-                ? (showJapanese && !!japanese)
-                : (!(showEnglish && !!english) && showJapanese && !!japanese);
-              const showRomajiWithPrimary = japaneseIsPrimary && showRomaji && !!romaji;
-              return primaryText ? (
-                <>
-                  <p style={{ margin: 0, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
-                    {primaryText}
-                  </p>
-                  {showRomajiWithPrimary && (
-                    <p style={{ margin: "0.25rem 0 0", fontStyle: "italic", fontSize: "0.78rem", opacity: 0.8 }}>
-                      {romaji}
-                    </p>
-                  )}
-                </>
-              ) : null;
-            })()}
-            {message.kind === "system" && message.text && (
-              <p
-                style={{
-                  margin: 0,
-                  fontStyle: "italic",
-                  fontSize: "0.85rem",
-                  color: "var(--muted)",
-                }}
-              >
-                {message.text}
-              </p>
-            )}
-            {message.processing &&
-              message.status === "processed" &&
-              message.kind === "text" && (() => {
+              {message.kind === "image" && message.mediaUrl && (
+                <MessageImage src={message.mediaUrl} onLoad={onImageLoad} />
+              )}
+              {message.kind === "drawing" && message.mediaUrl && (
+                <MessageDrawing src={message.mediaUrl} onLoad={onImageLoad} />
+              )}
+              {message.kind === "text" && (() => {
                 const { english, japanese } = getLanguageTexts(message);
-                // Only show secondary if primary showed the preferred language (not a fallback)
-                const primaryShowedPreferred = preferredLanguage === "ja"
-                  ? showJapanese && !!japanese
-                  : showEnglish && !!english;
-                const hasSecondary = primaryShowedPreferred && (preferredLanguage === "ja"
-                  ? showEnglish && !!english
-                  : showJapanese && !!japanese);
-                // Romaji below divider only if not already shown with Japanese in primary
-                const romajiAvailable = showRomaji && !!message.processing!.romaji;
-                const japaneseWasPrimary = preferredLanguage === "ja"
+                const romaji = message.processing?.romaji;
+                // Primary: show preferred language first, fallback to other
+                const primaryText = preferredLanguage === "ja"
+                  ? (showJapanese && japanese ? japanese : showEnglish && english ? english : null)
+                  : (showEnglish && english ? english : showJapanese && japanese ? japanese : null);
+                // Romaji grouped with Japanese whenever Japanese is the displayed primary text
+                const japaneseIsPrimary = preferredLanguage === "ja"
                   ? (showJapanese && !!japanese)
                   : (!(showEnglish && !!english) && showJapanese && !!japanese);
-                const hasRomajiBelow = romajiAvailable && !japaneseWasPrimary;
-                if (!hasSecondary && !hasRomajiBelow) return null;
-                return (
-                  <div
-                    style={{
-                      marginTop: "0.5rem",
-                      paddingTop: "0.5rem",
-                      borderTop: `1px solid ${isOwn ? "rgba(255,255,255,0.2)" : "var(--border)"}`,
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {preferredLanguage === "ja" ? (
-                      <>
-                        {hasRomajiBelow && (
-                          <p
-                            style={{
-                              margin: "0 0 0.25rem",
-                              fontStyle: "italic",
-                              opacity: 0.8,
-                            }}
-                          >
-                            {message.processing!.romaji}
-                          </p>
-                        )}
-                        {hasSecondary && (
-                          <p style={{ margin: 0, opacity: 0.7 }}>
-                            {english}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {hasRomajiBelow && (
-                          <p
-                            style={{
-                              margin: "0 0 0.25rem",
-                              fontStyle: "italic",
-                              opacity: 0.8,
-                            }}
-                          >
-                            {message.processing!.romaji}
-                          </p>
-                        )}
-                        {hasSecondary && (
-                          <p style={{ margin: 0, fontWeight: 500 }}>
-                            {japanese}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
+                const showRomajiWithPrimary = japaneseIsPrimary && showRomaji && !!romaji;
+                return primaryText ? (
+                  <>
+                    <p>{primaryText}</p>
+                    {showRomajiWithPrimary && <p className="ec-romaji">{romaji}</p>}
+                  </>
+                ) : null;
               })()}
-            {isPending && (
-              <p
-                style={{
-                  margin: "0.3rem 0 0",
-                  fontSize: "0.7rem",
-                  opacity: 0.6,
-                  fontStyle: "italic",
-                }}
-              >
-                {t("Processing...", lang)}
-              </p>
-            )}
-            {isFailed && (
-              <p
-                style={{
-                  margin: "0.3rem 0 0",
-                  fontSize: "0.7rem",
-                  color: "#ef4444",
-                }}
-              >
-                {message.processing?.error ?? t("Processing failed", lang)}
-              </p>
-            )}
+              {message.kind === "system" && message.text && (
+                <p style={{ fontStyle: "italic", fontSize: 13, opacity: 0.7 }}>{message.text}</p>
+              )}
+              {message.processing &&
+                message.status === "processed" &&
+                message.kind === "text" && (() => {
+                  const { english, japanese } = getLanguageTexts(message);
+                  // Only show secondary if primary showed the preferred language (not a fallback)
+                  const primaryShowedPreferred = preferredLanguage === "ja"
+                    ? showJapanese && !!japanese
+                    : showEnglish && !!english;
+                  const hasSecondary = primaryShowedPreferred && (preferredLanguage === "ja"
+                    ? showEnglish && !!english
+                    : showJapanese && !!japanese);
+                  // Romaji below divider only if not already shown with Japanese in primary
+                  const romajiAvailable = showRomaji && !!message.processing!.romaji;
+                  const japaneseWasPrimary = preferredLanguage === "ja"
+                    ? (showJapanese && !!japanese)
+                    : (!(showEnglish && !!english) && showJapanese && !!japanese);
+                  const hasRomajiBelow = romajiAvailable && !japaneseWasPrimary;
+                  if (!hasSecondary && !hasRomajiBelow) return null;
+                  const secondary = preferredLanguage === "ja" ? english : japanese;
+                  return (
+                    <div className="ec-tr">
+                      {hasRomajiBelow && (
+                        <p className="ec-romaji" style={{ margin: "0 0 2px" }}>
+                          {message.processing!.romaji}
+                        </p>
+                      )}
+                      {hasSecondary && (
+                        <p>
+                          <span className="ec-tr-tag">{preferredLanguage === "ja" ? "EN" : "JA"}</span>
+                          {secondary}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              {isPending && (
+                <div className="ec-status-line">
+                  {t("translating", lang)}
+                  <span className="ec-dots"><i /><i /><i /></span>
+                </div>
+              )}
+              {isFailed && (
+                <div className="ec-status-line" style={{ color: "var(--red)" }}>
+                  <Icon name="g-bang" size={16} />
+                  {message.processing?.error ?? t("Processing failed", lang)}
+                </div>
+              )}
+
+              {highlight && !isMedia && <div className="ec-marquee" aria-hidden />}
+              {showCarrier && isPending && (
+                <Chatto size={46} wave={false} style={{ position: "absolute", right: -6, top: -44, pointerEvents: "none" }} />
+              )}
+              {stampKey > 0 && (
+                <div key={stampKey} className="ec-stamp ec-msg-stamp" aria-hidden>
+                  GOT
+                  <br />
+                  IT!
+                </div>
+              )}
+            </div>
+
+            <InlineReactions
+              messageId={message._id}
+              currentParticipantId={currentParticipantId}
+              onToggleReaction={onToggleReaction}
+            />
           </div>
 
-          {/* Reactions / trigger on right of others' bubble */}
+          {/* Reaction trigger on right of others' bubble */}
           {!isOwn && (
-            <div style={{ alignSelf: "center", flexShrink: 0 }}>
-              <InlineReactions
-                messageId={message._id}
-                currentParticipantId={currentParticipantId}
-                isOwn={isOwn}
-                onToggleReaction={onToggleReaction}
-                onShowModal={() => setShowModal(true)}
-              />
-            </div>
+            <button className="ec-react-add" onClick={() => setShowModal(true)} title={t("React or reply", lang)}>
+              <Icon name="re-heart" size={16} />
+            </button>
           )}
         </div>
 
         {/* Suggestions */}
         {message.processing?.suggestions &&
           message.processing.suggestions.length > 0 && (
-            <div style={{ marginLeft: isOwn ? 0 : "2.75rem" }}>
+            <div style={{ marginLeft: isOwn ? 0 : 50 }}>
               <SuggestionChips
                 suggestions={message.processing.suggestions}
                 onSelect={(text) => {
@@ -478,99 +366,69 @@ export function MessageItem({
           )}
       </div>
 
-      {/* Long-press modal */}
-      {showModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.4)",
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "16px",
-              padding: "1.25rem",
-              width: "100%",
-              maxWidth: "280px",
-              margin: "1rem",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Reaction row */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: "0.5rem",
-                marginBottom: "1rem",
-              }}
-            >
-              {REACTION_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => {
-                    onToggleReaction?.(message._id, emoji, false);
+      {/* Long-press reaction picker */}
+      {showModal &&
+        createPortal(
+          <div className="ec-sheet-backdrop" style={{ zIndex: 200 }} onClick={() => setShowModal(false)}>
+            <div className="ec-sheet" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
+              <div className="ec-sheet-grip" />
+              <div className="ec-sheet-head">
+                {sender && <AvatarDisc id={sender.avatar.value} size={36} border={2.5} />}
+                <h2 style={{ fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {t("React", lang)} · {senderName}
+                </h2>
+                <button className="ec-round-btn" onClick={() => setShowModal(false)} aria-label={t("Close", lang)}>
+                  ✕
+                </button>
+              </div>
+              <div className="ec-sheet-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {message.text && (
+                  <div className="ec-reply" style={{ alignSelf: "stretch" }}>
+                    <span>{message.text}</span>
+                  </div>
+                )}
+
+                {/* Reaction row */}
+                <div className="ec-picker-row">
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      aria-label={emoji}
+                      onClick={() => {
+                        onToggleReaction?.(message._id, emoji, false);
+                        setShowModal(false);
+                      }}
+                    >
+                      <EmojiArt emoji={emoji} size={34} />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Existing reactions */}
+                <ReactionBar
+                  messageId={message._id}
+                  currentParticipantId={currentParticipantId}
+                  onToggle={(emoji, hasReacted) => {
+                    onToggleReaction?.(message._id, emoji, hasReacted);
                     setShowModal(false);
                   }}
-                  style={{
-                    fontSize: "1.5rem",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "0.25rem",
-                    borderRadius: "8px",
+                />
+
+                {/* Reply button */}
+                <button
+                  className="ec-btn white sm"
+                  onClick={() => {
+                    onReply(message._id);
+                    setShowModal(false);
                   }}
                 >
-                  {emoji}
+                  {t("↩ Reply", lang)}
                 </button>
-              ))}
+              </div>
             </div>
-
-            {/* Existing reactions */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <ReactionBar
-                messageId={message._id}
-                currentParticipantId={currentParticipantId}
-                onToggle={(emoji, hasReacted) => {
-                  onToggleReaction?.(message._id, emoji, hasReacted);
-                  setShowModal(false);
-                }}
-              />
-            </div>
-
-            {/* Reply button */}
-            <button
-              onClick={() => {
-                onReply(message._id);
-                setShowModal(false);
-              }}
-              style={{
-                width: "100%",
-                padding: "0.6rem",
-                borderRadius: "10px",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                fontWeight: 600,
-                fontSize: "0.9rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.4rem",
-              }}
-            >
-              {t("↩ Reply", lang)}
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }

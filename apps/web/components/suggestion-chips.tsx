@@ -1,38 +1,27 @@
 "use client";
 
+import { EmojiArt } from "@/components/ui/icon";
+import { iconForEmoji } from "@/lib/icons";
+
 interface SuggestionChipsProps {
   suggestions: string[];
   onSelect: (text: string) => void;
 }
 
+const CHIP_TONES = ["var(--pink-soft)", "var(--blue-soft)", "var(--mint-soft)", "var(--yellow-soft)"];
+
 export function SuggestionChips({ suggestions, onSelect }: SuggestionChipsProps) {
   if (suggestions.length === 0) return null;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: "0.35rem",
-        flexWrap: "wrap",
-        marginTop: "0.35rem",
-      }}
-    >
+    <div className="ec-chips">
       {suggestions.slice(0, 4).map((suggestion, i) => (
         <button
           key={i}
           onClick={() => onSelect(suggestion)}
-          style={{
-            fontSize: "0.75rem",
-            padding: "0.3rem 0.6rem",
-            borderRadius: "999px",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            color: "var(--primary)",
-            fontWeight: 500,
-            whiteSpace: "nowrap",
-          }}
+          style={{ "--c": CHIP_TONES[i % CHIP_TONES.length], animationDelay: `${i * 0.06}s` } as React.CSSProperties}
         >
-          {suggestion}
+          {iconForEmoji(suggestion.trim()) ? <EmojiArt emoji={suggestion.trim()} size={22} /> : suggestion}
         </button>
       ))}
     </div>

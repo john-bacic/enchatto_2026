@@ -6,8 +6,14 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { AvatarPicker } from "@/components/avatar-picker";
+import { AvatarDisc } from "@/components/ui/avatar";
+import { Chatto } from "@/components/ui/chatto";
+import { LangBadge } from "@/components/ui/icon";
+import { RoomBackground } from "@/components/ui/effects";
 import { LANGUAGES, PRESET_AVATARS, PresetAvatarId, LanguageCode } from "@/lib/types";
+import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
+import "../../screens.css";
 
 export default function JoinPage() {
   const params = useParams();
@@ -52,9 +58,6 @@ export default function JoinPage() {
       }
     }
   }, [takenAvatars.join(","), hasReturningParticipant, joining]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const selectedEmoji =
-    PRESET_AVATARS.find((a) => a.id === avatar)?.emoji ?? "🐱";
 
   const handleJoin = async () => {
     if (!nickname.trim()) {
@@ -102,219 +105,124 @@ export default function JoinPage() {
     }
   };
 
+  const background = <RoomBackground texture={textureForRoom(room)} />;
+
   // Loading state
   if (room === undefined) {
     return (
-      <main
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100dvh",
-          color: "var(--muted)",
-        }}
-      >
-        {t("Looking up room...", language)}
-      </main>
-    );
-  }
-
-  // Room not found
-  if (room === null) {
-    return (
-      <main
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100dvh",
-          padding: "2rem",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          {t("Room not found", language)}
-        </h1>
-        <p style={{ color: "var(--muted)" }}>
-          {t("The room code is invalid or has expired.", language)}
+      <main className="ec-center-state">
+        {background}
+        <Chatto size={96} shadow />
+        <p style={{ display: "flex", alignItems: "center", gap: 8, opacity: 1 }}>
+          {t("Looking up room...", language)}
+          <span className="ec-dots"><i /><i /><i /></span>
         </p>
       </main>
     );
   }
 
-  // Room closed
-  if (room.status === "closed") {
+  // Room not found / closed
+  if (room === null || room.status === "closed") {
+    const notFound = room === null;
     return (
-      <main
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100dvh",
-          padding: "2rem",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          {t("Room closed", language)}
-        </h1>
-        <p style={{ color: "var(--muted)" }}>
-          {t("This conversation has ended. The host has closed the room.", language)}
+      <main className="ec-center-state">
+        {background}
+        <Chatto size={96} bob={false} wave={false} shadow />
+        <h1>{notFound ? t("Room not found", language) : t("Room closed", language)}</h1>
+        <p>
+          {notFound
+            ? t("The room code is invalid or has expired.", language)
+            : t("This conversation has ended. The host has closed the room.", language)}
         </p>
+        <button className="ec-btn white sm" style={{ width: "auto", padding: "0 22px" }} onClick={() => router.push("/")}>
+          {t("Back home", language)}
+        </button>
       </main>
     );
   }
+
+  const othersInRoom = takenAvatars.length;
+  const displayName = nickname.trim() || "...";
+  const joinLabel = joining
+    ? t("Joining...", language)
+    : t("JOIN AS {name}!", language).replace("{name}", language === "ja" ? displayName : displayName.toUpperCase());
 
   return (
-    <main
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100dvh",
-        padding: "1.5rem",
-      }}
-    >
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          padding: "2rem",
-          width: "100%",
-          maxWidth: "400px",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-          {t("Join Conversation", language)}
-        </h1>
-        <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-          {t("Room code:", language)} <strong>{joinCode}</strong>
-        </p>
+    <main className="ec-join ec-col">
+      {background}
 
-        {/* Avatar */}
-        <label
-          style={{
-            display: "block",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            marginBottom: "0.5rem",
-          }}
-        >
-          {t("Choose an avatar", language)}
-        </label>
-        <div style={{ marginBottom: "1.25rem" }}>
-          <AvatarPicker selected={avatar} onSelect={setAvatar} takenAvatars={takenAvatars} />
+      <div className="ec-join-head">
+        <div style={{ minWidth: 0 }}>
+          <span className="ec-chip ink">
+            {t("ROOM", language)} {joinCode.toUpperCase()}
+          </span>
+          <div className="ec-join-title">{t("Who's joining?", language)}</div>
         </div>
+        <Chatto size={78} shadow style={{ marginTop: 6 }} />
+      </div>
 
-        {/* Nickname */}
-        <label
-          style={{
-            display: "block",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            marginBottom: "0.25rem",
-          }}
-        >
-          {t("Nickname", language)}
+      <div>
+        <div className="ec-label">
+          {t("Choose your avatar", language)}
+          {othersInRoom > 0 && (
+            <small>
+              {othersInRoom}
+              {language === "ja" ? "" : " "}
+              {t("already in the room", language)}
+            </small>
+          )}
+        </div>
+        <AvatarPicker selected={avatar} onSelect={setAvatar} takenAvatars={takenAvatars} lang={language} />
+      </div>
+
+      <div>
+        <label className="ec-label" htmlFor="ec-nickname">
+          {t("Your nickname", language)}
         </label>
         <input
+          id="ec-nickname"
+          className="ec-field"
           type="text"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleJoin()}
           placeholder={t("Enter your name", language)}
           maxLength={20}
-          style={{
-            width: "100%",
-            padding: "0.6rem 0.75rem",
-            borderRadius: "8px",
-            border: "1px solid var(--border)",
-            marginBottom: "1.25rem",
-            outline: "none",
-            background: "rgba(255, 255, 0, 0.15)",
-          }}
+          style={{ fontSize: 18 }}
         />
+      </div>
 
-        {/* Language toggle */}
-        <label
-          style={{
-            display: "block",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            marginBottom: "0.5rem",
-          }}
-        >
-          {t("Your language", language)}
-        </label>
-        <div
-          style={{
-            display: "flex",
-            borderRadius: "8px",
-            border: "1px solid var(--border)",
-            overflow: "hidden",
-            marginBottom: "1.5rem",
-          }}
-        >
+      <div>
+        <div className="ec-label">{t("Your language", language)}</div>
+        <div className="ec-pick">
           {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
               type="button"
+              className={language === lang.code ? "on" : undefined}
+              aria-pressed={language === lang.code}
               onClick={() => setLanguage(lang.code)}
-              style={{
-                flex: 1,
-                padding: "0.6rem 0.75rem",
-                border: "none",
-                background: language === lang.code ? "var(--primary)" : "var(--surface)",
-                color: language === lang.code ? "#fff" : "var(--foreground)",
-                fontWeight: language === lang.code ? 700 : 400,
-                fontSize: "0.9rem",
-                cursor: "pointer",
-                transition: "background 0.15s ease, color 0.15s ease",
-              }}
             >
+              <LangBadge lang={lang.code} />
               {lang.label}
             </button>
           ))}
         </div>
-
-        {/* Error */}
-        {error && (
-          <p style={{ color: "#ef4444", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-            {error}
-          </p>
-        )}
-
-        {/* Join button */}
-        <button
-          onClick={handleJoin}
-          disabled={joining}
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            borderRadius: "8px",
-            background: joining ? "var(--muted)" : "var(--primary)",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: "1rem",
-          }}
-        >
-          {joining ? t("Joining...", language) : language === "ja" ? `${selectedEmoji} ${nickname || "..."}として参加します` : `${t("Join as", language)} ${selectedEmoji} ${nickname || "..."}`}
-        </button>
       </div>
 
-      <div
-        style={{
-          textAlign: "center",
-          fontSize: "0.65rem",
-          color: "#999",
-          marginTop: "0.75rem",
-        }}
+      {error && <div className="ec-error">{error}</div>}
+
+      <button
+        className={`ec-btn pink${nickname.trim() && !joining ? " wiggle" : ""}`}
+        style={{ marginTop: "auto", minHeight: 64, fontSize: language === "ja" ? 19 : 21 }}
+        onClick={handleJoin}
+        disabled={joining}
       >
-        v{(process.env.NEXT_PUBLIC_GIT_SHA || "dev").slice(0, 7)}
-      </div>
+        <AvatarDisc id={avatar} size={42} border={2.5} shadow={false} />
+        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{joinLabel}</span>
+      </button>
+
+      <div className="ec-version">v{(process.env.NEXT_PUBLIC_GIT_SHA || "dev").slice(0, 7)}</div>
     </main>
   );
 }

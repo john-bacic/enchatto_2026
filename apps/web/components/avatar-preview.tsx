@@ -1,6 +1,6 @@
 "use client";
 
-import { getAvatarById } from "@/lib/types";
+import { AvatarDisc } from "@/components/ui/avatar";
 
 type PresenceStatus = "online" | "away" | "offline";
 
@@ -23,56 +23,43 @@ export function AvatarPreview({
   presence,
   isMe = false,
 }: AvatarPreviewProps) {
-  const avatar = getAvatarById(avatarId);
-
   // Determine effective presence: explicit `presence` prop takes priority
   const effectivePresence: PresenceStatus | undefined =
     presence ?? (online !== undefined ? (online ? "online" : "offline") : undefined);
 
   const dotColor =
     effectivePresence === "online"
-      ? "#22c55e"
+      ? "var(--mint)"
       : effectivePresence === "away"
-        ? "#f97316"
-        : "#9ca3af";
+        ? "var(--yellow)"
+        : "#c9cbe8";
+
+  const dot = Math.max(9, Math.round(size * 0.3));
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.2rem",
-      }}
-    >
-      <div
-        style={{
-          width: `${size}px`,
-          height: `${size}px`,
-          borderRadius: "50%",
-          background: avatar.color,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: `${size * 0.55}px`,
-          position: "relative",
-          opacity: effectivePresence === "offline" ? 0.5 : effectivePresence === "away" ? 0.7 : 1,
-          outline: isMe ? "2px solid var(--primary)" : "none",
-          outlineOffset: "2px",
-        }}
-      >
-        {avatar.emoji}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+      <div style={{ position: "relative", width: size, height: size }}>
+        <AvatarDisc
+          id={avatarId}
+          size={size}
+          style={{
+            filter: effectivePresence === "offline" ? "grayscale(1)" : undefined,
+            opacity: effectivePresence === "offline" ? 0.55 : effectivePresence === "away" ? 0.8 : 1,
+            outline: isMe ? "3px solid var(--pink)" : undefined,
+            outlineOffset: 2,
+          }}
+        />
         {effectivePresence !== undefined && (
           <span
             style={{
               position: "absolute",
-              bottom: 0,
-              right: 0,
-              width: `${size * 0.28}px`,
-              height: `${size * 0.28}px`,
+              right: -1,
+              bottom: -1,
+              width: dot,
+              height: dot,
               borderRadius: "50%",
               background: dotColor,
-              border: "2px solid var(--surface)",
+              border: "2px solid var(--ink)",
             }}
           />
         )}
@@ -80,14 +67,14 @@ export function AvatarPreview({
       {showName && (
         <span
           style={{
-            fontSize: "0.7rem",
-            color: "var(--muted)",
-            fontWeight: 500,
-            maxWidth: `${size + 20}px`,
+            maxWidth: size + 20,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             textAlign: "center",
+            fontSize: 11,
+            fontWeight: 900,
+            opacity: 0.75,
           }}
         >
           {nickname}

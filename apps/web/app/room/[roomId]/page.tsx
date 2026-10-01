@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useCallback, useEffect, useRef, Component, type ReactNode } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
@@ -12,14 +12,21 @@ import { GamePickerModal } from "@/components/game-picker-modal";
 import { GameTaskOverlay } from "@/components/game-task-overlay";
 import { GameReplayModal } from "@/components/game-replay-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
-import { EmojifyrGameScreen } from "@/components/emojifyr-game-screen";
 import { EmojiMatchGame } from "@/components/emoji-match-game";
 import { TruthOrDareGame } from "@/components/truth-or-dare-game";
 import { EmojiBingoGame } from "@/components/emoji-bingo-game";
 import { TodDebugPanel, todTrace, tracedMutation } from "@/components/tod-debug-panel";
-import { getAvatarById } from "@/lib/types";
+import { WordRushGame } from "@/components/word-rush-game";
+import { isJapaneseText } from "@/components/message-item";
+import { AvatarDisc } from "@/components/ui/avatar";
+import { Chatto } from "@/components/ui/chatto";
+import { Icon, LangBadge } from "@/components/ui/icon";
+import { Bunting, Confetti, CutIn, Rays, RoomBackground } from "@/components/ui/effects";
+import { avatarIconSrc, getAvatarById } from "@/lib/types";
+import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import "@/app/screens.css";
 
 interface QueuedMessage {
   id: string;
@@ -28,6 +35,52 @@ interface QueuedMessage {
   mediaUrl?: string;
   replyToId?: string;
   createdAt: number;
+}
+
+interface VibeMessage {
+  _id: string;
+  senderId: string;
+  kind: string;
+  text?: string;
+  createdAt: number;
+}
+
+const VIBE_WINDOW_MS = 60_000;
+const COMBO_GAP_MS = 90_000;
+const HYPE_AT = 150;
+
+/** Client-side party meter: recent chatter, boosted by EN⇄JA back-and-forth. */
+function computeVibe(messages: VibeMessage[], langOf: (m: VibeMessage) => string, now: number) {
+  const real = messages.filter((m) => m.kind !== "system");
+  const recent = real.filter((m) => now - m.createdAt < VIBE_WINDOW_MS);
+  let switches = 0;
+  for (let i = 1; i < recent.length; i++) {
+    if (langOf(recent[i]) !== langOf(recent[i - 1])) switches++;
+  }
+  let combo = 0;
+  const last = real[real.length - 1];
+  if (last && now - last.createdAt < COMBO_GAP_MS) {
+    combo = 1;
+    for (let i = real.length - 1; i > 0; i--) {
+      const cur = real[i];
+      const prev = real[i - 1];
+      if (cur.createdAt - prev.createdAt > COMBO_GAP_MS || langOf(cur) === langOf(prev)) break;
+      combo++;
+    }
+  }
+  const mult = 1 + Math.min(combo, 20) * 0.05;
+  const vibe = Math.round((recent.length * 12 + switches * 20) * mult);
+  return { vibe, combo, mult, hype: vibe >= HYPE_AT };
+}
+
+function formatVibe(n: number) {
+  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n);
+}
+
+interface Floater {
+  id: number;
+  text: string;
+  left: number;
 }
 
 function RoomContent() {
@@ -48,7 +101,6 @@ function RoomContent() {
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
   const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
   const [dismissedEmojiBingoId, setDismissedEmojiBingoId] = useState<string | null>(null);
-  const [dismissedEmojifyrId, setDismissedEmojifyrId] = useState<string | null>(null);
   const [dismissedTruthOrDareId, setDismissedTruthOrDareId] = useState<string | null>(null);
 
   // Network status & offline queue
@@ -89,13 +141,10 @@ function RoomContent() {
     activeGameSession ? { roomId: roomId as Id<"rooms"> } : "skip"
   );
 
-  // Emojifyr real-time subscriptions
-  const emojifyrState = useQuery(api.games.getEmojifyrGameState, {
+  // Word Rush real-time subscription
+  const wordRushGame = useQuery(api.wordRush.getState, {
     roomId: roomId as Id<"rooms">,
   });
-  const emojifyrSession = emojifyrState?.session ?? null;
-  const emojifyrRound = emojifyrState?.currentRound ?? null;
-  const emojifyrGuesses = emojifyrState?.guesses ?? [];
 
   // Emoji Match real-time subscription
   const emojiMatchGame = useQuery(api.emojiMatch.getActiveEmojiMatch, {
@@ -457,16 +506,9 @@ function RoomContent() {
     setReplyTo(null);
   };
 
-  // Emojifyr mutations
-  const startEmojifyrMutation = useMutation(api.games.startEmojifyr);
-  const submitEmojifyrSentenceMutation = useMutation(api.games.submitEmojifyrSentence);
-  const submitEmojifyrGuessAction = useAction(api.games.submitEmojifyrGuessWithTranslation);
-  const revealEmojifyrRoundMutation = useMutation(api.games.revealEmojifyrRound);
-  const advanceEmojifyrRoundMutation = useMutation(api.games.advanceEmojifyrRound);
-  const cancelEmojifyrMutation = useMutation(api.games.cancelEmojifyr);
-  const submitEmojifyrEmojiClueAction = useAction(api.games.submitEmojifyrEmojiClueWithTranslation);
-  const updateEmojifyrSentenceMutation = useMutation(api.games.updateEmojifyrSentence);
-  const generateEmojiClueAction = useAction(api.games.generateEmojiClue);
+  // Word Rush mutations
+  const createWordRushLobby = useMutation(api.wordRush.createLobby);
+  const cancelWordRush = useMutation(api.wordRush.cancel);
 
   // Emoji Match mutations
   const createEmojiMatchLobby = useMutation(api.emojiMatch.createLobby);
@@ -516,8 +558,8 @@ function RoomContent() {
     [cancelGameMutation, startGameMutation, roomId, participantId]
   );
 
-  const handleStartEmojifyr = useCallback(
-    async () => {
+  const handleStartWordRush = useCallback(
+    async ({ pack, sayIt }: { pack: string; sayIt: boolean }) => {
       if (!participantId) return;
       try {
         // Cancel any lingering active game first (ignore errors if no active game)
@@ -529,119 +571,18 @@ function RoomContent() {
         } catch {
           // No active game to cancel — that's fine
         }
-        await startEmojifyrMutation({
+        await createWordRushLobby({
           roomId: roomId as Id<"rooms">,
-          createdByParticipantId: participantId as Id<"participants">,
+          hostParticipantId: participantId as Id<"participants">,
+          pack,
+          sayIt,
         });
         setShowGamePicker(false);
       } catch (err) {
-        console.error("Failed to start Emojifyr:", err);
+        console.error("Failed to start Word Rush:", err);
       }
     },
-    [cancelGameMutation, startEmojifyrMutation, roomId, participantId]
-  );
-
-  const handleSubmitEmojifyrSentence = useCallback(
-    async (sentence: string, isInitialism?: boolean) => {
-      if (!emojifyrRound) return;
-      try {
-        await submitEmojifyrSentenceMutation({
-          roundId: emojifyrRound._id,
-          sentence,
-          isInitialism: isInitialism || undefined,
-        });
-      } catch (err) {
-        console.error("Failed to submit Emojifyr sentence:", err);
-      }
-    },
-    [submitEmojifyrSentenceMutation, emojifyrRound]
-  );
-
-  const handleSubmitEmojifyrGuess = useCallback(
-    async (guess: string) => {
-      if (!emojifyrRound || !participantId) return;
-      try {
-        await submitEmojifyrGuessAction({
-          roundId: emojifyrRound._id,
-          participantId: participantId as Id<"participants">,
-          guessText: guess,
-        });
-      } catch (err) {
-        console.error("Failed to submit Emojifyr guess:", err);
-      }
-    },
-    [submitEmojifyrGuessAction, emojifyrRound, participantId]
-  );
-
-  const handleEmojifyrNextRound = useCallback(
-    async () => {
-      if (!emojifyrSession) return;
-      try {
-        await advanceEmojifyrRoundMutation({
-          gameSessionId: emojifyrSession._id as Id<"gameSessions">,
-        });
-      } catch (err) {
-        console.error("Failed to advance Emojifyr round:", err);
-      }
-    },
-    [advanceEmojifyrRoundMutation, emojifyrSession, emojifyrRound]
-  );
-
-  const handleCancelEmojifyr = useCallback(
-    async () => {
-      if (!emojifyrSession) return;
-      try {
-        await cancelEmojifyrMutation({
-          gameSessionId: emojifyrSession._id as Id<"gameSessions">,
-        });
-      } catch (err) {
-        console.error("Failed to cancel Emojifyr:", err);
-      }
-    },
-    [cancelEmojifyrMutation, emojifyrSession]
-  );
-
-  const handleGenerateEmojiClue = useCallback(
-    async (sentence: string) => {
-      try {
-        const result = await generateEmojiClueAction({ sentence });
-        return result.emojiClue;
-      } catch (err) {
-        console.error("Failed to generate emoji clue:", err);
-        return null;
-      }
-    },
-    [generateEmojiClueAction]
-  );
-
-  const handleSubmitEmojifyrEmojiClue = useCallback(
-    async (emojiClue: string) => {
-      if (!emojifyrRound) return;
-      try {
-        await submitEmojifyrEmojiClueAction({
-          roundId: emojifyrRound._id,
-          emojiClue,
-        });
-      } catch (err) {
-        console.error("Failed to submit emoji clue:", err);
-      }
-    },
-    [submitEmojifyrEmojiClueAction, emojifyrRound]
-  );
-
-  const handleUpdateEmojifyrSentence = useCallback(
-    async (sentence: string) => {
-      if (!emojifyrRound) return;
-      try {
-        await updateEmojifyrSentenceMutation({
-          roundId: emojifyrRound._id,
-          sentence,
-        });
-      } catch (err) {
-        console.error("Failed to update sentence:", err);
-      }
-    },
-    [updateEmojifyrSentenceMutation, emojifyrRound]
+    [cancelGameMutation, createWordRushLobby, roomId, participantId]
   );
 
   // Emoji Match handlers
@@ -1096,20 +1037,6 @@ function RoomContent() {
     [submitTruthOrDareRating, participantId]
   );
 
-  const handleRevealEmojifyr = useCallback(
-    async () => {
-      if (!emojifyrRound) return;
-      try {
-        await revealEmojifyrRoundMutation({
-          roundId: emojifyrRound._id,
-        });
-      } catch (err) {
-        console.error("Failed to reveal Emojifyr round:", err);
-      }
-    },
-    [revealEmojifyrRoundMutation, emojifyrRound]
-  );
-
   const handleSubmitGameStep = useCallback(
     async (stepId: string, outputText?: string, outputDrawingUrl?: string, selectedOption?: string) => {
       if (!participantId) return;
@@ -1212,6 +1139,63 @@ function RoomContent() {
     return true;
   });
 
+  // ─── Vibe / hype ──────────────────────────────────────────────────────────
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const langOf = useCallback(
+    (m: VibeMessage) => {
+      if (m.kind === "text" && m.text) return isJapaneseText(m.text) ? "ja" : "en";
+      return participants.find((p) => p._id === m.senderId)?.preferredLanguage ?? "en";
+    },
+    [participants]
+  );
+  const { vibe, combo, mult, hype } = computeVibe(messageList, langOf, Math.max(now, messageList[messageList.length - 1]?.createdAt ?? 0));
+
+  const [floaters, setFloaters] = useState<Floater[]>([]);
+  const [cutIn, setCutIn] = useState<{ key: string; name: string; avatar: string } | null>(null);
+  const [confettiKey, setConfettiKey] = useState<string | null>(null);
+  const seenIdsRef = useRef<Set<string> | null>(null);
+  const hypeRef = useRef(hype);
+  hypeRef.current = hype;
+
+  useEffect(() => {
+    if (!messages) return;
+    if (!seenIdsRef.current) {
+      seenIdsRef.current = new Set(messages.map((m) => m._id));
+      return;
+    }
+    const seen = seenIdsRef.current;
+    const fresh = messages.filter((m) => !seen.has(m._id));
+    if (fresh.length === 0) return;
+    fresh.forEach((m) => seen.add(m._id));
+
+    for (const m of fresh) {
+      if (m.kind !== "system" || !m.text?.startsWith("join:")) continue;
+      if (m.senderId === participantId || m.senderId === roomState?.room?.hostId) continue;
+      const joiner = participants.find((p) => p._id === m.senderId);
+      setCutIn({ key: m._id, name: m.text.slice("join:".length), avatar: joiner?.avatar.value ?? "" });
+      if (hypeRef.current) setConfettiKey(m._id);
+    }
+
+    if (!hypeRef.current) return;
+    const real = messages.filter((m) => m.kind !== "system");
+    const added = fresh.filter((m) => m.kind !== "system");
+    const items = added.map((m) => {
+      const idx = real.findIndex((r) => r._id === m._id);
+      const prev = idx > 0 ? real[idx - 1] : undefined;
+      const switched = !!prev && langOf(prev) !== langOf(m);
+      return { id: m.createdAt + Math.random(), text: switched ? "+32" : "+12", left: 18 + Math.random() * 64 };
+    });
+    if (items.length === 0) return;
+    setFloaters((f) => [...f, ...items]);
+    const ids = new Set(items.map((i) => i.id));
+    setTimeout(() => setFloaters((f) => f.filter((x) => !ids.has(x.id))), 1400);
+  }, [messages, participantId, participants, roomState?.room?.hostId, langOf]);
+
   const handleLeave = async () => {
     if (!participantId) return;
     try {
@@ -1225,77 +1209,43 @@ function RoomContent() {
 
   // Loading state
   if (roomState === undefined || messages === undefined) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100dvh",
-          color: "var(--muted)",
-        }}
-      >
-        {t("Loading room...", lang)}
-      </div>
-    );
+    return <LoadingState lang={lang} />;
   }
 
   // Room not found
   if (roomState === null) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100dvh",
-          padding: "2rem",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>{t("Room not found", lang)}</h1>
-        <p style={{ color: "var(--muted)", marginTop: "0.5rem" }}>
-          {t("This room may have been closed.", lang)}
-        </p>
-      </div>
+      <>
+        <RoomBackground />
+        <div className="ec-center-state">
+          <Chatto size={110} bob={false} wave={false} shadow />
+          <h1>{t("Room not found", lang)}</h1>
+          <p>{t("This room may have been closed.", lang)}</p>
+          <a href="/" className="ec-btn white sm" style={{ width: "auto", padding: "0 22px", textDecoration: "none" }}>
+            {t("Back home", lang)}
+          </a>
+        </div>
+      </>
     );
   }
+
+  const background = <RoomBackground texture={textureForRoom(roomState.room)} />;
 
   // No participant ID — user needs to join first
   if (!participantId) {
     const joinCode = roomState.room.joinCode;
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100dvh",
-          padding: "2rem",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>{t("Join Required", lang)}</h1>
-        <p style={{ color: "var(--muted)", marginTop: "0.5rem" }}>
-          {t("You need to join this room first.", lang)}
-        </p>
-        <a
-          href={`/join/${joinCode}`}
-          style={{
-            marginTop: "1rem",
-            padding: "0.6rem 1.5rem",
-            borderRadius: "8px",
-            background: "var(--primary)",
-            color: "#fff",
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
-        >
-          {t("Join Room", lang)}
-        </a>
-      </div>
+      <>
+        {background}
+        <div className="ec-center-state">
+          <Chatto size={110} shadow />
+          <h1>{t("Join Required", lang)}</h1>
+          <p>{t("You need to join this room first.", lang)}</p>
+          <a href={`/join/${joinCode}`} className="ec-btn pink" style={{ width: "auto", padding: "0 28px", textDecoration: "none" }}>
+            {t("Join Room", lang)}
+          </a>
+        </div>
+      </>
     );
   }
 
@@ -1305,111 +1255,52 @@ function RoomContent() {
   const allVisible = participants.filter((p) => !(p as any).departed);
   const onlineCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "online").length;
   const awayCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "away").length;
+  const crowd = allVisible.filter((p) => (p as any).online).slice(0, 6);
+
+  const wordRushLive = wordRushGame != null && (wordRushGame.status === "lobby" || wordRushGame.status === "active");
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100dvh",
-        maxWidth: "600px",
-        margin: "0 auto",
-      }}
-    >
+    <div className="ec-room">
+      {background}
+
       {/* Header */}
-      <header
-        style={{
-          padding: "0.75rem 1rem",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          {(() => {
-            if (me) {
-              const av = getAvatarById(me.avatar.value);
-              return (
-                <div
-                  onClick={() => setShowDisplaySettings(true)}
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    background: av.color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.1rem",
-                    flexShrink: 0,
-                    cursor: "pointer",
-                  }}
-                >
-                  {av.emoji}
-                </div>
-              );
-            }
-            return null;
-          })()}
-          <div style={{ lineHeight: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-              <h1 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, lineHeight: 1 }}>{t("Enchatto", lang)}</h1>
-              <button
-                onClick={() => setShowLeaveConfirm(true)}
-                title={t("Leave room", lang)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: "0.15rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  color: "var(--muted)",
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </button>
-            </div>
-            {isClosed ? (
-              <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>
-                {t("Room closed", lang)}
-              </span>
-            ) : (
-              <span style={{ fontSize: "0.7rem", color: "var(--muted)", lineHeight: 1, marginTop: "1px", display: "block" }}>
-                {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
-              </span>
-            )}
-          </div>
+      <header className="ec-chat-head">
+        {me && (
+          <button
+            onClick={() => setShowDisplaySettings(true)}
+            aria-label={t("Display settings", lang)}
+            style={{ flex: "none", padding: 0, border: 0, background: "none", cursor: "pointer", borderRadius: "50%" }}
+          >
+            <AvatarDisc id={me.avatar.value} size={40} />
+          </button>
+        )}
+        <div className="ec-chat-title">
+          <h1>{t("Enchatto", lang)}</h1>
+          {isClosed ? (
+            <span style={{ color: "var(--red)", opacity: 1 }}>{t("Room closed", lang)}</span>
+          ) : (
+            <span>
+              <i className="ec-online-dot" />
+              {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
+            </span>
+          )}
+        </div>
+        <div className={`ec-vibe${hype ? " hot" : ""}`} title="VIBE">
+          <small>VIBE</small>
+          <b key={vibe}>{formatVibe(vibe)}</b>
         </div>
         <ParticipantList
           participants={participants.filter((p) => p._id !== participantId)}
           currentParticipantId={participantId}
+          onLeave={() => setShowLeaveConfirm(true)}
           lang={lang}
         />
       </header>
 
       {/* Offline banner */}
       {!isOnline && (
-        <div
-          style={{
-            background: "#f97316",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            padding: "0.5rem 1rem",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="ec-banner red">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
             <line x1="1" y1="1" x2="23" y2="23" />
             <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
             <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
@@ -1420,14 +1311,7 @@ function RoomContent() {
           </svg>
           <span>{t("You're offline", lang)}</span>
           {offlineQueue.length > 0 && (
-            <span
-              style={{
-                background: "rgba(255,255,255,0.25)",
-                borderRadius: "10px",
-                padding: "0.1rem 0.5rem",
-                fontSize: "0.75rem",
-              }}
-            >
+            <span className="ec-chip" style={{ padding: "1px 8px", fontSize: 11 }}>
               {offlineQueue.length} {t("queued", lang)}
             </span>
           )}
@@ -1437,26 +1321,55 @@ function RoomContent() {
       {/* Game status bar */}
       {gameStatus && <GameStatusBar status={gameStatus} lang={lang} />}
 
-      {/* Messages */}
-      <MessageErrorBoundary lang={lang}>
-        <MessageList
-          messages={displayMessages}
-          participants={participants}
-          currentParticipantId={participantId}
-          preferredLanguage={lang}
-          onReply={handleReply}
-          onToggleReaction={isOnline ? handleToggleReaction : undefined}
-          typingParticipants={typingParticipants}
-          lang={lang}
-          showEnglish={showEnglish}
-          showJapanese={showJapanese}
-          showRomaji={showRomaji}
-          isGameComplete={latestGameSession?.status === "complete" && !activeGameSession}
-          gameCompletedAt={latestGameSession?.completedAt}
-          onViewGameResults={() => setShowGameReplay(true)}
-          truthOrDareGame={truthOrDareGame}
-        />
-      </MessageErrorBoundary>
+      {/* Messages + hype layers */}
+      <div className="ec-stage">
+        {hype && (
+          <div className="ec-hype-layer">
+            <Rays rainbow />
+            <div className="ec-crowd">
+              {crowd.map((p, i) => (
+                <img key={p._id} src={avatarIconSrc(p.avatar.value)} alt="" style={{ animationDelay: `${(i % 3) * 0.15}s` }} />
+              ))}
+            </div>
+          </div>
+        )}
+        {hype && <Bunting top={0} />}
+        {combo >= 3 && (
+          <div key={combo} className="ec-combo" aria-live="polite">
+            <b>×{combo}</b>
+            <small>{t("BACK & FORTH!", lang)}</small>
+            <em>VIBE ×{mult.toFixed(2)}</em>
+            <i style={{ width: `calc((100% - 12px) * ${Math.min(combo, 20) / 20})` }} />
+          </div>
+        )}
+
+        <MessageErrorBoundary lang={lang}>
+          <MessageList
+            messages={displayMessages}
+            participants={participants}
+            currentParticipantId={participantId}
+            preferredLanguage={lang}
+            onReply={handleReply}
+            onToggleReaction={isOnline ? handleToggleReaction : undefined}
+            typingParticipants={typingParticipants}
+            lang={lang}
+            showEnglish={showEnglish}
+            showJapanese={showJapanese}
+            showRomaji={showRomaji}
+            isGameComplete={latestGameSession?.status === "complete" && !activeGameSession}
+            gameCompletedAt={latestGameSession?.completedAt}
+            onViewGameResults={() => setShowGameReplay(true)}
+            truthOrDareGame={truthOrDareGame}
+            hype={hype}
+          />
+        </MessageErrorBoundary>
+
+        {floaters.map((f) => (
+          <span key={f.id} className="ec-floater" style={{ left: `${f.left}%`, bottom: 64 }}>
+            {f.text}
+          </span>
+        ))}
+      </div>
 
       {/* Input */}
       {!isClosed ? (
@@ -1465,7 +1378,7 @@ function RoomContent() {
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
           onGameTap={() => setShowGamePicker(true)}
-          isGameActive={(activeGameSession != null || emojifyrSession != null || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
+          isGameActive={(activeGameSession != null || wordRushLive || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
           onEndGame={me?.role === "host" ? async () => {
             if (confirm(t("This will end the game for all players and show results.", lang))) {
               if (truthOrDareGame && truthOrDareGame.status === "active") {
@@ -1474,8 +1387,12 @@ function RoomContent() {
                 await cancelEmojiBingo({ gameId: emojiBingoGame._id as Id<"emojiBingoGames">, participantId: participantId as Id<"participants"> });
               } else if (emojiMatchGame && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") {
                 await cancelEmojiMatch({ gameId: emojiMatchGame._id as Id<"emojiMatchGames">, participantId: participantId as Id<"participants"> });
-              } else if (emojifyrSession) {
-                await cancelEmojifyrMutation({ gameSessionId: emojifyrSession._id as Id<"gameSessions"> });
+              } else if (wordRushGame && wordRushLive) {
+                try {
+                  await cancelWordRush({ gameId: wordRushGame._id, participantId: participantId as Id<"participants"> });
+                } catch (err) {
+                  console.error("Failed to end Word Rush:", err);
+                }
               } else {
                 await cancelGameMutation({ roomId: roomId as Id<"rooms">, participantId: participantId as Id<"participants"> });
               }
@@ -1487,127 +1404,78 @@ function RoomContent() {
           lang={lang}
         />
       ) : (
-        <div
-          style={{
-            padding: "0.75rem 1rem",
-            background: "var(--surface)",
-            borderTop: "1px solid var(--border)",
-            textAlign: "center",
-            color: "var(--muted)",
-            fontSize: "0.85rem",
-          }}
-        >
+        <div className="ec-inputbar" style={{ textAlign: "center", fontSize: 13, fontWeight: 900, opacity: 0.85 }}>
           {t("This room has been closed by the host.", lang)}
         </div>
       )}
 
-      {/* Language display settings modal */}
+      {/* Language display settings sheet */}
       {showDisplaySettings && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setShowDisplaySettings(false)}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius)",
-              padding: "1.5rem",
-              width: "100%",
-              maxWidth: "280px",
-              margin: "1rem",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-              {t("Display for", lang)} {me?.nickname ?? ""}
-            </h2>
-            <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
-              {t("Room", lang)}: <strong>{roomState.room.joinCode}</strong>
-            </p>
-            {([
-              { label: t("English", lang), value: showEnglish, toggle: () => setShowEnglish((v) => !v) },
-              { label: t("Japanese", lang), value: showJapanese, toggle: () => setShowJapanese((v) => !v) },
-              { label: t("Romaji", lang), value: showRomaji, toggle: () => setShowRomaji((v) => !v) },
-            ] as const).map((item) => (
-              <label
-                key={item.label}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.6rem 0",
-                  borderBottom: "1px solid var(--border)",
-                  cursor: "pointer",
-                  fontSize: "0.95rem",
-                }}
-              >
-                {item.label}
-                <input
-                  type="checkbox"
-                  checked={item.value}
-                  onChange={item.toggle}
-                  style={{ width: "18px", height: "18px", accentColor: "var(--primary)" }}
-                />
-              </label>
-            ))}
-            <button
-              onClick={() => setShowDisplaySettings(false)}
-              style={{
-                marginTop: "1rem",
-                width: "100%",
-                padding: "0.6rem",
-                borderRadius: "8px",
-                background: "var(--primary)",
-                color: "#fff",
-                fontWeight: 600,
-                cursor: "pointer",
-                border: "none",
-              }}
-            >
-              {t("Done", lang)}
-            </button>
-            <p style={{ marginTop: "0.75rem", fontSize: "0.65rem", color: "var(--muted)", textAlign: "center", opacity: 0.6, lineHeight: 1.4 }}>
-              {process.env.NEXT_PUBLIC_CONVEX_URL?.replace("https://", "").replace(".convex.cloud", "") ?? ""} · web v0.1.0
-              {process.env.NEXT_PUBLIC_GIT_SHA && process.env.NEXT_PUBLIC_GIT_SHA !== "dev" ? (<><br />github: {process.env.NEXT_PUBLIC_GIT_SHA}</>) : null}
-              {process.env.NEXT_PUBLIC_VERCEL_URL ? (<><br />vercel: {process.env.NEXT_PUBLIC_VERCEL_URL}</>) : null}
-            </p>
-            {/* Game debug panel */}
-            <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
-              <TodDebugPanel roomId={roomId} embedded />
+        <div className="ec-sheet-backdrop" style={{ zIndex: 100 }} onClick={() => setShowDisplaySettings(false)}>
+          <div className="ec-sheet" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
+            <div className="ec-sheet-grip" />
+            <div className="ec-sheet-head">
+              {me && <AvatarDisc id={me.avatar.value} size={40} />}
+              <h2 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t("Display for", lang)} {me?.nickname ?? ""}
+              </h2>
+              <button className="ec-round-btn" onClick={() => setShowDisplaySettings(false)} aria-label={t("Close", lang)}>
+                ✕
+              </button>
+            </div>
+            <div className="ec-sheet-body">
+              <span className="ec-chip ink">
+                {t("Room", lang)}: {roomState.room.joinCode}
+              </span>
+              <div style={{ marginTop: 8 }}>
+                {([
+                  { key: "en", label: t("English", lang), value: showEnglish, toggle: () => setShowEnglish((v) => !v) },
+                  { key: "ja", label: t("Japanese", lang), value: showJapanese, toggle: () => setShowJapanese((v) => !v) },
+                  { key: "romaji", label: t("Romaji", lang), value: showRomaji, toggle: () => setShowRomaji((v) => !v) },
+                ] as const).map((item) => (
+                  <label key={item.key} className="ec-toggle-row">
+                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {item.key === "romaji" ? (
+                        <span className="ec-lang-badge" style={{ width: 26, height: 26, fontSize: 12, background: "var(--pink-soft)" }}>Ro</span>
+                      ) : (
+                        <LangBadge lang={item.key} />
+                      )}
+                      {item.label}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={item.value}
+                      onChange={item.toggle}
+                      style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
+                    />
+                    <span className={`ec-switch${item.value ? " on" : ""}`} aria-hidden />
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <button className="ec-btn red sm" style={{ flex: 1 }} onClick={() => { setShowDisplaySettings(false); setShowLeaveConfirm(true); }}>
+                  {t("Leave room", lang)}
+                </button>
+                <button className="ec-btn sm" style={{ flex: 1 }} onClick={() => setShowDisplaySettings(false)}>
+                  {t("Done", lang)}
+                </button>
+              </div>
+              <p className="ec-version" style={{ marginTop: 14 }}>
+                {process.env.NEXT_PUBLIC_CONVEX_URL?.replace("https://", "").replace(".convex.cloud", "") ?? ""} · web v0.1.0
+                {process.env.NEXT_PUBLIC_GIT_SHA && process.env.NEXT_PUBLIC_GIT_SHA !== "dev" ? (<><br />github: {process.env.NEXT_PUBLIC_GIT_SHA}</>) : null}
+                {process.env.NEXT_PUBLIC_VERCEL_URL ? (<><br />vercel: {process.env.NEXT_PUBLIC_VERCEL_URL}</>) : null}
+              </p>
+              {/* Game debug panel */}
+              <div style={{ marginTop: 12, borderTop: "2.5px dashed var(--line-soft)", paddingTop: 12 }}>
+                <TodDebugPanel roomId={roomId} embedded />
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Emojifyr full-screen game */}
-      {emojifyrSession && emojifyrSession.status === "active" && dismissedEmojifyrId !== emojifyrSession._id && (
-        <EmojifyrGameScreen
-          session={emojifyrSession}
-          currentRound={emojifyrRound}
-          guesses={emojifyrGuesses}
-          participants={participants}
-          myParticipantId={participantId}
-          isHost={me?.role === "host"}
-          lang={lang}
-          onSubmitSentence={handleSubmitEmojifyrSentence}
-          onGenerateEmojiClue={handleGenerateEmojiClue}
-          onSubmitEmojiClue={handleSubmitEmojifyrEmojiClue}
-          onUpdateSentence={handleUpdateEmojifyrSentence}
-          onSubmitGuess={handleSubmitEmojifyrGuess}
-          onReveal={handleRevealEmojifyr}
-          onNextRound={handleEmojifyrNextRound}
-          onEndGame={handleCancelEmojifyr}
-          onMinimize={() => setDismissedEmojifyrId(emojifyrSession._id)}
-        />
-      )}
+      {/* Word Rush (lobby, game and results manage their own visibility) */}
+      <WordRushGame roomId={roomId as Id<"rooms">} participantId={participantId as Id<"participants">} lang={lang} />
 
       {/* Emoji Match game overlay */}
       {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId !== emojiMatchGame._id && (
@@ -1681,106 +1549,47 @@ function RoomContent() {
       <div
         style={{
           position: "fixed",
-          top: "0.75rem",
-          right: "0.75rem",
+          top: 76,
+          right: "max(12px, calc(50% - 248px))",
           zIndex: 150,
           display: "flex",
           flexDirection: "column",
-          gap: "0.4rem",
+          gap: 8,
           alignItems: "flex-end",
           pointerEvents: "none",
         }}
       >
         {truthOrDareGame && truthOrDareGame.status === "active" && dismissedTruthOrDareId === truthOrDareGame._id && (
           <button
+            className="ec-resume"
             onClick={() => setDismissedTruthOrDareId(null)}
             aria-label={t("Resume Truth or Dare", lang)}
-            style={{
-              pointerEvents: "auto",
-              padding: "0.5rem 0.9rem",
-              borderRadius: "999px",
-              background: "linear-gradient(135deg, #f59e0b, #ea580c, #7c3aed)",
-              color: "#fff",
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
+            style={{ background: "var(--pink)" }}
           >
-            🎲 {t("Resume", lang)}
+            <Icon name="g-question" size={26} />
+            {t("Resume", lang)}
           </button>
         )}
         {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId === emojiMatchGame._id && (
           <button
+            className="ec-resume"
             onClick={() => setDismissedEmojiMatchId(null)}
             aria-label={t("Resume Emoji Match", lang)}
-            style={{
-              pointerEvents: "auto",
-              padding: "0.5rem 0.9rem",
-              borderRadius: "999px",
-              background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-              color: "#fff",
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
+            style={{ background: "var(--violet)" }}
           >
-            🃏 {t("Resume", lang)}
+            <Icon name="ui-game" size={26} />
+            {t("Resume", lang)}
           </button>
         )}
         {emojiBingoGame && emojiBingoGame.status !== "canceled" && dismissedEmojiBingoId === emojiBingoGame._id && (
           <button
+            className="ec-resume"
             onClick={() => setDismissedEmojiBingoId(null)}
             aria-label={t("Resume Emoji Bingo", lang)}
-            style={{
-              pointerEvents: "auto",
-              padding: "0.5rem 0.9rem",
-              borderRadius: "999px",
-              background: "linear-gradient(135deg, #be123c, #e11d48)",
-              color: "#fff",
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
+            style={{ background: "var(--mint)" }}
           >
-            🎰 {t("Resume", lang)}
-          </button>
-        )}
-        {emojifyrSession && emojifyrSession.status === "active" && dismissedEmojifyrId === emojifyrSession._id && (
-          <button
-            onClick={() => setDismissedEmojifyrId(null)}
-            aria-label={t("Resume Emojifyr", lang)}
-            style={{
-              pointerEvents: "auto",
-              padding: "0.5rem 0.9rem",
-              borderRadius: "999px",
-              background: "linear-gradient(135deg, #4f46e5, #7c3aed, #6d28d9)",
-              color: "#fff",
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
-          >
-            🔥 {t("Resume", lang)}
+            <Icon name="g-clover" size={26} />
+            {t("Resume", lang)}
           </button>
         )}
       </div>
@@ -1816,7 +1625,7 @@ function RoomContent() {
         hostName={participants.find((p) => p.role === "host")?.nickname ?? ""}
         nextLevel={(latestGameSession?.status === "complete" && latestGameSession?.level && !latestGameSession?.cancelled) ? (latestGameSession.level as number) + 1 : 1}
         onStartGame={handleStartGame}
-        onStartEmojifyr={handleStartEmojifyr}
+        onStartWordRush={handleStartWordRush}
         onStartEmojiMatch={handleCreateEmojiMatchLobby}
         onStartEmojiBingo={handleCreateEmojiBingoLobby}
         onStartTruthOrDare={handleCreateTruthOrDare}
@@ -1843,63 +1652,20 @@ function RoomContent() {
 
       {/* Leave confirmation */}
       {showLeaveConfirm && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setShowLeaveConfirm(false)}
-        >
-          <div
-            style={{
-              background: "var(--surface)",
-              borderRadius: "var(--radius)",
-              padding: "1.5rem",
-              width: "100%",
-              maxWidth: "320px",
-              margin: "1rem",
-              textAlign: "center",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+        <div className="ec-modal-backdrop" style={{ zIndex: 210 }} onClick={() => setShowLeaveConfirm(false)}>
+          <div className="ec-card ec-modal" onClick={(e) => e.stopPropagation()}>
+            <Chatto size={84} bob={false} wave={false} style={{ margin: "0 auto 8px" }} />
+            <h2 className="ec-chunky" style={{ fontSize: 22, marginBottom: 6 }}>
               {t("Leave room?", lang)}
             </h2>
-            <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "1.25rem" }}>
+            <p style={{ fontSize: 13, opacity: 0.7, marginBottom: 18 }}>
               {t("You can rejoin later with the same room code.", lang)}
             </p>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button
-                onClick={() => setShowLeaveConfirm(false)}
-                style={{
-                  flex: 1,
-                  padding: "0.6rem",
-                  borderRadius: "8px",
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="ec-btn white sm" style={{ flex: 1 }} onClick={() => setShowLeaveConfirm(false)}>
                 {t("Stay", lang)}
               </button>
-              <button
-                onClick={handleLeave}
-                style={{
-                  flex: 1,
-                  padding: "0.6rem",
-                  borderRadius: "8px",
-                  background: "#ef4444",
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
+              <button className="ec-btn red sm" style={{ flex: 1 }} onClick={handleLeave}>
                 {t("Leave", lang)}
               </button>
             </div>
@@ -1907,9 +1673,31 @@ function RoomContent() {
         </div>
       )}
 
-      {/* T/D Debug Panel removed — now inside display settings modal */}
-
+      {cutIn && (
+        <CutIn burstKey={cutIn.key}>
+          {cutIn.avatar && (
+            <span className="ec-cutin-av" style={{ background: getAvatarById(cutIn.avatar).color }}>
+              <img src={avatarIconSrc(cutIn.avatar)} alt="" />
+            </span>
+          )}
+          {lang === "ja" ? t("{name} JOINED!", lang).replace("{name}", cutIn.name) : t("{name} JOINED!", lang).replace("{name}", cutIn.name).toUpperCase()}
+        </CutIn>
+      )}
+      {confettiKey && <Confetti burstKey={confettiKey} count={50} />}
     </div>
+  );
+}
+
+function LoadingState({ lang }: { lang: string }) {
+  return (
+    <>
+      <RoomBackground />
+      <div className="ec-center-state">
+        <Chatto size={110} shadow />
+        <div className="ec-chunky" style={{ fontSize: 18 }}>{t("Loading room...", lang)}</div>
+        <span className="ec-dots"><i /><i /><i /></span>
+      </div>
+    </>
   );
 }
 
@@ -1927,25 +1715,14 @@ class MessageErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--muted)",
-            fontSize: "0.9rem",
-            padding: "2rem",
-            textAlign: "center",
-          }}
-        >
-          {t("Something went wrong displaying messages.", this.props.lang)}{" "}
-          <button
-            onClick={() => this.setState({ hasError: false })}
-            style={{ color: "var(--primary)", textDecoration: "underline", background: "none" }}
-          >
-            {t("Try again", this.props.lang)}
-          </button>
+        <div className="ec-empty">
+          <Chatto size={84} bob={false} wave={false} />
+          <div className="ec-sys plain" style={{ flexDirection: "column", gap: 6, borderRadius: 16, padding: "10px 16px" }}>
+            {t("Something went wrong displaying messages.", this.props.lang)}
+            <button className="ec-btn white sm" style={{ width: "auto", padding: "0 16px" }} onClick={() => this.setState({ hasError: false })}>
+              {t("Try again", this.props.lang)}
+            </button>
+          </div>
         </div>
       );
     }
@@ -1955,21 +1732,7 @@ class MessageErrorBoundary extends Component<
 
 export default function RoomPage() {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100dvh",
-            color: "var(--muted)",
-          }}
-        >
-          {t("Loading room...", "ja")}
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingState lang="ja" />}>
       <RoomContent />
     </Suspense>
   );

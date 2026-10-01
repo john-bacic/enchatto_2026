@@ -1,6 +1,7 @@
 "use client";
 
-import { PRESET_AVATARS } from "@/lib/types";
+import { AvatarDisc } from "@/components/ui/avatar";
+import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 
 interface ReplyPreviewProps {
@@ -18,46 +19,22 @@ export function ReplyPreview({
   messageKind,
   lang,
 }: ReplyPreviewProps) {
-  const avatarEmoji = senderAvatar
-    ? PRESET_AVATARS.find((a) => a.id === senderAvatar)?.emoji
-    : undefined;
-
   let displayText = originalText;
   if (!displayText && messageKind === "image") displayText = t("Photo", lang);
   if (!displayText && messageKind === "drawing") displayText = t("Drawing", lang);
 
   const truncated =
     displayText.length > 60 ? displayText.slice(0, 60) + "..." : displayText;
+  const kindIcon = messageKind === "image" ? "ui-photo" : messageKind === "drawing" ? "g-pencil" : null;
 
   return (
-    <div
-      style={{
-        borderLeft: "3px solid var(--primary-light)",
-        paddingLeft: "0.5rem",
-        fontSize: "0.8rem",
-        color: "var(--muted)",
-        marginBottom: "0.25rem",
-        maxWidth: "85%",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.3rem",
-      }}
-    >
-      <div>
-        {senderName && (
-          <span style={{ fontWeight: 600 }}>
-            {avatarEmoji ? `${avatarEmoji} ` : ""}
-            {senderName}:{" "}
-          </span>
-        )}
-        <span
-          style={{
-            fontStyle: messageKind && messageKind !== "text" ? "italic" : "normal",
-          }}
-        >
-          {truncated}
-        </span>
-      </div>
+    <div className="ec-reply" style={{ marginBottom: 4 }}>
+      {senderAvatar && <AvatarDisc id={senderAvatar} size={20} border={1.5} shadow={false} />}
+      {kindIcon && <Icon name={kindIcon} size={18} />}
+      <span>
+        {senderName && <b>{senderName}: </b>}
+        <span style={{ fontStyle: messageKind && messageKind !== "text" ? "italic" : "normal" }}>{truncated}</span>
+      </span>
     </div>
   );
 }

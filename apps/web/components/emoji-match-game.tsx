@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { t } from "@/lib/i18n";
-import { getAvatarById } from "@/lib/types";
+import { AvatarDisc } from "@/components/ui/avatar";
+import { EmojiArt, Icon } from "@/components/ui/icon";
+import { Confetti } from "@/components/ui/effects";
 
 interface EmojiMatchGameProps {
   game: any;
@@ -21,6 +23,17 @@ interface EmojiMatchGameProps {
   onClose: () => void;
   onMinimize?: () => void;
 }
+
+const COPY = {
+  en: { pairs: "pairs", you: "YOU", findPair: "Find a pair", pair: "PAIR! +1", turns: (n: number) => `${n} ${n === 1 ? "turn" : "turns"}` },
+  ja: { pairs: "ペア", you: "あなた", findPair: "ペアを探そう", pair: "ペア！+1", turns: (n: number) => `${n}回` },
+};
+const copy = (lang?: string) => (lang === "ja" ? COPY.ja : COPY.en);
+
+const JA_RE = /[\u3040-\u30ff\u4e00-\u9faf]/;
+
+const SCREEN_BG =
+  "repeating-linear-gradient(-45deg, rgba(167, 123, 255, 0.1) 0 14px, transparent 14px 28px), var(--paper)";
 
 export function EmojiMatchGame({
   game,
@@ -148,6 +161,30 @@ export function EmojiMatchGame({
   return null;
 }
 
+/* ── Shared bits ───────────────────────────────────────────── */
+
+function ModalCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ec-sheet-backdrop" style={{ zIndex: 95, alignItems: "center", padding: 16 }}>
+      <div
+        className="ec-card"
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          maxHeight: "90dvh",
+          overflowY: "auto",
+          padding: "22px 18px 18px",
+          textAlign: "center",
+          background: "var(--paper)",
+          animation: "ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ── Lobby ─────────────────────────────────────────────────── */
 
 function LobbyView({
@@ -172,80 +209,84 @@ function LobbyView({
   onClose: () => void;
 }) {
   return (
-    <div style={overlayStyle}>
-      <div style={panelStyle}>
-        <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>🃏</div>
-        <h2 style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-          {t("Emoji Match", lang)}
-        </h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "1rem", lineHeight: 1.5 }}>
-          {t("Match English and Japanese words! Flip cards to pair translations.", lang)}
-        </p>
+    <ModalCard>
+      <Icon name="o-cherry" size={64} style={{ animation: "ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)" }} />
+      <h2 className="ec-chunky" style={{ fontSize: 24, margin: "4px 0", textShadow: "0 3px 0 var(--violet)" }}>
+        {t("Emoji Match", lang)}
+      </h2>
+      <p style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.75, marginBottom: 14, lineHeight: 1.45 }}>
+        {t("Match English and Japanese words! Flip cards to pair translations.", lang)}
+      </p>
 
-        {/* Player list */}
-        <div style={{
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          borderRadius: "8px",
-          padding: "0.75rem",
-          marginBottom: "1rem",
-          maxHeight: "200px",
+      {/* Player list */}
+      <div
+        style={{
+          padding: "8px 10px",
+          marginBottom: 16,
+          border: "2.5px solid var(--ink)",
+          borderRadius: 16,
+          background: "#fff",
+          maxHeight: 200,
           overflowY: "auto",
-        }}>
-          <div style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--muted)" }}>
-            {t("Players", lang)} ({game.players.length}/30)
-          </div>
-          {game.players.map((p: any) => {
-            const avatar = getAvatarById(p.avatarValue);
-            return (
-              <div key={p.participantId} style={{
-                display: "flex", alignItems: "center", gap: "0.5rem",
-                padding: "0.25rem 0", fontSize: "0.85rem",
-              }}>
-                <span style={{
-                  width: "24px", height: "24px", borderRadius: "50%",
-                  background: avatar?.color ?? "var(--primary)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "0.7rem",
-                }}>
-                  {avatar?.emoji ?? "?"}
-                </span>
-                <span>{p.nickname}</span>
-                {p.participantId === game.hostParticipantId && (
-                  <span style={{ fontSize: "0.65rem", color: "var(--primary)", fontWeight: 600 }}>
-                    {t("HOST", lang)}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+          textAlign: "left",
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.6, marginBottom: 6 }}>
+          {t("Players", lang)} ({game.players.length}/30)
         </div>
-
-        {/* Actions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {!amJoined && (
-            <button onClick={onJoin} style={primaryBtnStyle}>
-              {t("Join Game", lang)}
-            </button>
-          )}
-          {amJoined && !amHost && (
-            <button onClick={onLeave} style={secondaryBtnStyle}>
-              {t("Leave Lobby", lang)}
-            </button>
-          )}
-          {amHost && (
-            <button onClick={onStart} style={primaryBtnStyle}>
-              {t("Start Game", lang)}
-            </button>
-          )}
-          {!amJoined && !amHost && (
-            <button onClick={onClose} style={secondaryBtnStyle}>
-              {t("Close", lang)}
-            </button>
-          )}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {game.players.map((p: any) => (
+            <span
+              key={p.participantId}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "2px 10px 2px 2px",
+                border: "2px solid var(--ink)",
+                borderRadius: 999,
+                background: p.participantId === game.hostParticipantId ? "var(--violet-soft)" : "var(--paper)",
+                fontSize: 12.5,
+                fontWeight: 900,
+                animation: "ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)",
+              }}
+            >
+              <AvatarDisc id={p.avatarValue} size={24} border={2} />
+              {p.nickname}
+              {p.participantId === game.hostParticipantId && (
+                <span className="ec-chunky" style={{ fontSize: 9, color: "var(--violet)" }}>
+                  {t("HOST", lang)}
+                </span>
+              )}
+            </span>
+          ))}
         </div>
       </div>
-    </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {!amJoined && (
+          <button className="ec-btn violet wiggle" onClick={onJoin}>
+            {t("Join Game", lang)}
+          </button>
+        )}
+        {amJoined && !amHost && (
+          <button className="ec-btn white" style={{ fontSize: 17 }} onClick={onLeave}>
+            {t("Leave Lobby", lang)}
+          </button>
+        )}
+        {amHost && (
+          <button className="ec-btn pink wiggle" onClick={onStart}>
+            {t("Start Game", lang)}
+          </button>
+        )}
+        {!amJoined && !amHost && (
+          <button className="ec-btn white sm" onClick={onClose}>
+            {t("Close", lang)}
+          </button>
+        )}
+      </div>
+    </ModalCard>
   );
 }
 
@@ -272,10 +313,10 @@ function GameBoardView({
   onCancel: () => void;
   onMinimize?: () => void;
 }) {
+  const c = copy(lang);
   const currentPlayer = game.players.find(
     (p: any) => p.participantId === game.currentTurnParticipantId
   );
-  const currentAvatar = currentPlayer ? getAvatarById(currentPlayer.avatarValue) : null;
 
   // Turn timer
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -304,152 +345,228 @@ function GameBoardView({
     return () => clearInterval(interval);
   }, [game.turnTimeoutMs, game.turnStartedAt, onTimeoutTurn]);
 
+  // "PAIR! +1" pop whenever a new pair is matched
+  const [pairPop, setPairPop] = useState<number | null>(null);
+  const prevPairsRef = useRef(game.matchedPairCount);
+  useEffect(() => {
+    if (game.matchedPairCount > prevPairsRef.current) {
+      const key = Date.now();
+      setPairPop(key);
+      const timer = setTimeout(() => setPairPop((k) => (k === key ? null : k)), 1500);
+      prevPairsRef.current = game.matchedPairCount;
+      return () => clearTimeout(timer);
+    }
+    prevPairsRef.current = game.matchedPairCount;
+  }, [game.matchedPairCount]);
+
   const canFlip = isMyTurn && game.status === "active" && game.selectedCardIds.length < 2;
+  const hurry = timeLeft !== null && timeLeft < 5000;
+  const timerPct = timeLeft !== null && game.turnTimeoutMs ? (timeLeft / game.turnTimeoutMs) * 100 : 0;
+  const rows = game.boardRows ?? Math.ceil(game.board.length / game.boardCols);
+
+  const ranked = [...game.players].filter((p: any) => p.isActive).sort((a: any, b: any) => b.score - a.score);
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "var(--bg)",
-      zIndex: 90, display: "flex", flexDirection: "column", overflow: "hidden",
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: "0.75rem 1rem", display: "flex", alignItems: "center",
-        justifyContent: "space-between", borderBottom: "1px solid var(--border)",
-        background: "var(--surface)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "1.2rem" }}>🃏</span>
-          <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>
-            {t("Emoji Match", lang)}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-            {game.matchedPairCount}/{game.totalPairs}
-          </span>
+    <div style={{ position: "fixed", inset: 0, zIndex: 90, display: "flex", flexDirection: "column", overflow: "hidden", background: SCREEN_BG }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", maxWidth: 520, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px 8px", flexShrink: 0 }}>
           {/* End Game is controlled by the iOS host only */}
           {onMinimize && (
             <button
+              className="ec-round-btn"
               onClick={onMinimize}
               aria-label={t("Minimize", lang)}
               title={t("Minimize", lang)}
-              style={{
-                width: "1.75rem",
-                height: "1.75rem",
-                borderRadius: "6px",
-                background: "var(--bg)",
-                color: "var(--foreground)",
-                fontSize: "1rem",
-                fontWeight: 700,
-                border: "1px solid var(--border)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 1,
-              }}
+              style={{ width: 40, height: 40, fontSize: 20, boxShadow: "0 3px 0 var(--ink)" }}
             >
               –
             </button>
           )}
+          <span
+            className="ec-chunky"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "3px 12px 3px 6px",
+              border: "2.5px solid var(--ink)",
+              borderRadius: 999,
+              background: "#fff",
+              boxShadow: "0 3px 0 var(--ink)",
+              fontSize: 13,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Icon name="o-cherry" size={24} />
+            {t("Emoji Match", lang)}
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 900, opacity: 0.6, whiteSpace: "nowrap" }}>
+            {game.matchedPairCount}/{game.totalPairs} {c.pairs}
+          </span>
         </div>
-      </div>
 
-      {/* Turn indicator */}
-      <div style={{
-        padding: "0.5rem 1rem", display: "flex", alignItems: "center",
-        justifyContent: "center", gap: "0.5rem",
-        background: isMyTurn
-          ? "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(124,58,237,0.1))"
-          : "var(--surface)",
-        borderBottom: "1px solid var(--border)",
-      }}>
-        {currentAvatar && (
-          <span style={{
-            width: "24px", height: "24px", borderRadius: "50%",
-            background: currentAvatar.color,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "0.7rem",
-          }}>
-            {currentAvatar.emoji}
-          </span>
-        )}
-        <span style={{
-          fontSize: "0.85rem", fontWeight: 600,
-          color: isMyTurn ? "var(--primary)" : "var(--foreground)",
-        }}>
-          {isMyTurn
-            ? t("Your turn!", lang)
-            : `${currentPlayer?.nickname ?? "?"}'s ${t("turn", lang)}`}
-        </span>
-        {timeLeft !== null && (
-          <span style={{
-            fontSize: "0.75rem",
-            color: timeLeft < 5000 ? "#ef4444" : "var(--muted)",
-            fontWeight: timeLeft < 5000 ? 700 : 400,
-            marginLeft: "0.5rem",
-          }}>
-            {Math.ceil(timeLeft / 1000)}s
-          </span>
-        )}
-      </div>
+        {/* Score chips — sorted by score */}
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "4px 14px 8px", flexShrink: 0 }}>
+          {ranked.map((p: any) => {
+            const isCurrent = p.participantId === game.currentTurnParticipantId;
+            const rank = ranked.findIndex((r: any) => r.score === p.score);
+            const isMe = p.participantId === myParticipantId;
+            return (
+              <div
+                key={p.participantId}
+                style={{
+                  position: "relative",
+                  flex: ranked.length <= 3 ? 1 : "none",
+                  minWidth: 104,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 10px 4px 4px",
+                  border: "2.5px solid var(--ink)",
+                  borderRadius: 14,
+                  background: isCurrent ? "var(--yellow)" : "#fff",
+                  boxShadow: isCurrent ? "0 5px 0 var(--ink), 0 0 0 3px var(--pink)" : "0 3px 0 var(--ink)",
+                  transform: isCurrent ? "translateY(-3px) rotate(-2deg)" : "none",
+                  transition: "transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1), background 0.2s",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {rank === 0 && p.score > 0 && (
+                  <Icon name="g-crown" size={22} style={{ position: "absolute", left: 8, top: -14, transform: "rotate(-12deg)" }} />
+                )}
+                <AvatarDisc id={p.avatarValue} size={32} border={2} shadow={false} />
+                <span style={{ minWidth: 0, lineHeight: 1.1 }}>
+                  <span style={{ display: "block", maxWidth: 70, overflow: "hidden", textOverflow: "ellipsis", fontSize: 11, fontWeight: 900 }}>
+                    {isMe ? c.you : p.nickname}
+                  </span>
+                  <span style={{ display: "block", fontSize: 9.5, fontWeight: 900, opacity: 0.55 }}>
+                    {c.turns(p.turns ?? 0)}
+                  </span>
+                </span>
+                <b key={p.score} className="ec-chunky" style={{ marginLeft: "auto", fontSize: 19, fontWeight: 400, animation: "ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)" }}>
+                  {p.score}
+                </b>
+              </div>
+            );
+          })}
+        </div>
 
-      {/* Score strip — sorted by score, with placement emojis */}
-      <div style={{
-        padding: "0.4rem 1rem", display: "flex", gap: "0.75rem",
-        overflowX: "auto", borderBottom: "1px solid var(--border)",
-        background: "var(--surface)",
-      }}>
-        {(() => { const ranked = [...game.players].filter((p: any) => p.isActive).sort((a: any, b: any) => b.score - a.score); return ranked.map((p: any, i: number) => {
-          const avatar = getAvatarById(p.avatarValue);
-          const isCurrent = p.participantId === game.currentTurnParticipantId;
-          const rank = ranked.findIndex((r: any) => r.score === p.score);
-          const placeEmoji = rank === 0 ? "🏆" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-          return (
-            <div key={p.participantId} style={{
-              display: "flex", alignItems: "center", gap: "0.3rem",
-              opacity: isCurrent ? 1 : 0.6, whiteSpace: "nowrap",
-            }}>
-              {placeEmoji && <span style={{ fontSize: "0.6rem" }}>{placeEmoji}</span>}
-              <span style={{
-                width: "20px", height: "20px", borderRadius: "50%",
-                background: avatar?.color ?? "var(--primary)",
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                fontSize: "0.6rem",
-                border: isCurrent ? "2px solid var(--primary)" : "2px solid transparent",
-              }}>
-                {avatar?.emoji ?? "?"}
+        {/* Turn indicator + timer */}
+        <div style={{ padding: "2px 14px 10px", flexShrink: 0 }}>
+          <div
+            key={game.currentTurnParticipantId}
+            className="ec-chunky"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              fontSize: 19,
+              textAlign: "center",
+              animation: "ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)",
+            }}
+          >
+            {!isMyTurn && currentPlayer && <AvatarDisc id={currentPlayer.avatarValue} size={28} border={2} />}
+            {isMyTurn ? (
+              <span>
+                {t("Your turn!", lang)} <span style={{ color: "var(--pink)" }}>{c.findPair}</span>
               </span>
-              <span style={{ fontSize: "0.7rem", fontWeight: 600 }}>
-                {p.turns ?? 0}/{p.score}/{game.totalPairs}
+            ) : (
+              <span>{`${currentPlayer?.nickname ?? "?"}'s ${t("turn", lang)}`}</span>
+            )}
+          </div>
+          {timeLeft !== null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+              <div style={{ flex: 1, height: 14, border: "2.5px solid var(--ink)", borderRadius: 999, background: "#fff", overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${timerPct}%`,
+                    height: "100%",
+                    background: hurry ? "var(--red)" : "var(--mint)",
+                    borderRight: timerPct > 0 && timerPct < 100 ? "2.5px solid var(--ink)" : "none",
+                    transition: "width 0.25s linear, background 0.2s",
+                  }}
+                />
+              </div>
+              <span
+                className="ec-chunky"
+                style={{
+                  minWidth: 34,
+                  textAlign: "right",
+                  fontSize: 15,
+                  color: hurry ? "var(--red)" : "var(--ink)",
+                  animation: hurry ? "ec-kick 0.5s ease-in-out infinite" : undefined,
+                }}
+              >
+                {Math.ceil(timeLeft / 1000)}s
               </span>
             </div>
-          );
-        }); })()}
-      </div>
+          )}
+        </div>
 
-      {/* Board */}
-      <div style={{
-        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "0.75rem", overflow: "hidden",
-      }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${game.boardCols}, 1fr)`,
-          gap: "8px",
-          width: "100%",
-          maxWidth: `${game.boardCols * 90}px`,
-        }}>
-          {game.board.map((card: any) => (
-            <MatchCard
-              key={card.cardId}
-              card={card}
-              isClickable={canFlip && !card.isMatched && !card.isRevealed}
-              onClick={() => onFlipCard(card.cardId)}
-            />
-          ))}
+        {/* Board */}
+        <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "0 14px 16px", overflow: "hidden" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${game.boardCols}, 1fr)`,
+              gap: game.boardCols > 4 ? 6 : 9,
+              width: `min(100%, ${game.boardCols * 104}px, calc((100dvh - 250px) * ${(game.boardCols * 0.75) / rows}))`,
+            }}
+          >
+            {game.board.map((card: any) => (
+              <MatchCard
+                key={card.cardId}
+                card={card}
+                isClickable={canFlip && !card.isMatched && !card.isRevealed}
+                mismatch={game.status === "resolving" && card.isRevealed && !card.isMatched}
+                small={game.boardCols > 4}
+                onClick={() => onFlipCard(card.cardId)}
+              />
+            ))}
+          </div>
+          {pairPop !== null && (
+            <div
+              key={pairPop}
+              className="ec-chunky"
+              style={{
+                position: "absolute",
+                zIndex: 9,
+                left: "50%",
+                top: "42%",
+                padding: "6px 18px",
+                border: "3.5px solid var(--ink)",
+                borderRadius: 16,
+                background: "var(--mint)",
+                color: "#fff",
+                fontSize: 26,
+                textShadow: "var(--outline2), 0 3px 0 var(--ink)",
+                boxShadow: "0 5px 0 var(--ink)",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+                animation: "match-pair-pop 1.5s cubic-bezier(0.3, 1.8, 0.5, 1) both",
+              }}
+            >
+              {c.pair}
+            </div>
+          )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes match-pair-pop {
+          0% { transform: translateX(-50%) rotate(-6deg) scale(2.2); opacity: 0; }
+          25% { transform: translateX(-50%) rotate(-6deg) scale(1); opacity: 1; }
+          35% { transform: translateX(-50%) rotate(-8deg) scale(1.08); }
+          45%, 80% { transform: translateX(-50%) rotate(-6deg) scale(1); opacity: 1; }
+          100% { transform: translateX(-50%) rotate(-6deg) translateY(-30px); opacity: 0; }
+        }
+        @keyframes match-gone {
+          from { opacity: 1; transform: scale(1); }
+          to { opacity: 0; transform: scale(0.6) rotate(8deg); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -459,94 +576,148 @@ function GameBoardView({
 const MatchCard = memo(function MatchCard({
   card,
   isClickable,
+  mismatch,
+  small,
   onClick,
 }: {
   card: any;
   isClickable: boolean;
+  mismatch: boolean;
+  small: boolean;
   onClick: () => void;
 }) {
   const showFace = card.isRevealed || card.isMatched;
+  // Matched cards celebrate briefly, then leave an empty dashed slot.
+  const [gone, setGone] = useState<boolean>(card.isMatched);
+  useEffect(() => {
+    if (!card.isMatched) {
+      setGone(false);
+      return;
+    }
+    const timer = setTimeout(() => setGone(true), 1300);
+    return () => clearTimeout(timer);
+  }, [card.isMatched]);
+
+  const label: string | undefined = card.content.label;
+  const isJa = label ? JA_RE.test(label) : false;
+
+  const face: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    backfaceVisibility: "hidden",
+    WebkitBackfaceVisibility: "hidden",
+    borderRadius: small ? 12 : 16,
+    border: "3px solid var(--ink)",
+    boxShadow: "0 4px 0 var(--ink)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  };
 
   return (
     <div
       onClick={isClickable ? onClick : undefined}
       style={{
+        position: "relative",
         perspective: "600px",
         cursor: isClickable ? "pointer" : "default",
-        aspectRatio: "1",
+        aspectRatio: "3 / 4",
         width: "100%",
       }}
     >
-      <div style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        transformStyle: "preserve-3d",
-        transition: "transform 0.35s ease",
-        transform: showFace ? "rotateY(180deg)" : "rotateY(0deg)",
-        willChange: "transform",
-      }}>
-        {/* Back face */}
-        <div style={{
-          position: "absolute", inset: 0,
-          backfaceVisibility: "hidden",
-          borderRadius: "8px",
-          background: "linear-gradient(135deg, #6366f1, #7c3aed)",
-          border: "2px solid rgba(99,102,241,0.3)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "rgba(255,255,255,0.3)", fontSize: "1.2rem", fontWeight: 700,
-        }}>
-          ?
-        </div>
+      {/* Empty slot left behind by a matched pair */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: small ? 12 : 16,
+          border: "3px dashed var(--line-soft)",
+          opacity: gone ? 1 : 0,
+          transition: "opacity 0.3s",
+        }}
+      />
+      {!(gone && card.isMatched) && (
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            animation: card.isMatched ? "match-gone 0.3s 1s ease-in both" : undefined,
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              transformStyle: "preserve-3d",
+              transition: "transform 0.5s cubic-bezier(0.3, 1.4, 0.5, 1)",
+              transform: showFace ? "rotateY(180deg)" : "rotateY(0deg)",
+              willChange: "transform",
+            }}
+          >
+            {/* Back face */}
+            <div
+              style={{
+                ...face,
+                background: "radial-gradient(circle, rgba(255, 255, 255, 0.5) 0 2.5px, transparent 3px) 0 0 / 14px 14px, var(--violet)",
+              }}
+            >
+              <span className="ec-outline" style={{ fontSize: small ? 20 : 28, textShadow: "var(--outline2), 0 3px 0 var(--ink)" }}>
+                ?
+              </span>
+            </div>
 
-        {/* Front face */}
-        <div style={{
-          position: "absolute", inset: 0,
-          backfaceVisibility: "hidden",
-          transform: "rotateY(180deg)",
-          borderRadius: "8px",
-          background: card.isMatched
-            ? "rgba(34,197,94,0.15)"
-            : "var(--surface)",
-          border: card.isMatched
-            ? "2px solid #22c55e"
-            : "2px solid var(--primary)",
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          padding: "2px",
-          opacity: card.isMatched ? 0.7 : 1,
-          transition: "opacity 0.3s, background 0.3s",
-        }}>
-          <span style={{ fontSize: "clamp(1rem, 3.5vw, 1.6rem)", lineHeight: 1 }}>
-            {card.content.value}
-          </span>
-          {card.content.label && (
-            <span style={{
-              fontSize: "clamp(0.45rem, 1.5vw, 0.65rem)",
-              fontWeight: 600,
-              color: "var(--foreground)",
-              lineHeight: 1,
-              textAlign: "center",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "100%",
-              whiteSpace: "nowrap",
-              padding: "0 2px",
-              position: "absolute",
-              bottom: "6px",
-            }}>
-              {card.content.label}
-            </span>
-          )}
+            {/* Front face */}
+            <div
+              style={{
+                ...face,
+                transform: "rotateY(180deg)",
+                background: card.isMatched ? "var(--mint-soft)" : "#fff",
+                boxShadow: card.isMatched
+                  ? "0 4px 0 var(--ink), 0 0 0 4px var(--mint)"
+                  : mismatch
+                  ? "0 4px 0 var(--ink), 0 0 0 4px var(--red)"
+                  : "0 4px 0 var(--ink)",
+                padding: "4px 3px",
+                gap: 2,
+              }}
+            >
+              <span style={{ display: "grid", placeItems: "center", animation: mismatch ? "ec-shake 0.45s ease-in-out" : card.isMatched ? "ec-kick 0.5s ease-in-out 2" : undefined }}>
+                <EmojiArt emoji={card.content.value} size={small ? 30 : 46} />
+              </span>
+              {label && (
+                <span
+                  style={{
+                    maxWidth: "100%",
+                    padding: "0 2px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    textAlign: "center",
+                    lineHeight: 1.1,
+                    fontSize: small ? 9 : isJa ? 11 : 12,
+                    fontWeight: 900,
+                    color: isJa ? "var(--pink)" : "var(--ink)",
+                  }}
+                >
+                  {label}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }, (prev, next) => {
   // Only re-render if this card's state actually changed
   return prev.card.isRevealed === next.card.isRevealed
     && prev.card.isMatched === next.card.isMatched
-    && prev.isClickable === next.isClickable;
+    && prev.isClickable === next.isClickable
+    && prev.mismatch === next.mismatch
+    && prev.small === next.small;
 });
 
 /* ── Completed ─────────────────────────────────────────────── */
@@ -568,112 +739,91 @@ function CompletedView({
   const isSolo = game.players.length === 1;
   const isWinner = result?.winnerParticipantIds?.includes(myParticipantId);
   const sortedPlayers = [...game.players].sort((a: any, b: any) => b.score - a.score);
+  const isCanceled = result?.endReason === "canceled";
 
   let headline = "";
-  let emoji = "🏆";
-  if (result?.endReason === "canceled") {
+  let icon = "g-crown";
+  if (isCanceled) {
     headline = t("Game Canceled", lang);
-    emoji = "😔";
+    icon = "re-cry";
   } else if (isSolo) {
     headline = t("Board Cleared!", lang);
-    emoji = "🎉";
+    icon = "ui-sparkle";
   } else if (result?.isTie) {
     headline = t("It's a Tie!", lang);
-    emoji = "🤝";
+    icon = "re-peace";
   } else if (isWinner) {
     headline = t("You Won!", lang);
-    emoji = "🏆";
+    icon = "g-crown";
   } else {
     const winner = game.players.find(
       (p: any) => p.participantId === result?.winnerParticipantIds?.[0]
     );
     headline = `${winner?.nickname ?? "?"} ${t("Won!", lang)}`;
   }
+  const celebrate = !isCanceled && (isWinner || isSolo);
 
   return (
-    <div style={overlayStyle}>
-      <div style={{ ...panelStyle, maxWidth: "380px" }}>
-        <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>{emoji}</div>
-        <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-          {headline}
-        </h2>
+    <ModalCard>
+      {celebrate && <Confetti burstKey={game._id} />}
+      <Icon name={icon} size={64} style={{ animation: "ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)" }} />
+      <h2
+        className={celebrate ? "ec-outline" : "ec-chunky"}
+        style={{
+          fontSize: celebrate ? 34 : 24,
+          color: celebrate ? "var(--yellow)" : undefined,
+          margin: "6px 0 14px",
+          animation: celebrate ? "ec-slam 0.6s cubic-bezier(0.3, 1.8, 0.5, 1) both" : undefined,
+        }}
+      >
+        {headline}
+      </h2>
 
-        {/* Scores */}
-        <div style={{
-          background: "var(--bg)", border: "1px solid var(--border)",
-          borderRadius: "8px", padding: "0.75rem", marginBottom: "1rem", width: "100%",
-        }}>
-          {sortedPlayers.map((p: any, i: number) => {
-            const avatar = getAvatarById(p.avatarValue);
-            const isMe = p.participantId === myParticipantId;
-            const rank = sortedPlayers.findIndex((r: any) => r.score === p.score);
-            return (
-              <div key={p.participantId} style={{
-                display: "flex", alignItems: "center", gap: "0.5rem",
-                padding: "0.35rem 0", fontWeight: isMe ? 700 : 400,
-              }}>
-                <span style={{ fontSize: "0.75rem", color: "var(--muted)", width: "1.5rem" }}>
-                  {rank === 0 ? "🏆" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : `${i + 1}.`}
-                </span>
-                <span style={{
-                  width: "22px", height: "22px", borderRadius: "50%",
-                  background: avatar?.color ?? "var(--primary)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "0.65rem",
-                }}>
-                  {avatar?.emoji ?? "?"}
-                </span>
-                <span style={{ flex: 1, fontSize: "0.85rem" }}>
-                  {p.nickname}
-                  {isMe && (
-                    <span style={{ color: "var(--primary)", marginLeft: "0.25rem" }}>
-                      ({t("you", lang)})
-                    </span>
-                  )}
-                </span>
-                <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>
-                  {p.turns ?? 0}/{p.score}/{game.totalPairs}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
-          <button onClick={onClose} style={{ ...secondaryBtnStyle, flex: 1 }}>
-            {t("Exit", lang)}
-          </button>
-          <button onClick={onPlayAgain} style={{ ...primaryBtnStyle, flex: 1 }}>
-            {t("Play Again", lang)}
-          </button>
-        </div>
+      {/* Scores */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
+        {sortedPlayers.map((p: any, i: number) => {
+          const isMe = p.participantId === myParticipantId;
+          const rank = sortedPlayers.findIndex((r: any) => r.score === p.score);
+          return (
+            <div
+              key={p.participantId}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 12px 4px 4px",
+                border: "2.5px solid var(--ink)",
+                borderRadius: 999,
+                background: rank === 0 && !isCanceled ? "var(--yellow-soft)" : "#fff",
+                boxShadow: "0 3px 0 var(--ink)",
+                animation: `ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) ${0.08 * i}s both`,
+              }}
+            >
+              <span className="ec-chunky" style={{ width: 22, fontSize: 14, textAlign: "center" }}>
+                {rank === 0 ? <Icon name="g-crown" size={22} /> : `${rank + 1}`}
+              </span>
+              <AvatarDisc id={p.avatarValue} size={30} border={2} />
+              <span style={{ flex: 1, minWidth: 0, textAlign: "left", fontSize: 13.5, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {p.nickname}
+                {isMe && <span style={{ color: "var(--pink)", marginLeft: 4 }}>({t("you", lang)})</span>}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 900, opacity: 0.55 }}>
+                {p.turns ?? 0}/{p.score}/{game.totalPairs}
+              </span>
+              <span className="ec-chunky" style={{ fontSize: 18 }}>{p.score}</span>
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="ec-btn white" style={{ flex: 1, fontSize: 17 }} onClick={onClose}>
+          {t("Exit", lang)}
+        </button>
+        <button className="ec-btn pink wiggle" style={{ flex: 1.3, fontSize: 17 }} onClick={onPlayAgain}>
+          {t("Play Again", lang)}
+        </button>
+      </div>
+    </ModalCard>
   );
 }
-
-/* ── Shared Styles ─────────────────────────────────────────── */
-
-const overlayStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-  zIndex: 95, display: "flex", alignItems: "center", justifyContent: "center",
-};
-
-const panelStyle: React.CSSProperties = {
-  background: "var(--surface)", borderRadius: "var(--radius)",
-  padding: "1.5rem", width: "100%", maxWidth: "340px",
-  margin: "1rem", textAlign: "center",
-};
-
-const primaryBtnStyle: React.CSSProperties = {
-  padding: "0.6rem", borderRadius: "8px",
-  background: "linear-gradient(135deg, var(--primary), #7c3aed)",
-  color: "#fff", fontWeight: 600, cursor: "pointer",
-  border: "none", fontSize: "0.85rem", width: "100%",
-};
-
-const secondaryBtnStyle: React.CSSProperties = {
-  padding: "0.6rem", borderRadius: "8px",
-  background: "var(--bg)", border: "1px solid var(--border)",
-  fontWeight: 600, cursor: "pointer", fontSize: "0.85rem", width: "100%",
-};

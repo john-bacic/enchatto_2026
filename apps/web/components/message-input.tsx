@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { DrawingModal } from "@/components/drawing-modal";
 import { useSpeechRecognition, ensurePunctuation } from "@/hooks/use-speech-recognition";
+import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 
 interface ReplyTo {
@@ -163,346 +164,130 @@ export function MessageInput({
   const hasText = text.trim().length > 0;
   const micScale = 1.0 + audioLevel * 0.8;
 
-  // SF Symbols-style mic.fill icon
-  const MicIcon = ({ color, size = 14 }: { color: string; size?: number }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <line x1="12" y1="18" x2="12" y2="22" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <line x1="8" y1="22" x2="16" y2="22" stroke={color} strokeWidth="2" strokeLinecap="round" />
+  const MicIcon = ({ size = 20 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <rect x="8.5" y="2" width="7" height="12.5" rx="3.5" />
+      <path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+      <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
     </svg>
   );
 
-  // SF Symbols-style arrow.up.circle.fill icon
-  const SendIcon = ({ color, size = 28 }: { color: string; size?: number }) => (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
-      <circle cx="14" cy="14" r="14" fill={color} />
-      <path d="M14 20V9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M9 13l5-5 5 5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  const SendIcon = ({ size = 22 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 20V5" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+      <path d="M5.5 11.5L12 5l6.5 6.5" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+
+  const sendButton = (
+    <button
+      className="ec-round-btn send"
+      onClick={handleSubmit}
+      disabled={!hasText}
+      aria-label={t("Send", lang)}
+    >
+      <SendIcon />
+    </button>
   );
 
   return (
     <>
-      <div style={{ background: "var(--surface)", padding: "0.5rem 0.625rem 0.5rem" }}>
+      <div className="ec-inputbar">
         {/* Reply indicator */}
         {replyTo && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "0.5rem",
-              paddingLeft: "0.375rem",
-            }}
-          >
-            <ReplyPreview originalText={replyTo.text ?? ""} senderName="" lang={lang} />
-            <button
-              onClick={onCancelReply}
-              style={{
-                background: "none",
-                fontSize: "0.8rem",
-                color: "var(--muted)",
-                padding: "0.2rem",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
+          <div className="ec-reply-bar">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ReplyPreview originalText={replyTo.text ?? ""} senderName="" lang={lang} />
+            </div>
+            <button className="ec-chip outline" onClick={onCancelReply} style={{ flex: "none", cursor: "pointer" }}>
               {t("Cancel", lang)}
             </button>
           </div>
         )}
 
-        {/* Card container */}
-        <div
-          style={{
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "20px",
-          }}
-        >
-          {/* Text area */}
-          <textarea
-            ref={inputRef}
-            value={text}
-            readOnly={isListening}
-            onFocus={(e) => { if (isListening) e.currentTarget.blur(); }}
-            onChange={(e) => handleTextChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            placeholder={isListening ? t("Listening...", lang) : t("Type a message...", lang)}
-            rows={1}
-            style={{
-              width: "100%",
-              padding: "0.75rem 0.875rem 0.25rem",
-              border: "none",
-              outline: "none",
-              resize: "none",
-              fontFamily: "inherit",
-              fontSize: "inherit",
-              lineHeight: "1.4",
-              maxHeight: "7.5rem",
-              overflowY: "auto",
-              background: "transparent",
-              color: "inherit",
-              wordBreak: "break-word",
-              overflowWrap: "break-word",
-            }}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = Math.min(el.scrollHeight, 120) + "px";
-            }}
+        <div className="ec-input-row">
+          {/* Game button — End Game when active, Game otherwise */}
+          {isGameActive && onEndGame ? (
+            <button className="ec-end-game" onClick={onEndGame}>
+              {t("End Game", lang)}
+            </button>
+          ) : onGameTap ? (
+            <button className="ec-round-btn game" onClick={onGameTap} aria-label={t("Games", lang)}>
+              <Icon name="ui-game" size={28} />
+            </button>
+          ) : null}
+
+          {/* Photo — directly opens native image picker */}
+          <button
+            className="ec-round-btn"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label={t("Photo", lang)}
+          >
+            <Icon name="ui-photo" size={28} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            style={{ display: "none" }}
           />
 
-          {/* Bottom toolbar */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.25rem 0.625rem 0.625rem",
+          {/* Drawing */}
+          <button
+            className="ec-round-btn"
+            onClick={() => {
+              setShowDrawing(true);
+              onTypingChange?.("drawing");
             }}
+            aria-label={t("Drawing", lang)}
           >
-            {/* Plus button — directly opens native image picker */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                width: "30px",
-                height: "30px",
-                borderRadius: "50%",
-                background: "var(--border)",
-                border: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                fontSize: "1rem",
-                color: "var(--muted)",
-                flexShrink: 0,
+            <Icon name="g-pencil" size={28} />
+          </button>
+
+          {/* Text field */}
+          <div className="ec-text-pill">
+            <textarea
+              ref={inputRef}
+              value={text}
+              readOnly={isListening}
+              onFocus={(e) => { if (isListening) e.currentTarget.blur(); }}
+              onChange={(e) => handleTextChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
               }}
-            >
-              +
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              style={{ display: "none" }}
+              placeholder={isListening ? t("Listening...", lang) : t("Type a message...", lang)}
+              rows={1}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 120) + "px";
+              }}
             />
-
-            {/* Drawing pill */}
-            <button
-              onClick={() => {
-                setShowDrawing(true);
-                onTypingChange?.("drawing");
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                padding: "0.35rem 0.625rem",
-                borderRadius: "999px",
-                background: "var(--border)",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                color: "var(--muted)",
-                flexShrink: 0,
-              }}
-            >
-              {t("✏️ Draw", lang)}
-            </button>
-
-            {/* Game pill — End Game when active, Game otherwise */}
-            {isGameActive && onEndGame ? (
-              <button
-                onClick={onEndGame}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.25rem",
-                  padding: "0.35rem 0.625rem",
-                  borderRadius: "999px",
-                  background: "rgba(239, 68, 68, 0.85)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  color: "#fff",
-                  flexShrink: 0,
-                }}
-              >
-                {t("🛑 End Game", lang)}
-              </button>
-            ) : onGameTap ? (
-              <button
-                onClick={onGameTap}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.25rem",
-                  padding: "0.35rem 0.625rem",
-                  borderRadius: "999px",
-                  background: "var(--border)",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  fontWeight: 500,
-                  color: "var(--muted)",
-                  flexShrink: 0,
-                }}
-              >
-                {t("🎮 Games", lang)}
-              </button>
-            ) : null}
-
-            <div style={{ flex: 1 }} />
-
-            {/* Right side: mic/send toggle */}
-            {isListening ? (
-              /* Recording: orange mic + send button side by side */
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                {/* Orange mic with audio-reactive ring */}
-                <div style={{ position: "relative", width: "30px", height: "30px" }}>
-                  <span
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      borderRadius: "50%",
-                      background: "rgba(249,115,22,0.5)",
-                      transform: `scale(${micScale})`,
-                      transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                    }}
-                  />
-                  <button
-                    onClick={handleMicTap}
-                    style={{
-                      position: "relative",
-                      width: "30px",
-                      height: "30px",
-                      borderRadius: "50%",
-                      background: "#fff",
-                      border: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <MicIcon color="#f97316" />
-                  </button>
-                </div>
-                {/* Send button (no pulse) */}
-                <button
-                  onClick={handleSubmit}
-                  disabled={!hasText}
-                  style={{
-                    width: "30px",
-                    height: "30px",
-                    borderRadius: "50%",
-                    background: "transparent",
-                    border: "none",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: hasText ? "pointer" : "default",
-                    padding: 0,
-                    flexShrink: 0,
-                  }}
-                >
-                  <SendIcon color={hasText ? "var(--primary)" : "var(--border)"} />
-                </button>
-              </div>
-            ) : hasText ? (
-              /* Has text, not recording: pulsating send button */
-              <div style={{ position: "relative", width: "30px", height: "30px", flexShrink: 0 }}>
-                <span
-                  className="send-pulse"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    borderRadius: "50%",
-                    background: "var(--primary)",
-                  }}
-                />
-                <button
-                  onClick={handleSubmit}
-                  style={{
-                    position: "relative",
-                    width: "30px",
-                    height: "30px",
-                    borderRadius: "50%",
-                    background: "transparent",
-                    border: "none",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  <SendIcon color="var(--primary)" />
-                </button>
-                <style jsx>{`
-                  .send-pulse {
-                    animation: sendPulse 1.5s ease-out infinite;
-                  }
-                  @keyframes sendPulse {
-                    0% { transform: scale(1); opacity: 0.5; }
-                    100% { transform: scale(1.8); opacity: 0; }
-                  }
-                `}</style>
-              </div>
-            ) : voiceSupported ? (
-              /* No text, not recording: grey mic button */
-              <button
-                onClick={handleMicTap}
-                style={{
-                  width: "30px",
-                  height: "30px",
-                  borderRadius: "50%",
-                  background: "#999",
-                  border: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  transition: "all 0.2s ease",
-                }}
-              >
-                <MicIcon color="#fff" />
-              </button>
-            ) : (
-              /* Voice not supported: grey disabled send button */
-              <button
-                onClick={handleSubmit}
-                disabled
-                style={{
-                  width: "30px",
-                  height: "30px",
-                  borderRadius: "50%",
-                  background: "transparent",
-                  border: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "default",
-                  padding: 0,
-                  flexShrink: 0,
-                }}
-              >
-                <SendIcon color="var(--border)" />
-              </button>
-            )}
           </div>
+
+          {/* Right side: mic/send toggle */}
+          {isListening ? (
+            <>
+              {/* Live mic with audio-reactive ring */}
+              <div className="ec-mic-wrap">
+                <span className="ec-mic-ring" style={{ transform: `scale(${micScale})` }} />
+                <button className="ec-round-btn mic live" onClick={handleMicTap} aria-label={t("Voice", lang)} style={{ position: "relative" }}>
+                  <MicIcon />
+                </button>
+              </div>
+              {sendButton}
+            </>
+          ) : hasText || !voiceSupported ? (
+            sendButton
+          ) : (
+            <button className="ec-round-btn mic" onClick={handleMicTap} aria-label={t("Voice", lang)}>
+              <MicIcon />
+            </button>
+          )}
         </div>
       </div>
 

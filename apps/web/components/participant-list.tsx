@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { AvatarPreview } from "@/components/avatar-preview";
+import { AvatarDisc } from "@/components/ui/avatar";
 import { t } from "@/lib/i18n";
 
 interface Participant {
@@ -21,145 +23,108 @@ interface ParticipantListProps {
   lang?: string;
 }
 
-export function ParticipantList({ participants, currentParticipantId, onLeave, lang }: ParticipantListProps) {
-  const [tooltip, setTooltip] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+const STACK_MAX = 3;
 
-  // Close tooltip when tapping outside (mobile)
-  useEffect(() => {
-    if (!tooltip) return;
-    const handleTouchOutside = (e: TouchEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setTooltip(null);
-      }
-    };
-    document.addEventListener("touchstart", handleTouchOutside);
-    return () => document.removeEventListener("touchstart", handleTouchOutside);
-  }, [tooltip]);
+function presenceOf(p: Participant): "online" | "away" | "offline" {
+  return p.online ? (p.presence ?? "online") : "offline";
+}
+
+const PRESENCE_ORDER = { online: 0, away: 1, offline: 2 } as const;
+
+/** Header avatar stack; tapping it opens the member sheet. */
+export function ParticipantList({ participants, currentParticipantId, onLeave, lang }: ParticipantListProps) {
+  const [open, setOpen] = useState(false);
 
   // Show all non-departed participants (online, away, AND offline)
-  const visibleParticipants = participants.filter((p) => !p.departed);
-  const onlineCount = visibleParticipants.filter((p) => p.online && (p.presence ?? "online") === "online").length;
-  const awayCount = visibleParticipants.filter((p) => p.online && (p.presence ?? "online") === "away").length;
-  const offlineCount = visibleParticipants.filter((p) => !p.online).length;
+  const visibleParticipants = participants
+    .filter((p) => !p.departed)
+    .sort((a, b) => PRESENCE_ORDER[presenceOf(a)] - PRESENCE_ORDER[presenceOf(b)]);
+  const extra = visibleParticipants.length - STACK_MAX;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-      <div ref={containerRef} style={{ display: "flex", gap: "0.15rem", position: "relative" }}>
-        {visibleParticipants.slice(0, 5).map((p) => {
-          const isMe = p._id === currentParticipantId;
-          const effectivePresence = p.online ? (p.presence ?? "online") : "offline";
-          const statusLabel = effectivePresence === "away"
-            ? ` ${t("· away", lang)}`
-            : effectivePresence === "offline"
-              ? ` ${t("· offline", lang)}`
-              : "";
-          const label = `${p.nickname}${isMe ? ` ${t("(you)", lang)}` : ""}${p.role === "host" ? ` ${t("· host", lang)}` : ""}${statusLabel}`;
-          return (
-            <div
-              key={p._id}
-              style={{ position: "relative" }}
-              onMouseEnter={() => setTooltip(p._id)}
-              onMouseLeave={() => setTooltip(null)}
-              onClick={() => setTooltip((prev) => (prev === p._id ? null : p._id))}
-            >
-              <AvatarPreview
-                avatarId={p.avatar.value}
-                nickname={p.nickname}
-                size={26}
-                presence={effectivePresence}
-                isMe={isMe}
-              />
-              {tooltip === p._id && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 6px)",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "6px",
-                    padding: "0.35rem 0.6rem",
-                    fontSize: "0.75rem",
-                    fontWeight: 500,
-                    color: "var(--foreground)",
-                    whiteSpace: "nowrap",
-                    zIndex: 50,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                    pointerEvents: "none",
-                  }}
-                >
-                  {label}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "-4px",
-                      left: "50%",
-                      transform: "translateX(-50%) rotate(45deg)",
-                      width: "8px",
-                      height: "8px",
-                      background: "var(--surface)",
-                      borderLeft: "1px solid var(--border)",
-                      borderTop: "1px solid var(--border)",
-                    }}
-                  />
+    <>
+      <button
+        className="ec-stack"
+        onClick={() => setOpen(true)}
+        aria-label={t("In this room", lang)}
+        aria-haspopup="dialog"
+      >
+        {visibleParticipants.length === 0 && <span className="ec-stack-empty">?</span>}
+        {visibleParticipants.slice(0, extra > 0 ? STACK_MAX - 1 : STACK_MAX).map((p) => (
+          <AvatarDisc
+            key={p._id}
+            id={p.avatar.value}
+            size={30}
+            border={2.5}
+            shadow={false}
+            style={presenceOf(p) === "online" ? undefined : { filter: "grayscale(0.8)", opacity: 0.7 }}
+          />
+        ))}
+        {extra > 0 && <span className="ec-stack-more">+{extra + 1}</span>}
+      </button>
+
+      {open &&
+        createPortal(
+        <div className="ec-sheet-backdrop" onClick={() => setOpen(false)}>
+          <div className="ec-sheet" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
+            <div className="ec-sheet-grip" />
+            <div className="ec-sheet-head">
+              <h2>{t("In this room", lang)}</h2>
+              <span className="ec-chip outline">{visibleParticipants.length}</span>
+              <button className="ec-round-btn" onClick={() => setOpen(false)} aria-label={t("Close", lang)}>
+                ✕
+              </button>
+            </div>
+            <div className="ec-sheet-body">
+              {visibleParticipants.length === 0 ? (
+                <p style={{ padding: "18px 0", textAlign: "center", opacity: 0.6 }}>
+                  {t("Nobody else is here yet.", lang)}
+                </p>
+              ) : (
+                <div className="ec-people">
+                  {visibleParticipants.map((p, i) => {
+                    const isMe = p._id === currentParticipantId;
+                    const presence = presenceOf(p);
+                    return (
+                      <div
+                        key={p._id}
+                        className={`ec-person${presence === "offline" ? " dim" : ""}`}
+                        style={{ animationDelay: `${i * 0.04}s` }}
+                      >
+                        <AvatarPreview avatarId={p.avatar.value} nickname={p.nickname} size={44} presence={presence} isMe={isMe} />
+                        <div className="ec-person-name">
+                          <b>
+                            {p.nickname}
+                            {isMe ? ` ${t("(you)", lang)}` : ""}
+                          </b>
+                          <small>
+                            <span className={`ec-presence-dot ${presence}`} />
+                            {t(presence, lang)}
+                          </small>
+                        </div>
+                        {p.role === "host" && <span className="ec-chip" style={{ background: "var(--violet)" }}>{t("host", lang).toUpperCase()}</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+              {onLeave && (
+                <button
+                  className="ec-btn red sm"
+                  style={{ marginTop: 18 }}
+                  onClick={() => {
+                    setOpen(false);
+                    onLeave();
+                  }}
+                >
+                  {t("Leave room", lang)}
+                </button>
+              )}
             </div>
-          );
-        })}
-        {visibleParticipants.length > 5 && (
-          <div
-            style={{
-              width: "26px",
-              height: "26px",
-              borderRadius: "50%",
-              background: "var(--bg)",
-              border: "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "0.6rem",
-              fontWeight: 600,
-              color: "var(--muted)",
-            }}
-          >
-            +{visibleParticipants.length - 5}
           </div>
+        </div>,
+          document.body
         )}
-      </div>
-      {onLeave && (
-        <button
-          onClick={onLeave}
-          title={t("Leave room", lang)}
-          style={{
-            background: "none",
-            border: "none",
-            padding: "0.25rem",
-            marginLeft: "0.15rem",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            color: "var(--muted)",
-          }}
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </button>
-      )}
-    </div>
+    </>
   );
 }
