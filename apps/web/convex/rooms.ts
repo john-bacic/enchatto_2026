@@ -1,6 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+// Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
+const BACKGROUND_COUNT = 10;
+
 export const createRoom = mutation({
   args: {
     hostNickname: v.string(),
@@ -36,12 +39,17 @@ export const createRoom = mutation({
       throw new Error("Max participants must be between 2 and 50");
     }
 
+    const lastRoom = await ctx.db.query("rooms").order("desc").first();
+    let background = Math.floor(Math.random() * (BACKGROUND_COUNT - 1));
+    if (lastRoom?.background !== undefined && background >= lastRoom.background) background++;
+
     const roomId = await ctx.db.insert("rooms", {
       joinCode,
       status: "waiting",
       settings,
       hostId: "", // will be updated after host participant is created
       createdAt: now,
+      background,
     });
 
     // Create host participant

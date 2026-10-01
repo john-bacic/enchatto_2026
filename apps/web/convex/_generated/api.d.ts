@@ -18,6 +18,9 @@ import type * as participants from "../participants.js";
 import type * as reactions from "../reactions.js";
 import type * as rooms from "../rooms.js";
 import type * as truthOrDare from "../truthOrDare.js";
+import type * as wordRush from "../wordRush.js";
+import type * as wordRushDeck from "../wordRushDeck.js";
+import type * as wordRushShared from "../wordRushShared.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +39,9 @@ declare const fullApi: ApiFromModules<{
   reactions: typeof reactions;
   rooms: typeof rooms;
   truthOrDare: typeof truthOrDare;
+  wordRush: typeof wordRush;
+  wordRushDeck: typeof wordRushDeck;
+  wordRushShared: typeof wordRushShared;
 }>;
 
 /**

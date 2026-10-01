@@ -915,4 +915,83 @@ http.route({
   }),
 });
 
+// --- Word Rush ---
+
+const wordRushRoutes: Record<string, (ctx: any, body: any) => Promise<any>> = {
+  "create-lobby": async (ctx, body) => ({
+    gameId: await ctx.runMutation(api.wordRush.createLobby, {
+      roomId: body.roomId,
+      hostParticipantId: body.hostParticipantId,
+      pack: body.pack,
+      sayIt: body.sayIt,
+    }),
+  }),
+  join: (ctx, body) =>
+    ctx.runMutation(api.wordRush.joinLobby, { gameId: body.gameId, participantId: body.participantId }),
+  leave: (ctx, body) =>
+    ctx.runMutation(api.wordRush.leaveLobby, { gameId: body.gameId, participantId: body.participantId }),
+  "update-settings": (ctx, body) =>
+    ctx.runMutation(api.wordRush.updateSettings, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      pack: body.pack,
+      sayIt: body.sayIt,
+    }),
+  start: (ctx, body) =>
+    ctx.runMutation(api.wordRush.start, { gameId: body.gameId, participantId: body.participantId }),
+  answer: (ctx, body) =>
+    ctx.runMutation(api.wordRush.answer, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      choiceIndex: body.choiceIndex,
+    }),
+  hint: async (ctx, body) => ({
+    hint: await ctx.runMutation(api.wordRush.takeHint, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    }),
+  }),
+  "submit-clip": (ctx, body) =>
+    ctx.runMutation(api.wordRush.submitClip, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      storageId: body.storageId,
+    }),
+  "skip-mic": (ctx, body) =>
+    ctx.runMutation(api.wordRush.skipMic, { gameId: body.gameId, participantId: body.participantId }),
+  vote: (ctx, body) =>
+    ctx.runMutation(api.wordRush.vote, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      vote: body.vote,
+    }),
+  "submit-teach-clip": (ctx, body) =>
+    ctx.runMutation(api.wordRush.submitTeachClip, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      storageId: body.storageId,
+    }),
+  skip: (ctx, body) =>
+    ctx.runMutation(api.wordRush.skip, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      phaseSeq: body.phaseSeq,
+    }),
+  cancel: (ctx, body) =>
+    ctx.runMutation(api.wordRush.cancel, { gameId: body.gameId, participantId: body.participantId }),
+  "play-again": async (ctx, body) => ({
+    gameId: await ctx.runMutation(api.wordRush.playAgain, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+    }),
+  }),
+  state: async (ctx, body) => ({
+    game: await ctx.runQuery(api.wordRush.getState, { roomId: body.roomId }),
+  }),
+};
+
+for (const [name, handler] of Object.entries(wordRushRoutes)) {
+  http.route({ path: `/api/word-rush/${name}`, method: "POST", handler: jsonAction(handler) });
+}
+
 export default http;

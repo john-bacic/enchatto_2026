@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { wordRushCard, wordRushLang, wordRushPhase, wordRushVote } from "./wordRushShared";
 
 export default defineSchema({
   rooms: defineTable({
@@ -15,6 +16,7 @@ export default defineSchema({
     hostId: v.string(),
     createdAt: v.number(),
     closedAt: v.optional(v.number()),
+    background: v.optional(v.number()),
   })
     .index("by_joinCode", ["joinCode"])
     .index("by_status", ["status"]),
@@ -301,6 +303,81 @@ export default defineSchema({
     .index("by_assignedParticipantId_status", ["assignedParticipantId", "status"]),
 
   // ─── Emoji Bingo ────────────────────────────────────────────────────────────
+  wordRushGames: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(
+      v.literal("lobby"),
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("canceled")
+    ),
+    hostParticipantId: v.id("participants"),
+    pack: v.string(),
+    sayIt: v.boolean(),
+    cardsReady: v.boolean(),
+    cards: v.array(wordRushCard),
+    players: v.array(
+      v.object({
+        participantId: v.id("participants"),
+        nickname: v.string(),
+        avatarValue: v.string(),
+        learning: wordRushLang,
+        joinedAt: v.number(),
+        score: v.number(),
+        streak: v.number(),
+        bestStreak: v.number(),
+        correct: v.number(),
+        sayItCount: v.number(),
+        sayItBonus: v.number(),
+        hintCard: v.optional(v.number()),
+      })
+    ),
+    cardIndex: v.number(),
+    phase: wordRushPhase,
+    phaseSeq: v.number(),
+    phaseStartedAt: v.number(),
+    phaseEndsAt: v.number(),
+    performerId: v.optional(v.id("participants")),
+    performerLang: v.optional(wordRushLang),
+    clipStorageId: v.optional(v.id("_storage")),
+    teachClip: v.optional(
+      v.object({ storageId: v.id("_storage"), byParticipantId: v.id("participants") })
+    ),
+    verdict: v.optional(
+      v.object({
+        bonus: v.number(),
+        label: wordRushVote,
+        votes: v.array(
+          v.object({ judgeId: v.id("participants"), vote: wordRushVote, weight: v.number() })
+        ),
+      })
+    ),
+    storageIds: v.array(v.id("_storage")),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"])
+    .index("by_roomId_status", ["roomId", "status"]),
+
+  wordRushAnswers: defineTable({
+    gameId: v.id("wordRushGames"),
+    cardIndex: v.number(),
+    participantId: v.id("participants"),
+    choiceIndex: v.number(),
+    correct: v.boolean(),
+    points: v.number(),
+    elapsedMs: v.number(),
+  }).index("by_game_card", ["gameId", "cardIndex"]),
+
+  wordRushVotes: defineTable({
+    gameId: v.id("wordRushGames"),
+    cardIndex: v.number(),
+    judgeId: v.id("participants"),
+    vote: wordRushVote,
+    weight: v.number(),
+  }).index("by_game_card", ["gameId", "cardIndex"]),
+
   emojiBingoGames: defineTable({
     roomId: v.id("rooms"),
     status: v.union(
