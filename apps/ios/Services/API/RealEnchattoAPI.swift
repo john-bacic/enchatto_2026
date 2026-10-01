@@ -299,114 +299,131 @@ class RealEnchattoAPI: EnchattoAPI {
         }
     }
 
-    // MARK: - Emojifyr
+    // MARK: - Word Rush
 
-    func startEmojifyr(roomId: String, participantId: String) async throws -> String? {
-        struct Response: Decodable { let sessionId: String }
-        do {
-            let response: Response = try await client.post("/api/emojifyr/start", body: [
-                "roomId": roomId,
-                "createdByParticipantId": participantId,
-            ])
-            return response.sessionId
-        } catch is DecodingError {
-            return nil
-        }
+    func createWordRushLobby(roomId: String, hostParticipantId: String, pack: String, sayIt: Bool) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/word-rush/create-lobby", body: [
+            "roomId": roomId,
+            "hostParticipantId": hostParticipantId,
+            "pack": pack,
+            "sayIt": sayIt,
+        ] as [String: Any])
+        return response.gameId
     }
 
-    func submitEmojifyrSentence(roundId: String, sentence: String, isInitialism: Bool) async throws {
-        var body: [String: Any] = [
-            "roundId": roundId,
-            "sentence": sentence,
-        ]
-        if isInitialism {
-            body["isInitialism"] = true
-        }
-        try await client.postVoid("/api/emojifyr/submit-sentence", body: body)
-    }
-
-    func updateEmojifyrSentence(roundId: String, sentence: String) async throws {
-        try await client.postVoid("/api/emojifyr/update-sentence", body: [
-            "roundId": roundId,
-            "sentence": sentence,
-        ])
-    }
-
-    func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws {
-        try await client.postVoid("/api/emojifyr/submit-emoji-clue", body: [
-            "roundId": roundId,
-            "emojiClue": emojiClue,
-        ])
-    }
-
-    func submitEmojifyrGuess(roundId: String, participantId: String, guessText: String) async throws {
-        try await client.postVoid("/api/emojifyr/submit-guess", body: [
-            "roundId": roundId,
+    func joinWordRush(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/word-rush/join", body: [
+            "gameId": gameId,
             "participantId": participantId,
-            "guessText": guessText,
         ])
     }
 
-    func revealEmojifyrRound(roundId: String) async throws {
-        try await client.postVoid("/api/emojifyr/reveal", body: [
-            "roundId": roundId,
+    func leaveWordRush(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/word-rush/leave", body: [
+            "gameId": gameId,
+            "participantId": participantId,
         ])
     }
 
-    func advanceEmojifyrRound(gameSessionId: String) async throws {
-        try await client.postVoid("/api/emojifyr/advance-round", body: [
-            "gameSessionId": gameSessionId,
+    func updateWordRushSettings(gameId: String, participantId: String, pack: String?, sayIt: Bool?) async throws {
+        var body: [String: Any] = [
+            "gameId": gameId,
+            "participantId": participantId,
+        ]
+        if let pack { body["pack"] = pack }
+        if let sayIt { body["sayIt"] = sayIt }
+        try await client.postVoid("/api/word-rush/update-settings", body: body)
+    }
+
+    func startWordRush(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/word-rush/start", body: [
+            "gameId": gameId,
+            "participantId": participantId,
         ])
     }
 
-    func cancelEmojifyr(gameSessionId: String) async throws {
-        try await client.postVoid("/api/emojifyr/cancel", body: [
-            "gameSessionId": gameSessionId,
-        ])
-    }
-
-    func getActiveEmojifyrSession(roomId: String) async throws -> GameSession? {
-        do {
-            let session: GameSession = try await client.post("/api/emojifyr/active-session", body: ["roomId": roomId])
-            return session
-        } catch is DecodingError {
-            return nil
+    func answerWordRush(gameId: String, participantId: String, choiceIndex: Int) async throws -> (correct: Bool, points: Int) {
+        struct Response: Decodable {
+            let correct: Bool
+            let points: Double
         }
+        let response: Response = try await client.post("/api/word-rush/answer", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "choiceIndex": choiceIndex,
+        ] as [String: Any])
+        return (response.correct, Int(response.points.rounded()))
     }
 
-    func getCurrentEmojifyrRound(gameSessionId: String) async throws -> EmojifyrRound? {
-        do {
-            let round: EmojifyrRound = try await client.post("/api/emojifyr/current-round", body: ["gameSessionId": gameSessionId])
-            return round
-        } catch is DecodingError {
-            return nil
-        }
-    }
-
-    func getEmojifyrGuesses(roundId: String) async throws -> [EmojifyrGuess] {
-        do {
-            let guesses: [EmojifyrGuess] = try await client.post("/api/emojifyr/guesses", body: ["roundId": roundId])
-            return guesses
-        } catch is DecodingError {
-            return []
-        }
-    }
-
-    func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState? {
-        do {
-            let state: EmojifyrGameState = try await client.post("/api/emojifyr/game-state", body: ["roomId": roomId])
-            return state
-        } catch is DecodingError {
-            return nil
-        }
-    }
-
-    func generateEmojiClueFromAI(sentence: String) async throws -> String {
-        struct Response: Decodable { let emojiClue: String }
-        let response: Response = try await client.post("/api/emojifyr/generate-emoji-clue", body: [
-            "sentence": sentence,
+    func wordRushHint(gameId: String, participantId: String) async throws -> String {
+        struct Response: Decodable { let hint: String }
+        let response: Response = try await client.post("/api/word-rush/hint", body: [
+            "gameId": gameId,
+            "participantId": participantId,
         ])
-        return response.emojiClue
+        return response.hint
+    }
+
+    func submitWordRushClip(gameId: String, participantId: String, storageId: String) async throws {
+        try await client.postVoid("/api/word-rush/submit-clip", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "storageId": storageId,
+        ])
+    }
+
+    func skipWordRushMic(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/word-rush/skip-mic", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func voteWordRush(gameId: String, participantId: String, vote: String) async throws {
+        try await client.postVoid("/api/word-rush/vote", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "vote": vote,
+        ])
+    }
+
+    func submitWordRushTeachClip(gameId: String, participantId: String, storageId: String) async throws {
+        try await client.postVoid("/api/word-rush/submit-teach-clip", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "storageId": storageId,
+        ])
+    }
+
+    func skipWordRushPhase(gameId: String, participantId: String, phaseSeq: Int) async throws {
+        try await client.postVoid("/api/word-rush/skip", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "phaseSeq": phaseSeq,
+        ] as [String: Any])
+    }
+
+    func cancelWordRush(gameId: String, participantId: String) async throws {
+        try await client.postVoid("/api/word-rush/cancel", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+    }
+
+    func playAgainWordRush(gameId: String, participantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/word-rush/play-again", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+        ])
+        return response.gameId
+    }
+
+    func getWordRushState(roomId: String) async throws -> WordRushGame? {
+        struct Response: Decodable { let game: WordRushGame? }
+        let response: Response = try await client.post("/api/word-rush/state", body: ["roomId": roomId])
+        return response.game
     }
 
     // MARK: - Emoji Match

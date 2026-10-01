@@ -25,12 +25,23 @@ class HostRoomViewModel: ObservableObject {
     @Published var gameStatus: GameStatus?
     @Published var drawCountdownTimeLeft: Int = -1
 
-    // MARK: - Emojifyr state
-    @Published var activeEmojifyrSession: GameSession?
-    @Published var currentEmojifyrRound: EmojifyrRound?
-    @Published var emojifyrGuesses: [EmojifyrGuess] = []
-    @Published var emojifyrEmojiClue: String?
-    @Published var isGeneratingEmoji: Bool = false
+    // MARK: - Word Rush state
+    @Published var activeWordRushGame: WordRushGame?
+    /// Short-lived error toast for the Word Rush UI ("Already answered", upload failures…)
+    @Published var wordRushError: String?
+    /// Keyed by `cardKey` — the server hides my pick/result until reveal
+    @Published var wordRushMyChoices: [String: Int] = [:]
+    @Published var wordRushMyResults: [String: WordRushResult] = [:]
+    @Published var wordRushHints: [String: String] = [:]
+    /// Keyed by `phaseKey`
+    @Published var wordRushMyVotes: [String: WordRushVote] = [:]
+    @Published var wordRushDismissedId: String?
+    /// Set by the Word Rush cover while it's on screen so polling stays fast even with no live game
+    var wordRushCoverOpen = false {
+        didSet { if wordRushCoverOpen { startWordRushFastPoll() } }
+    }
+    private var wordRushSeenLiveIds: Set<String> = []
+    private var wordRushPollTask: Task<Void, Never>?
 
     // MARK: - Emoji Match state
     @Published var activeEmojiMatchGame: EmojiMatchGame?
@@ -44,8 +55,6 @@ class HostRoomViewModel: ObservableObject {
     @Published var activeTruthOrDareGame: TruthOrDareGame?
     @Published var isTruthOrDareSubmitting = false
     private var truthOrDarePollTask: Task<Void, Never>?
-
-    private let heuristicEmojiService: EmojiClueGenerationService = HeuristicEmojiClueService()
 
     // MARK: - Draw countdown beep state
     private var drawCountdownTimer: Timer?
@@ -167,6 +176,7 @@ class HostRoomViewModel: ObservableObject {
         heartbeatTask?.cancel()
         heartbeatTask = nil
         stopEmojiMatchFastPoll()
+        stopWordRushFastPoll()
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
@@ -242,11 +252,18 @@ class HostRoomViewModel: ObservableObject {
                 gameReplay = nil
             }
 
-            // Poll Emojifyr state
-            await pollEmojifyrState()
+            // Word Rush (the fast poll covers it while a game is live)
+            if wordRushPollTask == nil {
+                await pollWordRushState()
+            }
 
             // Poll Emoji Match state
             await pollEmojiMatchState()
+
+            // Bingo started from web was never picked up without this
+            if emojiBingoPollTask == nil {
+                await pollEmojiBingoState()
+            }
 
             // Poll Truth or Dare state (skip if an action is in progress to avoid stale overwrites)
             if !isTruthOrDareSubmitting {
@@ -482,19 +499,6 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
-    func startEmojifyr() async {
-        guard networkMonitor.isConnected else { return }
-        do {
-            // Cancel any lingering active game first
-            try? await api.cancelGame(roomId: roomId, participantId: hostId)
-
-            _ = try await api.startEmojifyr(roomId: roomId, participantId: hostId)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
     func cancelGame() async {
         guard networkMonitor.isConnected else { return }
         do {
@@ -509,152 +513,251 @@ class HostRoomViewModel: ObservableObject {
         latestGameSession?.status == .complete && activeGameSession == nil
     }
 
-    // MARK: - Emojifyr
+    // MARK: - Word Rush
 
-    func pollEmojifyrState() async {
+    struct WordRushResult: Equatable {
+        let correct: Bool
+        let points: Int
+    }
+
+    /// Word Rush game the full-screen cover should show: a live game, or a finished one this
+    /// device watched live, played in, and hasn't closed yet.
+    var presentableWordRushGame: WordRushGame? {
+        guard let game = activeWordRushGame else { return nil }
+        if game.isLive { return game }
+        if game.status == .completed,
+           wordRushSeenLiveIds.contains(game.id),
+           game.player(hostId) != nil,
+           wordRushDismissedId != game.id {
+            return game
+        }
+        return nil
+    }
+
+    func pollWordRushState() async {
         do {
-            // Use individual API calls instead of composite getEmojifyrGameState
-            // (the composite endpoint returns participants as a dict which breaks decoding)
-            let session = try await api.getActiveEmojifyrSession(roomId: roomId)
-            activeEmojifyrSession = session
+            applyWordRushState(try await api.getWordRushState(roomId: roomId))
+        } catch {
+            DebugConsole.shared.trace(source: .network, action: "poll:wordRush:error", detail: error.localizedDescription, ok: false)
+        }
+    }
 
-            if let session = session {
-                currentEmojifyrRound = try await api.getCurrentEmojifyrRound(gameSessionId: session.id)
-                if let round = currentEmojifyrRound {
-                    emojifyrGuesses = try await api.getEmojifyrGuesses(roundId: round.id)
+    private func applyWordRushState(_ game: WordRushGame?) {
+        if let game, game.isLive { wordRushSeenLiveIds.insert(game.id) }
+        if game != activeWordRushGame { activeWordRushGame = game }
+        if wordRushNeedsFastPoll { startWordRushFastPoll() }
+    }
 
-                    // Only auto-generate emoji clue when the HOST is the writer.
-                    // When a web participant is the writer, they generate and
-                    // preview the emoji clue on their own device before submitting.
-                    if round.status == .generating,
-                       isEmojifyrWriter,
-                       !isGeneratingEmoji,
-                       emojifyrEmojiClue == nil,
-                       let sentence = round.originalSentence {
-                        await generateEmojiClue(for: sentence)
-                    }
-                } else {
-                    emojifyrGuesses = []
+    private var wordRushNeedsFastPoll: Bool {
+        wordRushCoverOpen || activeWordRushGame?.isLive == true
+    }
+
+    private func startWordRushFastPoll() {
+        guard wordRushPollTask == nil else { return }
+        wordRushPollTask = Task { [weak self] in
+            while let self, !Task.isCancelled, self.wordRushNeedsFastPoll {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled else { break }
+                do {
+                    self.applyWordRushState(try await self.api.getWordRushState(roomId: self.roomId))
+                } catch {
+                    // keep polling through transient errors
                 }
-            } else {
-                currentEmojifyrRound = nil
-                emojifyrGuesses = []
             }
-        } catch {
-            // Don't surface polling errors
-            DebugConsole.shared.trace(source: .network, action: "poll:emojifyr:error", detail: error.localizedDescription, ok: false)
+            self?.wordRushPollTask = nil
         }
     }
 
-    func submitEmojifyrSentence(_ sentence: String) async {
-        guard let round = currentEmojifyrRound else { return }
-        guard networkMonitor.isConnected else { return }
-        let isInit = EmojifyrRandomPhrases.definition(for: sentence, lang: "en") != nil
+    private func stopWordRushFastPoll() {
+        wordRushPollTask?.cancel()
+        wordRushPollTask = nil
+    }
+
+    private func wordRushFail(_ error: Error, _ action: String) {
+        let message = Self.cleanConvexError(error)
+        wordRushError = message
+        DebugConsole.shared.trace(source: .client, action: "wordRush:\(action):error", detail: message, ok: false)
+        Haptics.error()
+    }
+
+    /// Convex errors arrive as "[CONVEX M(...)] [Request ID: …] Server Error\nUncaught Error: Already answered\n at …"
+    static func cleanConvexError(_ error: Error) -> String {
+        var text = (error as? APIError).flatMap { err -> String? in
+            if case let .serverError(msg) = err { return msg }
+            return nil
+        } ?? error.localizedDescription
+        if let range = text.range(of: "Uncaught Error: ") {
+            text = String(text[range.upperBound...])
+        }
+        if let newline = text.firstIndex(of: "\n") {
+            text = String(text[..<newline])
+        }
+        return text.trimmingCharacters(in: .whitespaces)
+    }
+
+    func createWordRushLobby(pack: String, sayIt: Bool) async {
         do {
-            try await api.submitEmojifyrSentence(roundId: round.id, sentence: sentence, isInitialism: isInit)
-            await generateEmojiClue(for: sentence)
-            await refresh()
+            _ = try await api.createWordRushLobby(roomId: roomId, hostParticipantId: hostId, pack: pack, sayIt: sayIt)
+            wordRushDismissedId = nil
         } catch {
-            self.error = error.localizedDescription
+            wordRushFail(error, "createLobby")
+        }
+        await pollWordRushState()
+    }
+
+    func joinWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.joinWordRush(gameId: game.id, participantId: hostId)
+            Haptics.tap()
+        } catch { wordRushFail(error, "join") }
+        await pollWordRushState()
+    }
+
+    func leaveWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.leaveWordRush(gameId: game.id, participantId: hostId)
+        } catch { wordRushFail(error, "leave") }
+        await pollWordRushState()
+    }
+
+    func updateWordRushSettings(pack: String? = nil, sayIt: Bool? = nil) async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.updateWordRushSettings(gameId: game.id, participantId: hostId, pack: pack, sayIt: sayIt)
+        } catch { wordRushFail(error, "settings") }
+        await pollWordRushState()
+    }
+
+    func startWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.startWordRush(gameId: game.id, participantId: hostId)
+            Haptics.thump()
+        } catch { wordRushFail(error, "start") }
+        await pollWordRushState()
+    }
+
+    func answerWordRush(choiceIndex: Int) async {
+        guard let game = activeWordRushGame, game.phase == .clues else { return }
+        let key = game.cardKey
+        guard wordRushMyChoices[key] == nil else { return }
+        wordRushMyChoices[key] = choiceIndex
+        Haptics.thump()
+        do {
+            let result = try await api.answerWordRush(gameId: game.id, participantId: hostId, choiceIndex: choiceIndex)
+            wordRushMyResults[key] = WordRushResult(correct: result.correct, points: result.points)
+        } catch {
+            if !Self.cleanConvexError(error).contains("Already answered") {
+                wordRushMyChoices[key] = nil
+            }
+            wordRushFail(error, "answer")
+        }
+        await pollWordRushState()
+    }
+
+    func takeWordRushHint() async {
+        guard let game = activeWordRushGame, game.phase == .clues else { return }
+        let key = game.cardKey
+        guard wordRushHints[key] == nil else { return }
+        do {
+            wordRushHints[key] = try await api.wordRushHint(gameId: game.id, participantId: hostId)
+            Haptics.tap()
+        } catch { wordRushFail(error, "hint") }
+    }
+
+    private func uploadWordRushAudio(_ fileURL: URL) async throws -> String {
+        let data = try Data(contentsOf: fileURL)
+        let uploadUrl = try await api.generateUploadUrl()
+        return try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
+    }
+
+    /// Uploads the performer's take and moves the game to judging. Returns false on failure.
+    @discardableResult
+    func submitWordRushClip(_ fileURL: URL) async -> Bool {
+        guard let game = activeWordRushGame else { return false }
+        do {
+            let storageId = try await uploadWordRushAudio(fileURL)
+            try await api.submitWordRushClip(gameId: game.id, participantId: hostId, storageId: storageId)
+            Haptics.success()
+            await pollWordRushState()
+            return true
+        } catch {
+            wordRushFail(error, "submitClip")
+            return false
         }
     }
 
-    func updateEmojifyrSentence(_ sentence: String) async {
-        guard let round = currentEmojifyrRound else { return }
-        guard networkMonitor.isConnected else { return }
+    func skipWordRushMic() async {
+        guard let game = activeWordRushGame else { return }
         do {
-            try await api.updateEmojifyrSentence(roundId: round.id, sentence: sentence)
+            try await api.skipWordRushMic(gameId: game.id, participantId: hostId)
+        } catch { wordRushFail(error, "skipMic") }
+        await pollWordRushState()
+    }
+
+    func voteWordRush(_ vote: WordRushVote) async {
+        guard let game = activeWordRushGame, game.phase == .judging else { return }
+        let key = game.phaseKey
+        guard wordRushMyVotes[key] == nil else { return }
+        wordRushMyVotes[key] = vote
+        Haptics.thump()
+        do {
+            try await api.voteWordRush(gameId: game.id, participantId: hostId, vote: vote.rawValue)
         } catch {
-            self.error = error.localizedDescription
+            if !Self.cleanConvexError(error).contains("Already voted") {
+                wordRushMyVotes[key] = nil
+            }
+            wordRushFail(error, "vote")
+        }
+        await pollWordRushState()
+    }
+
+    @discardableResult
+    func submitWordRushTeachClip(_ fileURL: URL) async -> Bool {
+        guard let game = activeWordRushGame else { return false }
+        do {
+            let storageId = try await uploadWordRushAudio(fileURL)
+            try await api.submitWordRushTeachClip(gameId: game.id, participantId: hostId, storageId: storageId)
+            Haptics.success()
+            await pollWordRushState()
+            return true
+        } catch {
+            wordRushFail(error, "teach")
+            return false
         }
     }
 
-    func generateEmojiClue(for sentence: String) async {
-        isGeneratingEmoji = true
-        emojifyrEmojiClue = nil
-
-        // Primary: server-side AI (Anthropic Claude) via Convex action
+    func skipWordRushPhase() async {
+        guard let game = activeWordRushGame else { return }
         do {
-            let clue = try await api.generateEmojiClueFromAI(sentence: sentence)
-            emojifyrEmojiClue = clue
-            isGeneratingEmoji = false
-            return
-        } catch {
-            DebugConsole.shared.trace(source: .processing, action: "emojiClue:ai:fallback", detail: error.localizedDescription, ok: false)
-        }
-
-        // Heuristic fallback (offline or if API fails)
-        do {
-            let clue = try await heuristicEmojiService.generateEmojiClue(from: sentence)
-            emojifyrEmojiClue = clue
-        } catch {
-            emojifyrEmojiClue = "\u{2753}"
-        }
-        isGeneratingEmoji = false
+            try await api.skipWordRushPhase(gameId: game.id, participantId: hostId, phaseSeq: game.phaseSeq)
+        } catch { wordRushFail(error, "skip") }
+        await pollWordRushState()
     }
 
-    func submitEmojifyrEmojiClue(_ clue: String) async {
-        guard let round = currentEmojifyrRound else { return }
-        guard networkMonitor.isConnected else { return }
+    func cancelWordRush() async {
+        guard let game = activeWordRushGame else { return }
         do {
-            try await api.submitEmojifyrEmojiClue(roundId: round.id, emojiClue: clue)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
+            try await api.cancelWordRush(gameId: game.id, participantId: hostId)
+            wordRushDismissedId = game.id
+        } catch { wordRushFail(error, "cancel") }
+        await pollWordRushState()
     }
 
-    func submitEmojifyrGuess(_ text: String) async {
-        guard let round = currentEmojifyrRound else { return }
-        guard networkMonitor.isConnected else { return }
+    func playAgainWordRush() async {
+        guard let game = activeWordRushGame else { return }
         do {
-            try await api.submitEmojifyrGuess(roundId: round.id, participantId: hostId, guessText: text)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
+            _ = try await api.playAgainWordRush(gameId: game.id, participantId: hostId)
+            Haptics.thump()
+        } catch { wordRushFail(error, "playAgain") }
+        await pollWordRushState()
     }
 
-    func revealEmojifyrRound() async {
-        guard let round = currentEmojifyrRound else { return }
-        guard networkMonitor.isConnected else { return }
-        do {
-            try await api.revealEmojifyrRound(roundId: round.id)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    func advanceEmojifyrRound() async {
-        guard let session = activeEmojifyrSession else { return }
-        guard networkMonitor.isConnected else { return }
-        do {
-            try await api.advanceEmojifyrRound(gameSessionId: session.id)
-            emojifyrEmojiClue = nil
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    func cancelEmojifyr() async {
-        guard let session = activeEmojifyrSession else { return }
-        guard networkMonitor.isConnected else { return }
-        do {
-            try await api.cancelEmojifyr(gameSessionId: session.id)
-            activeEmojifyrSession = nil
-            currentEmojifyrRound = nil
-            emojifyrGuesses = []
-            emojifyrEmojiClue = nil
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    var isEmojifyrWriter: Bool {
-        currentEmojifyrRound?.writerParticipantId == hostId
+    /// Close the results screen for good
+    func dismissWordRushResults() {
+        wordRushDismissedId = activeWordRushGame?.id
     }
 
     // MARK: - Offline queue
@@ -688,7 +791,7 @@ class HostRoomViewModel: ObservableObject {
     @available(iOS 18.0, *)
     func translateQueueBatch(session: TranslationSession, fromLang: String) async {
         var didTranslate = false
-        let romajiService = StubRomajiService()
+        let romajiService = MeCabRomajiService.shared
 
         for i in 0..<offlineQueue.count {
             guard !offlineQueue[i].processingAttempted else { continue }

@@ -37,6 +37,33 @@ enum EmojiBingoStatus: String, Codable {
     case lobby, active, won, completed, canceled
 }
 
+/// EN/JA names for the bingo pool (apps/convex/convex/emojiBingo.ts BINGO_EMOJI_POOL), shown when a ball is called.
+enum BingoEmojiNames {
+    static let names: [String: (en: String, ja: String)] = [
+        "☀️": ("Sun", "たいよう"), "☁️": ("Cloud", "くも"), "☂️": ("Umbrella", "かさ"),
+        "⛄": ("Snowman", "ゆきだるま"), "🌙": ("Moon", "つき"), "🏠": ("House", "いえ"),
+        "☕": ("Coffee", "コーヒー"), "🌷": ("Tulip", "チューリップ"), "🍒": ("Cherry", "さくらんぼ"),
+        "🍞": ("Bread", "パン"), "🍰": ("Cake", "ケーキ"), "🚗": ("Car", "くるま"),
+        "🍦": ("Ice cream", "アイス"), "🍉": ("Watermelon", "すいか"), "💎": ("Diamond", "ダイヤ"),
+        "🦋": ("Butterfly", "ちょうちょ"), "📷": ("Camera", "カメラ"), "📺": ("TV", "テレビ"),
+        "🚃": ("Train", "でんしゃ"), "🥨": ("Pretzel", "プレッツェル"), "🌠": ("Shooting star", "ながれぼし"),
+        "🌸": ("Flower", "はな"), "🐈": ("Kitty", "ねこちゃん"), "🎁": ("Gift", "プレゼント"),
+        "🐰": ("Bunny", "うさぎ"), "🐼": ("Panda", "パンダ"), "🐻": ("Bear", "くま"),
+        "👻": ("Ghost", "おばけ"), "🐥": ("Chick", "ひよこ"), "🪼": ("Jellyfish", "くらげ"),
+        "🐶": ("Dog", "いぬ"), "🐹": ("Hamster", "ハムスター"), "🐱": ("Cat", "ねこ"),
+        "🐢": ("Turtle", "かめ"), "🦭": ("Seal", "アザラシ"), "🐝": ("Bee", "はち"),
+        "🐑": ("Sheep", "ひつじ"), "🐷": ("Pig", "ぶた"), "🐳": ("Whale", "くじら"),
+        "🐕": ("Chihuahua", "チワワ"), "💡": ("Idea", "ひらめき"), "✏️": ("Pencil", "えんぴつ"),
+        "👑": ("Crown", "おうかん"), "⚡": ("Lightning", "かみなり"), "❓": ("Question", "しつもん"),
+        "🍀": ("Clover", "クローバー"), "🎵": ("Music", "おんがく"), "🎀": ("Ribbon", "リボン"),
+        "⭐": ("Star", "ほし"),
+    ]
+
+    static func name(for emoji: String) -> (en: String, ja: String)? {
+        names[emoji] ?? names[emoji.replacingOccurrences(of: "\u{FE0F}", with: "")]
+    }
+}
+
 struct EmojiBingoPlayer: Codable, Identifiable, Equatable {
     let participantId: String
     let nickname: String

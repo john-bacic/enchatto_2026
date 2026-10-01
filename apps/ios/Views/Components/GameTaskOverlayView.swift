@@ -15,17 +15,22 @@ struct GameTaskOverlayView: View {
     @State private var timeLeft: Int = 10
     @State private var countdownTimer: Timer?
     @State private var triggerAutoSubmit = false
+    @State private var confetti = 0
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
             ZStack {
                 VStack(spacing: 2) {
-                    Text("🎮 \(L.t("Level", lang)) \(step.level ?? 1)")
-                        .font(.system(size: 14, weight: .bold))
+                    HStack(spacing: 6) {
+                        PackIcon(step.stepType == .draw ? "g-pencil" : "g-question", size: 22)
+                        Text("\(L.t("Level", lang)) \(step.level ?? 1)")
+                            .font(.chunky(17))
+                            .foregroundStyle(EC.ink)
+                    }
                     Text("\(L.t("Round", lang)) \(step.round ?? 1) \(L.t("of", lang)) \(step.totalRounds ?? 10)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .font(.round(12, .bold))
+                        .foregroundStyle(EC.inkSoft)
                 }
 
                 if let onQuit {
@@ -34,12 +39,9 @@ struct GameTaskOverlayView: View {
                             onQuit()
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 28, height: 28)
-                                .background(Color(.systemGray5))
-                                .clipShape(Circle())
                         }
+                        .buttonStyle(.roundIcon(diameter: 36))
+                        .accessibilityLabel(L.t("Quit", lang))
                         Spacer()
                     }
                     .padding(.leading, 12)
@@ -47,10 +49,8 @@ struct GameTaskOverlayView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(Color(.systemBackground))
-            .overlay(alignment: .bottom) {
-                Divider()
-            }
+            .background(Color.white.opacity(0.92).ignoresSafeArea(edges: .top))
+            .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
 
             // Content — no ScrollView for draw mode so canvas touch works
             if step.stepType == .draw {
@@ -81,7 +81,8 @@ struct GameTaskOverlayView: View {
                 }
             }
         }
-        .background(Color(.systemBackground))
+        .ecPaperBackground()
+        .overlay { ConfettiBurst(trigger: confetti).ignoresSafeArea() }
     }
 
     // MARK: - Draw mode
@@ -89,18 +90,18 @@ struct GameTaskOverlayView: View {
     private var drawContent: some View {
         VStack(spacing: 12) {
             // Prompt card
-            VStack(spacing: 4) {
-                Text(L.t("Draw this phrase:", lang))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                ECLabel(L.t("Draw this phrase:", lang))
                 Text(step.inputText ?? "")
-                    .font(.title3.bold())
+                    .font(.chunky(22))
+                    .foregroundStyle(EC.ink)
                     .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.6)
             }
             .frame(maxWidth: .infinity)
-            .padding(12)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(14)
+            .ecCard(fill: EC.yellowSoft, radius: 20, border: 3, shadow: 5)
+            .rotationEffect(.degrees(-1))
 
             // Drawing canvas
             DrawingComposerView(
@@ -123,91 +124,98 @@ struct GameTaskOverlayView: View {
     // MARK: - Guess mode (multiple choice)
 
     private var guessContent: some View {
-        VStack(spacing: 12) {
-            Text("🤔 \(L.t("What is this drawing?", lang))")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .padding(.horizontal, 16)
-                .background(
-                    LinearGradient(
-                        colors: [Color(red: 0.39, green: 0.40, blue: 0.95), Color(red: 0.55, green: 0.36, blue: 0.96)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                PackIcon("g-question", size: 28)
+                OutlinedText(L.t("What is this drawing?", lang), size: 19, fill: .white, outline: 2.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .ecCard(fill: EC.violet, radius: 18, border: 3, shadow: 5)
 
             // Show the drawing to guess
             if let drawingUrl = step.inputDrawingUrl {
-                AsyncImage(url: URL(string: drawingUrl)) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color(.separator), lineWidth: 0.5)
-                            )
-                    case .failure:
-                        // Try as base64 data URL
-                        if let uiImage = decodeBase64Image(drawingUrl) {
-                            Image(uiImage: uiImage)
+                Group {
+                    AsyncImage(url: URL(string: drawingUrl)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
                                 .resizable()
                                 .scaledToFit()
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color(.separator), lineWidth: 0.5)
-                                )
-                        } else {
-                            Color(.systemGray5)
+                        case .failure:
+                            // Try as base64 data URL
+                            if let uiImage = decodeBase64Image(drawingUrl) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFit()
+                            } else {
+                                Color.white
+                                    .aspectRatio(1, contentMode: .fit)
+                            }
+                        default:
+                            ProgressView()
+                                .tint(EC.pink)
+                                .frame(maxWidth: .infinity)
                                 .aspectRatio(1, contentMode: .fit)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
-                    default:
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .aspectRatio(1, contentMode: .fit)
+                    }
+                }
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .ecCard(radius: 20, border: 3, shadow: 6)
+                .overlay(alignment: .topTrailing) {
+                    if showFeedback {
+                        let isCorrect = selectedAnswer == step.correctOption
+                        OutlinedText(isCorrect ? L.t("Correct!", lang) : L.t("Wrong!", lang), size: 30, fill: isCorrect ? EC.mint : EC.red, outline: 3)
+                            .rotationEffect(.degrees(10))
+                            .stampIn()
+                            .offset(x: 6, y: -14)
                     }
                 }
             }
 
-            // Feedback text
-            if showFeedback {
+            // Feedback text (when there's no drawing to stamp over)
+            if showFeedback, step.inputDrawingUrl == nil {
                 let isCorrect = selectedAnswer == step.correctOption
-                Text(isCorrect ? L.t("Correct!", lang) : L.t("Wrong!", lang))
-                    .font(.title3.bold())
-                    .foregroundStyle(isCorrect ? .green : .red)
-                    .padding(.vertical, 4)
+                OutlinedText(isCorrect ? L.t("Correct!", lang) : L.t("Wrong!", lang), size: 28, fill: isCorrect ? EC.mint : EC.red)
+                    .stampIn()
             }
 
             // 2x2 grid of multiple-choice buttons
             if let options = step.options {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ForEach(options, id: \.self) { option in
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ForEach(Array(options.enumerated()), id: \.element) { index, option in
                         Button {
                             handleOptionSelect(option)
                         } label: {
                             Text(option)
-                                .font(.subheadline.weight(.semibold))
+                                .font(.chunky(17))
                                 .multilineTextAlignment(.center)
                                 .lineLimit(3)
-                                .minimumScaleFactor(0.7)
-                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .minimumScaleFactor(0.6)
+                                .foregroundStyle(EC.textOn(optionBackground(option, index: index)))
+                                .frame(maxWidth: .infinity, minHeight: 56)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 10)
-                                .background(optionBackground(option))
-                                .foregroundStyle(optionForeground(option))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(optionBorder(option), lineWidth: showFeedback ? 2 : 1)
-                                )
+                                .ecCard(fill: optionBackground(option, index: index), radius: 18, border: 3, shadow: 5)
+                                .overlay(alignment: .topLeading) {
+                                    Text(Self.letters[index % Self.letters.count])
+                                        .font(.chunky(12))
+                                        .foregroundStyle(EC.ink)
+                                        .frame(width: 24, height: 24)
+                                        .background(RoundedRectangle(cornerRadius: 7).fill(.white))
+                                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(EC.ink, lineWidth: 2))
+                                        .rotationEffect(.degrees(-8))
+                                        .offset(x: -5, y: -8)
+                                }
+                                .opacity(optionDimmed(option) ? 0.5 : 1)
+                                .scaleEffect(showFeedback && option == step.correctOption ? 1.05 : 1)
+                                .animation(.spring(response: 0.35, dampingFraction: 0.5), value: showFeedback)
                         }
+                        .buttonStyle(.pressable)
                         .disabled(showFeedback || submitting)
                     }
                 }
@@ -226,6 +234,7 @@ struct GameTaskOverlayView: View {
         let isCorrect = option == step.correctOption
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(isCorrect ? .success : .error)
+        if isCorrect { confetti += 1 }
 
         // Wait 1.5s then submit
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -234,43 +243,23 @@ struct GameTaskOverlayView: View {
         }
     }
 
-    private func optionBackground(_ option: String) -> Color {
-        guard showFeedback else {
-            return Color(.systemGray6)
-        }
+    private static let letters = ["A", "B", "C", "D"]
+    private static let tints = [EC.pinkSoft, EC.yellowSoft, EC.mintSoft, EC.blueSoft]
+
+    private func optionBackground(_ option: String, index: Int) -> Color {
+        let tint = Self.tints[index % Self.tints.count]
+        guard showFeedback else { return tint }
         if option == step.correctOption {
-            return Color.green.opacity(0.2)
+            return EC.mint
         }
         if option == selectedAnswer && selectedAnswer != step.correctOption {
-            return Color.red.opacity(0.2)
+            return EC.red
         }
-        return Color(.systemGray6)
+        return tint
     }
 
-    private func optionForeground(_ option: String) -> Color {
-        guard showFeedback else {
-            return .primary
-        }
-        if option == step.correctOption {
-            return .green
-        }
-        if option == selectedAnswer && selectedAnswer != step.correctOption {
-            return .red
-        }
-        return .secondary
-    }
-
-    private func optionBorder(_ option: String) -> Color {
-        guard showFeedback else {
-            return Color(.separator)
-        }
-        if option == step.correctOption {
-            return .green
-        }
-        if option == selectedAnswer && selectedAnswer != step.correctOption {
-            return .red
-        }
-        return Color(.separator)
+    private func optionDimmed(_ option: String) -> Bool {
+        showFeedback && option != step.correctOption && option != selectedAnswer
     }
 
     private func decodeBase64Image(_ dataUrl: String) -> UIImage? {

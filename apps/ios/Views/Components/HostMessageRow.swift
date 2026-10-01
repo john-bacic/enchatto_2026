@@ -18,6 +18,7 @@ struct HostMessageRow: View {
     var showRomaji: Bool = true
 
     private let maxBubbleWidth = UIScreen.main.bounds.width * 0.75
+    private let avatarSize: CGFloat = 36
 
     var onImageTap: ((String) -> Void)?
 
@@ -25,7 +26,7 @@ struct HostMessageRow: View {
         HStack {
             if isOwn { Spacer(minLength: 0) }
 
-            VStack(alignment: isOwn ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: isOwn ? .trailing : .leading, spacing: 6) {
                 replyPreview
                 bubbleRow
                 suggestionsRow
@@ -33,39 +34,40 @@ struct HostMessageRow: View {
 
             if !isOwn { Spacer(minLength: 0) }
         }
+        .modifier(FreshMessagePop(isFresh: Date().timeIntervalSince(message.createdAt) < 8, fromTrailing: isOwn))
     }
 
     // MARK: - Bubble row (avatar + bubble + react button)
 
     private var bubbleRow: some View {
-        HStack(alignment: .bottom, spacing: 4) {
+        HStack(alignment: .bottom, spacing: 6) {
             if !isOwn {
                 avatarColumn
             }
 
-            HStack(alignment: .center, spacing: 4) {
-                // Reactions to the left of own bubble
-                if isOwn && !reactions.isEmpty {
-                    reactionChips
-                }
-
+            HStack(alignment: .center, spacing: 6) {
                 messageBubble
                     .onLongPressGesture {
                         onLongPress?()
                     }
-
-                // Reactions or heart to the right of others' bubble
-                if !isOwn {
-                    if !reactions.isEmpty {
-                        reactionChips
-                    } else {
-                        Button { onLongPress?() } label: {
-                            Image(systemName: "heart")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color(.systemGray4))
+                    .overlay(alignment: isOwn ? .bottomTrailing : .bottomLeading) {
+                        if !reactions.isEmpty {
+                            reactionChips
+                                .padding(.horizontal, 12)
+                                .offset(y: 18)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.bottom, reactions.isEmpty ? 0 : 16)
+
+                if !isOwn && reactions.isEmpty {
+                    Button { onLongPress?() } label: {
+                        PackIcon("re-heart", size: 18)
+                            .saturation(0)
+                            .opacity(0.35)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel(L.t("React", preferredLanguage))
                 }
             }
             .frame(maxWidth: maxBubbleWidth, alignment: isOwn ? .trailing : .leading)
@@ -75,20 +77,22 @@ struct HostMessageRow: View {
     // MARK: - Avatar column
 
     private var avatarColumn: some View {
-        VStack(spacing: 2) {
-            ZStack {
+        VStack(spacing: 3) {
+            if let sender {
+                AvatarDisc(avatarId: sender.avatar.value, size: avatarSize)
+            } else {
                 Circle()
-                    .fill(sender?.avatarColor ?? Color(.systemGray5))
-                    .frame(width: 28, height: 28)
-                Text(sender?.avatarEmoji ?? "👤")
-                    .font(.system(size: 16))
+                    .fill(EC.lineSoft)
+                    .frame(width: avatarSize, height: avatarSize)
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
             }
-            Text(sender?.nickname ?? "Unknown")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
+            Text(sender?.nickname ?? L.t("Unknown", preferredLanguage))
+                .font(.round(10, .black))
+                .foregroundStyle(EC.inkSoft)
                 .lineLimit(1)
-                .frame(maxWidth: 40)
+                .frame(maxWidth: 44)
         }
+        .padding(.bottom, reactions.isEmpty ? 4 : 20)
     }
 
     // MARK: - Reply preview
@@ -96,62 +100,86 @@ struct HostMessageRow: View {
     @ViewBuilder
     private var replyPreview: some View {
         if replyTarget != nil {
-            HStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.accentColor.opacity(0.5))
-                    .frame(width: 3)
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(EC.pink)
+                    .frame(width: 4)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    if let name = replyTargetSender?.nickname {
-                        HStack(spacing: 3) {
-                            Text(replyTargetSender?.avatarEmoji ?? "")
-                                .font(.caption2)
-                            Text(name)
-                                .font(.caption2)
-                                .fontWeight(.semibold)
+                VStack(alignment: .leading, spacing: 2) {
+                    if let replyTargetSender {
+                        HStack(spacing: 4) {
+                            AvatarDisc(avatarId: replyTargetSender.avatar.value, size: 16)
+                            Text(replyTargetSender.nickname)
+                                .font(.round(11, .black))
+                                .foregroundStyle(EC.ink)
                         }
                     }
                     replyContentText
                 }
-                .foregroundStyle(.secondary)
             }
-            .padding(.leading, isOwn ? 0 : 40)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: maxBubbleWidth * 0.85, alignment: .leading)
+            .ecOutline(fill: .white.opacity(0.85), radius: 12, border: 2)
+            .padding(.leading, isOwn ? 0 : avatarSize + 6)
         }
     }
 
     @ViewBuilder
     private var replyContentText: some View {
         if let replyTarget {
-            switch replyTarget.kind {
-            case .image:
-                Label(L.t("Photo", preferredLanguage), systemImage: "photo")
-                    .font(.caption2)
-                    .italic()
-            case .drawing:
-                Label(L.t("Drawing", preferredLanguage), systemImage: "pencil.tip")
-                    .font(.caption2)
-                    .italic()
-            default:
-                Text(replyTarget.text?.prefix(60).description ?? "")
-                    .font(.caption2)
-                    .lineLimit(1)
+            Group {
+                switch replyTarget.kind {
+                case .image:
+                    Label(L.t("Photo", preferredLanguage), systemImage: "photo")
+                case .drawing:
+                    Label(L.t("Drawing", preferredLanguage), systemImage: "pencil.tip")
+                default:
+                    Text(replyTarget.text?.prefix(60).description ?? "")
+                }
             }
+            .font(.round(11, .medium))
+            .foregroundStyle(EC.inkSoft)
+            .lineLimit(1)
         }
     }
 
     // MARK: - Bubble
 
+    private var isPending: Bool { message.status == .pending }
+
+    private var textColor: Color { isOwn && !isPending ? .white : EC.ink }
+
+    private var bubbleFill: Color {
+        if isPending { return EC.blueSoft }
+        return isOwn ? EC.blue : .white
+    }
+
+    private var bubbleShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 20,
+            bottomLeadingRadius: isOwn ? 20 : 6,
+            bottomTrailingRadius: isOwn ? 6 : 20,
+            topTrailingRadius: 20,
+            style: .continuous
+        )
+    }
+
     private var messageBubble: some View {
         bubbleContent
-            .padding(10)
-            .background(isOwn ? Color.accentColor.opacity(0.12) : Color(.systemGray6))
-            .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: 16,
-                bottomLeadingRadius: isOwn ? 16 : 4,
-                bottomTrailingRadius: isOwn ? 4 : 16,
-                topTrailingRadius: 16
-            ))
-            .opacity(message.status == .pending ? 0.7 : 1)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 11)
+            .background(bubbleShape.fill(bubbleFill))
+            .overlay(
+                bubbleShape.stroke(
+                    isPending ? EC.blue : EC.ink,
+                    style: StrokeStyle(lineWidth: 3, dash: isPending ? [7, 5] : [])
+                )
+            )
+            .background(bubbleShape.fill(isPending ? EC.blue.opacity(0.5) : EC.ink).offset(y: 5))
+            .padding(.bottom, 5)
     }
 
     /// Determine if the original message text is Japanese
@@ -184,36 +212,61 @@ struct HostMessageRow: View {
         }
     }
 
+    private func primaryText(_ text: String) -> some View {
+        Text(text)
+            .font(.round(16, .black))
+            .foregroundStyle(textColor)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func romajiText(_ text: String) -> some View {
+        Text(text)
+            .font(.round(12, .bold))
+            .italic()
+            .foregroundStyle(isOwn && !isPending ? EC.pinkSoft : EC.pink)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func translationLine(_ text: String, tag: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(tag)
+                .font(.round(10, .black))
+                .foregroundStyle(EC.ink)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(RoundedRectangle(cornerRadius: 5).fill(EC.yellow))
+                .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(EC.ink, lineWidth: 1.5))
+            Text(text)
+                .font(.round(14, .bold))
+                .foregroundStyle(textColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     @ViewBuilder
     private var bubbleContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             // Primary text — show preferred language first
             if preferredLanguage == "ja" {
                 if showJapanese, let jp = japaneseText, !jp.isEmpty {
-                    Text(jp).font(.body)
+                    primaryText(jp)
                     // Romaji grouped with Japanese
                     if message.status == .processed, showRomaji,
                        let romaji = message.processing?.romaji, !romaji.isEmpty {
-                        Text(romaji)
-                            .font(.caption)
-                            .italic()
-                            .foregroundStyle(.secondary)
+                        romajiText(romaji)
                     }
                 } else if showEnglish, let en = englishText, !en.isEmpty {
-                    Text(en).font(.body)
+                    primaryText(en)
                 }
             } else {
                 if showEnglish, let en = englishText, !en.isEmpty {
-                    Text(en).font(.body)
+                    primaryText(en)
                 } else if showJapanese, let jp = japaneseText, !jp.isEmpty {
-                    Text(jp).font(.body)
+                    primaryText(jp)
                     // Romaji grouped with Japanese (fallback)
                     if message.status == .processed, showRomaji,
                        let romaji = message.processing?.romaji, !romaji.isEmpty {
-                        Text(romaji)
-                            .font(.caption)
-                            .italic()
-                            .foregroundStyle(.secondary)
+                        romajiText(romaji)
                     }
                 }
             }
@@ -229,18 +282,21 @@ struct HostMessageRow: View {
                             image.resizable()
                                 .scaledToFit()
                                 .frame(maxWidth: thumbWidth)
+                                .background(Color.white)
                                 .onTapGesture { onImageTap?(url) }
                         } else {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(.systemGray5))
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(isOwn ? Color.white.opacity(0.25) : EC.blueSoft)
                                 .frame(width: thumbWidth, height: 120)
                                 .overlay {
-                                    Image(systemName: isDrawing ? "pencil.tip" : "photo")
-                                        .foregroundStyle(.secondary)
+                                    PackIcon(isDrawing ? "g-pencil" : "ui-photo", size: 36)
+                                        .opacity(0.7)
                                 }
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(EC.ink, lineWidth: 2.5))
+                    .padding(.vertical, 2)
                 }
             }
 
@@ -270,118 +326,149 @@ struct HostMessageRow: View {
 
                 if hasSecondary || hasRomajiBelow {
                     VStack(alignment: .leading, spacing: 4) {
+                        DashedRule(color: isOwn ? .white.opacity(0.45) : EC.lineSoft)
+                            .padding(.bottom, 4)
                         if preferredLanguage == "ja" {
                             // Romaji below divider if Japanese wasn't shown as primary
                             if hasRomajiBelow {
-                                Text(processing.romaji!)
-                                    .font(.caption)
-                                    .italic()
-                                    .foregroundStyle(.secondary)
+                                romajiText(processing.romaji!)
                             }
                             if showEnglish, let en = englishText, !en.isEmpty {
-                                Text(en)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                translationLine(en, tag: "EN")
                             }
                         } else {
                             // Romaji + Japanese grouped below divider
                             if hasRomajiBelow {
-                                Text(processing.romaji!)
-                                    .font(.caption)
-                                    .italic()
-                                    .foregroundStyle(.secondary)
+                                romajiText(processing.romaji!)
                             }
                             if showJapanese, let jp = japaneseText, !jp.isEmpty {
-                                Text(jp)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                                translationLine(jp, tag: "JA")
                             }
                         }
                     }
-                    .padding(.top, 6)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(Color(.separator))
-                            .frame(height: 0.5)
-                    }
+                    .padding(.top, 4)
                 }
             }
 
             // Pending
-            if message.status == .pending {
-                HStack(spacing: 4) {
-                    ProgressView()
-                        .controlSize(.mini)
+            if isPending {
+                HStack(spacing: 6) {
                     Text(L.t("Processing...", preferredLanguage))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.round(11, .black))
+                        .foregroundStyle(EC.blue)
+                    PendingDots()
                 }
+                .padding(.top, 2)
             }
 
             // Failed
             if message.status == .failed {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption2)
+                        .font(.system(size: 11, weight: .bold))
                     Text(message.processing?.error ?? L.t("Processing failed", preferredLanguage))
-                        .font(.caption2)
+                        .font(.round(11, .black))
                 }
-                .foregroundStyle(.red)
+                .foregroundStyle(isOwn ? EC.yellow : EC.red)
+                .padding(.top, 2)
             }
         }
     }
 
-    // MARK: - Reaction chips (inline, next to bubble)
+    // MARK: - Reaction chips (overlapping the bubble's bottom edge)
 
     private var reactionChips: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 5) {
             ForEach(reactions, id: \.emoji) { entry in
                 Button {
                     onLongPress?()
                 } label: {
-                    HStack(spacing: 2) {
-                        Text(entry.emoji)
-                            .font(.system(size: 12))
+                    HStack(spacing: 3) {
+                        EmojiArt(emoji: entry.emoji, size: 18)
                         if entry.count > 1 {
                             Text("\(entry.count)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.chunky(12))
+                                .foregroundStyle(EC.ink)
                         }
                     }
-                    .padding(.horizontal, 5)
+                    .padding(.horizontal, 7)
                     .padding(.vertical, 2)
-                    .background(Color(.systemGray5))
-                    .clipShape(Capsule())
+                    .background(Capsule().fill(entry.count > 1 ? EC.pinkSoft : .white))
+                    .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+                    .background(Capsule().fill(EC.ink).offset(y: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
+                .transition(.scale(scale: 0.3).combined(with: .opacity))
             }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.5), value: reactions.map { "\($0.emoji)\($0.count)" })
     }
 
     // MARK: - Suggestions
+
+    private static let suggestionFills = [EC.pinkSoft, EC.blueSoft, EC.mintSoft, EC.yellowSoft]
 
     @ViewBuilder
     private var suggestionsRow: some View {
         if let suggestions = message.processing?.suggestions, !suggestions.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(suggestions.prefix(4), id: \.self) { suggestion in
+                    ForEach(Array(suggestions.prefix(4).enumerated()), id: \.element) { i, suggestion in
                         Button {
+                            Haptics.tap()
                             onSuggestionTap?(suggestion)
                         } label: {
                             Text(suggestion)
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Color(.systemGray5))
-                                .clipShape(Capsule())
+                                .font(.round(12, .black))
+                                .foregroundStyle(EC.ink)
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Self.suggestionFills[i % Self.suggestionFills.count]))
+                                .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+                                .background(Capsule().fill(EC.ink).offset(y: 3))
+                                .padding(.bottom, 3)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
+                .padding(.vertical, 2)
             }
-            .padding(.leading, isOwn ? 0 : 40)
+            .padding(.leading, isOwn ? 0 : avatarSize + 6)
         }
+    }
+}
+
+/// Bouncing "…" while a message is being translated
+private struct PendingDots: View {
+    var body: some View {
+        LoopClock { t in
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill([EC.blue, EC.pink, EC.mint][i])
+                        .frame(width: 6, height: 6)
+                        .offset(y: -1.5 - 1.5 * loopWave(t, period: 0.7, delay: Double(i) * 0.12))
+                }
+            }
+        }
+    }
+}
+
+/// Springs a just-arrived message in; rows re-created by lazy scrolling stay put.
+private struct FreshMessagePop: ViewModifier {
+    let isFresh: Bool
+    let fromTrailing: Bool
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        let hidden = isFresh && !shown
+        content
+            .scaleEffect(hidden ? 0.6 : 1, anchor: fromTrailing ? .bottomTrailing : .bottomLeading)
+            .opacity(hidden ? 0 : 1)
+            .onAppear {
+                guard isFresh, !shown else { return }
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { shown = true }
+            }
     }
 }
 
@@ -410,4 +497,5 @@ struct HostMessageRow: View {
         )
     }
     .padding()
+    .ecPaperBackground()
 }

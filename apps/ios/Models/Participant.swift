@@ -56,31 +56,35 @@ struct Participant: Identifiable, Codable, Equatable {
 
 struct PresetAvatar {
     let id: String
+    let label: String
+    /// Asset name of the icon-pack art (Assets.xcassets/Icons/av-*)
+    let icon: String
     let emoji: String
     let color: Color
 }
 
+// Ids are what's stored in Convex; art/labels mirror apps/web/lib/types.ts PRESET_AVATARS.
 let presetAvatars: [PresetAvatar] = [
-    PresetAvatar(id: "cat",       emoji: "🐱", color: Color(hex: "fde68a")),
-    PresetAvatar(id: "dog",       emoji: "🐶", color: Color(hex: "fed7aa")),
-    PresetAvatar(id: "bear",      emoji: "🐻", color: Color(hex: "d4c4a8")),
-    PresetAvatar(id: "panda",     emoji: "🐼", color: Color(hex: "e5e7eb")),
-    PresetAvatar(id: "fox",       emoji: "🦊", color: Color(hex: "fdba74")),
-    PresetAvatar(id: "rabbit",    emoji: "🐰", color: Color(hex: "fecaca")),
-    PresetAvatar(id: "koala",     emoji: "🐨", color: Color(hex: "c7d2fe")),
-    PresetAvatar(id: "tiger",     emoji: "🐯", color: Color(hex: "fcd34d")),
-    PresetAvatar(id: "penguin",   emoji: "🐧", color: Color(hex: "bfdbfe")),
-    PresetAvatar(id: "owl",       emoji: "🦉", color: Color(hex: "d9c9a5")),
-    PresetAvatar(id: "unicorn",   emoji: "🦄", color: Color(hex: "e9d5ff")),
-    PresetAvatar(id: "octopus",   emoji: "🐙", color: Color(hex: "fca5a5")),
-    PresetAvatar(id: "dolphin",   emoji: "🐬", color: Color(hex: "93c5fd")),
-    PresetAvatar(id: "butterfly", emoji: "🦋", color: Color(hex: "a5f3fc")),
-    PresetAvatar(id: "dragon",    emoji: "🐲", color: Color(hex: "86efac")),
-    PresetAvatar(id: "alien",     emoji: "👽", color: Color(hex: "bbf7d0")),
+    PresetAvatar(id: "rabbit",    label: "Bunny",     icon: "av-bunny",     emoji: "🐰", color: Color(hex: "ffd0e4")),
+    PresetAvatar(id: "panda",     label: "Panda",     icon: "av-panda",     emoji: "🐼", color: Color(hex: "e5e7eb")),
+    PresetAvatar(id: "bear",      label: "Bear",      icon: "av-bear",      emoji: "🐻", color: Color(hex: "f3dcc8")),
+    PresetAvatar(id: "owl",       label: "Ghost",     icon: "av-ghost",     emoji: "👻", color: Color(hex: "d9e4ff")),
+    PresetAvatar(id: "penguin",   label: "Chick",     icon: "av-chick",     emoji: "🐥", color: Color(hex: "fff4c4")),
+    PresetAvatar(id: "octopus",   label: "Jelly",     icon: "av-jelly",     emoji: "🪼", color: Color(hex: "dcfaef")),
+    PresetAvatar(id: "dog",       label: "Puppy",     icon: "av-puppy",     emoji: "🐶", color: Color(hex: "fed7aa")),
+    PresetAvatar(id: "fox",       label: "Hamster",   icon: "av-hamster",   emoji: "🐹", color: Color(hex: "fde68a")),
+    PresetAvatar(id: "cat",       label: "Cat",       icon: "av-cat",       emoji: "🐱", color: Color(hex: "d9e4ff")),
+    PresetAvatar(id: "tiger",     label: "Blue Cat",  icon: "av-bluecat",   emoji: "😺", color: Color(hex: "fff4c4")),
+    PresetAvatar(id: "dolphin",   label: "Turtle",    icon: "av-turtle",    emoji: "🐢", color: Color(hex: "efe6ff")),
+    PresetAvatar(id: "koala",     label: "Seal",      icon: "av-seal",      emoji: "🦭", color: Color(hex: "c7d2fe")),
+    PresetAvatar(id: "butterfly", label: "Bee",       icon: "av-bee",       emoji: "🐝", color: Color(hex: "a5f3fc")),
+    PresetAvatar(id: "unicorn",   label: "Sheep",     icon: "av-sheep",     emoji: "🐑", color: Color(hex: "e9d5ff")),
+    PresetAvatar(id: "dragon",    label: "Piggy",     icon: "av-pig",       emoji: "🐷", color: Color(hex: "dcfaef")),
+    PresetAvatar(id: "alien",     label: "Chihuahua", icon: "av-chihuahua", emoji: "🐕", color: Color(hex: "fecaca")),
 ]
 
 func presetAvatar(for id: String) -> PresetAvatar {
-    presetAvatars.first { $0.id == id } ?? PresetAvatar(id: "default", emoji: "👤", color: Color(.systemGray5))
+    presetAvatars.first { $0.id == id } ?? presetAvatars[0]
 }
 
 extension Participant {
@@ -90,6 +94,10 @@ extension Participant {
 
     var avatarColor: Color {
         presetAvatar(for: avatar.value).color
+    }
+
+    var avatarIcon: String {
+        presetAvatar(for: avatar.value).icon
     }
 }
 

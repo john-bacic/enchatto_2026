@@ -25,8 +25,10 @@ struct MessageContextMenuOverlay: View {
 
     var body: some View {
         ZStack {
-            // Dimmed blurred background
-            Color.black.opacity(appeared ? 0.4 : 0)
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(EC.ink.opacity(0.35))
+                .opacity(appeared ? 1 : 0)
                 .ignoresSafeArea()
                 .onTapGesture { dismiss() }
 
@@ -71,29 +73,29 @@ struct MessageContextMenuOverlay: View {
     // MARK: - Reaction bar
 
     private var reactionBar: some View {
-        HStack(spacing: 8) {
-            ForEach(supportedReactions, id: \.self) { emoji in
+        HStack(spacing: 6) {
+            ForEach(Array(supportedReactions.enumerated()), id: \.element) { i, emoji in
                 Button {
+                    Haptics.tap()
                     onReact(emoji)
                     dismiss()
                 } label: {
-                    Text(emoji)
-                        .font(.system(size: 28))
-                        .padding(6)
-                        .background(
-                            isEmojiSelected(emoji)
-                                ? Color.accentColor.opacity(0.2)
-                                : Color(.systemGray6)
-                        )
-                        .clipShape(Circle())
+                    EmojiArt(emoji: emoji, size: 28)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(isEmojiSelected(emoji) ? EC.yellow : .white))
+                        .overlay(Circle().strokeBorder(EC.ink, lineWidth: isEmojiSelected(emoji) ? 3 : 2))
+                        .scaleEffect(appeared ? 1 : 0.3)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.55).delay(Double(i) * 0.03), value: appeared)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
+                .accessibilityLabel(emoji)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
+        .background(Capsule().fill(EC.paper))
+        .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 3))
+        .background(Capsule().fill(EC.ink).offset(y: 5))
     }
 
     private func isEmojiSelected(_ emoji: String) -> Bool {
@@ -136,7 +138,7 @@ struct MessageContextMenuOverlay: View {
                 dismiss()
             }
 
-            Divider().frame(height: 20)
+            actionDivider
 
             actionButton(
                 title: L.t("Copy", preferredLanguage),
@@ -147,7 +149,7 @@ struct MessageContextMenuOverlay: View {
             }
 
             if let onSave {
-                Divider().frame(height: 20)
+                actionDivider
 
                 actionButton(
                     title: L.t("Save", preferredLanguage),
@@ -158,7 +160,7 @@ struct MessageContextMenuOverlay: View {
                 }
             }
 
-            Divider().frame(height: 20)
+            actionDivider
 
             actionButton(
                 title: L.t("Delete", preferredLanguage),
@@ -169,10 +171,13 @@ struct MessageContextMenuOverlay: View {
                 dismiss()
             }
         }
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .padding(.horizontal, 40)
+        .padding(.vertical, 4)
+        .ecCard(radius: 20, border: 3, shadow: 5)
+        .padding(.horizontal, 32)
+    }
+
+    private var actionDivider: some View {
+        Rectangle().fill(EC.lineSoft).frame(width: 2, height: 28)
     }
 
     private func actionButton(
@@ -184,15 +189,18 @@ struct MessageContextMenuOverlay: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .bold))
                 Text(title)
-                    .font(.caption)
+                    .font(.round(12, .black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            .foregroundStyle(isDestructive ? .red : .primary)
+            .foregroundStyle(isDestructive ? EC.red : EC.ink)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     // MARK: - Dismiss

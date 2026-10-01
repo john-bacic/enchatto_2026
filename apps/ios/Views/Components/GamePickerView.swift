@@ -1,12 +1,69 @@
 import SwiftUI
 
 enum GamePickerTab: String, CaseIterable {
+    case wordRush = "Word Rush"
     case lostInTranslation = "Lost in Translation"
     case emojiBingo = "Emoji Bingo"
-    case emojifyr = "Emojifyr"
     case emojiMatch = "Emoji Match"
     case truthOrDare = "Truth or Dare"
+
+    var icon: String {
+        switch self {
+        case .wordRush: return "g-bolt"
+        case .lostInTranslation: return "g-pencil"
+        case .emojiBingo: return "g-clover"
+        case .emojiMatch: return "o-cherry"
+        case .truthOrDare: return "g-question"
+        }
+    }
+
+    var tileFill: Color {
+        switch self {
+        case .wordRush: return EC.yellow
+        case .lostInTranslation: return EC.blueSoft
+        case .emojiBingo: return EC.mintSoft
+        case .emojiMatch: return EC.violetSoft
+        case .truthOrDare: return EC.pinkSoft
+        }
+    }
+
+    var buttonFill: Color {
+        switch self {
+        case .wordRush: return EC.pink
+        case .lostInTranslation: return EC.blue
+        case .emojiBingo: return EC.mint
+        case .emojiMatch: return EC.violet
+        case .truthOrDare: return EC.pink
+        }
+    }
+
+    var tagline: String {
+        switch self {
+        case .wordRush: return "Emoji drop in — race to pick the word!"
+        case .lostInTranslation: return "draw & guess"
+        case .emojiBingo: return "roll & stamp"
+        case .emojiMatch: return "flip the pairs"
+        case .truthOrDare: return "brave or honest?"
+        }
+    }
 }
+
+private struct WordRushPack: Identifiable {
+    let id: String
+    let en: String
+    let ja: String
+    let icon: String
+}
+
+private let wordRushPacks: [WordRushPack] = [
+    WordRushPack(id: "mix", en: "Mix", ja: "ミックス", icon: "o-gift"),
+    WordRushPack(id: "foodie", en: "Foodie", ja: "グルメ", icon: "o-cake"),
+    WordRushPack(id: "travel", en: "Travel", ja: "旅行", icon: "o-train"),
+    WordRushPack(id: "slang", en: "Slang", ja: "スラング", icon: "re-laugh"),
+    WordRushPack(id: "anime", en: "Anime", ja: "アニメ", icon: "o-shootingstar"),
+    WordRushPack(id: "feelings", en: "Feelings", ja: "気持ち", icon: "re-heart"),
+    WordRushPack(id: "chat", en: "Chat", ja: "会話", icon: "re-wave"),
+]
 
 struct GamePickerView: View {
     let isHost: Bool
@@ -14,303 +71,358 @@ struct GamePickerView: View {
     var nextLevel: Int = 1
     let lang: String
     let onStartGame: (String, Int, Int) -> Void
-    let onStartEmojifyr: () -> Void
+    let onStartWordRush: (_ pack: String, _ sayIt: Bool) -> Void
     let onStartEmojiMatch: () -> Void
     let onStartEmojiBingo: () -> Void
     let onStartTruthOrDare: (String) -> Void
     let onDismiss: () -> Void
 
     @State private var timerSeconds: Int = 20
-    @State private var selectedGame: GamePickerTab = .lostInTranslation
+    @State private var selectedGame: GamePickerTab = .wordRush
     @State private var todMode: String = "normal"
+    @State private var wordRushPack: String = "mix"
+    @State private var wordRushSayIt = true
+
+    private var isJA: Bool { lang.hasPrefix("ja") }
 
     var body: some View {
-        VStack(spacing: 8) {
-            if !isHost {
-                nonHostContent
-            } else {
+        Group {
+            if isHost {
                 hostContent
+            } else {
+                nonHostContent
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(EC.paper.ignoresSafeArea())
     }
 
     private var nonHostContent: some View {
-        VStack(spacing: 12) {
-            Text("🎮")
-                .font(.system(size: 40))
+        VStack(spacing: 14) {
+            ChattoView(size: 80)
             Text(L.t("Games", lang))
-                .font(.headline)
+                .font(.chunky(24))
+                .foregroundStyle(EC.ink)
             Text(L.t("Only the host can start a game.", lang))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.round(15, .bold))
+                .foregroundStyle(EC.ink.opacity(0.7))
                 .multilineTextAlignment(.center)
-            Button(L.t("Got it", lang)) {
-                onDismiss()
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.top, 4)
+            Button(L.t("Got it", lang)) { onDismiss() }
+                .buttonStyle(.chunky(EC.blue, size: .small))
+                .padding(.horizontal, 40)
+                .padding(.top, 4)
         }
+        .padding(24)
     }
+
+    // MARK: - Host
 
     private var hostContent: some View {
-        VStack(spacing: 8) {
-            Text("🎮")
-                .font(.system(size: 28))
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 14) {
+                Text(L.t("Pick a game!", lang).uppercased())
+                    .font(.chunky(26))
+                    .foregroundStyle(EC.ink)
+                    .shadow(color: EC.yellow, radius: 0, y: 3)
+                    .padding(.top, 22)
+                    .accessibilityAddTraits(.isHeader)
 
-            // Game selector — vertical list
-            gameSelector
+                selectedCard
+                    .id(selectedGame)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.92).combined(with: .opacity),
+                        removal: .opacity
+                    ))
 
-            switch selectedGame {
-            case .lostInTranslation:
-                lostInTranslationContent
-            case .emojiBingo:
-                emojiBingoContent
-            case .emojifyr:
-                emojifyrContent
-            case .emojiMatch:
-                emojiMatchContent
-            case .truthOrDare:
-                truthOrDareContent
-            }
-        }
-    }
-
-    private var gameSelector: some View {
-        VStack(spacing: 4) {
-            ForEach(GamePickerTab.allCases, id: \.self) { tab in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) { selectedGame = tab }
-                } label: {
-                    HStack {
-                        Text(gameTabIcon(tab))
-                        Text(L.t(tab.rawValue, lang))
-                            .font(.subheadline)
-                        Spacer()
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(GamePickerTab.allCases.filter { $0 != selectedGame }, id: \.self) { tab in
+                        gameTile(tab)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(selectedGame == tab
-                        ? gameTabGradient(tab)
-                        : LinearGradient(colors: [Color(.systemBackground), Color(.systemBackground)], startPoint: .leading, endPoint: .trailing))
-                    .foregroundColor(selectedGame == tab ? .white : .primary)
-                    .fontWeight(selectedGame == tab ? .bold : .regular)
-                    .cornerRadius(8)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
         }
-        .padding(4)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(10)
-    }
-
-    private func gameTabIcon(_ tab: GamePickerTab) -> String {
-        switch tab {
-        case .lostInTranslation: return "🎨"
-        case .emojiBingo: return "🎰"
-        case .emojifyr: return "🔥"
-        case .emojiMatch: return "🃏"
-        case .truthOrDare: return "🎲"
+        .safeAreaInset(edge: .bottom) {
+            startButton
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+                .background(EC.paper.ignoresSafeArea())
         }
     }
 
-    private func gameTabGradient(_ tab: GamePickerTab) -> LinearGradient {
-        switch tab {
-        case .lostInTranslation:
-            return LinearGradient(colors: [Color(red: 0.23, green: 0.51, blue: 0.96), Color(red: 0.15, green: 0.39, blue: 0.93)], startPoint: .leading, endPoint: .trailing)
-        case .emojiBingo:
-            return LinearGradient(colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.02, green: 0.59, blue: 0.40)], startPoint: .leading, endPoint: .trailing)
-        case .emojifyr:
-            return LinearGradient(colors: [Color(red: 0.94, green: 0.27, blue: 0.27), Color(red: 0.86, green: 0.15, blue: 0.15)], startPoint: .leading, endPoint: .trailing)
-        case .emojiMatch:
-            return LinearGradient(colors: [Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.49, green: 0.23, blue: 0.93)], startPoint: .leading, endPoint: .trailing)
-        case .truthOrDare:
-            return LinearGradient(colors: [Color(red: 0.92, green: 0.35, blue: 0.05), Color(red: 0.85, green: 0.47, blue: 0.02)], startPoint: .leading, endPoint: .trailing)
+    private func gameTile(_ tab: GamePickerTab) -> some View {
+        Button {
+            Haptics.tap()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) { selectedGame = tab }
+        } label: {
+            HStack(spacing: 8) {
+                PackIcon(tab.icon, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tab == .lostInTranslation && lang == "ja" ? "ロスト・イン・\nトランスレーション" : L.t(tab.rawValue, lang))
+                        .font(.chunky(14, relativeTo: .headline))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .multilineTextAlignment(.leading)
+                    Text(L.t(tab.tagline, lang))
+                        .font(.round(10.5, .black))
+                        .foregroundStyle(EC.ink.opacity(0.65))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, 8)
+            .frame(maxWidth: .infinity, minHeight: 62)
+            .ecCard(fill: tab.tileFill, radius: 18, border: 3, shadow: 5)
+        }
+        .buttonStyle(.pressable)
+        .accessibilityHint(L.t(tab.tagline, lang))
+    }
+
+    // MARK: - Expanded card
+
+    private var selectedCard: some View {
+        let tab = selectedGame
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                PackIcon(tab.icon, size: 52)
+                    .popIn()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L.t(tab.rawValue, lang))
+                        .font(.chunky(20, relativeTo: .title2))
+                        .foregroundStyle(EC.ink)
+                    Text(L.t(tab.tagline, lang))
+                        .font(.round(13, .black))
+                        .foregroundStyle(EC.ink.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+
+            switch tab {
+            case .wordRush: wordRushDetails
+            case .lostInTranslation: lostInTranslationDetails
+            case .emojiBingo: emojiBingoDetails
+            case .emojiMatch: emojiMatchDetails
+            case .truthOrDare: truthOrDareDetails
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 27, style: .continuous)
+                .strokeBorder(EC.pink, lineWidth: 4)
+                .padding(-6)
+        )
+        .ecCard(fill: tab.tileFill, radius: 22, border: 3, shadow: 7)
+        .overlay(alignment: .topTrailing) {
+            if tab == .wordRush {
+                Text(L.t("NEW!", lang))
+                    .font(.chunky(12))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(EC.red))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(EC.ink, lineWidth: 2.5))
+                    .rotationEffect(.degrees(10))
+                    .gkWiggle(angle: 4)
+                    .offset(x: 8, y: -12)
+            }
+        }
+        .rotationEffect(.degrees(-1))
+        .padding(.top, 6)
+    }
+
+    private func infoChips(_ items: [String]) -> some View {
+        GKFlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(items, id: \.self) { ECChip(text: $0) }
         }
     }
 
-    // MARK: - Lost in Translation
+    private func warning(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            PackIcon("g-bang", size: 20)
+            Text(text)
+                .font(.round(12.5, .black))
+                .foregroundStyle(EC.red)
+        }
+    }
 
-    private var lostInTranslationContent: some View {
-        VStack(spacing: 8) {
-            Text(L.t("Lost in Translation", lang))
-                .font(.headline)
+    private var needsMorePlayers: Bool { playerCount < 2 }
 
-            // Level + player count on one line
-            HStack {
-                Text("\(L.t("Level", lang)) \(nextLevel)")
-                    .font(.subheadline.bold())
-                Text("·")
-                    .foregroundStyle(.secondary)
-                Text(levelDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("·")
-                    .foregroundStyle(.secondary)
-                Text("\(playerCount) \(L.t("players", lang))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    // MARK: Word Rush
+
+    private var wordRushDetails: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                ECLabel(L.t("Pack", lang))
+                GKFlowLayout(spacing: 6, lineSpacing: 6) {
+                    ForEach(wordRushPacks) { pack in
+                        GKChoiceChip(
+                            text: isJA ? pack.ja : pack.en,
+                            icon: pack.icon,
+                            selected: wordRushPack == pack.id,
+                            selectedFill: EC.pink
+                        ) {
+                            wordRushPack = pack.id
+                        }
+                    }
+                }
             }
 
-            // Timer picker
-            Picker("", selection: $timerSeconds) {
-                Text("10s").tag(10)
-                Text("20s").tag(20)
-                Text("30s").tag(30)
-                Text(L.t("Off", lang)).tag(0)
+            Toggle(isOn: $wordRushSayIt) {
+                HStack(alignment: .top, spacing: 8) {
+                    PackIcon("g-ear", size: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L.t("Say it!", lang))
+                            .font(.chunky(15))
+                            .foregroundStyle(EC.ink)
+                        Text(L.t("Every 2nd card, one player says the word out loud — everyone else judges! Native speakers count double.", lang))
+                            .font(.round(11.5, .bold))
+                            .foregroundStyle(EC.ink.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
             }
-            .pickerStyle(.segmented)
-            .padding(.top, 4)
+            .toggleStyle(GKPopToggleStyle())
+            .padding(10)
+            .ecOutline(fill: .white.opacity(0.85), radius: 16, border: 2.5)
 
-            if playerCount < 2 {
-                Text(L.t("Need at least 2 players to start.", lang))
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    directionPill("日本語の人 →", "English")
+                    directionPill("English speakers →", "日本語")
+                }
+                Text(L.t("Works both ways: English speakers learn Japanese (with romaji), Japanese speakers learn English.", lang))
+                    .font(.round(11.5, .bold))
+                    .foregroundStyle(EC.ink.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
 
-            Button(nextLevel > 1 ? "\(L.t("Level", lang)) \(nextLevel)" : L.t("Start Game", lang)) {
-                onStartGame("lost-in-translation", nextLevel, timerSeconds)
-            }
-            .buttonStyle(.borderedProminent)
+    private func directionPill(_ from: String, _ to: String) -> some View {
+        (Text(from + " ").font(.round(11.5, .bold)) + Text(to).font(.round(12, .black)))
+            .foregroundStyle(EC.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
-            .disabled(playerCount < 2)
-            .padding(.top, 8)
+            .ecOutline(fill: .white.opacity(0.75), radius: 10, border: 2)
+    }
+
+    // MARK: Lost in Translation
+
+    private var lostInTranslationDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            infoChips(["\(L.t("Level", lang)) \(nextLevel)", levelDescription, "\(playerCount) \(L.t("players", lang))"])
+
+            VStack(alignment: .leading, spacing: 6) {
+                ECLabel(L.t("Timer", lang))
+                HStack(spacing: 6) {
+                    ForEach([10, 20, 30, 0], id: \.self) { secs in
+                        GKChoiceChip(text: secs == 0 ? L.t("Off", lang) : "\(secs)s", selected: timerSeconds == secs) {
+                            timerSeconds = secs
+                        }
+                    }
+                }
+            }
+
+            if needsMorePlayers {
+                warning(L.t("Need at least 2 players to start.", lang))
+            }
         }
     }
 
-    // MARK: - Emoji Bingo
+    // MARK: Emoji Bingo
 
-    private var emojiBingoContent: some View {
-        VStack(spacing: 8) {
-            Text(L.t("Emoji Bingo", lang))
-                .font(.headline)
-
+    private var emojiBingoDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text(L.t("Mark emojis on your card as they're called. First to complete the pattern wins!", lang))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            HStack {
-                Text("\(playerCount) \(L.t("players", lang))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("·")
-                    .foregroundStyle(.secondary)
-                Text("~3–5 min")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button(L.t("Start Game", lang)) {
-                onStartEmojiBingo()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(Color(red: 0.06, green: 0.73, blue: 0.51))
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
+                .font(.round(13, .bold))
+                .foregroundStyle(EC.ink.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+            infoChips(["\(playerCount) \(L.t("players", lang))", "~3–5 min"])
         }
     }
 
-    // MARK: - Emojifyr
+    // MARK: Emoji Match
 
-    private var emojifyrContent: some View {
-        VStack(spacing: 8) {
-            Text(L.t("Emojifyr", lang))
-                .font(.headline)
-
-            Text(L.t("Write a sentence, turn it into emojis, and guess!", lang))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            Text("\(playerCount) \(L.t("players", lang))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if playerCount < 2 {
-                Text(L.t("Need at least 2 players to start.", lang))
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Button(L.t("Start Game", lang)) {
-                onStartEmojifyr()
-            }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-            .disabled(playerCount < 2)
-            .padding(.top, 8)
-        }
-    }
-
-    // MARK: - Emoji Match
-
-    private var emojiMatchContent: some View {
-        VStack(spacing: 8) {
-            Text(L.t("Emoji Match", lang))
-                .font(.headline)
-
+    private var emojiMatchDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text(L.t("Find matching emoji pairs! Take turns flipping cards.", lang))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            Text("\(playerCount) \(L.t("players", lang))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(L.t("Works solo or multiplayer", lang))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Button(L.t("Start Game", lang)) {
-                onStartEmojiMatch()
-            }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
+                .font(.round(13, .bold))
+                .foregroundStyle(EC.ink.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+            infoChips(["\(playerCount) \(L.t("players", lang))", L.t("Works solo or multiplayer", lang)])
         }
     }
 
-    // MARK: - Truth or Dare
+    // MARK: Truth or Dare
 
-    private var truthOrDareContent: some View {
-        VStack(spacing: 8) {
-            Text(L.t("Truth or Dare", lang))
-                .font(.headline)
-
+    private var truthOrDareDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text(L.t("A social game: answer a question or complete a challenge! Take turns with your group.", lang))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .font(.round(13, .bold))
+                .foregroundStyle(EC.ink.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
 
-            // Mode selector
-            Picker("", selection: $todMode) {
-                Text(L.t("Normal", lang)).tag("normal")
-                Text("\(L.t("Deep", lang)) 🌊").tag("deep")
-            }
-            .pickerStyle(.segmented)
-            .padding(.top, 4)
-
-            Text("\(playerCount) \(L.t("players", lang))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if playerCount < 2 {
-                Text(L.t("Need at least 2 players to start.", lang))
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            HStack(spacing: 6) {
+                GKChoiceChip(text: L.t("Normal", lang), icon: "re-laugh", selected: todMode == "normal") { todMode = "normal" }
+                GKChoiceChip(text: L.t("Deep", lang), icon: "o-whale", selected: todMode == "deep") { todMode = "deep" }
+                Spacer(minLength: 0)
+                ECChip(text: "\(playerCount) \(L.t("players", lang))")
             }
 
-            Button(L.t("Start Game", lang)) {
-                onStartTruthOrDare(todMode)
+            if needsMorePlayers {
+                warning(L.t("Need at least 2 players to start.", lang))
             }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-            .disabled(playerCount < 2)
-            .padding(.top, 8)
         }
+    }
+
+    // MARK: - Start
+
+    private var startDisabled: Bool {
+        switch selectedGame {
+        case .lostInTranslation, .truthOrDare: return needsMorePlayers
+        case .wordRush, .emojiBingo, .emojiMatch: return false
+        }
+    }
+
+    private var startLabel: String {
+        switch selectedGame {
+        case .wordRush: return L.t("Start Word Rush!", lang)
+        case .lostInTranslation: return nextLevel > 1 ? "\(L.t("Level", lang)) \(nextLevel)" : L.t("Start Game", lang)
+        case .emojiBingo: return L.t("Start Bingo!", lang)
+        case .emojiMatch: return L.t("Start Match!", lang)
+        case .truthOrDare: return L.t("Start Truth or Dare!", lang)
+        }
+    }
+
+    private var startButton: some View {
+        Button {
+            Haptics.thump()
+            switch selectedGame {
+            case .wordRush: onStartWordRush(wordRushPack, wordRushSayIt)
+            case .lostInTranslation: onStartGame("lost-in-translation", nextLevel, timerSeconds)
+            case .emojiBingo: onStartEmojiBingo()
+            case .emojiMatch: onStartEmojiMatch()
+            case .truthOrDare: onStartTruthOrDare(todMode)
+            }
+        } label: {
+            Text(startLabel.uppercased())
+                .font(.chunky(22))
+        }
+        .buttonStyle(.chunky(selectedGame.buttonFill, size: .large))
+        .disabled(startDisabled)
+        .gkWiggle(!startDisabled, angle: 0.8, duration: 0.45)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedGame)
     }
 
     private var levelDescription: String {
@@ -324,4 +436,18 @@ struct GamePickerView: View {
         }
         return "\(difficulty) · \(L.t("10 rounds", lang))"
     }
+}
+
+#Preview {
+    GamePickerView(
+        isHost: true,
+        playerCount: 3,
+        lang: "en",
+        onStartGame: { _, _, _ in },
+        onStartWordRush: { _, _ in },
+        onStartEmojiMatch: {},
+        onStartEmojiBingo: {},
+        onStartTruthOrDare: { _ in },
+        onDismiss: {}
+    )
 }

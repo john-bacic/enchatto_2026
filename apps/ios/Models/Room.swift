@@ -30,9 +30,11 @@ struct Room: Identifiable, Codable {
     let hostId: String
     let createdAt: Date
     var closedAt: Date?
+    /// Index into RoomTexture.all, assigned server-side at creation (older rooms: nil → hashed from joinCode)
+    var background: Int?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case joinCode, status, settings, hostId, createdAt, closedAt
+        case joinCode, status, settings, hostId, createdAt, closedAt, background
     }
 }

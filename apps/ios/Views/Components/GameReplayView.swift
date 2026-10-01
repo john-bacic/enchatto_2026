@@ -30,69 +30,81 @@ struct GameReplayView: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Score summary
-                        if let scores = replay.scores, !scores.isEmpty {
-                            scoreSummary(scores)
-                        }
+        VStack(spacing: 0) {
+            header
 
-                        // Round-by-round breakdown
-                        ForEach(replay.chains) { chain in
-                            roundView(chain)
-                        }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    // Score summary
+                    if let scores = replay.scores, !scores.isEmpty {
+                        scoreSummary(scores)
                     }
-                    .padding(16)
+
+                    // Round-by-round breakdown
+                    ForEach(replay.chains) { chain in
+                        roundView(chain)
+                    }
                 }
+                .padding(16)
+            }
 
-                // Footer
-                VStack(spacing: 8) {
+            if let onNextLevel {
+                VStack(spacing: 10) {
                     // Timer picker (host only, when next level available)
-                    if onNextLevel != nil {
-                        Picker("", selection: $timerSeconds) {
-                            Text("10s").tag(10)
-                            Text("20s").tag(20)
-                            Text("30s").tag(30)
-                            Text(L.t("Off", lang)).tag(0)
+                    HStack(spacing: 8) {
+                        PackIcon("g-bolt", size: 20)
+                        ForEach([10, 20, 30, 0], id: \.self) { secs in
+                            Button {
+                                Haptics.tap()
+                                timerSeconds = secs
+                            } label: {
+                                Text(secs == 0 ? L.t("Off", lang) : "\(secs)s")
+                            }
+                            .buttonStyle(.chunky(timerSeconds == secs ? EC.yellow : .white, size: .mini))
                         }
-                        .pickerStyle(.segmented)
                     }
 
-                    if let onNextLevel {
-                        Button {
-                            onNextLevel(timerSeconds)
-                        } label: {
-                            Text("\(L.t("Next Level", lang)) →")
-                                .fontWeight(.semibold)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .frame(maxWidth: .infinity)
+                    Button {
+                        onNextLevel(timerSeconds)
+                    } label: {
+                        Text("\(L.t("Next Level", lang)) →")
                     }
+                    .buttonStyle(.chunky(EC.pink))
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color(.systemBackground))
-                .overlay(alignment: .top) { Divider() }
-            }
-            .navigationTitle("🎮 \(L.t("Game Results", lang)) — \(L.t("Level", lang)) \(replay.session.level ?? 1)")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        onDismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 28, height: 28)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                    }
-                }
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                .background(Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
             }
         }
+        .ecPaperBackground()
+    }
+
+    private var header: some View {
+        ZStack {
+            VStack(spacing: 2) {
+                OutlinedText(L.t("Game Results", lang), size: 22, fill: EC.yellow, outline: 3)
+                Text("\(L.t("Level", lang)) \(replay.session.level ?? 1)")
+                    .font(.round(12, .black))
+                    .foregroundStyle(EC.inkSoft)
+            }
+            HStack {
+                Spacer()
+                Button {
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.roundIcon(diameter: 34))
+                .accessibilityLabel(L.t("Close", lang))
+            }
+            .padding(.trailing, 14)
+        }
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.92).ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 
     // MARK: - Score Summary
@@ -101,41 +113,45 @@ struct GameReplayView: View {
     private func scoreSummary(_ scores: [String: ScoreInfo]) -> some View {
         let sorted = scores.sorted { $0.value.correct > $1.value.correct }
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("🏆 \(L.t("Scores", lang))")
-                .font(.subheadline.bold())
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                PackIcon("g-crown", size: 22)
+                Text(L.t("Scores", lang))
+                    .font(.round(16, .black))
+                    .foregroundStyle(EC.ink)
+            }
 
             ForEach(Array(sorted.enumerated()), id: \.element.key) { index, entry in
                 let participant = replay.participants[entry.key]
-                let avatarValue = participant?.avatar.value
-                let avatar = avatarValue.flatMap { val in presetAvatars.first(where: { $0.id == val }) }
 
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(avatar?.color ?? Color(.systemGray4))
-                        .frame(width: 22, height: 22)
-                        .overlay {
-                            Text(avatar?.emoji ?? "?")
-                                .font(.system(size: 11))
-                        }
+                HStack(spacing: 10) {
+                    Text("\(index + 1)")
+                        .font(.chunky(13))
+                        .foregroundStyle(EC.ink)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(index == 0 ? EC.yellow : .white))
+                        .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2))
+
+                    AvatarDisc(avatarId: participant?.avatar.value ?? "", size: 32)
 
                     Text(participant?.nickname ?? "?")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.round(15, .black))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(1)
 
                     Spacer()
 
-                    Text("\(entry.value.correct)/\(entry.value.total) \(L.t("correct", lang))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("\(entry.value.correct)/\(entry.value.total)")
+                        .font(.chunky(16))
+                        .foregroundStyle(EC.ink)
+                    Text(L.t("correct", lang))
+                        .font(.round(11, .bold))
+                        .foregroundStyle(EC.inkSoft)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(index == 0 ? Color.yellow.opacity(0.15) : Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(index == 0 ? Color.yellow : Color.clear, lineWidth: 1)
-                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .ecCard(fill: index == 0 ? EC.yellowSoft : .white, radius: 16, border: 2.5, shadow: index == 0 ? 5 : 3)
+                .rotationEffect(.degrees(index == 0 ? -1 : 0))
             }
         }
     }
@@ -149,48 +165,48 @@ struct GameReplayView: View {
         let drawerPid = chain.drawerParticipantId
         let drawer = drawerPid.flatMap { replay.participants[$0] }
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             // Round header
-            Text("\(L.t("Round", lang)) \(chain.chainIndex + 1)")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ECChip(text: "\(L.t("Round", lang)) \(chain.chainIndex + 1)", fill: EC.violetSoft)
+                Spacer()
+            }
 
             // Drawer + prompt
-            HStack {
+            HStack(spacing: 8) {
+                AvatarDisc(avatarId: drawer?.avatar.value ?? "", size: 28)
                 Text("\(drawer?.nickname ?? "?") \(L.t("drew", lang)):")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.round(12, .bold))
+                    .foregroundStyle(EC.inkSoft)
                 Text(translatePrompt(chain.originalPrompt))
-                    .font(.subheadline.bold())
+                    .font(.round(15, .black))
+                    .foregroundStyle(EC.ink)
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             // Drawing
             if let drawingUrl = drawStep?.outputDrawingUrl {
-                if let uiImage = decodeBase64Image(drawingUrl) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 200)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color(.separator), lineWidth: 0.5)
-                        )
-                } else {
-                    AsyncImage(url: URL(string: drawingUrl)) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 200)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                Group {
+                    if let uiImage = decodeBase64Image(drawingUrl) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        AsyncImage(url: URL(string: drawingUrl)) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                            } else {
+                                Color.white.aspectRatio(1, contentMode: .fit)
+                            }
                         }
                     }
                 }
+                .frame(maxWidth: 200)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(EC.ink, lineWidth: 2.5))
+                .frame(maxWidth: .infinity)
             }
 
             // Guesser results
@@ -198,35 +214,41 @@ struct GameReplayView: View {
                 guesserResultView(step)
             }
         }
+        .padding(14)
+        .ecCard(radius: 20, border: 3, shadow: 5)
     }
 
     @ViewBuilder
     private func guesserResultView(_ step: GameStep) -> some View {
         let participant = replay.participants[step.assignedParticipantId]
-        let avatarValue = participant?.avatar.value
-        let avatar = avatarValue.flatMap { val in presetAvatars.first(where: { $0.id == val }) }
         let rawPicked = step.selectedOption ?? step.outputText ?? "?"
         let picked = translatePrompt(rawPicked)
+        let correct = step.correct == true
 
         HStack(spacing: 8) {
-            Circle()
-                .fill(avatar?.color ?? Color(.systemGray4))
-                .frame(width: 22, height: 22)
-                .overlay {
-                    Text(avatar?.emoji ?? "?")
-                        .font(.system(size: 11))
+            AvatarDisc(avatarId: participant?.avatar.value ?? "", size: 24)
+
+            let name = participant?.nickname ?? "?"
+            let pickedText = Text(picked).font(.round(13, .black)).foregroundColor(EC.ink)
+            Group {
+                if lang == "ja" {
+                    Text("\(name)が「") + pickedText + Text("」を選んだ")
+                } else {
+                    Text("\(name) \(L.t("picked", lang)) ") + pickedText
                 }
+            }
+            .font(.round(12, .bold))
+            .foregroundColor(EC.inkSoft)
+            .lineLimit(2)
 
-            Text("\(participant?.nickname ?? "?") \(L.t("picked", lang))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
 
-            Text(picked)
-                .font(.caption.bold())
-
-            Text(step.correct == true ? "✅" : "❌")
-                .font(.caption)
+            PackIcon(correct ? "g-ok" : "g-no", size: 20)
+                .accessibilityLabel(correct ? L.t("Correct!", lang) : L.t("Wrong!", lang))
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 12).fill(correct ? EC.mintSoft : EC.pinkSoft))
     }
 
     private func decodeBase64Image(_ dataUrl: String) -> UIImage? {

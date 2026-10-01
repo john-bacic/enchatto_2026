@@ -27,38 +27,40 @@ struct GameStatusBarView: View {
         }
     }
 
+    private var isUrgent: Bool { status.phase == "drawing" && drawTimeLeft >= 0 && drawTimeLeft <= 3 }
+
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             // Round indicator
             HStack(spacing: 3) {
                 Text("R")
-                    .opacity(0.8)
+                    .opacity(0.6)
                 Text("\(status.currentRound)/\(status.totalRounds)")
             }
-            .font(.system(size: 12, weight: .bold))
+            .font(.chunky(12))
+            .foregroundStyle(EC.ink)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(EC.yellow))
+            .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+            .rotationEffect(.degrees(-3))
 
             // Drawer avatar + phase
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 if let avatarConfig = status.drawerAvatar {
-                    let av = presetAvatar(for: avatarConfig.value)
-                    ZStack {
-                        Circle()
-                            .fill(av.color)
-                            .frame(width: 20, height: 20)
-                        Text(av.emoji)
-                            .font(.system(size: 11))
-                    }
+                    AvatarDisc(avatarId: avatarConfig.value, size: 24)
                 }
 
                 if status.phase == "drawing" {
-                    Text("✏️")
-                        .font(.system(size: 13))
-                        .rotationEffect(.degrees(pencilRotation))
-                        .onAppear { startPencilAnimation() }
+                    LoopClock { t in
+                        PackIcon("g-pencil", size: 18)
+                            .rotationEffect(.degrees(15 * loopWave(t, period: 1)))
+                    }
                 }
 
                 Text(phaseLabel)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.round(12, .black))
+                    .foregroundStyle(isUrgent ? EC.red : EC.ink)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -66,40 +68,24 @@ struct GameStatusBarView: View {
 
             // Top 3 scores
             HStack(spacing: 4) {
-                ForEach(sortedScores.prefix(3), id: \.id) { entry in
-                    let av = presetAvatar(for: entry.score.avatar.value)
-                    HStack(spacing: 2) {
-                        Text(av.emoji)
-                            .font(.system(size: 10))
+                ForEach(Array(sortedScores.prefix(3).enumerated()), id: \.element.id) { i, entry in
+                    HStack(spacing: 3) {
+                        AvatarDisc(avatarId: entry.score.avatar.value, size: 18)
                         Text("\(entry.score.correct)")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.chunky(12))
+                            .foregroundStyle(EC.ink)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.2))
-                    .clipShape(Capsule())
+                    .padding(.leading, 2)
+                    .padding(.trailing, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(i == 0 && entry.score.correct > 0 ? EC.yellowSoft : .white))
+                    .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
                 }
             }
         }
-        .foregroundStyle(.white)
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.39, green: 0.40, blue: 0.95), Color(red: 0.55, green: 0.36, blue: 0.96)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-    }
-
-    // MARK: - Pencil animation
-
-    @State private var pencilRotation: Double = -15
-
-    private func startPencilAnimation() {
-        withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-            pencilRotation = 15
-        }
+        .padding(.vertical, 7)
+        .background(EC.violetSoft)
+        .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 }

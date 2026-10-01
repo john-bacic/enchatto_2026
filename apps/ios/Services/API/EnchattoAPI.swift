@@ -92,46 +92,44 @@ protocol EnchattoAPI {
     /// Get live game status for the status bar
     func getGameStatus(roomId: String) async throws -> GameStatus?
 
-    // MARK: - Emojifyr
+    // MARK: - Word Rush
 
-    /// Start an Emojifyr game session
-    func startEmojifyr(roomId: String, participantId: String) async throws -> String?
+    /// Create a Word Rush lobby, returns gameId
+    func createWordRushLobby(roomId: String, hostParticipantId: String, pack: String, sayIt: Bool) async throws -> String
 
-    /// Submit the writer's sentence for an Emojifyr round
-    func submitEmojifyrSentence(roundId: String, sentence: String, isInitialism: Bool) async throws
+    func joinWordRush(gameId: String, participantId: String) async throws
 
-    /// Update the sentence for an Emojifyr round (during preview/generating phase)
-    func updateEmojifyrSentence(roundId: String, sentence: String) async throws
+    func leaveWordRush(gameId: String, participantId: String) async throws
 
-    /// Submit the emoji clue for an Emojifyr round
-    func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws
+    /// Host-only, lobby-only. nil fields are left unchanged.
+    func updateWordRushSettings(gameId: String, participantId: String, pack: String?, sayIt: Bool?) async throws
 
-    /// Submit a guess for an Emojifyr round
-    func submitEmojifyrGuess(roundId: String, participantId: String, guessText: String) async throws
+    func startWordRush(gameId: String, participantId: String) async throws
 
-    /// Reveal the answer for an Emojifyr round
-    func revealEmojifyrRound(roundId: String) async throws
+    /// Returns (correct, points)
+    func answerWordRush(gameId: String, participantId: String, choiceIndex: Int) async throws -> (correct: Bool, points: Int)
 
-    /// Advance to the next Emojifyr round
-    func advanceEmojifyrRound(gameSessionId: String) async throws
+    /// Returns the hint text (costs 100 points on a correct answer)
+    func wordRushHint(gameId: String, participantId: String) async throws -> String
 
-    /// Cancel an Emojifyr game session
-    func cancelEmojifyr(gameSessionId: String) async throws
+    func submitWordRushClip(gameId: String, participantId: String, storageId: String) async throws
 
-    /// Get the active Emojifyr session for a room
-    func getActiveEmojifyrSession(roomId: String) async throws -> GameSession?
+    func skipWordRushMic(gameId: String, participantId: String) async throws
 
-    /// Get the current round for an Emojifyr game session
-    func getCurrentEmojifyrRound(gameSessionId: String) async throws -> EmojifyrRound?
+    func voteWordRush(gameId: String, participantId: String, vote: String) async throws
 
-    /// Get all guesses for an Emojifyr round
-    func getEmojifyrGuesses(roundId: String) async throws -> [EmojifyrGuess]
+    func submitWordRushTeachClip(gameId: String, participantId: String, storageId: String) async throws
 
-    /// Get the full Emojifyr game state for a room
-    func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState?
+    /// Host-only: advance past the current phase (no-op if phaseSeq is stale)
+    func skipWordRushPhase(gameId: String, participantId: String, phaseSeq: Int) async throws
 
-    /// Generate an emoji clue from a sentence using server-side AI
-    func generateEmojiClueFromAI(sentence: String) async throws -> String
+    func cancelWordRush(gameId: String, participantId: String) async throws
+
+    /// Returns the new gameId
+    func playAgainWordRush(gameId: String, participantId: String) async throws -> String
+
+    /// Latest non-canceled Word Rush game in the room (may be completed)
+    func getWordRushState(roomId: String) async throws -> WordRushGame?
 
     // MARK: - Emoji Match
 

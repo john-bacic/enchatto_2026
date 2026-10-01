@@ -28,7 +28,7 @@ struct DrawingComposerView: View {
             Spacer()
             bottomBar
         }
-        .background(Color(.systemBackground))
+        .ecPaperBackground()
         .onChange(of: triggerAutoSubmit) { triggered in
             if triggered {
                 sendDrawing()
@@ -46,11 +46,8 @@ struct DrawingComposerView: View {
             onViewReady: { canvasView = $0 }
         )
         .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.systemGray4), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .ecCard(radius: 22, border: 3.5, shadow: 7)
         .padding(.horizontal)
     }
 
@@ -63,16 +60,10 @@ struct DrawingComposerView: View {
                 Button {
                     onCancel()
                 } label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color(.systemBackground))
-                            .frame(width: 56, height: 56)
-                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
-                        Image(systemName: "xmark")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(Color(.label))
-                    }
+                    Image(systemName: "xmark")
                 }
+                .buttonStyle(.roundIcon(diameter: 54))
+                .accessibilityLabel(L.t("Close", lang))
                 Spacer()
             }
 
@@ -86,21 +77,15 @@ struct DrawingComposerView: View {
                 Spacer()
                 Button {
                     if !lines.isEmpty {
+                        Haptics.tap()
                         lines.removeLast()
                     }
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 8)
-                        .padding(.leading, 16)
-                        .padding(.trailing, 12)
-                        .background(
-                            TagShape()
-                                .fill(hasDrawing ? Color.red : Color(.systemGray4))
-                        )
                 }
+                .buttonStyle(.roundIcon(hasDrawing ? EC.yellow : EC.lineSoft, diameter: 54))
                 .disabled(!hasDrawing)
+                .accessibilityLabel("Undo")
             }
         }
         .padding(.horizontal)
@@ -137,12 +122,9 @@ struct DrawingComposerView: View {
                 Circle()
                     .fill(selectedColor)
                     .frame(width: max(lineWidth, 6), height: max(lineWidth, 6))
-                    .frame(width: 36, height: 36)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemGray6))
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray4), lineWidth: 1))
-                    )
+                    .overlay(Circle().strokeBorder(EC.ink.opacity(0.25), lineWidth: 1))
+                    .frame(width: 46, height: 46)
+                    .ecCard(radius: 14, border: 2.5, shadow: 3)
             }
             PenSizeBar(value: $lineWidth, range: minWidth...maxWidth, color: selectedColor)
         }
@@ -173,38 +155,6 @@ struct DrawingComposerView: View {
     }
 }
 
-// MARK: - Tag shape (pointed left, rounded right)
-
-private struct TagShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let r: CGFloat = 8 // corner radius for right side
-        let pointDepth: CGFloat = 10
-
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: rect.midY))
-        path.addLine(to: CGPoint(x: pointDepth, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX - r, y: 0))
-        path.addArc(
-            center: CGPoint(x: rect.maxX - r, y: r),
-            radius: r,
-            startAngle: .degrees(-90),
-            endAngle: .degrees(0),
-            clockwise: false
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        path.addArc(
-            center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
-            radius: r,
-            startAngle: .degrees(0),
-            endAngle: .degrees(90),
-            clockwise: false
-        )
-        path.addLine(to: CGPoint(x: pointDepth, y: rect.maxY))
-        path.closeSubpath()
-        return path
-    }
-}
-
 // MARK: - Drawing send button with pulse
 
 private struct DrawingSendButton: View {
@@ -219,49 +169,56 @@ private struct DrawingSendButton: View {
 
     private var buttonColor: Color {
         if showCountdown {
-            return isUrgent ? .red : .accentColor
+            return isUrgent ? EC.red : EC.blue
         }
-        return hasDrawing ? Color.accentColor : Color(.systemGray4)
+        return hasDrawing ? EC.blue : EC.lineSoft
     }
 
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Pulse ring — idle mode
                 if hasDrawing && !showCountdown {
                     Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 56, height: 56)
-                        .scaleEffect(pulsing ? 1.8 : 1)
-                        .opacity(pulsing ? 0 : 0.5)
+                        .fill(EC.blue)
+                        .frame(width: 66, height: 66)
+                        .scaleEffect(pulsing ? 1.7 : 1)
+                        .opacity(pulsing ? 0 : 0.45)
                         .animation(
                             .easeOut(duration: 1.5).repeatForever(autoreverses: false),
                             value: pulsing
                         )
                 }
-                // Pulse ring — countdown mode (restarts each second)
                 if showCountdown {
                     Circle()
                         .fill(buttonColor)
-                        .frame(width: 56, height: 56)
-                        .scaleEffect(countdownPulse ? 1.8 : 1)
-                        .opacity(countdownPulse ? 0 : 0.5)
+                        .frame(width: 66, height: 66)
+                        .scaleEffect(countdownPulse ? 1.7 : 1)
+                        .opacity(countdownPulse ? 0 : 0.45)
                 }
-                // Main button
+                Circle()
+                    .fill(EC.ink)
+                    .frame(width: 66, height: 66)
+                    .offset(y: 5)
+                Circle()
+                    .fill(buttonColor)
+                    .frame(width: 66, height: 66)
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 3.5))
                 if showCountdown {
-                    Circle()
-                        .fill(buttonColor)
-                        .frame(width: 56, height: 56)
                     Text("\(countdownSeconds)")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(.chunky(28))
                         .foregroundStyle(.white)
+                        .contentTransition(.numericText())
                 } else {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 56))
-                        .foregroundStyle(buttonColor)
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 26, weight: .black))
+                        .foregroundStyle(hasDrawing ? .white : EC.inkSoft)
+                        .offset(x: -1, y: 1)
                 }
             }
+            .scaleEffect(isUrgent && countdownPulse ? 1.06 : 1)
         }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Send")
         .disabled(!hasDrawing && !showCountdown)
         .onChange(of: hasDrawing) { active in
             pulsing = active && !showCountdown
@@ -289,18 +246,15 @@ private struct SpectrumBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 10)
+                Capsule()
                     .fill(gradient)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(.separator), lineWidth: 0.5)
-                    )
+                    .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
                 Circle()
                     .fill(thumbColor)
-                    .frame(width: 16, height: 16)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                    .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
-                    .position(x: 8 + value * (geo.size.width - 16), y: geo.size.height / 2)
+                    .frame(width: 24, height: 24)
+                    .overlay(Circle().strokeBorder(Color.white, lineWidth: 3))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2))
+                    .position(x: 12 + value * (geo.size.width - 24), y: geo.size.height / 2)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -311,7 +265,7 @@ private struct SpectrumBar: View {
                     }
             )
         }
-        .frame(height: 20)
+        .frame(height: 26)
     }
 }
 
@@ -326,18 +280,15 @@ private struct PenSizeBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 // Track: gradient from thin to thick
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.systemGray5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(.separator), lineWidth: 0.5)
-                    )
+                PenSizeTrack()
+                    .fill(Color.white)
+                    .overlay(PenSizeTrack().stroke(EC.ink, style: StrokeStyle(lineWidth: 2.5, lineJoin: .round)))
                 // Thumb
                 Circle()
                     .fill(color)
-                    .frame(width: 16, height: 16)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                    .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
+                    .frame(width: 24, height: 24)
+                    .overlay(Circle().strokeBorder(Color.white, lineWidth: 3))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2))
                     .position(x: thumbX(in: geo.size.width), y: geo.size.height / 2)
             }
             .contentShape(Rectangle())
@@ -350,12 +301,27 @@ private struct PenSizeBar: View {
                     }
             )
         }
-        .frame(height: 20)
+        .frame(height: 26)
     }
 
     private func thumbX(in width: CGFloat) -> CGFloat {
         let pct = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
-        return 8 + pct * (width - 16)
+        return 12 + pct * (width - 24)
+    }
+}
+
+private struct PenSizeTrack: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let thin = rect.height * 0.15
+        let thick = rect.height * 0.45
+        p.move(to: CGPoint(x: rect.minX + thin, y: rect.midY - thin))
+        p.addLine(to: CGPoint(x: rect.maxX - thick, y: rect.midY - thick))
+        p.addArc(center: CGPoint(x: rect.maxX - thick, y: rect.midY), radius: thick, startAngle: .degrees(-90), endAngle: .degrees(90), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.minX + thin, y: rect.midY + thin))
+        p.addArc(center: CGPoint(x: rect.minX + thin, y: rect.midY), radius: thin, startAngle: .degrees(90), endAngle: .degrees(270), clockwise: false)
+        p.closeSubpath()
+        return p
     }
 }
 

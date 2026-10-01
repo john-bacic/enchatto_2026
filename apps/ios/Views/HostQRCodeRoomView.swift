@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreImage.CIFilterBuiltins
 
 struct HostQRCodeRoomView: View {
     let joinCode: String
@@ -8,9 +7,11 @@ struct HostQRCodeRoomView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigateToConversation = false
-    @State private var participantCount = 0
     @State private var showShareSheet = false
+    @State private var confetti = 0
     @StateObject private var viewModel: HostRoomViewModel
+
+    private let lang = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
 
     init(joinCode: String, roomId: String, hostId: String) {
         self.joinCode = joinCode
@@ -23,95 +24,84 @@ struct HostQRCodeRoomView: View {
         "https://enchatto.vercel.app/join/\(joinCode)"
     }
 
+    private var guests: [Participant] {
+        viewModel.participants.filter { $0.role == .participant }
+    }
+
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        VStack(spacing: 18) {
+            OutlinedText(L.t("Room Ready!", lang), size: 36, fill: EC.yellow, outline: 3.5)
+                .rotationEffect(.degrees(-4))
+                .stampIn()
+                .padding(.top, 12)
 
-            Text("Room Ready")
-                .font(.title2)
-                .fontWeight(.bold)
+            ECQRCard(url: joinURL, size: 210)
+                .popIn(delay: 0.15)
 
-            // QR Code
-            if let qrImage = generateQRCode(from: joinURL) {
-                Image(uiImage: qrImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 220, height: 220)
-                    .padding()
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(radius: 4)
-            }
+            RoomCodeTiles(code: joinCode)
 
-            // Join code display
-            VStack(spacing: 4) {
-                Text("Room Code")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(joinCode)
-                    .font(.system(.title, design: .monospaced))
-                    .fontWeight(.bold)
-            }
-
-            Text("Scan QR code or enter the room code to join")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Text(L.t("Scan or enter code to join", lang))
+                .font(.round(14, .bold))
+                .foregroundStyle(EC.inkSoft)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
 
-            // Live participant count
-            HStack(spacing: 6) {
-                Image(systemName: "person.2.fill")
-                    .foregroundStyle(.secondary)
-                let guestCount = max(0, viewModel.participants.count - 1) // exclude host
-                Text("\(guestCount) participant\(guestCount == 1 ? "" : "s") joined")
-                    .foregroundStyle(.secondary)
-            }
-            .font(.subheadline)
+            Text("\(guests.count) \(L.t("joined!", lang))")
+                .font(.chunky(15))
+                .foregroundStyle(EC.ink)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(EC.mint))
+                .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+                .background(Capsule().fill(EC.ink).offset(y: 3))
+                .id(guests.count)
+                .popIn()
 
-            // Participant avatars
-            if viewModel.participants.count > 1 {
-                HStack(spacing: -4) {
-                    ForEach(viewModel.participants.filter { $0.role == .participant }.prefix(8)) { p in
-                        Text(p.avatarEmoji)
-                            .font(.title2)
-                    }
-                }
-            }
+            guestRow
 
-            Spacer()
+            Spacer(minLength: 0)
 
-            // Action buttons
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 Button {
+                    Haptics.thump()
                     navigateToConversation = true
                 } label: {
-                    Text("Open Conversation")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
+                    Text("\(L.t("Open Conversation", lang)) →")
+                        .textCase(.uppercase)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.chunky(EC.pink))
 
                 Button {
                     showShareSheet = true
                 } label: {
-                    Label("Share Link", systemImage: "square.and.arrow.up")
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
+                    Label(L.t("Share Link", lang), systemImage: "square.and.arrow.up")
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.chunky(.white, size: .small))
             }
-            .padding(.horizontal)
         }
-        .padding()
+        .padding(.horizontal, 22)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            ZStack {
+                RoomBackground(index: 7)
+                RaysView(color: EC.pink.opacity(0.18), rays: 20)
+                    .frame(width: 900, height: 900)
+                    .offset(y: -120)
+            }
+            .ignoresSafeArea()
+        }
+        .overlay { ConfettiBurst(trigger: confetti).ignoresSafeArea() }
         .navigationBarBackButtonHidden(true)
         .onAppear { viewModel.startObserving() }
         .onDisappear { viewModel.stopObserving() }
         .onChange(of: scenePhase) { newPhase in
             viewModel.handleScenePhase(newPhase)
+        }
+        .onChange(of: guests.count) { newCount in
+            if newCount > 0 {
+                Haptics.success()
+                confetti += 1
+            }
         }
         .navigationDestination(isPresented: $navigateToConversation) {
             HostConversationView(roomId: roomId, hostId: hostId)
@@ -124,22 +114,62 @@ struct HostQRCodeRoomView: View {
         }
     }
 
-    private func generateQRCode(from string: String) -> UIImage? {
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-
-        guard let outputImage = filter.outputImage else { return nil }
-
-        let scale = 10.0
-        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
-            return nil
+    private var guestRow: some View {
+        let shown = Array(guests.prefix(5))
+        let empties = max(0, 2 - shown.count)
+        return HStack(alignment: .bottom, spacing: 10) {
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, p in
+                VStack(spacing: 4) {
+                    AvatarDisc(avatarId: p.avatar.value, size: 50)
+                        .background(Circle().fill(EC.ink).offset(y: 3))
+                    Text(p.nickname)
+                        .font(.round(11, .black))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(.white))
+                        .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
+                }
+                .frame(maxWidth: 70)
+                .offset(y: i.isMultiple(of: 2) ? 0 : -10)
+                .transition(.move(edge: .top).combined(with: .scale(scale: 0.4)))
+            }
+            ForEach(0..<empties, id: \.self) { _ in
+                Text("?")
+                    .font(.chunky(20))
+                    .foregroundStyle(EC.inkSoft.opacity(0.7))
+                    .frame(width: 50, height: 50)
+                    .overlay(Circle().strokeBorder(EC.inkSoft.opacity(0.6), style: StrokeStyle(lineWidth: 3, dash: [6, 5])))
+                    .padding(.bottom, 22)
+            }
         }
+        .animation(.spring(response: 0.45, dampingFraction: 0.55), value: guests.map(\.id))
+        .frame(minHeight: 84)
+    }
+}
 
-        return UIImage(cgImage: cgImage)
+/// Join code as tilted chunky letter tiles
+struct RoomCodeTiles: View {
+    let code: String
+    var tileSize: CGFloat = 46
+
+    private let fills = [EC.pinkSoft, EC.yellowSoft, EC.mintSoft, EC.blueSoft, EC.violetSoft, EC.yellowSoft]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(code.enumerated()), id: \.offset) { i, ch in
+                Text(String(ch))
+                    .font(.chunky(tileSize * 0.48))
+                    .foregroundStyle(EC.ink)
+                    .frame(width: tileSize, height: tileSize * 1.08)
+                    .ecCard(fill: fills[i % fills.count], radius: 13, border: 3, shadow: 4)
+                    .rotationEffect(.degrees([-4, 3, -2, 4, -3, 2][i % 6]))
+                    .offset(y: i % 3 == 1 ? -3 : 0)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(code)
     }
 }
 

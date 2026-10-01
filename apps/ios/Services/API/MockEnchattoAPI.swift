@@ -234,56 +234,46 @@ class MockEnchattoAPI: EnchattoAPI {
         return nil
     }
 
-    // MARK: - Emojifyr
+    // MARK: - Word Rush
 
-    func startEmojifyr(roomId: String, participantId: String) async throws -> String? {
+    func createWordRushLobby(roomId: String, hostParticipantId: String, pack: String, sayIt: Bool) async throws -> String {
         return UUID().uuidString
     }
 
-    func submitEmojifyrSentence(roundId: String, sentence: String, isInitialism: Bool) async throws {
-        // Mock: no-op
+    func joinWordRush(gameId: String, participantId: String) async throws {}
+
+    func leaveWordRush(gameId: String, participantId: String) async throws {}
+
+    func updateWordRushSettings(gameId: String, participantId: String, pack: String?, sayIt: Bool?) async throws {}
+
+    func startWordRush(gameId: String, participantId: String) async throws {}
+
+    func answerWordRush(gameId: String, participantId: String, choiceIndex: Int) async throws -> (correct: Bool, points: Int) {
+        return (true, 300)
     }
 
-    func updateEmojifyrSentence(roundId: String, sentence: String) async throws {}
-
-    func submitEmojifyrEmojiClue(roundId: String, emojiClue: String) async throws {
-        // Mock: no-op
+    func wordRushHint(gameId: String, participantId: String) async throws -> String {
+        return "s· · · ·"
     }
 
-    func submitEmojifyrGuess(roundId: String, participantId: String, guessText: String) async throws {
-        // Mock: no-op
+    func submitWordRushClip(gameId: String, participantId: String, storageId: String) async throws {}
+
+    func skipWordRushMic(gameId: String, participantId: String) async throws {}
+
+    func voteWordRush(gameId: String, participantId: String, vote: String) async throws {}
+
+    func submitWordRushTeachClip(gameId: String, participantId: String, storageId: String) async throws {}
+
+    func skipWordRushPhase(gameId: String, participantId: String, phaseSeq: Int) async throws {}
+
+    func cancelWordRush(gameId: String, participantId: String) async throws {}
+
+    func playAgainWordRush(gameId: String, participantId: String) async throws -> String {
+        return UUID().uuidString
     }
 
-    func revealEmojifyrRound(roundId: String) async throws {
-        // Mock: no-op
-    }
-
-    func advanceEmojifyrRound(gameSessionId: String) async throws {
-        // Mock: no-op
-    }
-
-    func cancelEmojifyr(gameSessionId: String) async throws {
-        // Mock: no-op
-    }
-
-    func getActiveEmojifyrSession(roomId: String) async throws -> GameSession? {
+    func getWordRushState(roomId: String) async throws -> WordRushGame? {
         return nil
-    }
-
-    func getCurrentEmojifyrRound(gameSessionId: String) async throws -> EmojifyrRound? {
-        return nil
-    }
-
-    func getEmojifyrGuesses(roundId: String) async throws -> [EmojifyrGuess] {
-        return []
-    }
-
-    func getEmojifyrGameState(roomId: String) async throws -> EmojifyrGameState? {
-        return nil
-    }
-
-    func generateEmojiClueFromAI(sentence: String) async throws -> String {
-        return "🐱💤🛋️"
     }
 
     // MARK: - Emoji Match

@@ -6,16 +6,24 @@ struct EmojiMatchGameView: View {
     let onDismiss: () -> Void
     var onMinimize: (() -> Void)? = nil
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showCompleted = false
+    @State private var lastMatchedCount = 0
+    @State private var streak = 0
+    @State private var lastScorer: String?
+    @State private var pairPop: PairPop?
+    @State private var confettiTrigger = 0
+
+    private struct PairPop: Equatable {
+        let id = UUID()
+        let text: String
+        let fill: Color
+        let big: Bool
+    }
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.indigo.opacity(0.9), Color.purple.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            RoomBackground(room: viewModel.room).ignoresSafeArea()
 
             if let game = viewModel.activeEmojiMatchGame {
                 switch game.status {
@@ -26,6 +34,7 @@ struct EmojiMatchGameView: View {
                 case .completed:
                     if showCompleted {
                         completedView(game: game)
+                            .transition(.opacity)
                     } else {
                         boardView(game: game)
                     }
@@ -33,6 +42,34 @@ struct EmojiMatchGameView: View {
                     EmptyView()
                 }
             }
+
+            if let pairPop {
+                Group {
+                    if pairPop.big {
+                        CutInBanner(text: pairPop.text, fill: pairPop.fill, icon: "re-star")
+                    } else {
+                        ZStack {
+                            Text(pairPop.text)
+                                .font(.chunky(26))
+                                .foregroundStyle(.white)
+                                .shadow(color: EC.ink, radius: 0, y: 3)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 6)
+                                .ecCard(fill: pairPop.fill, radius: 16, border: 3.5, shadow: 5)
+                                .rotationEffect(.degrees(-6))
+                                .stampIn()
+                            FloatingScore(text: "+1")
+                                .offset(x: 70, y: -36)
+                        }
+                    }
+                }
+                .id(pairPop.id)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+            }
+
+            ConfettiBurst(trigger: confettiTrigger, count: reduceMotion ? 20 : 50)
+                .ignoresSafeArea()
         }
         .onChange(of: viewModel.activeEmojiMatchGame?.status) { newStatus in
             if newStatus == .completed {
@@ -44,20 +81,46 @@ struct EmojiMatchGameView: View {
                 showCompleted = false
             }
         }
+        .onChange(of: viewModel.activeEmojiMatchGame?.matchedPairCount ?? 0) { count in
+            defer { lastMatchedCount = count }
+            guard count > lastMatchedCount, let game = viewModel.activeEmojiMatchGame else {
+                if count < lastMatchedCount { streak = 0; lastScorer = nil }
+                return
+            }
+            let scorer = game.currentTurnParticipantId
+            streak = scorer == lastScorer ? streak + 1 : 1
+            lastScorer = scorer
+            celebratePair(streak: streak)
+        }
+        .onChange(of: viewModel.activeEmojiMatchGame?.currentTurnParticipantId) { turn in
+            if turn != lastScorer { streak = 0 }
+        }
     }
 
-    @ViewBuilder
-    private var inlineMinimizeButton: some View {
-        if let onMinimize {
-            Button(action: onMinimize) {
-                Image(systemName: "minus")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
-                    .background(Color.white.opacity(0.18))
-                    .cornerRadius(6)
+    private func celebratePair(streak: Int) {
+        Haptics.success()
+        let pop: PairPop
+        switch streak {
+        case ...1: pop = PairPop(text: L.t("PAIR!", lang), fill: EC.mint, big: false)
+        case 2: pop = PairPop(text: "\(L.t("COMBO", lang)) ×2!", fill: EC.yellow, big: false)
+        default: pop = PairPop(text: "\(L.t("COMBO", lang)) ×\(streak)!", fill: EC.pink, big: true)
+        }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { pairPop = pop }
+        if streak >= 2 { confettiTrigger += 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+            if pairPop == pop { withAnimation { pairPop = nil } }
+        }
+    }
+
+    private func header(game: EmojiMatchGame) -> some View {
+        GKHeader(icon: "o-cherry", title: L.t("Emoji Match", lang), lang: lang, onMinimize: onMinimize) {
+            if game.status != .lobby {
+                GKCounter(text: "\(game.matchedPairCount)/\(game.totalPairs) \(L.t("pairs", lang))")
+                Button(L.t("End Game", lang)) {
+                    Task { await viewModel.cancelEmojiMatch() }
+                }
+                .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
             }
-            .accessibilityLabel(L.t("Minimize", lang))
         }
     }
 
@@ -66,86 +129,55 @@ struct EmojiMatchGameView: View {
     private func lobbyView(game: EmojiMatchGame) -> some View {
         let amJoined = game.players.contains { $0.participantId == viewModel.hostId }
         let amHost = game.hostParticipantId == viewModel.hostId
+        let players = game.players.map {
+            GKPlayer(
+                id: $0.participantId, nickname: $0.nickname, avatarValue: $0.avatarValue,
+                isHost: $0.participantId == game.hostParticipantId, isMe: $0.participantId == viewModel.hostId
+            )
+        }
 
-        return VStack(spacing: 16) {
-            Spacer()
-
-            Text("🃏")
-                .font(.system(size: 48))
-            Text(L.t("Emoji Match", lang))
-                .font(.title2.bold())
-                .foregroundStyle(.white)
-            Text(L.t("Find matching emoji pairs! Take turns flipping cards.", lang))
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.8))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            // Player list
-            VStack(alignment: .leading, spacing: 8) {
-                Text("\(L.t("Players", lang)) (\(game.players.count)/30)")
-                    .font(.caption.bold())
-                    .foregroundStyle(.white.opacity(0.7))
-
-                ForEach(game.players) { player in
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.white.opacity(0.2))
-                            .frame(width: 28, height: 28)
-                            .overlay(Text(avatarEmoji(player.avatarValue)).font(.caption))
-                        Text(player.nickname)
-                            .foregroundStyle(.white)
-                            .font(.subheadline)
-                        if player.participantId == game.hostParticipantId {
-                            Text(L.t("HOST", lang))
-                                .font(.caption2.bold())
-                                .foregroundStyle(.yellow)
-                        }
-                        Spacer()
-                    }
-                }
-            }
-            .padding()
-            .background(.white.opacity(0.1))
-            .cornerRadius(12)
-            .padding(.horizontal)
-
-            Spacer()
-
-            VStack(spacing: 10) {
+        return VStack(spacing: 0) {
+            header(game: game)
+            GKLobby(
+                icon: "o-cherry",
+                title: L.t("Emoji Match", lang),
+                tagline: L.t("Find matching emoji pairs! Take turns flipping cards.", lang),
+                accent: EC.violet,
+                playersLabel: "\(L.t("Players", lang)) (\(game.players.count)/30)",
+                players: players,
+                lang: lang
+            ) {
+                ECChip(text: L.t("Works solo or multiplayer", lang), fill: EC.violetSoft, icon: "av-bunny")
+            } footer: {
                 if !amJoined {
                     Button(L.t("Join Game", lang)) {
+                        Haptics.tap()
                         Task { await viewModel.joinEmojiMatchLobby() }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.white)
-                    .foregroundStyle(.indigo)
+                    .buttonStyle(.chunky(EC.mint))
                 }
 
                 if amJoined && !amHost {
                     Button(L.t("Leave Lobby", lang)) {
                         Task { await viewModel.leaveEmojiMatchLobby() }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
+                    .buttonStyle(.chunky(.white, size: .small))
                 }
 
                 if amHost {
                     Button(L.t("Start Game", lang)) {
+                        Haptics.thump()
                         Task { await viewModel.startEmojiMatch() }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.white)
-                    .foregroundStyle(.indigo)
+                    .buttonStyle(.chunky(EC.violet))
+                    .gkWiggle(angle: 0.8, duration: 0.45)
 
                     Button(L.t("Cancel", lang)) {
                         Task { await viewModel.cancelEmojiMatch() }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.white.opacity(0.7))
+                    .buttonStyle(.chunky(.white, size: .small))
                 }
             }
-            .padding(.bottom, 30)
         }
     }
 
@@ -157,205 +189,191 @@ struct EmojiMatchGameView: View {
         let currentPlayer = game.players.first { $0.participantId == game.currentTurnParticipantId }
         let canFlip = isMyTurn && !isResolving && game.selectedCardIds.count < 2
 
-        return VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("🃏")
-                Text(L.t("Emoji Match", lang))
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Spacer()
-                Text("\(game.matchedPairCount)/\(game.totalPairs)")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+        return VStack(spacing: 10) {
+            header(game: game)
 
-                Button {
-                    Task { await viewModel.cancelEmojiMatch() }
-                } label: {
-                    Text(L.t("End Game", lang))
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.red.opacity(0.7))
-                        .clipShape(Capsule())
+            scoreStrip(game: game)
+
+            HStack(spacing: 10) {
+                if isMyTurn {
+                    (Text(L.t("Your turn!", lang)) + Text(" ") + Text(L.t("Find a pair", lang)).foregroundColor(EC.pink))
+                        .font(.chunky(19))
+                        .foregroundStyle(EC.ink)
+                } else if let player = currentPlayer {
+                    AvatarDisc(avatarId: player.avatarValue, size: 30)
+                    (Text(player.nickname) + Text(L.t("'s turn", lang)))
+                        .font(.chunky(18))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-
-                inlineMinimizeButton
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 10)
-
-            // Turn indicator
-            HStack(spacing: 8) {
-                if let player = currentPlayer {
-                    Circle()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 24, height: 24)
-                        .overlay(Text(avatarEmoji(player.avatarValue)).font(.caption2))
-                    Text(isMyTurn ? L.t("Your turn!", lang) : "\(player.nickname)'s \(L.t("turn", lang))")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(isMyTurn ? .yellow : .white)
-                }
-                Spacer()
-                if let timeoutMs = game.turnTimeoutMs, let started = game.turnStartedAt, game.players.count > 1 {
-                    let elapsed = Date().timeIntervalSince1970 * 1000 - started
-                    let remaining = max(0, Double(timeoutMs) - elapsed)
-                    Text("\(Int(ceil(remaining / 1000)))s")
-                        .font(.caption.bold())
-                        .foregroundStyle(remaining < 5000 ? .red : .white.opacity(0.7))
+                if let timeoutMs = game.turnTimeoutMs, let started = game.turnStartedAt, game.players.count > 1, game.status != .completed {
+                    GKTimerRing(startedAtMs: started, totalMs: Double(timeoutMs), hurryBelow: 5, size: 38)
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-            .background(isMyTurn ? Color.yellow.opacity(0.15) : Color.clear)
+            .padding(.horizontal, 16)
+            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: isMyTurn)
 
-            // Score strip — sorted by score, with placement emojis
-            let rankedPlayers = game.players.filter(\.isActive).sorted { $0.score > $1.score }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(Array(rankedPlayers.enumerated()), id: \.element.id) { index, player in
-                        let isCurrent = player.participantId == game.currentTurnParticipantId
-                        let rank = rankedPlayers.firstIndex(where: { $0.score == player.score }) ?? index
-                        HStack(spacing: 4) {
-                            Text(rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "")
-                                .font(.system(size: 10))
-                            Circle()
-                                .fill(Color.white.opacity(isCurrent ? 0.3 : 0.15))
-                                .frame(width: 20, height: 20)
-                                .overlay(Text(avatarEmoji(player.avatarValue)).font(.system(size: 9)))
-                            Text("\(player.turns ?? 0)/\(player.score)/\(game.totalPairs)")
-                                .font(.caption.bold())
-                                .foregroundStyle(.white)
-                        }
-                        .opacity(isCurrent ? 1.0 : 0.6)
+            GeometryReader { geo in
+                let cols = max(1, game.boardCols)
+                let rows = max(1, Int(ceil(Double(game.board.count) / Double(cols))))
+                let gap: CGFloat = cols > 4 ? 7 : 9
+                let cellW = (geo.size.width - gap * CGFloat(cols - 1)) / CGFloat(cols)
+                let cellH = (geo.size.height - gap * CGFloat(rows - 1)) / CGFloat(rows) - 4
+                let height = min(cellH, cellW * 1.3)
+                let width = min(cellW, height / 0.8)
+                let columns = Array(repeating: GridItem(.fixed(width), spacing: gap), count: cols)
+
+                LazyVGrid(columns: columns, spacing: gap) {
+                    ForEach(game.board) { card in
+                        FlipCardView(
+                            card: card,
+                            canFlip: canFlip && !card.isMatched && !card.isRevealed,
+                            onFlip: {
+                                Haptics.tap()
+                                Task { await viewModel.flipEmojiMatchCard(cardId: card.cardId) }
+                            }
+                        )
+                        .frame(width: width, height: height)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
             }
-
-            // Board grid — centered, no scrolling
-            let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: game.boardCols)
-            Spacer()
-            LazyVGrid(columns: cols, spacing: 6) {
-                ForEach(game.board) { card in
-                    cardView(card: card, canFlip: canFlip && !card.isMatched && !card.isRevealed, game: game)
-                }
-            }
-            .padding()
-            Spacer()
+            .padding(.horizontal, 16)
+            .padding(.bottom, 14)
         }
     }
 
-    private func cardView(card: EmojiMatchCard, canFlip: Bool, game: EmojiMatchGame) -> some View {
-        FlipCardView(
-            card: card,
-            canFlip: canFlip,
-            onFlip: { Task { await viewModel.flipEmojiMatchCard(cardId: card.cardId) } }
-        )
+    private func scoreStrip(game: EmojiMatchGame) -> some View {
+        let players = game.players.filter(\.isActive)
+        let topScore = players.map(\.score).max() ?? 0
+
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(players) { player in
+                    let isTurn = player.participantId == game.currentTurnParticipantId
+                    let isMe = player.participantId == viewModel.hostId
+                    HStack(spacing: 6) {
+                        AvatarDisc(avatarId: player.avatarValue, size: 32)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(isMe ? L.t("You", lang).uppercased() : player.nickname)
+                                .font(.round(11, .black))
+                                .foregroundStyle(EC.ink)
+                                .lineLimit(1)
+                            Text("\(player.turns ?? 0) \(L.t("turns", lang))")
+                                .font(.round(9.5, .bold))
+                                .foregroundStyle(EC.ink.opacity(0.55))
+                        }
+                        Spacer(minLength: 4)
+                        if player.score == topScore && topScore > 0 {
+                            PackIcon("g-crown", size: 16)
+                        }
+                        Text("\(player.score)")
+                            .font(.chunky(18))
+                            .foregroundStyle(EC.ink)
+                            .monospacedDigit()
+                    }
+                    .padding(.leading, 4)
+                    .padding(.trailing, 10)
+                    .padding(.vertical, 4)
+                    .frame(minWidth: 110)
+                    .background(
+                        RoundedRectangle(cornerRadius: 17, style: .continuous)
+                            .strokeBorder(EC.pink, lineWidth: isTurn ? 3 : 0)
+                            .padding(-4)
+                    )
+                    .ecCard(fill: isTurn ? EC.yellow : .white, radius: 14, border: 2.5, shadow: isTurn ? 5 : 3)
+                    .rotationEffect(.degrees(isTurn ? -2 : 0))
+                    .offset(y: isTurn ? -3 : 0)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.55), value: isTurn)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.55), value: player.score)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
     }
 
     // MARK: - Completed
 
     private func completedView(game: EmojiMatchGame) -> some View {
         let isSolo = game.players.count == 1
+        let isCanceled = game.result?.endReason == "canceled"
         let isWinner = game.result?.winnerParticipantIds.contains(viewModel.hostId) ?? false
         let sortedPlayers = game.players.sorted { $0.score > $1.score }
 
-        var headline: String
-        var emoji: String
-        if game.result?.endReason == "canceled" {
+        let headline: String
+        if isCanceled {
             headline = L.t("Game Canceled", lang)
-            emoji = "😔"
         } else if isSolo {
             headline = L.t("Board Cleared!", lang)
-            emoji = "🎉"
         } else if game.result?.isTie == true {
             headline = L.t("It's a Tie!", lang)
-            emoji = "🤝"
         } else if isWinner {
             headline = L.t("You Won!", lang)
-            emoji = "🏆"
         } else {
             let winner = game.players.first { $0.participantId == game.result?.winnerParticipantIds.first }
             headline = "\(winner?.nickname ?? "?") \(L.t("Won!", lang))"
-            emoji = "🏆"
         }
 
-        return VStack(spacing: 16) {
-            Spacer()
+        let entries = sortedPlayers.map {
+            GKPodiumEntry(
+                id: $0.participantId, nickname: $0.nickname, avatarValue: $0.avatarValue,
+                valueText: "\($0.score) \(L.t($0.score == 1 ? "pair" : "pairs", lang))",
+                isMe: $0.participantId == viewModel.hostId
+            )
+        }
 
-            Text(emoji)
-                .font(.system(size: 48))
-            Text(headline)
-                .font(.title2.bold())
-                .foregroundStyle(.white)
+        return ZStack {
+            GKCelebrationBackground(room: viewModel.room, celebrate: !isCanceled)
 
-            // Scores
-            VStack(spacing: 8) {
-                ForEach(Array(sortedPlayers.enumerated()), id: \.element.id) { index, player in
-                    let isMe = player.participantId == viewModel.hostId
-                    let rank = sortedPlayers.firstIndex(where: { $0.score == player.score }) ?? index
-                    HStack(spacing: 8) {
-                        Text(rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : "\(index + 1).")
-                            .font(.caption)
-                            .frame(width: 24)
-                        Circle()
-                            .fill(Color.white.opacity(0.2))
-                            .frame(width: 24, height: 24)
-                            .overlay(Text(avatarEmoji(player.avatarValue)).font(.caption2))
-                        Text(player.nickname)
-                            .foregroundStyle(.white)
-                            .fontWeight(isMe ? .bold : .regular)
-                        if isMe {
-                            Text("(\(L.t("you", lang)))")
-                                .font(.caption)
-                                .foregroundStyle(.yellow)
+            VStack(spacing: 14) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        OutlinedText(headline.uppercased(), size: 34, fill: isCanceled ? .white : EC.yellow)
+                            .rotationEffect(.degrees(-4))
+                            .multilineTextAlignment(.center)
+                            .stampIn()
+                            .padding(.top, 24)
+                            .accessibilityAddTraits(.isHeader)
+
+                        GKPodium(entries: Array(entries.prefix(3)), lang: lang)
+                            .padding(.top, 30)
+
+                        VStack(spacing: 10) {
+                            ForEach(Array(entries.dropFirst(3).enumerated()), id: \.element.id) { index, entry in
+                                GKRankRow(rank: index + 4, entry: entry, lang: lang)
+                            }
+                            ForEach(sortedPlayers.filter { $0.participantId == viewModel.hostId }) { me in
+                                GKFlowLayout(spacing: 6, lineSpacing: 6) {
+                                    ECChip(text: "\(me.score)/\(game.totalPairs) \(L.t("pairs", lang))", fill: EC.mintSoft, icon: "o-cherry")
+                                    ECChip(text: "\(me.turns ?? 0) \(L.t("turns", lang))", fill: EC.violetSoft)
+                                }
+                            }
                         }
-                        Spacer()
-                        Text("\(player.turns ?? 0)/\(player.score)/\(game.totalPairs)")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.white)
+                        .padding(14)
+                        .frame(maxWidth: .infinity)
+                        .ecCard(radius: 22)
+                        .padding(.horizontal, 16)
+                        .padding(.top, -12)
                     }
                 }
-            }
-            .padding()
-            .background(.white.opacity(0.1))
-            .cornerRadius(12)
-            .padding(.horizontal)
 
-            Spacer()
-
-            VStack(spacing: 10) {
-                Button(L.t("Play Again", lang)) {
-                    Task { await viewModel.playAgainEmojiMatch() }
+                HStack(spacing: 10) {
+                    Button(L.t("Back to Chat", lang)) { onDismiss() }
+                        .buttonStyle(.chunky(EC.blue))
+                    Button(L.t("Again!", lang)) {
+                        Haptics.thump()
+                        Task { await viewModel.playAgainEmojiMatch() }
+                    }
+                    .buttonStyle(.chunky(EC.pink))
+                    .gkWiggle(angle: 1.2, duration: 0.4)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
-                .foregroundStyle(.indigo)
-
-                Button(L.t("Exit", lang)) {
-                    onDismiss()
-                }
-                .buttonStyle(.bordered)
-                .tint(.white.opacity(0.7))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
             }
-            .padding(.bottom, 30)
         }
-    }
-
-    // MARK: - Helpers
-
-    private func avatarEmoji(_ avatarValue: String) -> String {
-        let avatars: [(id: String, emoji: String)] = [
-            ("bear", "🐻"), ("cat", "🐱"), ("dog", "🐶"), ("fox", "🦊"),
-            ("frog", "🐸"), ("koala", "🐨"), ("lion", "🦁"), ("monkey", "🐵"),
-            ("mouse", "🐭"), ("octopus", "🐙"), ("owl", "🦉"), ("panda", "🐼"),
-            ("penguin", "🐧"), ("rabbit", "🐰"), ("tiger", "🐯"), ("whale", "🐳"),
-        ]
-        return avatars.first { $0.id == avatarValue }?.emoji ?? "👤"
     }
 }
 
@@ -366,8 +384,11 @@ private struct FlipCardView: View {
     let canFlip: Bool
     let onFlip: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Local rotation state drives the animation independently from server data
     @State private var showFace = false
+    @State private var gone = false
+    @State private var matchPop = false
 
     var body: some View {
         let targetShowFace = card.isRevealed || card.isMatched
@@ -376,75 +397,95 @@ private struct FlipCardView: View {
             if canFlip { onFlip() }
         } label: {
             ZStack {
-                // Back face — visible when rotation < 90 degrees
-                cardBack
-                    .opacity(showFace ? 0 : 1)
-                    .rotation3DEffect(.degrees(showFace ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+                if gone {
+                    goneCard
+                } else {
+                    cardBack
+                        .opacity(showFace ? 0 : 1)
+                        .rotation3DEffect(.degrees(showFace ? 180 : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
 
-                // Front face — visible when rotation >= 90 degrees
-                cardFront
-                    .opacity(showFace ? 1 : 0)
-                    .rotation3DEffect(.degrees(showFace ? 0 : -180), axis: (x: 0, y: 1, z: 0))
+                    cardFront
+                        .opacity(showFace ? 1 : 0)
+                        .rotation3DEffect(.degrees(showFace ? 0 : -180), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+                }
             }
-            .aspectRatio(1, contentMode: .fit)
-            .opacity(1.0)
+            .scaleEffect(matchPop ? 1.12 : 1)
+            .rotationEffect(.degrees(matchPop ? -4 : 0))
         }
+        .buttonStyle(.pressable)
         .disabled(!canFlip)
         .onAppear {
             // Set initial state without animation
             showFace = targetShowFace
+            gone = card.isMatched
         }
         .onChange(of: targetShowFace) { newValue in
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.65)) {
                 showFace = newValue
             }
         }
+        .onChange(of: card.isMatched) { matched in
+            guard matched else {
+                gone = false
+                return
+            }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.4)) { matchPop = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { matchPop = false }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                withAnimation(.easeInOut(duration: 0.35)) { gone = true }
+            }
+        }
+        .accessibilityLabel(showFace ? (card.content.label ?? card.content.value) : "?")
+        .accessibilityAddTraits(card.isMatched ? .isSelected : [])
     }
 
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 16, style: .continuous) }
+
     private var cardBack: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(
-                LinearGradient(
-                    colors: [.indigo, .purple],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
-            .overlay(
-                Text("?")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white.opacity(0.3))
-            )
+        ZStack {
+            shape.fill(EC.violet)
+            GKDotPattern(color: .white.opacity(0.45), spacing: 13, radius: 2.4)
+                .clipShape(shape)
+            OutlinedText("?", size: 26, fill: .white, outline: 2)
+        }
+        .overlay(shape.strokeBorder(EC.ink, lineWidth: 3))
+        .background(shape.fill(EC.ink).offset(y: 4))
     }
 
     private var cardFront: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(card.isMatched ? Color(red: 0.85, green: 0.98, blue: 0.88) : Color.white.opacity(0.95))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(card.isMatched ? Color.mint : Color.indigo, lineWidth: 2)
-            )
-            .overlay(
-                ZStack {
-                    Text(card.content.value)
-                        .font(.system(size: 28))
-                    if let label = card.content.label {
-                        VStack {
-                            Spacer()
-                            Text(label)
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                                .padding(.horizontal, 2)
-                                .padding(.bottom, 10)
-                        }
-                    }
+        GeometryReader { geo in
+            VStack(spacing: 2) {
+                EmojiArt(emoji: card.content.value, size: min(geo.size.width * 0.62, geo.size.height * 0.5))
+                if let label = card.content.label {
+                    Text(label)
+                        .font(.round(11, .black))
+                        .foregroundStyle(card.isMatched ? EC.ink : EC.pink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .padding(.horizontal, 4)
                 }
-            )
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+        .background(shape.fill(card.isMatched ? EC.mintSoft : .white))
+        .overlay(shape.strokeBorder(EC.ink, lineWidth: 3))
+        .overlay {
+            if card.isMatched {
+                shape.strokeBorder(EC.mint, lineWidth: 4).padding(-5)
+            }
+        }
+        .background(shape.fill(EC.ink).offset(y: 4))
+    }
+
+    private var goneCard: some View {
+        ZStack {
+            shape.strokeBorder(EC.lineSoft, style: StrokeStyle(lineWidth: 3, dash: [7, 6]))
+            EmojiArt(emoji: card.content.value, size: 30)
+                .opacity(0.22)
+                .grayscale(0.6)
+        }
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }

@@ -45,13 +45,13 @@ struct HostConversationView: View {
     @State private var showQuitGameConfirm = false
     @State private var showEndGameConfirm = false
     @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
-    @State private var showEmojifyrGame = false
+    @State private var showWordRushGame = false
     @State private var showEmojiMatchGame = false
     @State private var showTruthOrDareGame = false
     @State private var minimizedTruthOrDareGameId: String? = nil
     @State private var minimizedEmojiMatchGameId: String? = nil
     @State private var minimizedEmojiBingoGameId: String? = nil
-    @State private var minimizedEmojifyrSessionId: String? = nil
+    @State private var minimizedWordRushGameId: String? = nil
     @State private var showEmojiBingoGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
 
@@ -73,7 +73,12 @@ struct HostConversationView: View {
 
             if viewModel.isLoading {
                 Spacer()
-                ProgressView(L.t("Loading...", hostLanguage))
+                VStack(spacing: 10) {
+                    ChattoView(size: 64)
+                    Text(L.t("Loading...", hostLanguage))
+                        .font(.round(14, .black))
+                        .foregroundStyle(EC.inkSoft)
+                }
                 Spacer()
             } else if viewModel.messages.isEmpty {
                 emptyStateView
@@ -92,7 +97,9 @@ struct HostConversationView: View {
                 closedBanner
             }
         }
+        .background { RoomBackground(room: viewModel.room).ignoresSafeArea() }
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .background { offlineTranslatorBridge }
         .onAppear { viewModel.startObserving() }
         .onDisappear { viewModel.stopObserving() }
@@ -136,27 +143,21 @@ struct HostConversationView: View {
                         withAnimation { tooltipParticipant = nil }
                     }
                     .overlay(alignment: .topTrailing) {
-                        HStack(spacing: 4) {
-                            Text(participant.avatarEmoji)
-                                .font(.system(size: 12))
+                        HStack(spacing: 6) {
+                            AvatarDisc(avatarId: participant.avatar.value, size: 22)
                             Text(participant.nickname)
-                                .font(.caption2)
-                                .fontWeight(.medium)
+                                .font(.round(13, .black))
+                                .foregroundStyle(EC.ink)
                             if participant.isAway {
-                                Text("·").foregroundStyle(.orange)
-                                Text(L.t("Away", hostLanguage))
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
+                                ECChip(text: L.t("Away", hostLanguage), fill: EC.yellow)
                             }
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color(.systemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-                        .padding(.top, 54)
+                        .ecCard(radius: 14, border: 2.5, shadow: 3)
+                        .padding(.top, 62)
                         .padding(.trailing, 44)
-                        .transition(.opacity)
+                        .transition(.scale(scale: 0.6, anchor: .topTrailing).combined(with: .opacity))
                     }
             }
         }
@@ -237,68 +238,82 @@ struct HostConversationView: View {
                 }
 
             GeometryReader { _ in
-                VStack(alignment: .leading, spacing: 0) {
-                    Button {
-                        showEnglish.toggle()
-                    } label: {
-                        Label(L.t("English", hostLanguage), systemImage: showEnglish ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(showEnglish ? .primary : .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    settingsToggle(L.t("English", hostLanguage), isOn: $showEnglish) {
+                        LangBadge(lang: "en", size: 22)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-
-                    Button {
-                        showJapanese.toggle()
-                    } label: {
-                        Label(L.t("Japanese", hostLanguage), systemImage: showJapanese ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(showJapanese ? .primary : .secondary)
+                    settingsToggle(L.t("Japanese", hostLanguage), isOn: $showJapanese) {
+                        LangBadge(lang: "ja", size: 22)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-
-                    Button {
-                        showRomaji.toggle()
-                    } label: {
-                        Label(L.t("Romaji", hostLanguage), systemImage: showRomaji ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(showRomaji ? .primary : .secondary)
+                    settingsToggle(L.t("Romaji", hostLanguage), isOn: $showRomaji) {
+                        Text("Ro")
+                            .font(.round(11, .black))
+                            .foregroundStyle(.white)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(EC.violet))
+                            .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
 
-                    Divider()
-                        .padding(.vertical, 4)
+                    DashedRule()
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
 
                     Button {
                         showHostSettings = false
                         viewModel.showParticipantSheet = true
                     } label: {
-                        Label(L.t("Participants", hostLanguage), systemImage: "person.2")
+                        Label(L.t("Participants", hostLanguage), systemImage: "person.2.fill")
+                            .font(.round(15, .black))
+                            .foregroundStyle(EC.ink)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-
-                    Divider()
-                        .padding(.vertical, 4)
+                    .buttonStyle(.pressable)
 
                     Button {
                         showHostSettings = false
                         showCloseConfirmation = true
                     } label: {
-                        Label(L.t("Close Room", hostLanguage), systemImage: "xmark.circle")
-                            .foregroundStyle(.red)
+                        Text(L.t("Close Room", hostLanguage))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .buttonStyle(.chunky(EC.red, size: .mini))
+                    .padding(.horizontal, 10)
+                    .padding(.top, 4)
                 }
-                .padding(.vertical, 8)
-                .fixedSize()
-                .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                .offset(x: 12, y: 44)
+                .padding(.vertical, 10)
+                .frame(width: 230)
+                .ecCard(radius: 20, border: 3, shadow: 6)
+                .offset(x: 12, y: 62)
             }
-            .transition(.opacity)
+            .transition(.scale(scale: 0.7, anchor: .topLeading).combined(with: .opacity))
         }
+    }
+
+    private func settingsToggle<Badge: View>(_ title: String, isOn: Binding<Bool>, @ViewBuilder badge: () -> Badge) -> some View {
+        Button {
+            Haptics.tap()
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) { isOn.wrappedValue.toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                badge()
+                Text(title)
+                    .font(.round(15, .black))
+                    .foregroundStyle(isOn.wrappedValue ? EC.ink : EC.inkSoft)
+                Spacer(minLength: 8)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(isOn.wrappedValue ? EC.ink : .clear)
+                    .frame(width: 24, height: 24)
+                    .background(RoundedRectangle(cornerRadius: 7).fill(isOn.wrappedValue ? EC.mint : .white))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(EC.ink, lineWidth: 2.5))
+                    .scaleEffect(isOn.wrappedValue ? 1 : 0.9)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityAddTraits(isOn.wrappedValue ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -401,70 +416,90 @@ struct HostConversationView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack {
+        HStack(spacing: 10) {
             // Host's own avatar — tap to show settings menu
             if let host = viewModel.participant(for: hostId) {
                 Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    Haptics.tap()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         showHostSettings.toggle()
                     }
                 } label: {
-                    ZStack {
-                        Circle()
-                            .fill(host.avatarColor)
-                            .frame(width: 32, height: 32)
-                        Text(host.avatarEmoji)
-                            .font(.system(size: 18))
-                    }
+                    AvatarDisc(avatarId: host.avatar.value, size: 44)
+                        .background(Circle().fill(EC.ink).offset(y: 3))
                 }
+                .buttonStyle(.pressable)
+                .accessibilityLabel(L.t("Settings", hostLanguage))
             }
 
-            // Title + QR code — tap QR icon to show QR panel
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
+            // Title + room code chip — tap chip to show QR panel
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
                     Text(L.t("Enchatto", hostLanguage))
-                        .font(.headline)
-                    Button {
-                        showQRCode = true
-                    } label: {
-                        QRCodeIcon()
-                            .frame(width: 14, height: 14)
-                            .foregroundStyle(.secondary)
+                        .font(.chunky(20))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(1)
+                    if let joinCode = viewModel.room?.joinCode {
+                        Button {
+                            Haptics.tap()
+                            showQRCode = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                QRCodeIcon()
+                                    .frame(width: 11, height: 11)
+                                Text(joinCode)
+                                    .font(.chunky(11))
+                                    .tracking(1)
+                            }
+                            .foregroundStyle(EC.yellow)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(EC.ink))
+                        }
+                        .buttonStyle(.pressable)
+                        .accessibilityLabel("\(L.t("Room Code", hostLanguage)) \(joinCode)")
                     }
-                    .buttonStyle(.plain)
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(EC.mint)
+                        .frame(width: 8, height: 8)
+                        .overlay(Circle().strokeBorder(EC.ink, lineWidth: 1.5))
                     Text("\(viewModel.onlineCount) \(L.t("online", hostLanguage))\(viewModel.awayCount > 0 ? ", \(viewModel.awayCount) \(L.t("away", hostLanguage))" : "")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.round(12, .bold))
+                        .foregroundStyle(EC.inkSoft)
+                        .lineLimit(1)
                     if viewModel.isProcessing {
                         ProgressView()
                             .controlSize(.mini)
+                            .tint(EC.pink)
                         Text(L.t("Processing...", hostLanguage))
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .font(.round(11, .black))
+                            .foregroundStyle(EC.pink)
+                            .lineLimit(1)
                     }
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
             // Other participant avatars — tap to show name tooltip
             ParticipantAvatarRow(
                 participants: viewModel.participants.filter { $0.id != hostId && !hiddenOfflineIds.contains($0.id) },
-                maxVisible: 5,
-                avatarSize: 28,
+                maxVisible: 4,
+                avatarSize: 32,
                 onTapParticipant: { participant in
-                    withAnimation(.easeOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         tooltipParticipant = tooltipParticipant?.id == participant.id ? nil : participant
                     }
                 }
             )
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .background(Color(.systemBackground))
-        .overlay(alignment: .bottom) { Divider() }
+        .padding(.horizontal, 14)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .background(Color.white.opacity(0.92).ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 
     // MARK: - Offline banner
@@ -472,20 +507,23 @@ struct HostConversationView: View {
     private var offlineBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: "wifi.slash")
-                .font(.subheadline)
+                .font(.system(size: 14, weight: .black))
             Text(L.t("You're offline", hostLanguage))
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .font(.round(14, .black))
             if viewModel.pendingQueueCount > 0 {
-                Text("(\(viewModel.pendingQueueCount) \(L.t("queued", hostLanguage)))")
-                    .font(.caption)
-                    .opacity(0.8)
+                Text("\(viewModel.pendingQueueCount) \(L.t("queued", hostLanguage))")
+                    .font(.round(11, .black))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(.white))
+                    .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(EC.ink)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(Color.orange)
+        .background(EC.yellow)
+        .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.3), value: viewModel.isOffline)
     }
@@ -502,18 +540,33 @@ struct HostConversationView: View {
     // MARK: - Empty state
 
     private var emptyStateView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 14) {
             Spacer()
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 40))
-                .foregroundStyle(.quaternary)
-            Text(L.t("No messages yet", hostLanguage))
-                .foregroundStyle(.secondary)
-            Text(L.t("Waiting for participants to start chatting", hostLanguage))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            ChattoView(size: 96)
+            VStack(spacing: 6) {
+                Text(L.t("No messages yet", hostLanguage))
+                    .font(.chunky(18))
+                    .foregroundStyle(EC.ink)
+                Text(L.t("Waiting for participants to start chatting", hostLanguage))
+                    .font(.round(13, .bold))
+                    .foregroundStyle(EC.inkSoft)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .ecCard(radius: 20, border: 3, shadow: 5)
+            .padding(.horizontal, 40)
+            if let joinCode = viewModel.room?.joinCode {
+                Button {
+                    showQRCode = true
+                } label: {
+                    Label(joinCode, systemImage: "qrcode")
+                }
+                .buttonStyle(.chunky(EC.yellow, size: .small, fullWidth: false))
+            }
             Spacer()
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Message list
@@ -542,7 +595,7 @@ struct HostConversationView: View {
     private var messageListView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 14) {
                     ForEach(filteredMessages) { message in
                         // Game complete bubble before first message after completedAt
                         if viewModel.isGameComplete,
@@ -608,8 +661,10 @@ struct HostConversationView: View {
                     // Scroll anchor — extra height so last item isn't clipped
                     Color.clear.frame(height: 16).id("bottom-anchor")
                 }
-                .padding()
+                .padding(.horizontal, 12)
+                .padding(.top, 14)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onPreferenceChange(MessageFramePreferenceKey.self) { frames in
                 messageFrames = frames
             }
@@ -640,58 +695,51 @@ struct HostConversationView: View {
         Button {
             showGameReplay = true
         } label: {
-            HStack(spacing: 6) {
-                Text("🎮")
+            HStack(spacing: 8) {
+                PackIcon("g-crown", size: 24)
                 Text(L.t("Game complete! View Results", hostLanguage))
-                    .fontWeight(.semibold)
             }
-            .font(.system(size: 14))
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                LinearGradient(
-                    colors: [.accentColor, .purple],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
         }
+        .buttonStyle(.chunky(EC.violet, size: .small, fullWidth: false))
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
+        .popIn()
     }
 
     // MARK: - Reply indicator
 
     private func replyIndicator(for message: Message) -> some View {
         let sender = viewModel.participant(for: message.senderId)
-        return HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(Color.accentColor)
-                .frame(width: 3, height: 28)
+        return HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(EC.pink)
+                .frame(width: 4, height: 32)
+            if let sender {
+                AvatarDisc(avatarId: sender.avatar.value, size: 26)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(L.t("Replying to", hostLanguage)) \(sender?.nickname ?? L.t("Unknown", hostLanguage))")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.round(12, .black))
+                    .foregroundStyle(EC.ink)
                 Text(message.text?.prefix(40).description ?? "")
-                    .font(.caption2)
+                    .font(.round(12, .medium))
+                    .foregroundStyle(EC.inkSoft)
                     .lineLimit(1)
             }
-            .foregroundStyle(.secondary)
             Spacer()
             Button {
                 replyToId = nil
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Image(systemName: "xmark")
             }
+            .buttonStyle(.roundIcon(diameter: 28))
+            .accessibilityLabel(L.t("Cancel", hostLanguage))
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .padding(.vertical, 6)
-        .background(Color(.systemGray6))
+        .background(EC.pinkSoft)
+        .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - Input
@@ -699,7 +747,38 @@ struct HostConversationView: View {
     @State private var showAttachMenu = false
 
     private var inputToolbar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            // Game button — End Game when active, Start Game otherwise
+            if viewModel.activeGameSession != nil {
+                Button {
+                    showEndGameConfirm = true
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 14, weight: .black))
+                }
+                .buttonStyle(.roundIcon(EC.red, diameter: 40))
+                .accessibilityLabel(L.t("End Game", hostLanguage))
+            } else {
+                Button {
+                    Haptics.tap()
+                    showGamePicker = true
+                } label: {
+                    PackIcon("ui-game", size: 26)
+                }
+                .buttonStyle(.roundIcon(EC.pinkSoft, diameter: 40))
+                .accessibilityLabel(L.t("Games", hostLanguage))
+            }
+
+            // Drawing button
+            Button {
+                showDrawingComposer = true
+                viewModel.setTypingAction("drawing")
+            } label: {
+                PackIcon("g-pencil", size: 24)
+            }
+            .buttonStyle(.roundIcon(EC.yellowSoft, diameter: 40))
+            .accessibilityLabel(L.t("Draw", hostLanguage))
+
             // Plus menu (camera + photo library)
             Menu {
                 Button {
@@ -713,66 +792,14 @@ struct HostConversationView: View {
                     Label(L.t("Photo", hostLanguage), systemImage: "photo")
                 }
             } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 30)
-                    .background(Color(.systemGray5))
-                    .clipShape(Circle())
+                PackIcon("ui-camera", size: 24)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(EC.blueSoft))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 3))
+                    .background(Circle().fill(EC.ink).offset(y: 4))
+                    .padding(.bottom, 4)
             }
-
-            // Drawing button
-            Button {
-                showDrawingComposer = true
-                viewModel.setTypingAction("drawing")
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "pencil.tip")
-                        .font(.system(size: 14))
-                    Text(L.t("Draw", hostLanguage))
-                        .font(.system(size: 13, weight: .medium))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(.systemGray5))
-                .clipShape(Capsule())
-            }
-
-            // Game button — End Game when active, Start Game otherwise
-            if viewModel.activeGameSession != nil {
-                Button {
-                    showEndGameConfirm = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 12))
-                        Text(L.t("End Game", hostLanguage))
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.red.opacity(0.85))
-                    .clipShape(Capsule())
-                }
-            } else {
-                Button {
-                    showGamePicker = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "gamecontroller.fill")
-                            .font(.system(size: 14))
-                        Text(L.t("Games", hostLanguage))
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(.systemGray5))
-                    .clipShape(Capsule())
-                }
-            }
+            .accessibilityLabel(L.t("Photo", hostLanguage))
 
             Spacer()
 
@@ -798,10 +825,8 @@ struct HostConversationView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: !messageText.trimmingCharacters(in: .whitespaces).isEmpty)
-        .animation(.easeInOut(duration: 0.2), value: speechRecognizer.isRecording)
-        .padding(.horizontal, 10)
-        .padding(.bottom, 10)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: !messageText.trimmingCharacters(in: .whitespaces).isEmpty)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: speechRecognizer.isRecording)
     }
 
     private var voiceMicButton: some View {
@@ -819,12 +844,9 @@ struct HostConversationView: View {
             }
         } label: {
             Image(systemName: "mic.fill")
-                .font(.system(size: 15))
-                .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background(Color(.systemGray3))
-                .clipShape(Circle())
         }
+        .buttonStyle(.roundIcon(diameter: 44))
+        .accessibilityLabel(L.t("Voice", hostLanguage))
     }
 
     private var voiceRecordingButton: some View {
@@ -836,28 +858,31 @@ struct HostConversationView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(Color.orange.opacity(0.5))
-                    .frame(width: 28, height: 28)
-                    .scaleEffect(1.0 + speechRecognizer.audioLevel * 2.5)
+                    .fill(EC.pink.opacity(0.45))
+                    .frame(width: 44, height: 44)
+                    .scaleEffect(1.0 + speechRecognizer.audioLevel * 1.6)
                     .animation(.interpolatingSpring(stiffness: 200, damping: 12), value: speechRecognizer.audioLevel)
                 Image(systemName: "mic.fill")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.orange)
-                    .frame(width: 28, height: 28)
-                    .background(Color.white)
-                    .clipShape(Circle())
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(EC.pink))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 3))
             }
         }
+        .accessibilityLabel(L.t("Voice", hostLanguage))
     }
 
     private var inputView: some View {
         VStack(spacing: 0) {
-            // Card container
-            VStack(spacing: 0) {
+            VStack(spacing: 8) {
                 // Text area
                 TextEditor(text: $messageText)
                     .focused($isTextEditorFocused)
-                    .frame(minHeight: 36, maxHeight: 120)
+                    .font(.round(16, .bold))
+                    .foregroundStyle(EC.ink)
+                    .tint(EC.pink)
+                    .frame(minHeight: 40, maxHeight: 120)
                     .fixedSize(horizontal: false, vertical: true)
                     .scrollContentBackground(.hidden)
                     .onChange(of: messageText) { text in
@@ -871,31 +896,33 @@ struct HostConversationView: View {
                             viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-                    .padding(.bottom, 4)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
                     .overlay(alignment: .topLeading) {
                         if messageText.isEmpty {
                             Text(L.t("Type a message...", hostLanguage))
-                                .foregroundColor(Color(.placeholderText))
-                                .padding(.horizontal, 16)
-                                .padding(.top, 18)
+                                .font(.round(16, .bold))
+                                .foregroundStyle(EC.inkSoft)
+                                .padding(.leading, 15)
+                                .padding(.top, 11)
                                 .allowsHitTesting(false)
                         }
                     }
+                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(EC.paper))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(isTextEditorFocused ? EC.blue : EC.ink, lineWidth: 3)
+                    )
+                    .animation(.easeOut(duration: 0.15), value: isTextEditorFocused)
 
                 inputToolbar
             }
-            .background(Color(.systemGray6).opacity(0.6))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color(.systemGray4).opacity(0.5), lineWidth: 0.5)
-            )
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
         }
-        .background(Color(.systemBackground))
+        .background(Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
         .onChange(of: speechRecognizer.transcript, perform: { newTranscript in
             if speechRecognizer.isRecording && !newTranscript.isEmpty {
                 messageText = newTranscript
@@ -956,11 +983,12 @@ struct HostConversationView: View {
                     showGamePicker = false
                     Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds) }
                 },
-                onStartEmojifyr: {
+                onStartWordRush: { pack, sayIt in
                     showGamePicker = false
+                    minimizedWordRushGameId = nil
                     Task {
-                        await viewModel.startEmojifyr()
-                        showEmojifyrGame = true
+                        await viewModel.createWordRushLobby(pack: pack, sayIt: sayIt)
+                        if viewModel.presentableWordRushGame != nil { showWordRushGame = true }
                     }
                 },
                 onStartEmojiMatch: {
@@ -1056,28 +1084,30 @@ struct HostConversationView: View {
         } message: {
             Text(L.t("This will end the game for all players and show results.", hostLanguage))
         }
-        // MARK: - Emojifyr full-screen game
-        .fullScreenCover(isPresented: $showEmojifyrGame) {
-            EmojifyrGameView(
+        // MARK: - Word Rush full-screen game
+        .fullScreenCover(isPresented: $showWordRushGame) {
+            WordRushGameView(
                 viewModel: viewModel,
                 lang: hostLanguage,
-                onDismiss: { showEmojifyrGame = false },
+                onClose: {
+                    viewModel.dismissWordRushResults()
+                    showWordRushGame = false
+                },
                 onMinimize: {
-                    if let s = viewModel.activeEmojifyrSession {
-                        minimizedEmojifyrSessionId = s.id
-                    }
-                    showEmojifyrGame = false
+                    minimizedWordRushGameId = viewModel.activeWordRushGame?.id
+                    showWordRushGame = false
                 }
             )
             .overlay { DebugConsoleView() }
-            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
         }
-        .onChange(of: viewModel.activeEmojifyrSession) { session in
-            if let s = session, !showEmojifyrGame, minimizedEmojifyrSessionId != s.id {
-                showEmojifyrGame = true
-            }
-            if session == nil {
-                minimizedEmojifyrSessionId = nil
+        .onChange(of: viewModel.presentableWordRushGame.map { "\($0.id)|\($0.status.rawValue)" }) { _ in
+            if let g = viewModel.presentableWordRushGame {
+                if !showWordRushGame && minimizedWordRushGameId != g.id {
+                    showWordRushGame = true
+                }
+            } else {
+                showWordRushGame = false
+                minimizedWordRushGameId = nil
             }
         }
         // MARK: - Emoji Match full-screen game
@@ -1170,8 +1200,8 @@ struct HostConversationView: View {
                minimizedTruthOrDareGameId == game.id,
                !showTruthOrDareGame {
                 resumePill(
-                    emoji: "🎲",
-                    colors: [Color(hex: "#f59e0b"), Color(hex: "#ea580c"), Color(hex: "#7c3aed")],
+                    emoji: "❓",
+                    colors: [EC.yellow],
                     accessibility: L.t("Resume Truth or Dare", hostLanguage)
                 ) {
                     minimizedTruthOrDareGameId = nil
@@ -1183,8 +1213,8 @@ struct HostConversationView: View {
                minimizedEmojiMatchGameId == game.id,
                !showEmojiMatchGame {
                 resumePill(
-                    emoji: "🃏",
-                    colors: [Color.indigo, Color.purple],
+                    emoji: "⭐",
+                    colors: [EC.violet],
                     accessibility: L.t("Resume Emoji Match", hostLanguage)
                 ) {
                     minimizedEmojiMatchGameId = nil
@@ -1196,28 +1226,28 @@ struct HostConversationView: View {
                minimizedEmojiBingoGameId == game.id,
                !showEmojiBingoGame {
                 resumePill(
-                    emoji: "🎰",
-                    colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.04, green: 0.55, blue: 0.38)],
+                    emoji: "🍀",
+                    colors: [EC.mint],
                     accessibility: L.t("Resume Emoji Bingo", hostLanguage)
                 ) {
                     minimizedEmojiBingoGameId = nil
                     showEmojiBingoGame = true
                 }
             }
-            if let session = viewModel.activeEmojifyrSession,
-               minimizedEmojifyrSessionId == session.id,
-               !showEmojifyrGame {
+            if let game = viewModel.presentableWordRushGame,
+               minimizedWordRushGameId == game.id,
+               !showWordRushGame {
                 resumePill(
-                    emoji: "🔥",
-                    colors: [Color.indigo, Color.purple],
-                    accessibility: L.t("Resume Emojifyr", hostLanguage)
+                    emoji: "⚡",
+                    colors: [EC.pink],
+                    accessibility: L.t("Resume Word Rush", hostLanguage)
                 ) {
-                    minimizedEmojifyrSessionId = nil
-                    showEmojifyrGame = true
+                    minimizedWordRushGameId = nil
+                    showWordRushGame = true
                 }
             }
         }
-        .padding(.top, 60)
+        .padding(.top, 72)
         .padding(.trailing, 12)
     }
 
@@ -1227,48 +1257,50 @@ struct HostConversationView: View {
         accessibility: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        let fill = colors.first ?? EC.yellow
+        return Button(action: action) {
             HStack(spacing: 6) {
-                Text(emoji)
+                EmojiArt(emoji: emoji, size: 22)
                 Text(L.t("Resume", hostLanguage))
-                    .font(.caption.bold())
-                    .foregroundColor(.white)
+                    .font(.chunky(13))
+                    .foregroundStyle(EC.textOn(fill))
+                Image(systemName: "play.fill")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(EC.textOn(fill))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                LinearGradient(
-                    colors: colors,
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(Capsule())
-            .shadow(color: Color.black.opacity(0.25), radius: 6, x: 0, y: 3)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(fill))
+            .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 3))
+            .background(Capsule().fill(EC.ink).offset(y: 4))
+            .padding(.bottom, 4)
         }
+        .buttonStyle(.pressable)
+        .transition(.scale(scale: 0.4, anchor: .trailing).combined(with: .opacity))
         .accessibilityLabel(accessibility)
     }
 
     // MARK: - Closed banner
 
     private var closedBanner: some View {
-        VStack(spacing: 8) {
-            HStack {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Image(systemName: "lock.fill")
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, weight: .black))
                 Text(L.t("This room has been closed", hostLanguage))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.round(15, .black))
             }
+            .foregroundStyle(EC.ink)
             Button(L.t("Back to Home", hostLanguage)) {
                 dismiss()
             }
-            .font(.subheadline)
-            .fontWeight(.medium)
+            .buttonStyle(.chunky(EC.pink, size: .small))
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.systemGray6))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 
     // MARK: - Participant sheet
@@ -1280,25 +1312,21 @@ struct HostConversationView: View {
             List {
                 ForEach(viewModel.participants) { participant in
                     HStack(spacing: 12) {
-                        ParticipantAvatarView(participant: participant, size: 36)
+                        ParticipantAvatarView(participant: participant, size: 42)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
                                 Text(participant.nickname)
-                                    .fontWeight(.medium)
+                                    .font(.round(16, .black))
+                                    .foregroundStyle(EC.ink)
+                                LangBadge(lang: participant.preferredLanguage, size: 18)
                                 if participant.role == .host {
-                                    Text(L.t("host", hostLanguage))
-                                        .font(.caption2)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.accentColor)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                    ECChip(text: L.t("host", hostLanguage), fill: EC.blue)
                                 }
                             }
                             Text(participant.online ? (participant.isAway ? L.t("Away", hostLanguage) : L.t("Online", hostLanguage)) : L.t("Offline", hostLanguage))
-                                .font(.caption)
-                                .foregroundStyle(participant.online ? (participant.isAway ? .orange : .green) : .secondary)
+                                .font(.round(12, .bold))
+                                .foregroundStyle(participant.online ? (participant.isAway ? Color(hex: "c78a00") : Color(hex: "14a37c")) : EC.inkSoft)
                         }
 
                         Spacer()
@@ -1309,12 +1337,12 @@ struct HostConversationView: View {
                                 Task { await viewModel.kickParticipant(participant.id) }
                             } label: {
                                 Text(L.t("Remove", hostLanguage))
-                                    .font(.caption)
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                            .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
                         }
                     }
+                    .padding(.vertical, 4)
+                    .listRowBackground(Color.white)
                 }
 
                 Section {
@@ -1323,13 +1351,29 @@ struct HostConversationView: View {
                         value: $maxParticipants,
                         in: 2...20
                     )
-                    .font(.subheadline)
+                    .font(.round(15, .bold))
+                    .foregroundStyle(EC.ink)
+                    .listRowBackground(Color.white)
 
-                    Picker(L.t("Language", hostLanguage), selection: $hostLanguage) {
-                        Text("English").tag("en")
-                        Text("日本語").tag("ja")
+                    HStack(spacing: 10) {
+                        Text(L.t("Language", hostLanguage))
+                            .font(.round(15, .bold))
+                            .foregroundStyle(EC.ink)
+                        Spacer()
+                        ForEach([("en", "English"), ("ja", "日本語")], id: \.0) { code, label in
+                            Button {
+                                Haptics.tap()
+                                hostLanguage = code
+                            } label: {
+                                HStack(spacing: 5) {
+                                    LangBadge(lang: code, size: 18)
+                                    Text(label)
+                                }
+                            }
+                            .buttonStyle(.chunky(hostLanguage == code ? EC.yellow : .white, size: .mini, fullWidth: false))
+                        }
                     }
-                    .font(.subheadline)
+                    .listRowBackground(Color.white)
                     .onChange(of: hostLanguage) { newValue in
                         UserDefaults.standard.set(newValue, forKey: "enchatto_lastLanguage")
                     }
@@ -1338,29 +1382,32 @@ struct HostConversationView: View {
                         Button {
                             viewModel.requestTranslationDownload = true
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 10) {
                                 Image(systemName: "arrow.down.circle.fill")
-                                    .foregroundStyle(.blue)
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(EC.blue)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(L.t("Download Offline Translation", hostLanguage))
-                                        .font(.subheadline)
+                                        .font(.round(15, .black))
+                                        .foregroundStyle(EC.ink)
                                     Text(L.t("Enables translation without internet", hostLanguage))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.round(12, .medium))
+                                        .foregroundStyle(EC.inkSoft)
                                 }
                             }
                         }
+                        .listRowBackground(Color.white)
                     } else {
                         HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                            PackIcon("g-ok", size: 22)
                             Text(L.t("Offline translation ready", hostLanguage))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(.round(15, .bold))
+                                .foregroundStyle(EC.inkSoft)
                         }
+                        .listRowBackground(Color.white)
                     }
                 } header: {
-                    Text(L.t("Settings", hostLanguage))
+                    ECLabel(L.t("Settings", hostLanguage))
                 } footer: {
                     let deployment = AppConfig.convexDeploymentURL
                         .replacingOccurrences(of: "https://", with: "")
@@ -1370,11 +1417,16 @@ struct HostConversationView: View {
                         Text("\(deployment) · iOS v\(version)")
                         Text("github: \(GitInfo.commitSHA)")
                     }
+                    .font(.round(10, .medium))
+                    .foregroundStyle(EC.inkSoft)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
                     .padding(.top, 8)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(RoomBackground(room: viewModel.room).ignoresSafeArea())
+            .tint(EC.blue)
             .navigationTitle(L.t("Participants", hostLanguage))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1382,6 +1434,7 @@ struct HostConversationView: View {
                     Button(L.t("Done", hostLanguage)) {
                         viewModel.showParticipantSheet = false
                     }
+                    .buttonStyle(.chunky(EC.blue, size: .mini, fullWidth: false))
                 }
             }
             .onAppear {
@@ -1428,23 +1481,16 @@ private struct SendButton: View {
             }
             action()
         } label: {
-            ZStack {
-                if hasText && pulsate {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 28, height: 28)
-                        .scaleEffect(pulsing ? 1.8 : 1)
-                        .opacity(pulsing ? 0 : 0.5)
-                        .animation(
-                            .easeOut(duration: 1.5).repeatForever(autoreverses: false),
-                            value: pulsing
-                        )
-                }
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(hasText ? Color.accentColor : Color(.systemGray4))
-            }
+            Image(systemName: "paperplane.fill")
+                .font(.system(size: 17, weight: .black))
+                .rotationEffect(.degrees(pulsing ? 8 : -4))
+                .animation(
+                    pulsing ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true) : .default,
+                    value: pulsing
+                )
         }
+        .buttonStyle(.roundIcon(hasText ? EC.blue : EC.lineSoft, diameter: 44))
+        .accessibilityLabel("Send")
         .disabled(!hasText)
         .onChange(of: hasText) { active in
             pulsing = pulsate && active
@@ -1600,8 +1646,12 @@ private struct GameSummaryBanner: View {
 
             // If gameType is "Emoji Bingo", route to the bingo renderer (green gradient)
             if gameType.contains("Bingo") {
-                let bingoPlayers = aggregated.map { p in
-                    BingoPlayerScore(name: p.name, avatar: p.avatar, marked: p.score, placement: p.isWinner ? 1 : 0)
+                // Bingo winners are whoever claimed first, not whoever marked the most
+                var bingoPlayers: [BingoPlayerScore] = agg.values.map { e in
+                    BingoPlayerScore(name: e.name, avatar: e.avatar, marked: e.totalScore, placement: e.wins)
+                }
+                bingoPlayers.sort { (a: BingoPlayerScore, b: BingoPlayerScore) -> Bool in
+                    a.placement != b.placement ? a.placement > b.placement : a.marked > b.marked
                 }
                 let bingoRounds = gameRounds.map { round in
                     let bp = round.players.map { p in
@@ -1652,7 +1702,7 @@ private struct GameSummaryBanner: View {
                 }
             }
             var aggregated = agg.values.map { e in
-                BingoPlayerScore(name: e.name, avatar: e.avatar, marked: e.totalMarked, placement: e.wins > 0 ? 1 : 0)
+                BingoPlayerScore(name: e.name, avatar: e.avatar, marked: e.totalMarked, placement: e.wins)
             }
             aggregated.sort { $0.placement > $1.placement || ($0.placement == $1.placement && $0.marked > $1.marked) }
 
@@ -1687,48 +1737,54 @@ private struct GameSummaryBanner: View {
         return nil
     }
 
-    private var isTruthOrDare: Bool {
-        if let data = parsed, case .truthOrDare = data { return true }
-        return false
+    private enum BannerStyle {
+        case lit, match, wordRush, bingo, truthOrDare
+
+        var fill: Color {
+            switch self {
+            case .lit: return EC.blueSoft
+            case .match: return EC.violetSoft
+            case .wordRush: return EC.yellowSoft
+            case .bingo: return EC.mintSoft
+            case .truthOrDare: return EC.pinkSoft
+            }
+        }
+
+        var accent: Color {
+            switch self {
+            case .lit: return EC.blue
+            case .match: return EC.violet
+            case .wordRush: return EC.yellow
+            case .bingo: return EC.mint
+            case .truthOrDare: return EC.pink
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .lit: return "g-pencil"
+            case .match: return "o-diamond"
+            case .wordRush: return "g-bolt"
+            case .bingo: return "g-clover"
+            case .truthOrDare: return "g-question"
+            }
+        }
     }
 
-    private var isEmojiBingo: Bool {
-        if let data = parsed, case .emojiBingo = data { return true }
-        return false
-    }
+    private static func isWordRush(_ title: String) -> Bool { title == "Word Rush" }
 
-    private var bannerGradient: LinearGradient {
-        if isTruthOrDare {
-            return LinearGradient(
-                colors: [Color(red: 0.92, green: 0.35, blue: 0.05), Color(red: 0.96, green: 0.62, blue: 0.04), Color(red: 0.85, green: 0.47, blue: 0.02)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
+    private var style: BannerStyle {
+        switch parsed {
+        case .some(.truthOrDare): return .truthOrDare
+        case .some(.emojiBingo): return .bingo
+        case .some(.emojiMatch(let title, _, _, _)): return Self.isWordRush(title) ? .wordRush : .match
+        default: return .lit
         }
-        if isEmojiBingo {
-            return LinearGradient(
-                colors: [Color(red: 0.06, green: 0.73, blue: 0.51), Color(red: 0.02, green: 0.59, blue: 0.40), Color(red: 0.01, green: 0.47, blue: 0.34)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        }
-        return LinearGradient(
-            colors: [Color(red: 0.39, green: 0.4, blue: 0.95), Color(red: 0.55, green: 0.36, blue: 0.96), Color(red: 0.66, green: 0.33, blue: 0.97)],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
-    }
-
-    private var bannerShadowColor: Color {
-        if isTruthOrDare {
-            return Color(red: 0.92, green: 0.35, blue: 0.05).opacity(0.3)
-        }
-        if isEmojiBingo {
-            return Color(red: 0.06, green: 0.73, blue: 0.51).opacity(0.3)
-        }
-        return Color(red: 0.39, green: 0.4, blue: 0.95).opacity(0.3)
     }
 
     var body: some View {
         if let data = parsed {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 switch data {
                 case .emojiMatch(let title, let subtitle, let games, let aggregated):
                     emojiMatchBody(title: title, subtitle: subtitle, games: games, aggregated: aggregated)
@@ -1740,79 +1796,169 @@ private struct GameSummaryBanner: View {
                     truthOrDareBody(title: title, subtitle: subtitle, players: players)
                 }
             }
-            .padding()
+            .padding(14)
             .frame(maxWidth: .infinity)
-            .background(bannerGradient)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: bannerShadowColor, radius: 8, y: 4)
+            .ecCard(fill: style.fill, radius: 24, border: 3, shadow: 6)
             .padding(.horizontal, 4)
         } else {
             SystemMessageRow(text: text, lang: lang)
         }
     }
 
-    // MARK: - Emoji Match body
+    // MARK: - Shared pieces
+
+    private func header(title: String, subtitle: String) -> some View {
+        HStack(spacing: 10) {
+            PackIcon(style.icon, size: 30)
+                .padding(6)
+                .background(Circle().fill(style.accent))
+                .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
+                .rotationEffect(.degrees(-8))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.chunky(17))
+                    .foregroundStyle(EC.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(subtitle)
+                    .font(.round(11, .bold))
+                    .foregroundStyle(EC.inkSoft)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Centred when it fits, horizontally scrollable when it doesn't
+    private func fitRow<Content: View>(spacing: CGFloat = 8, @ViewBuilder _ content: () -> Content) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .bottom, spacing: spacing) { content() }
+                .padding(.vertical, 4)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .bottom, spacing: spacing) { content() }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    private func roundRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(.round(10, .black))
+                .tracking(1)
+                .textCase(.uppercase)
+                .foregroundStyle(EC.inkSoft)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) { content() }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ecOutline(fill: .white.opacity(0.85), radius: 14, border: 2)
+    }
+
+    @ViewBuilder
+    private func rankMark(_ rank: Int, size: CGFloat) -> some View {
+        if rank == 0 {
+            PackIcon("g-crown", size: size + 4)
+        } else if rank <= 2 {
+            Text("\(rank + 1)")
+                .font(.chunky(size * 0.62))
+                .foregroundStyle(EC.ink)
+                .frame(width: size, height: size)
+                .background(Circle().fill(rank == 1 ? EC.lineSoft : Color(hex: "f3dcc8")))
+                .overlay(Circle().strokeBorder(EC.ink, lineWidth: 1.5))
+        }
+    }
+
+    private func miniScore(avatar: String, name: String, value: String, rank: Int?, dim: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            AvatarDisc(avatarId: avatar, size: 20)
+            Text(name)
+                .font(.round(11, .bold))
+                .foregroundStyle(EC.ink)
+                .lineLimit(1)
+            if !value.isEmpty {
+                Text(value)
+                    .font(.chunky(12))
+                    .foregroundStyle(EC.ink)
+            }
+            if let rank {
+                rankMark(rank, size: 15)
+            }
+        }
+        .opacity(dim ? 0.6 : 1)
+    }
+
+    private func playerCard(avatar: String, name: String, detail: String, rank: Int?, isHighlighted: Bool) -> some View {
+        VStack(spacing: 4) {
+            ZStack {
+                if let rank { rankMark(rank, size: 18) }
+            }
+            .frame(height: 22)
+            AvatarDisc(avatarId: avatar, size: 40)
+            Text(name)
+                .font(.round(11, .black))
+                .foregroundStyle(EC.ink)
+                .lineLimit(1)
+            Text(detail)
+                .font(.chunky(14))
+                .foregroundStyle(EC.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .frame(minWidth: 72)
+        .ecCard(fill: isHighlighted ? EC.yellow : .white, radius: 16, border: 2.5, shadow: isHighlighted ? 5 : 3)
+        .rotationEffect(.degrees(isHighlighted ? -3 : 0))
+        .offset(y: isHighlighted ? -4 : 0)
+    }
+
+    // MARK: - Emoji Match / Word Rush body
 
     @ViewBuilder
     private func emojiMatchBody(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore]) -> some View {
-        VStack(spacing: 2) {
-            Text("🃏 \(title)")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
-            Text(subtitle)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.85))
+        let wordRush = Self.isWordRush(title)
+        header(title: L.t(title, lang), subtitle: subtitle)
+
+        if games.count > 1 {
+            ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
+                emojiMatchGameRow(idx: idx, game: game)
+            }
         }
 
-        ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
-            emojiMatchGameRow(idx: idx, game: game)
-        }
-
-        emojiMatchPodium(aggregated: aggregated)
+        emojiMatchPodium(aggregated: aggregated, wordRush: wordRush)
     }
 
     @ViewBuilder
     private func emojiMatchGameRow(idx: Int, game: GameRoundData) -> some View {
         let sorted = game.players.sorted { $0.score > $1.score }
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Game \(idx + 1)")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.white.opacity(0.8))
-            HStack(spacing: 8) {
-                ForEach(Array(sorted.enumerated()), id: \.element.id) { _, p in
-                    let rank = sorted.firstIndex(where: { $0.score == p.score }) ?? 0
-                    let placeEmoji = rank == 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : ""
-                    HStack(spacing: 3) {
-                        Text(presetAvatar(for: p.avatar).emoji).font(.system(size: 12))
-                        Text(p.name + ":").font(.system(size: 11))
-                        Text("\(p.score)").font(.system(size: 11, weight: .bold))
-                        Text(placeEmoji).font(.system(size: 10))
-                    }
-                    .foregroundColor(.white)
-                }
+        roundRow("\(L.t("Game", lang)) \(idx + 1)") {
+            ForEach(sorted) { p in
+                let rank = sorted.firstIndex(where: { $0.score == p.score }) ?? 0
+                miniScore(avatar: p.avatar, name: p.name, value: "\(p.score)", rank: rank <= 2 ? rank : nil)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     @ViewBuilder
-    private func emojiMatchPodium(aggregated: [PlayerScore]) -> some View {
+    private func emojiMatchPodium(aggregated: [PlayerScore], wordRush: Bool) -> some View {
         let podium: [PlayerScore] = aggregated.count >= 3
             ? [aggregated[1], aggregated[0], aggregated[2]] + Array(aggregated.dropFirst(3))
             : aggregated
-        HStack(spacing: 8) {
+        fitRow {
             ForEach(podium) { player in
                 let rank = aggregated.firstIndex(where: { $0.score == player.score }) ?? 0
-                let placeEmoji = rank == 0 && player.score > 0 ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : ""
+                let detail = wordRush
+                    ? "\(player.score) \(L.t("pts", lang))"
+                    : "\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))"
                 playerCard(
-                    emoji: presetAvatar(for: player.avatar).emoji,
+                    avatar: player.avatar,
                     name: player.name,
-                    detail: "\(player.score) \(player.score == 1 ? L.t("pair", lang) : L.t("pairs", lang))",
-                    placeEmoji: placeEmoji,
+                    detail: detail,
+                    rank: rank == 0 ? (player.score > 0 ? 0 : nil) : (rank <= 2 ? rank : nil),
                     isHighlighted: player.isWinner
                 )
             }
@@ -1823,47 +1969,20 @@ private struct GameSummaryBanner: View {
 
     @ViewBuilder
     private func emojiBingoBody(title: String, subtitle: String, games: [BingoRoundData], aggregated: [BingoPlayerScore]) -> some View {
-        VStack(spacing: 2) {
-            Text("🎰 \(title)")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
-            Text(subtitle)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.85))
-        }
+        header(title: title, subtitle: subtitle)
 
         let patternLabels: [String: String] = ["line": "Line", "four_corners": "4 Corners", "blackout": "Blackout"]
         ForEach(Array(games.enumerated()), id: \.element.id) { idx, game in
             let winners = game.players.filter { $0.placement > 0 }.sorted { $0.placement < $1.placement }
             let others = game.players.filter { $0.placement == 0 }.sorted { $0.marked > $1.marked }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(games.count > 1 ? "Game \(idx + 1) · " : "")\(patternLabels[game.winPattern] ?? game.winPattern)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.8))
-                HStack(spacing: 8) {
-                    ForEach(winners) { p in
-                        let placeEmoji = p.placement == 1 ? "🏆" : p.placement == 2 ? "🥈" : "🥉"
-                        HStack(spacing: 3) {
-                            Text(presetAvatar(for: p.avatar).emoji).font(.system(size: 12))
-                            Text(p.name).font(.system(size: 11))
-                            Text(placeEmoji).font(.system(size: 10))
-                        }
-                        .foregroundColor(.white)
-                    }
-                    ForEach(others) { p in
-                        HStack(spacing: 3) {
-                            Text(presetAvatar(for: p.avatar).emoji).font(.system(size: 12))
-                            Text("\(p.name): \(p.marked)/25").font(.system(size: 11))
-                        }
-                        .foregroundColor(.white.opacity(0.7))
-                    }
+            roundRow("\(games.count > 1 ? "Game \(idx + 1) · " : "")\(patternLabels[game.winPattern] ?? game.winPattern)") {
+                ForEach(winners) { p in
+                    miniScore(avatar: p.avatar, name: p.name, value: "", rank: min(p.placement - 1, 2))
+                }
+                ForEach(others) { p in
+                    miniScore(avatar: p.avatar, name: p.name, value: "\(p.marked)/25", rank: nil, dim: true)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
 
         emojiBingoPodium(aggregated: aggregated)
@@ -1871,16 +1990,17 @@ private struct GameSummaryBanner: View {
 
     @ViewBuilder
     private func emojiBingoPodium(aggregated: [BingoPlayerScore]) -> some View {
-        HStack(spacing: 8) {
+        fitRow {
             ForEach(aggregated) { player in
                 let isWinner = player.placement > 0
-                let placeEmoji = isWinner ? "🏆" : ""
-                let detail = isWinner ? "\(player.placement) \(player.placement == 1 ? "win" : "wins")" : "\(player.marked) marked"
+                let detail = isWinner
+                    ? (player.placement > 1 ? "\(player.placement)× BINGO!" : "BINGO!")
+                    : "\(player.marked) \(L.t("marked", lang))"
                 playerCard(
-                    emoji: presetAvatar(for: player.avatar).emoji,
+                    avatar: player.avatar,
                     name: player.name,
                     detail: detail,
-                    placeEmoji: placeEmoji,
+                    rank: isWinner ? 0 : nil,
                     isHighlighted: isWinner
                 )
             }
@@ -1891,22 +2011,15 @@ private struct GameSummaryBanner: View {
 
     @ViewBuilder
     private func litGameBody(title: String, subtitle: String, players: [PlayerScore]) -> some View {
-        VStack(spacing: 2) {
-            Text("🎮 \(title)")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
-            Text(subtitle)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.85))
-        }
+        header(title: title, subtitle: subtitle)
 
-        HStack(spacing: 8) {
+        fitRow {
             ForEach(players) { player in
                 playerCard(
-                    emoji: presetAvatar(for: player.avatar).emoji,
+                    avatar: player.avatar,
                     name: player.name,
                     detail: "\(player.score)/\(player.total)",
-                    placeEmoji: player.isWinner ? "👑" : "",
+                    rank: player.isWinner ? 0 : nil,
                     isHighlighted: player.isWinner
                 )
             }
@@ -1917,64 +2030,28 @@ private struct GameSummaryBanner: View {
 
     @ViewBuilder
     private func truthOrDareBody(title: String, subtitle: String, players: [TodPlayerRating]) -> some View {
-        VStack(spacing: 2) {
-            Text("🎲 \(title)")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.white)
-            Text(subtitle)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.85))
-        }
+        header(title: title, subtitle: subtitle)
 
         let topRating = players.first?.avgRating
-        HStack(spacing: 8) {
+        fitRow {
             ForEach(players) { player in
                 let isTop = player.avgRating != nil && player.avgRating == topRating
                 let rank = players.firstIndex(where: { $0.avgRating == player.avgRating }) ?? 0
-                let placeEmoji = rank == 0 && player.avgRating != nil ? "🏆" : rank == 1 ? "🥈" : rank == 2 ? "🥉" : ""
                 let detail: String = {
                     if let avg = player.avgRating {
-                        return "⭐ \(String(format: "%.1f", avg))"
+                        return "★ \(String(format: "%.1f", avg))"
                     }
                     return "—"
                 }()
                 playerCard(
-                    emoji: presetAvatar(for: player.avatar).emoji,
+                    avatar: player.avatar,
                     name: player.name,
                     detail: detail,
-                    placeEmoji: placeEmoji,
+                    rank: rank == 0 ? (player.avgRating != nil ? 0 : nil) : (rank <= 2 ? rank : nil),
                     isHighlighted: isTop
                 )
             }
         }
-    }
-
-    // MARK: - Shared player card
-
-    private func playerCard(emoji: String, name: String, detail: String, placeEmoji: String, isHighlighted: Bool) -> some View {
-        VStack(spacing: 4) {
-            Text(placeEmoji)
-                .font(.system(size: 12))
-                .frame(height: 14)
-            Text(emoji)
-                .font(.system(size: 24))
-            Text(name)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-            Text(detail)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(isHighlighted ? .white : .white.opacity(0.85))
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 10)
-        .frame(minWidth: 65)
-        .background(isHighlighted ? Color.white.opacity(0.25) : Color.white.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isHighlighted ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
-        )
     }
 }
 
@@ -1994,12 +2071,12 @@ private struct SystemMessageRow: View {
         } else if action == "leave" {
             return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
         } else if action == "game" {
-            // name is like "Lost in Translation Level 2" or "Emojifyr" or "Emoji Match"
+            // name is like "Lost in Translation Level 2" or "Word Rush" or "Emoji Match"
             if name.hasPrefix("Emoji Bingo") {
                 return "🎰 \(L.t("Game Started: Emoji Bingo", lang))"
             }
-            if name.hasPrefix("Emojifyr") {
-                return "🔥 \(L.t("Game Started: Emojifyr", lang))"
+            if name.hasPrefix("Word Rush") {
+                return "⚡ \(L.t("Game Started: Word Rush", lang))"
             }
             if name.hasPrefix("Emoji Match") {
                 return "🃏 \(L.t("Game Started: Match Emoji", lang))"
@@ -2029,24 +2106,54 @@ private struct SystemMessageRow: View {
         return text
     }
 
-    var body: some View {
-        HStack(spacing: 6) {
-            line
-            Text(localizedText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .fixedSize(horizontal: false, vertical: true)
-            line
-        }
-        .padding(.vertical, 4)
+    private static let iconOverrides: [String: String] = [
+        "🎮": "ui-game", "❌": "g-no", "🎉": "g-ok", "🎲": "g-question", "🃏": "o-diamond", "🎰": "g-clover",
+    ]
+
+    /// Splits a leading "<emoji> " off the localized text so it can be drawn as pack art
+    private var parts: (icon: String?, text: String) {
+        let full = localizedText
+        guard let first = full.first,
+              let scalar = first.unicodeScalars.first,
+              scalar.value > 0x2000, scalar.properties.isEmoji,
+              full.dropFirst().first == " " else { return (nil, full) }
+        return (String(first), String(full.dropFirst(2)))
     }
 
-    private var line: some View {
-        Rectangle()
-            .fill(Color(.separator))
-            .frame(minWidth: 8, maxWidth: 40, maxHeight: 0.5)
+    private var fill: Color {
+        if text.hasPrefix("game_correct:") { return EC.mintSoft }
+        if text.hasPrefix("game_wrong:") { return EC.pinkSoft }
+        if text.hasPrefix("game:") { return EC.yellowSoft }
+        if text.hasPrefix("leave:") { return EC.paper }
+        return .white
+    }
+
+    var body: some View {
+        let p = parts
+        HStack(spacing: 6) {
+            if text.hasPrefix("join:") {
+                PackIcon("re-wave", size: 18)
+            } else if let icon = p.icon {
+                if let asset = Self.iconOverrides[icon] {
+                    PackIcon(asset, size: 18)
+                } else {
+                    EmojiArt(emoji: icon, size: 18)
+                }
+            }
+            Text(p.text)
+                .font(.round(12, .black))
+                .foregroundStyle(text.hasPrefix("leave:") ? EC.inkSoft : EC.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(fill))
+        .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+        .background(Capsule().fill(EC.ink).offset(y: 3))
+        .padding(.bottom, 3)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
     }
 }
 
@@ -2058,22 +2165,17 @@ private struct TypingBubble: View {
     var timerSeconds: Int = 20
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 4) {
+        HStack(alignment: .bottom, spacing: 6) {
             // Avatar
-            VStack(spacing: 2) {
-                ZStack {
-                    Circle()
-                        .fill(participant.avatarColor)
-                        .frame(width: 28, height: 28)
-                    Text(participant.avatarEmoji)
-                        .font(.system(size: 16))
-                }
+            VStack(spacing: 3) {
+                AvatarDisc(avatarId: participant.avatar.value, size: 36)
                 Text(participant.nickname)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
+                    .font(.round(10, .black))
+                    .foregroundStyle(EC.inkSoft)
                     .lineLimit(1)
-                    .frame(maxWidth: 40)
+                    .frame(maxWidth: 44)
             }
+            .padding(.bottom, 4)
 
             // Bubble with action-specific animation
             Group {
@@ -2091,31 +2193,39 @@ private struct TypingBubble: View {
                     // Orange pulsing bars + label
                     HStack(spacing: 6) {
                         VoiceBars()
-                        Text(L.t("is speaking", lang))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text(L.t("Speaking…", lang))
+                            .font(.round(12, .black))
+                            .foregroundStyle(EC.inkSoft)
                     }
                 } else {
                     // Bouncing dots for typing
                     HStack(spacing: 4) {
-                        BouncingDot(delay: 0)
-                        BouncingDot(delay: 0.15)
-                        BouncingDot(delay: 0.3)
+                        BouncingDot(delay: 0, color: EC.blue)
+                        BouncingDot(delay: 0.15, color: EC.pink)
+                        BouncingDot(delay: 0.3, color: EC.mint)
                     }
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color(.systemGray6))
-            .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: 16,
-                bottomLeadingRadius: 4,
-                bottomTrailingRadius: 16,
-                topTrailingRadius: 16
-            ))
+            .padding(.vertical, 11)
+            .background(typingShape.fill(.white))
+            .overlay(typingShape.stroke(EC.ink, lineWidth: 3))
+            .background(typingShape.fill(EC.ink).offset(y: 4))
+            .padding(.bottom, 4)
 
             Spacer(minLength: 0)
         }
+        .transition(.scale(scale: 0.5, anchor: .bottomLeading).combined(with: .opacity))
+    }
+
+    private var typingShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 20,
+            bottomLeadingRadius: 6,
+            bottomTrailingRadius: 20,
+            topTrailingRadius: 20,
+            style: .continuous
+        )
     }
 }
 
@@ -2130,13 +2240,13 @@ private struct DrawingCountdownLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(L.t("is drawing", lang))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(L.t("Drawing…", lang))
+                .font(.round(12, .black))
+                .foregroundStyle(EC.inkSoft)
             if let secondsLeft {
                 Text("\(secondsLeft)s")
-                    .font(.caption.bold())
-                    .foregroundStyle(secondsLeft <= 3 ? .red : .secondary)
+                    .font(.chunky(12))
+                    .foregroundStyle(secondsLeft <= 3 ? EC.red : EC.ink)
             }
         }
         .onAppear { startTimer() }
@@ -2160,77 +2270,52 @@ private struct DrawingCountdownLabel: View {
 /// Single bouncing dot for typing indicator
 private struct BouncingDot: View {
     let delay: Double
-    @State private var animating = false
+    var color: Color = EC.inkSoft
 
     var body: some View {
-        Circle()
-            .fill(Color(.systemGray3))
-            .frame(width: 7, height: 7)
-            .opacity(animating ? 1 : 0.4)
-            .offset(y: animating ? -4 : 0)
-            .onAppear {
-                withAnimation(
-                    .easeInOut(duration: 0.36)
-                    .repeatForever(autoreverses: true)
-                    .delay(delay)
-                ) {
-                    animating = true
-                }
-            }
+        LoopClock { t in
+            let up = (loopWave(t, period: 0.72, delay: delay) + 1) / 2
+            Circle()
+                .fill(color)
+                .frame(width: 9, height: 9)
+                .overlay(Circle().strokeBorder(EC.ink, lineWidth: 1.5))
+                .opacity(0.6 + 0.4 * up)
+                .offset(y: -5 * up)
+        }
     }
 }
 
 /// Orange pulsing bars for voice indicator
 private struct VoiceBars: View {
-    @State private var animating = false
-
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<4) { i in
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.orange)
-                    .frame(width: 3, height: animating ? 14 : 4)
-                    .opacity(animating ? 1 : 0.5)
-                    .animation(
-                        .easeInOut(duration: 0.4)
-                        .repeatForever(autoreverses: true)
-                        .delay(Double(i) * 0.15),
-                        value: animating
-                    )
+        LoopClock { t in
+            HStack(spacing: 2) {
+                ForEach(0..<4) { i in
+                    let level = (loopWave(t, period: 0.8, delay: Double(i) * 0.15) + 1) / 2
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(EC.pink)
+                        .frame(width: 4, height: 5 + 11 * level)
+                        .opacity(0.5 + 0.5 * level)
+                }
             }
         }
         .frame(height: 16)
-        .onAppear { animating = true }
     }
 }
 
 /// Wiggling pencil for drawing indicator
 private struct DrawingPencil: View {
-    @State private var animating = false
-
     var body: some View {
-        Text("✏️")
-            .font(.system(size: 14))
-            .rotationEffect(.degrees(animating ? 8 : -10))
-            .offset(y: animating ? -2 : 0)
-            .animation(
-                .easeInOut(duration: 0.4)
-                .repeatForever(autoreverses: true),
-                value: animating
-            )
-            .onAppear { animating = true }
+        LoopClock { t in
+            let w = loopWave(t, period: 0.8)
+            PackIcon("g-pencil", size: 20)
+                .rotationEffect(.degrees(-1 + 9 * w))
+                .offset(y: -1 - w)
+        }
     }
 }
 
 // MARK: - QR Code Floating Panel
-
-private struct PressedDimButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.4 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
 
 private struct QRCodeFloatingPanel: View {
     let joinCode: String
@@ -2247,72 +2332,61 @@ private struct QRCodeFloatingPanel: View {
     var body: some View {
         ZStack(alignment: .top) {
             // Dimmed background
-            Color.black.opacity(appeared ? 0.3 : 0)
+            EC.ink.opacity(appeared ? 0.45 : 0)
                 .ignoresSafeArea()
                 .onTapGesture { dismiss() }
 
             // Panel
-            VStack(spacing: 16) {
+            VStack(spacing: 14) {
                 // Drag handle
                 Capsule()
-                    .fill(Color(.systemGray4))
-                    .frame(width: 36, height: 5)
+                    .fill(EC.lineSoft)
+                    .frame(width: 44, height: 6)
                     .padding(.top, 10)
 
-                if let qrImage = generateQRCode(from: joinURL) {
-                    Image(uiImage: qrImage)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 180, height: 180)
-                        .padding(12)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(radius: 2)
-                }
+                ECQRCard(url: joinURL, size: 190)
 
                 Button {
+                    Haptics.success()
                     UIPasteboard.general.string = joinURL
-                    withAnimation { copied = true }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { copied = true }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation { copied = false }
                     }
                 } label: {
-                    VStack(spacing: 3) {
-                        Text(L.t("Room Code", lang))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(joinCode)
-                            .font(.system(.title2, design: .monospaced))
-                            .fontWeight(.bold)
-                            .foregroundStyle(copied ? .secondary : .primary)
+                    VStack(spacing: 8) {
+                        ECLabel(L.t("Room Code", lang))
+                        RoomCodeTiles(code: joinCode, tileSize: 40)
+                            .opacity(copied ? 0.6 : 1)
                         if copied {
-                            Label(L.t("Copied!", lang), systemImage: "checkmark.circle.fill")
-                                .font(.caption2)
-                                .foregroundStyle(.green)
-                                .transition(.opacity)
+                            ECChip(text: L.t("Copied!", lang), fill: EC.mint)
+                                .transition(.scale.combined(with: .opacity))
                         } else {
                             Text(L.t("Tap to copy link", lang))
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .font(.round(12, .bold))
+                                .foregroundStyle(EC.inkSoft)
                                 .transition(.opacity)
                         }
                     }
                 }
-                .buttonStyle(PressedDimButtonStyle())
+                .buttonStyle(.pressable)
 
                 Text(L.t("Scan or enter code to join", lang))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.round(13, .bold))
+                    .foregroundStyle(EC.inkSoft)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
                     .padding(.bottom, 16)
             }
             .frame(maxWidth: .infinity)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+            .background {
+                RoomBackground(index: 1)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            }
+            .ecCard(fill: .clear, radius: 28, border: 3.5, shadow: 8)
             .padding(.horizontal, 12)
             .padding(.top, 8)
-            .offset(y: appeared ? dragOffset : -400)
+            .offset(y: appeared ? dragOffset : -800)
             .gesture(
                 DragGesture()
                     .onChanged { value in
@@ -2342,29 +2416,11 @@ private struct QRCodeFloatingPanel: View {
     private func dismiss() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
             appeared = false
-            dragOffset = -400
+            dragOffset = -800
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             isPresented = false
         }
-    }
-
-    private func generateQRCode(from string: String) -> UIImage? {
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-
-        guard let outputImage = filter.outputImage else { return nil }
-
-        let scale = 10.0
-        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
-            return nil
-        }
-
-        return UIImage(cgImage: cgImage)
     }
 }
 

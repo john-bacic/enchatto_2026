@@ -5,24 +5,15 @@ struct ParticipantAvatarView: View {
     var size: CGFloat = 32
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(participant.avatarColor)
-                .frame(width: size, height: size)
-
-            Text(participant.avatarEmoji)
-                .font(.system(size: size * 0.55))
-        }
-        .opacity(participant.online ? (participant.isAway ? 0.7 : 1) : 0.5)
-        .overlay(alignment: .bottomTrailing) {
-            Circle()
-                .fill(participant.online ? (participant.isAway ? Color.orange : Color.green) : Color(.systemGray4))
-                .frame(width: size * 0.28, height: size * 0.28)
-                .overlay {
-                    Circle()
-                        .stroke(Color(.systemBackground), lineWidth: 1.5)
-                }
-        }
+        AvatarDisc(avatarId: participant.avatar.value, size: size)
+            .saturation(participant.online ? 1 : 0.2)
+            .opacity(participant.online ? (participant.isAway ? 0.75 : 1) : 0.55)
+            .overlay(alignment: .bottomTrailing) {
+                PresenceDot(participant: participant, size: max(9, size * 0.32))
+                    .offset(x: size * 0.04, y: size * 0.04)
+            }
+            .accessibilityElement()
+            .accessibilityLabel(participant.nickname)
     }
 }
 
@@ -34,26 +25,25 @@ struct ParticipantAvatarRow: View {
     var onTapParticipant: ((Participant) -> Void)?
 
     var body: some View {
-        HStack(spacing: -avatarSize * 0.2) {
+        HStack(spacing: -avatarSize * 0.25) {
             ForEach(participants.prefix(maxVisible)) { participant in
                 ParticipantAvatarView(participant: participant, size: avatarSize)
                     .onTapGesture {
                         onTapParticipant?(participant)
                     }
+                    .transition(.scale.combined(with: .opacity))
             }
 
             if participants.count > maxVisible {
-                ZStack {
-                    Circle()
-                        .fill(Color(.systemGray4))
-                        .frame(width: avatarSize, height: avatarSize)
-                    Text("+\(participants.count - maxVisible)")
-                        .font(.system(size: avatarSize * 0.3))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                }
+                Text("+\(participants.count - maxVisible)")
+                    .font(.chunky(avatarSize * 0.34))
+                    .foregroundStyle(EC.ink)
+                    .frame(width: avatarSize, height: avatarSize)
+                    .background(Circle().fill(.white))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: max(2, avatarSize * 0.065)))
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: participants.map(\.id))
     }
 }
 
