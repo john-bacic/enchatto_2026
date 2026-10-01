@@ -1,0 +1,12 @@
+{
+  "images": [
+    {
+      "idiom": "universal",
+      "filename": "ui-game.png"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
