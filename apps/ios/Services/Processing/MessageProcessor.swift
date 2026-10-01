@@ -24,7 +24,7 @@ class MessageProcessor {
 
     init(
         translationService: TranslationService = MyMemoryTranslationService(),
-        romajiService: RomajiService = StubRomajiService(),
+        romajiService: RomajiService = MeCabRomajiService.shared,
         suggestionService: SuggestionService = StubSuggestionService()
     ) {
         self.translationService = translationService
