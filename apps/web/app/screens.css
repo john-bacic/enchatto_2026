@@ -175,10 +175,45 @@
   line-height: 1.05;
   text-shadow: 0 3px 0 var(--yellow);
 }
+/* Pages carry the room the selected tile's ring, lift and "IN ROOM" tag need; the scroller clips to them */
+.ec-av-pager {
+  display: flex;
+  margin: -12px -10px -14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.ec-av-pager::-webkit-scrollbar { display: none; }
 .ec-av-grid {
+  flex: 0 0 100%;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 9px;
+  padding: 12px 10px 14px;
+  scroll-snap-align: start;
+}
+.ec-av-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ec-av-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 99px;
+  background: var(--ink-soft);
+  opacity: 0.35;
+  transition: width 0.25s, opacity 0.25s;
+}
+.ec-av-dots button.on {
+  width: 20px;
+  background: var(--ink);
+  opacity: 1;
 }
 .ec-av-tile {
   position: relative;

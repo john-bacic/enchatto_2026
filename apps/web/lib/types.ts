@@ -18,6 +18,22 @@ export const PRESET_AVATARS = [
   { id: "unicorn", label: "Sheep", icon: "sheep", emoji: "🐑", color: "#e9d5ff" },
   { id: "dragon", label: "Piggy", icon: "pig", emoji: "🐷", color: "#dcfaef" },
   { id: "alien", label: "Chihuahua", icon: "chihuahua", emoji: "🐕", color: "#fecaca" },
+  { id: "whale", label: "Whale", icon: "whale", emoji: "🐳", color: "#cfe8ff" },
+  { id: "crab", label: "Crab", icon: "crab", emoji: "🦀", color: "#ffe1d6" },
+  { id: "octo", label: "Octopus", icon: "octo", emoji: "🐙", color: "#ffe4f1" },
+  { id: "jellyfish", label: "Jellyfish", icon: "jellyfish", emoji: "🪼", color: "#dff3ff" },
+  { id: "mole", label: "Mole", icon: "mole", emoji: "🐾", color: "#ecdfd0" },
+  { id: "caterpillar", label: "Caterpillar", icon: "caterpillar", emoji: "🐛", color: "#e3f9d5" },
+  { id: "ant", label: "Ant", icon: "ant", emoji: "🐜", color: "#e2e8f0" },
+  { id: "worm", label: "Worm", icon: "worm", emoji: "🪱", color: "#ffedd5" },
+  { id: "cloud", label: "Cloud", icon: "cloud", emoji: "☁️", color: "#dbeafe" },
+  { id: "cupcake", label: "Cupcake", icon: "cupcake", emoji: "🧁", color: "#fce7f3" },
+  { id: "snowman", label: "Snowman", icon: "snowman", emoji: "⛄", color: "#e0f2fe" },
+  { id: "moon", label: "Moon", icon: "moon", emoji: "🌙", color: "#ede9fe" },
+  { id: "sun", label: "Sun", icon: "sun", emoji: "☀️", color: "#fff1c1" },
+  { id: "toast", label: "Toast", icon: "toast", emoji: "🍞", color: "#fef3c7" },
+  { id: "melon", label: "Melon", icon: "melon", emoji: "🍉", color: "#dcfce7" },
+  { id: "flower", label: "Flower", icon: "flower", emoji: "🌸", color: "#fde2ef" },
 ] as const;
 
 export const LANGUAGES = [

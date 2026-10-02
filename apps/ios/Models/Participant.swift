@@ -81,6 +81,22 @@ let presetAvatars: [PresetAvatar] = [
     PresetAvatar(id: "unicorn",   label: "Sheep",     icon: "av-sheep",     emoji: "🐑", color: Color(hex: "e9d5ff")),
     PresetAvatar(id: "dragon",    label: "Piggy",     icon: "av-pig",       emoji: "🐷", color: Color(hex: "dcfaef")),
     PresetAvatar(id: "alien",     label: "Chihuahua", icon: "av-chihuahua", emoji: "🐕", color: Color(hex: "fecaca")),
+    PresetAvatar(id: "whale",       label: "Whale",       icon: "av-whale",       emoji: "🐳", color: Color(hex: "cfe8ff")),
+    PresetAvatar(id: "crab",        label: "Crab",        icon: "av-crab",        emoji: "🦀", color: Color(hex: "ffe1d6")),
+    PresetAvatar(id: "octo",        label: "Octopus",     icon: "av-octo",        emoji: "🐙", color: Color(hex: "ffe4f1")),
+    PresetAvatar(id: "jellyfish",   label: "Jellyfish",   icon: "av-jellyfish",   emoji: "🪼", color: Color(hex: "dff3ff")),
+    PresetAvatar(id: "mole",        label: "Mole",        icon: "av-mole",        emoji: "🐾", color: Color(hex: "ecdfd0")),
+    PresetAvatar(id: "caterpillar", label: "Caterpillar", icon: "av-caterpillar", emoji: "🐛", color: Color(hex: "e3f9d5")),
+    PresetAvatar(id: "ant",         label: "Ant",         icon: "av-ant",         emoji: "🐜", color: Color(hex: "e2e8f0")),
+    PresetAvatar(id: "worm",        label: "Worm",        icon: "av-worm",        emoji: "🪱", color: Color(hex: "ffedd5")),
+    PresetAvatar(id: "cloud",       label: "Cloud",       icon: "av-cloud",       emoji: "☁️", color: Color(hex: "dbeafe")),
+    PresetAvatar(id: "cupcake",     label: "Cupcake",     icon: "av-cupcake",     emoji: "🧁", color: Color(hex: "fce7f3")),
+    PresetAvatar(id: "snowman",     label: "Snowman",     icon: "av-snowman",     emoji: "⛄", color: Color(hex: "e0f2fe")),
+    PresetAvatar(id: "moon",        label: "Moon",        icon: "av-moon",        emoji: "🌙", color: Color(hex: "ede9fe")),
+    PresetAvatar(id: "sun",         label: "Sun",         icon: "av-sun",         emoji: "☀️", color: Color(hex: "fff1c1")),
+    PresetAvatar(id: "toast",       label: "Toast",       icon: "av-toast",       emoji: "🍞", color: Color(hex: "fef3c7")),
+    PresetAvatar(id: "melon",       label: "Melon",       icon: "av-melon",       emoji: "🍉", color: Color(hex: "dcfce7")),
+    PresetAvatar(id: "flower",      label: "Flower",      icon: "av-flower",      emoji: "🌸", color: Color(hex: "fde2ef")),
 ]
 
 func presetAvatar(for id: String) -> PresetAvatar {
