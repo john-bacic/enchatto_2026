@@ -9,8 +9,13 @@ struct AvatarPickerView: View {
     @State private var width: CGFloat = 0
 
     private let spacing: CGFloat = 12
-    /// Room around each page so the selected tile's lift, tilt, ring and star aren't clipped.
-    private let inset: CGFloat = 10
+    /// `ecCard` pads this much below every tile for its hard shadow, so each row is taller than the art.
+    private let cardShadow: CGFloat = 6
+    /// Room inside the pager. It has to be real layout space: a paging TabView clips to its frame,
+    /// and negative padding puts that room outside the frame, which is what sliced off the top row.
+    private let topRoom: CGFloat = 22
+    private let bottomRoom: CGFloat = 8
+    private let sideRoom: CGFloat = 14
 
     private var pages: [[PresetAvatar]] {
         let perPage = columns * rows
@@ -21,36 +26,38 @@ struct AvatarPickerView: View {
 
     private var pageHeight: CGFloat {
         let tile = (width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
-        return (tile / 1.15) * CGFloat(rows) + spacing * CGFloat(rows - 1) + inset * 2
+        let row = tile / 1.15 + cardShadow
+        let grid = row * CGFloat(rows) + spacing * CGFloat(rows - 1)
+        return grid + topRoom + bottomRoom
     }
 
     var body: some View {
         VStack(spacing: 16) {
-            Color.clear
-                .frame(height: 0)
-                .background(GeometryReader { geo in
-                    Color.clear
-                        .onAppear { width = geo.size.width }
-                        .onChange(of: geo.size.width) { width = $0 }
-                })
-
             if width > 0 {
                 TabView(selection: $page) {
                     ForEach(pages.indices, id: \.self) { index in
                         grid(pages[index])
-                            .padding(inset)
+                            .padding(.top, topRoom)
+                            .padding(.bottom, bottomRoom)
+                            .padding(.horizontal, sideRoom)
                             .frame(maxHeight: .infinity, alignment: .top)
                             .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(height: pageHeight)
-                .padding(.horizontal, -inset)
-                .padding(.vertical, -inset)
+                .padding(.horizontal, -sideRoom)
             }
 
             if pages.count > 1 {
                 pageDots
+            }
+        }
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { width = geo.size.width }
+                    .onChange(of: geo.size.width) { width = $0 }
             }
         }
         .onAppear {
@@ -75,6 +82,7 @@ struct AvatarPickerView: View {
                     AvatarTile(avatar: avatar, isSelected: selectedAvatarId == avatar.id)
                 }
                 .buttonStyle(.pressable)
+                .zIndex(selectedAvatarId == avatar.id ? 1 : 0)
                 .accessibilityLabel(avatar.label)
                 .accessibilityAddTraits(selectedAvatarId == avatar.id ? .isSelected : [])
             }
