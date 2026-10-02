@@ -10,4 +10,10 @@ crons.interval(
   internal.participants.cleanupStaleParticipants
 );
 
+crons.interval(
+  "close rooms whose host is gone",
+  { minutes: 5 },
+  internal.rooms.closeAbandonedRooms
+);
+
 export default crons;

@@ -49,6 +49,8 @@ enum L {
         "Offline": ["ja": "オフライン"],
         "Away": ["ja": "離席中"],
         "Remove": ["ja": "削除"],
+        "Room": ["ja": "ルーム"],
+        "This room": ["ja": "このルーム"],
         "Max participants:": ["ja": "最大参加者数:"],
         "Language": ["ja": "言語"],
 

@@ -7,7 +7,7 @@ const PLAYED_KEY = "enchatto_playedVoice";
 const PLAYED_LIMIT = 300;
 const SPEED_KEY = "enchatto_voiceSpeed";
 /** Slow speeds are for language learners catching every word */
-const SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
+const SPEEDS = [0.5, 0.75, 1, 1.5, 2];
 const BARS = 48;
 
 /** Only one voice message plays at a time */

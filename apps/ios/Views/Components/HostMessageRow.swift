@@ -529,7 +529,7 @@ private struct FreshMessagePop: ViewModifier {
 final class VoicePlayback: ObservableObject {
     static let shared = VoicePlayback()
     /// Slow speeds are for language learners catching every word
-    static let speeds: [Float] = [0.25, 0.5, 0.75, 1, 1.5, 2]
+    static let speeds: [Float] = [0.5, 0.75, 1, 1.5, 2]
     private static let playedKey = "enchatto_playedVoice"
     private static let speedKey = "enchatto_voiceSpeed"
 
@@ -597,7 +597,7 @@ final class VoicePlayback: ObservableObject {
         try? session.setActive(true)
 
         let item = AVPlayerItem(url: url)
-        // The default pitch algorithm only covers 0.5–2×; spectral keeps 0.25× audible and at pitch
+        // Keeps pitch natural at every offered speed; the cheaper algorithms only handle a few fixed rates
         item.audioTimePitchAlgorithm = .spectral
         let player = AVPlayer(playerItem: item)
         self.player = player

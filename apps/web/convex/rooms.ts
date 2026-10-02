@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 10;
@@ -73,31 +74,67 @@ export const createRoom = mutation({
   },
 });
 
+async function closeRoomNow(ctx: MutationCtx, roomId: Id<"rooms">) {
+  await ctx.db.patch(roomId, {
+    status: "closed",
+    closedAt: Date.now(),
+  });
+
+  // Set all participants offline
+  const participants = await ctx.db
+    .query("participants")
+    .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+    .collect();
+
+  await Promise.all(
+    participants.map((p) =>
+      ctx.db.patch(p._id, { online: false, departed: true, lastSeenAt: Date.now() })
+    )
+  );
+
+  await ctx.scheduler.runAfter(0, internal.messages.purgeRoomAudio, { roomId });
+}
+
 export const closeRoom = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
     if (room.status === "closed") return; // already closed
+    await closeRoomNow(ctx, args.roomId);
+  },
+});
 
-    await ctx.db.patch(args.roomId, {
-      status: "closed",
-      closedAt: Date.now(),
-    });
+/**
+ * The iOS host sends a heartbeat every 15s while the app is open, and iOS gives no reliable signal
+ * when an app is killed. A room whose host has been silent this long is treated as abandoned.
+ * Long enough to survive a locked phone or a quick switch to another app mid-conversation.
+ */
+const HOST_GONE_MS = 15 * 60 * 1000;
+/** Keeps one run well inside mutation limits; a backlog drains over successive runs */
+const MAX_CLOSES_PER_RUN = 100;
 
-    // Set all participants offline
-    const participants = await ctx.db
-      .query("participants")
-      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
-      .collect();
-
-    await Promise.all(
-      participants.map((p) =>
-        ctx.db.patch(p._id, { online: false, departed: true, lastSeenAt: Date.now() })
-      )
-    );
-
-    await ctx.scheduler.runAfter(0, internal.messages.purgeRoomAudio, { roomId: args.roomId });
+export const closeAbandonedRooms = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const cutoff = Date.now() - HOST_GONE_MS;
+    let closed = 0;
+    for (const status of ["waiting", "active"] as const) {
+      const rooms = await ctx.db
+        .query("rooms")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .collect();
+      for (const room of rooms) {
+        if (closed >= MAX_CLOSES_PER_RUN) return closed;
+        const hostId = ctx.db.normalizeId("participants", room.hostId);
+        const host = hostId ? await ctx.db.get(hostId) : null;
+        if (host && host.lastSeenAt >= cutoff) continue;
+        await closeRoomNow(ctx, room._id);
+        closed++;
+      }
+    }
+    return closed;
   },
 });
 

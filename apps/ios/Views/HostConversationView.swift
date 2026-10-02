@@ -1709,58 +1709,78 @@ struct HostConversationView: View {
 
     @State private var maxParticipants: Int = 10
 
+    private func participantRow(_ participant: Participant, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            ParticipantAvatarView(participant: participant, size: 42)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(participant.nickname)
+                        .font(.round(16, .black))
+                        .foregroundStyle(EC.ink)
+                    LangBadge(lang: participant.preferredLanguage, size: 18)
+                    if participant.role == .host {
+                        ECChip(text: L.t("host", hostLanguage), fill: EC.blue)
+                    }
+                }
+                Text(participant.online ? (participant.isAway ? L.t("Away", hostLanguage) : L.t("Online", hostLanguage)) : L.t("Offline", hostLanguage))
+                    .font(.round(12, .bold))
+                    .foregroundStyle(participant.online ? (participant.isAway ? Color(hex: "c78a00") : Color(hex: "14a37c")) : EC.inkSoft)
+            }
+
+            Spacer()
+
+            // Kick button (non-host only)
+            if participant.role != .host {
+                Button(role: .destructive, action: onRemove) {
+                    Text(L.t("Remove", hostLanguage))
+                }
+                .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
+            }
+        }
+        .padding(.vertical, 4)
+        .listRowBackground(Color.white)
+    }
+
+    private func closeRoomButton(_ action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            Text(L.t("Close Room", hostLanguage))
+        }
+        .buttonStyle(.chunky(EC.red, size: .mini))
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+    }
+
+    /// "ROOM ABC123" plus a status chip
+    private func roomHeader(code: String, chip: String, chipFill: Color) -> some View {
+        HStack(spacing: 8) {
+            ECLabel("\(L.t("Room", hostLanguage)) \(code)")
+            ECChip(text: chip, fill: chipFill)
+            Spacer()
+        }
+        .textCase(nil)
+    }
+
     private var participantSheet: some View {
         NavigationStack {
             List {
-                ForEach(viewModel.participants) { participant in
-                    HStack(spacing: 12) {
-                        ParticipantAvatarView(participant: participant, size: 42)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(participant.nickname)
-                                    .font(.round(16, .black))
-                                    .foregroundStyle(EC.ink)
-                                LangBadge(lang: participant.preferredLanguage, size: 18)
-                                if participant.role == .host {
-                                    ECChip(text: L.t("host", hostLanguage), fill: EC.blue)
-                                }
-                            }
-                            Text(participant.online ? (participant.isAway ? L.t("Away", hostLanguage) : L.t("Online", hostLanguage)) : L.t("Offline", hostLanguage))
-                                .font(.round(12, .bold))
-                                .foregroundStyle(participant.online ? (participant.isAway ? Color(hex: "c78a00") : Color(hex: "14a37c")) : EC.inkSoft)
-                        }
-
-                        Spacer()
-
-                        // Kick button (non-host only)
-                        if participant.role != .host {
-                            Button(role: .destructive) {
-                                Task { await viewModel.kickParticipant(participant.id) }
-                            } label: {
-                                Text(L.t("Remove", hostLanguage))
-                            }
-                            .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
+                Section {
+                    ForEach(viewModel.participants) { participant in
+                        participantRow(participant) {
+                            Task { await viewModel.kickParticipant(participant.id) }
                         }
                     }
-                    .padding(.vertical, 4)
-                    .listRowBackground(Color.white)
-                }
-
-                if !viewModel.isClosed {
-                    Section {
-                        Button {
-                            Haptics.tap()
-                            showCloseConfirmation = true
-                        } label: {
-                            Text(L.t("Close Room", hostLanguage))
-                        }
-                        .buttonStyle(.chunky(EC.red, size: .mini))
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    if !viewModel.isClosed {
+                        closeRoomButton { showCloseConfirmation = true }
+                    }
+                } header: {
+                    if let code = viewModel.room?.joinCode {
+                        roomHeader(code: code, chip: L.t("This room", hostLanguage), chipFill: EC.yellow)
                     }
                 }
-
                 Section {
                     Stepper(
                         "\(L.t("Max participants:", hostLanguage)) \(maxParticipants)",

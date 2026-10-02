@@ -113,13 +113,20 @@ class HostRoomViewModel: ObservableObject {
             }
         }
 
-        // Close room when app is terminated (swipe-up to kill)
+        // Close room when the app is killed while still running. iOS usually kills a suspended app
+        // without this notification; the server closes those rooms once the host's heartbeat stops.
         NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)
             .sink { [weak self] _ in
                 guard let self else { return }
                 let roomId = self.roomId
                 let api = self.api
-                Task { try? await api.closeRoom(roomId: roomId) }
+                // The process ends when this returns, so wait (briefly) for the request to go out
+                let done = DispatchSemaphore(value: 0)
+                Task.detached {
+                    try? await api.closeRoom(roomId: roomId)
+                    done.signal()
+                }
+                _ = done.wait(timeout: .now() + 2)
             }
             .store(in: &cancellables)
     }
