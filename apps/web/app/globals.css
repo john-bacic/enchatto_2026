@@ -518,6 +518,8 @@ textarea {
     1.2px 1.2px 0 var(--ink), -1.2px 1.2px 0 var(--ink), 1.2px -1.2px 0 var(--ink), -1.2px -1.2px 0 var(--ink),
     2px 2.5px 0 var(--pink), 3px 3.5px 0 var(--ink);
 }
+/* Pastel letters in the header; keep in sync with EnchattoWordmark on iOS */
+.ec-wordmark i::after { color: color-mix(in srgb, var(--c) 72%, #fff); }
 .ec-wordmark.hop i {
   animation: ec-wordmark-hop 1.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
   animation-delay: calc(var(--i) * 0.12s);

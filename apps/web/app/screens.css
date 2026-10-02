@@ -1167,28 +1167,19 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.ec-inputbar .ec-round-btn { width: 40px; height: 40px; box-shadow: 0 3px 0 var(--ink); }
-.ec-inputbar .ec-round-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.ec-inputbar .ec-round-btn { width: 40px; height: 40px; box-shadow: 0 4px 0 var(--ink); }
+.ec-inputbar .ec-round-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
 .ec-inputbar .ec-round-btn .ec-icon { width: 28px; height: 28px; }
 .ec-inputbar .ec-round-btn:disabled { opacity: 0.4; cursor: default; }
-.ec-round-btn.game { background: var(--pink); }
+/* Tool colours and icon sizes match iOS toolButtons (HostConversationView.swift) */
+.ec-round-btn.game { background: var(--pink-soft); }
+.ec-round-btn.draw { background: var(--yellow-soft); }
+.ec-round-btn.photo { background: var(--blue-soft); }
+.ec-round-btn.end-game { background: var(--red); }
+.ec-inputbar .ec-round-btn.game .ec-icon { width: 26px; height: 26px; }
+.ec-inputbar .ec-round-btn:is(.draw, .photo) .ec-icon { width: 24px; height: 24px; }
+.ec-end-game-stop { width: 13px; height: 13px; border-radius: 3px; background: #fff; }
 .ec-round-btn.send { background: var(--blue); color: #fff; }
-.ec-end-game {
-  flex: none;
-  height: 40px;
-  padding: 0 12px;
-  border: 3px solid var(--ink);
-  border-radius: 999px;
-  background: var(--red);
-  box-shadow: 0 3px 0 var(--ink);
-  color: #fff;
-  font-family: var(--chunky);
-  font-weight: 400;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-.ec-end-game:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .ec-text-pill {
   flex: 1;
   min-width: 0;

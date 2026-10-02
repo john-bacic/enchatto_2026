@@ -526,8 +526,13 @@ export function MessageInput({
           <div className={`ec-tools${toolsCollapsed ? " collapsed" : ""}`} aria-hidden={toolsCollapsed || undefined}>
             {/* Game button — End Game when active, Game otherwise */}
             {isGameActive && onEndGame ? (
-              <button className="ec-end-game" onClick={onEndGame} tabIndex={toolsCollapsed ? -1 : undefined}>
-                {t("End Game", lang)}
+              <button
+                className="ec-round-btn end-game"
+                onClick={onEndGame}
+                aria-label={t("End Game", lang)}
+                tabIndex={toolsCollapsed ? -1 : undefined}
+              >
+                <span className="ec-end-game-stop" />
               </button>
             ) : onGameTap ? (
               <button
@@ -536,23 +541,13 @@ export function MessageInput({
                 aria-label={t("Games", lang)}
                 tabIndex={toolsCollapsed ? -1 : undefined}
               >
-                <Icon name="ui-game" size={28} />
+                <Icon name="ui-game" size={26} />
               </button>
             ) : null}
 
-            {/* Photo — directly opens native image picker */}
-            <button
-              className="ec-round-btn"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label={t("Photo", lang)}
-              tabIndex={toolsCollapsed ? -1 : undefined}
-            >
-              <Icon name="ui-photo" size={28} />
-            </button>
-
             {/* Drawing */}
             <button
-              className="ec-round-btn"
+              className="ec-round-btn draw"
               onClick={() => {
                 setShowDrawing(true);
                 onTypingChange?.("drawing");
@@ -560,7 +555,17 @@ export function MessageInput({
               aria-label={t("Drawing", lang)}
               tabIndex={toolsCollapsed ? -1 : undefined}
             >
-              <Icon name="g-pencil" size={28} />
+              <Icon name="g-pencil" size={24} />
+            </button>
+
+            {/* Photo — directly opens native image picker */}
+            <button
+              className="ec-round-btn photo"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label={t("Photo", lang)}
+              tabIndex={toolsCollapsed ? -1 : undefined}
+            >
+              <Icon name="ui-camera" size={24} />
             </button>
           </div>
           <input

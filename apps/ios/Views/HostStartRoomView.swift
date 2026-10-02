@@ -205,7 +205,8 @@ struct EnchattoWordmark: View {
 
     @State private var hopStart: Date?
 
-    private let accents: [Color] = [EC.blue, EC.pink, EC.mint, EC.violet]
+    /// EC.blue / pink / mint / violet mixed with 28% white, matching the web header wordmark
+    private let accents: [Color] = [Color(hex: "7294ff"), Color(hex: "ff9fca"), Color(hex: "75e6c6"), Color(hex: "c0a0ff")]
     private static let period = 1.6
     private static let stagger = 0.12
 

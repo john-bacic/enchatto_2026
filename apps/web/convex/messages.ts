@@ -181,19 +181,23 @@ function audioExtension(contentType: string): string {
   return "m4a";
 }
 
+/** Stock lines Whisper hallucinates from video-subtitle training data, often at high confidence */
+const HALLUCINATIONS = /ご視聴ありがとうございました|チャンネル登録|thanks? (you )?for watching|subscribe to/i;
+
 type WhisperResponse = {
   text?: string;
-  segments?: { text: string; no_speech_prob?: number }[];
+  language?: string;
+  segments?: { text: string; start: number; end: number; avg_logprob?: number; no_speech_prob?: number }[];
 };
 
-async function transcribeWithGroq(apiKey: string, audio: Blob, lang?: "en" | "ja"): Promise<string | null> {
+async function whisper(apiKey: string, audio: Blob, language?: "en" | "ja"): Promise<WhisperResponse | null> {
   const form = new FormData();
   // Groq picks the decoder from the file extension
   form.append("file", audio, `voice.${audioExtension(audio.type)}`);
   form.append("model", "whisper-large-v3-turbo");
   form.append("response_format", "verbose_json");
   form.append("temperature", "0");
-  if (lang) form.append("language", lang);
+  if (language) form.append("language", language);
   const response = await fetch(GROQ_TRANSCRIBE_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -203,14 +207,44 @@ async function transcribeWithGroq(apiKey: string, audio: Blob, lang?: "en" | "ja
     console.error("Groq transcription failed", response.status, (await response.text()).slice(0, 300));
     return null;
   }
-  const data = (await response.json()) as WhisperResponse;
-  const text = data.segments
-    ? data.segments
-        .filter((s) => (s.no_speech_prob ?? 0) < MAX_NO_SPEECH_PROB)
-        .map((s) => s.text)
-        .join("")
-    : (data.text ?? "");
+  return (await response.json()) as WhisperResponse;
+}
+
+function speechSegments(data: WhisperResponse) {
+  return (data.segments ?? []).filter(
+    (s) => (s.no_speech_prob ?? 0) < MAX_NO_SPEECH_PROB && !HALLUCINATIONS.test(s.text)
+  );
+}
+
+function transcriptOf(data: WhisperResponse): string | null {
+  const text = data.segments ? speechSegments(data).map((s) => s.text).join("") : (data.text ?? "");
   return text.trim() || null;
+}
+
+/** Duration-weighted log probability of the kept segments; higher means Whisper is surer */
+function confidence(data: WhisperResponse): number {
+  const segments = speechSegments(data);
+  const duration = segments.reduce((sum, s) => sum + (s.end - s.start), 0);
+  if (!duration) return -Infinity;
+  return segments.reduce((sum, s) => sum + (s.avg_logprob ?? -10) * (s.end - s.start), 0) / duration;
+}
+
+/**
+ * The speaker's language setting is a poor hint (people mix both languages, and a forced language
+ * makes Whisper transliterate the other one), so detect it, staying within English and Japanese.
+ */
+async function transcribeWithGroq(apiKey: string, audio: Blob): Promise<string | null> {
+  const detected = await whisper(apiKey, audio);
+  if (!detected) return null;
+  const language = detected.language?.toLowerCase();
+  if (language === "english" || language === "japanese") return transcriptOf(detected);
+
+  // Short or noisy clips get misdetected; force each app language and keep the likelier reading
+  const forced = (await Promise.all([whisper(apiKey, audio, "en"), whisper(apiKey, audio, "ja")])).filter(
+    (r): r is WhisperResponse => r !== null
+  );
+  forced.sort((a, b) => confidence(b) - confidence(a));
+  return forced[0] ? transcriptOf(forced[0]) : null;
 }
 
 export const transcribeAudio = internalAction({
@@ -226,9 +260,11 @@ export const transcribeAudio = internalAction({
       console.warn("GROQ_API_KEY not set; voice message left without a transcript");
       return null;
     }
-    const audio = await ctx.storage.get(args.storageId);
-    if (!audio) return null;
-    const text = await transcribeWithGroq(apiKey, audio, args.lang);
+    const stored = await ctx.storage.get(args.storageId);
+    if (!stored) return null;
+    // Storage blobs stream once; transcription may upload the clip several times
+    const audio = new Blob([await stored.arrayBuffer()], { type: stored.type });
+    const text = await transcribeWithGroq(apiKey, audio);
     if (text) await ctx.runMutation(internal.messages.applyTranscript, { messageId: args.messageId, text });
     return null;
   },
