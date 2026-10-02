@@ -47,6 +47,9 @@ final class SpeechRecognizer: ObservableObject {
     /// Sessions that errored within a second without producing text. Restarting into a broken
     /// recognizer forever would leave a "listening" pill that never transcribes.
     private var quickFailures = 0
+    /// Recognizer is unusable (iOS 26 simulator, broken model) but a voice message is recording:
+    /// keep capturing audio without a transcript and let the server transcribe the clip
+    private var audioOnly = false
     private var sessionGotResult = false
     private let log = Logger(subsystem: "com.enchatto.app", category: "speech")
 
@@ -92,6 +95,7 @@ final class SpeechRecognizer: ObservableObject {
         guard !isRecording, !isStarting else { return }
         isStarting = true
         quickFailures = 0
+        audioOnly = false
         discardClip()
         VoicePlayback.shared.stop()
         VoicePlayback.shared.blocked = true
@@ -178,19 +182,25 @@ final class SpeechRecognizer: ObservableObject {
     /// Start a fresh recognition session (request + audio tap + task).
     private func beginSession() {
         guard isRecording else { return }
-        guard let speechRecognizer, speechRecognizer.isAvailable else {
-            stopRecording()
-            return
+        if !audioOnly, speechRecognizer?.isAvailable != true {
+            guard captureClip else {
+                stopRecording()
+                return
+            }
+            audioOnly = true
         }
         tearDownSession()
 
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-        request.addsPunctuation = true
-        if speechRecognizer.supportsOnDeviceRecognition, !preferServer {
-            request.requiresOnDeviceRecognition = true
+        var request: SFSpeechAudioBufferRecognitionRequest?
+        if !audioOnly, let speechRecognizer {
+            let speechRequest = SFSpeechAudioBufferRecognitionRequest()
+            speechRequest.shouldReportPartialResults = true
+            speechRequest.addsPunctuation = true
+            if speechRecognizer.supportsOnDeviceRecognition, !preferServer {
+                speechRequest.requiresOnDeviceRecognition = true
+            }
+            request = speechRequest
         }
-        let usedOnDevice = request.requiresOnDeviceRecognition
         recognitionRequest = request
 
         // Configure audio session
@@ -221,7 +231,7 @@ final class SpeechRecognizer: ObservableObject {
         let writer = clipWriter
         let meter = LevelMeter()
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
-            request.append(buffer)
+            request?.append(buffer)
             writer?.append(buffer)
             guard let normalized = meter.process(buffer) else { return }
             DispatchQueue.main.async { [weak self] in
@@ -239,6 +249,8 @@ final class SpeechRecognizer: ObservableObject {
             return
         }
 
+        guard let request, let speechRecognizer else { return }
+        let usedOnDevice = request.requiresOnDeviceRecognition
         currentSessionText = ""
         sessionGotResult = false
         let activeSessionId = UUID()
@@ -280,8 +292,12 @@ final class SpeechRecognizer: ObservableObject {
                         if usedOnDevice { self.preferServer = true }
                         self.quickFailures += 1
                         if self.quickFailures >= 3 {
-                            self.stopRecording()
-                            return
+                            guard self.clipActive else {
+                                self.stopRecording()
+                                return
+                            }
+                            self.log.error("Recognizer unusable; recording the voice message audio-only")
+                            self.audioOnly = true
                         }
                     }
                     self.handleSessionEnd()
@@ -433,6 +449,9 @@ final class ClipWriter: @unchecked Sendable {
     private let url: URL
     private let sampleRate: Double
     private let channels: AVAudioChannelCount
+    /// Always written mono: multichannel inputs (the simulator's 14ch device, audio interfaces) can't go to AAC as-is
+    private let monoFormat: AVAudioFormat
+    private var mono: AVAudioPCMBuffer?
     private var file: AVAudioFile?
     private var frames: AVAudioFramePosition = 0
     private var levels: [Float] = []
@@ -441,14 +460,18 @@ final class ClipWriter: @unchecked Sendable {
         url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-\(UUID().uuidString).m4a")
         sampleRate = format.sampleRate
         channels = format.channelCount
+        guard format.commonFormat == .pcmFormatFloat32, !format.isInterleaved,
+              let monoFormat = AVAudioFormat(standardFormatWithSampleRate: format.sampleRate, channels: 1)
+        else { return nil }
+        self.monoFormat = monoFormat
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: format.sampleRate,
-            AVNumberOfChannelsKey: format.channelCount,
+            AVNumberOfChannelsKey: 1,
             AVEncoderBitRateKey: 64_000,
         ]
         guard let file = try? AVAudioFile(
-            forWriting: url, settings: settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved
+            forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false
         ) else { return nil }
         self.file = file
         levels.reserveCapacity(Int(Self.maxSeconds * format.sampleRate / 1024) + 64)
@@ -465,19 +488,29 @@ final class ClipWriter: @unchecked Sendable {
         defer { lock.unlock() }
         // A route change mid-dictation can switch formats; AVAudioFile can't take a mismatched buffer
         guard let file, buffer.format.sampleRate == sampleRate, buffer.format.channelCount == channels,
-              Double(frames) < Self.maxSeconds * sampleRate else { return }
+              Double(frames) < Self.maxSeconds * sampleRate,
+              let source = buffer.floatChannelData, buffer.frameLength > 0 else { return }
+        let count = buffer.frameLength
+        if mono == nil || mono!.frameCapacity < count {
+            mono = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: max(count, 4096))
+        }
+        guard let mono, let out = mono.floatChannelData?[0] else { return }
+        // Summed so a mic on any one channel comes through; silent channels add nothing
+        out.update(from: source[0], count: Int(count))
+        for ch in 1..<Int(channels) {
+            vDSP_vadd(out, 1, source[ch], 1, out, 1, vDSP_Length(count))
+        }
+        mono.frameLength = count
         do {
-            try file.write(from: buffer)
-            frames += AVAudioFramePosition(buffer.frameLength)
+            try file.write(from: mono)
+            frames += AVAudioFramePosition(count)
         } catch {
             self.file = nil
             return
         }
-        if let data = buffer.floatChannelData?[0], buffer.frameLength > 0 {
-            var rms: Float = 0
-            vDSP_rmsqv(data, 1, &rms, vDSP_Length(buffer.frameLength))
-            levels.append(rms)
-        }
+        var rms: Float = 0
+        vDSP_rmsqv(out, 1, &rms, vDSP_Length(count))
+        levels.append(rms)
     }
 
     /// Closes the file (AVAudioFile finalizes when released) and returns it, or nil if nothing usable was written
