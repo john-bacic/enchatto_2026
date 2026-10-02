@@ -1936,6 +1936,7 @@ struct HostConversationView: View {
     // MARK: - Helpers
 
     private func sendCurrentMessage() {
+        isTextEditorFocused = false
         let wasRecording = speechRecognizer.isRecording
         if wasRecording {
             speechRecognizer.stopRecording()

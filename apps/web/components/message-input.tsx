@@ -464,7 +464,10 @@ export function MessageInput({
     <button
       className="ec-round-btn send"
       onMouseDown={(e) => e.preventDefault()}
-      onClick={handleSubmit}
+      onClick={() => {
+        handleSubmit();
+        inputRef.current?.blur();
+      }}
       disabled={!hasText && !sendingVoice}
       aria-label={sendingVoice ? t("Send voice message", lang) : t("Send", lang)}
     >
@@ -612,6 +615,7 @@ export function MessageInput({
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit();
+                  if (window.matchMedia("(pointer: coarse)").matches) e.currentTarget.blur();
                 }
               }}
               placeholder={isListening ? t("Listening...", lang) : t("Type a message...", lang)}
