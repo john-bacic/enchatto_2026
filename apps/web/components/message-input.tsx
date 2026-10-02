@@ -463,6 +463,7 @@ export function MessageInput({
   const sendButton = (
     <button
       className="ec-round-btn send"
+      onMouseDown={(e) => e.preventDefault()}
       onClick={handleSubmit}
       disabled={!hasText && !sendingVoice}
       aria-label={sendingVoice ? t("Send voice message", lang) : t("Send", lang)}
