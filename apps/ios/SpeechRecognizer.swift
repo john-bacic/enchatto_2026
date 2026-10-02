@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Accelerate
+import os
 
 #if os(iOS)
 import Speech
@@ -41,6 +42,13 @@ final class SpeechRecognizer: ObservableObject {
     private var silenceTimer: Timer?
     /// Unique ID for the current session — callbacks from old sessions are ignored.
     private var sessionId: UUID = UUID()
+    /// Set once on-device recognition fails (missing/corrupt asset, simulator); later sessions use the server
+    private var preferServer = false
+    /// Sessions that errored within a second without producing text. Restarting into a broken
+    /// recognizer forever would leave a "listening" pill that never transcribes.
+    private var quickFailures = 0
+    private var sessionGotResult = false
+    private let log = Logger(subsystem: "com.enchatto.app", category: "speech")
 
     init(locale: Locale = Locale(identifier: "en-US")) {
         speechRecognizer = SFSpeechRecognizer(locale: locale)
@@ -74,6 +82,7 @@ final class SpeechRecognizer: ObservableObject {
     func startRecording() {
         guard !isRecording, !isStarting else { return }
         isStarting = true
+        quickFailures = 0
         let token = UUID()
         startToken = token
         recognitionTask?.cancel()
@@ -144,9 +153,10 @@ final class SpeechRecognizer: ObservableObject {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
-        if speechRecognizer.supportsOnDeviceRecognition {
+        if speechRecognizer.supportsOnDeviceRecognition, !preferServer {
             request.requiresOnDeviceRecognition = true
         }
+        let usedOnDevice = request.requiresOnDeviceRecognition
         recognitionRequest = request
 
         // Configure audio session
@@ -188,8 +198,10 @@ final class SpeechRecognizer: ObservableObject {
         }
 
         currentSessionText = ""
+        sessionGotResult = false
         let activeSessionId = UUID()
         sessionId = activeSessionId
+        let startedAt = Date()
 
         // Start recognition task
         recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
@@ -197,6 +209,8 @@ final class SpeechRecognizer: ObservableObject {
                 guard let self, self.isRecording, self.sessionId == activeSessionId else { return }
 
                 if let result {
+                    self.sessionGotResult = true
+                    self.quickFailures = 0
                     // Apple's formattedString is cumulative within THIS session only
                     self.currentSessionText = result.bestTranscription.formattedString
                     self.transcript = self.buildFullTranscript(currentSession: self.currentSessionText)
@@ -215,8 +229,19 @@ final class SpeechRecognizer: ObservableObject {
                         self.silenceTimer?.invalidate()
                         self.handleSessionEnd()
                     }
-                } else if error != nil {
+                } else if let error {
                     self.silenceTimer?.invalidate()
+                    let nsError = error as NSError
+                    // Silence timeouts take seconds; an instant error means the recognizer itself is broken
+                    if !self.sessionGotResult, Date().timeIntervalSince(startedAt) < 1 {
+                        self.log.error("Recognition failed instantly (onDevice: \(usedOnDevice)): \(nsError.domain, privacy: .public) \(nsError.code) \(nsError.localizedDescription, privacy: .public)")
+                        if usedOnDevice { self.preferServer = true }
+                        self.quickFailures += 1
+                        if self.quickFailures >= 3 {
+                            self.stopRecording()
+                            return
+                        }
+                    }
                     self.handleSessionEnd()
                 }
             }
