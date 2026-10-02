@@ -110,6 +110,9 @@ struct HostStartRoomView: View {
     }
 }
 
+/// EC.blue / pink / mint / violet mixed with 28% white; matches the web logo letters (globals.css)
+private let logoAccents: [Color] = [Color(hex: "7294ff"), Color(hex: "ff9fca"), Color(hex: "75e6c6"), Color(hex: "c0a0ff")]
+
 /// "Enchatto" wordmark matching the web home hero (components/ui/logo.tsx): hopping two-tone
 /// letters on a spinning burst, a forked ribbon tagline and floating あ / A / ! / ? bits.
 struct EnchattoLogo: View {
@@ -117,7 +120,7 @@ struct EnchattoLogo: View {
     var size: CGFloat = 46
 
     private let letters = Array("Enchatto")
-    private let accents: [Color] = [EC.blue, EC.pink, EC.mint, EC.violet]
+    private let accents = logoAccents
 
     /// Web measurements are px at a 54px wordmark
     private var k: CGFloat { size / 54 }
@@ -205,8 +208,7 @@ struct EnchattoWordmark: View {
 
     @State private var hopStart: Date?
 
-    /// EC.blue / pink / mint / violet mixed with 28% white, matching the web header wordmark
-    private let accents: [Color] = [Color(hex: "7294ff"), Color(hex: "ff9fca"), Color(hex: "75e6c6"), Color(hex: "c0a0ff")]
+    private let accents = logoAccents
     private static let period = 1.6
     private static let stagger = 0.12
 

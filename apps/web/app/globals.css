@@ -504,7 +504,8 @@ textarea {
   content: attr(data-c);
   position: absolute;
   inset: 0;
-  color: var(--c);
+  /* Pastel letters; keep in sync with logoAccents on iOS (HostStartRoomView.swift) */
+  color: color-mix(in srgb, var(--c) 72%, #fff);
   clip-path: polygon(0 60%, 100% 48%, 100% 100%, 0 100%);
   text-shadow: none;
 }
@@ -518,8 +519,6 @@ textarea {
     1.2px 1.2px 0 var(--ink), -1.2px 1.2px 0 var(--ink), 1.2px -1.2px 0 var(--ink), -1.2px -1.2px 0 var(--ink),
     2px 2.5px 0 var(--pink), 3px 3.5px 0 var(--ink);
 }
-/* Pastel letters in the header; keep in sync with EnchattoWordmark on iOS */
-.ec-wordmark i::after { color: color-mix(in srgb, var(--c) 72%, #fff); }
 .ec-wordmark.hop i {
   animation: ec-wordmark-hop 1.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
   animation-delay: calc(var(--i) * 0.12s);
