@@ -12,6 +12,11 @@ private struct MessageFramePreferenceKey: PreferenceKey {
     }
 }
 
+/// Latest on-screen frame per message row, read when the long-press menu opens
+private final class MessageFrameStore {
+    var frames: [String: CGRect] = [:]
+}
+
 
 struct HostConversationView: View {
     let roomId: String
@@ -31,11 +36,12 @@ struct HostConversationView: View {
     @State private var showQRCode = false
     @State private var hostLanguage: String = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
     @State private var contextMenuMessageId: String?
-    @State private var messageFrames: [String: CGRect] = [:]
+    /// Not @State: row frames change every scroll frame and must not re-render the room
+    @State private var messageFrames = MessageFrameStore()
     @State private var messageToDelete: String?
-    @State private var showEnglish = true
-    @State private var showJapanese = true
-    @State private var showRomaji = true
+    @AppStorage("enchatto_showEnglish") private var showEnglish = true
+    @AppStorage("enchatto_showJapanese") private var showJapanese = true
+    @AppStorage("enchatto_showRomaji") private var showRomaji = true
     @AppStorage(ChatTextSize.storageKey) private var chatTextSize: ChatTextSize = .small
     @State private var showHostSettings = false
     @State private var tooltipParticipant: Participant?
@@ -117,13 +123,6 @@ struct HostConversationView: View {
             Button("OK") { viewModel.error = nil }
         } message: {
             Text(viewModel.error ?? "")
-        }
-        .confirmationDialog(L.t("Close this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
-            Button(L.t("Close Room", hostLanguage), role: .destructive) {
-                Task { await viewModel.closeRoom() }
-            }
-        } message: {
-            Text(L.t("All participants will be disconnected. This cannot be undone.", hostLanguage))
         }
         .sheet(isPresented: $viewModel.showParticipantSheet) {
             participantSheet
@@ -277,16 +276,6 @@ struct HostConversationView: View {
                             .padding(.vertical, 9)
                     }
                     .buttonStyle(.pressable)
-
-                    Button {
-                        showHostSettings = false
-                        showCloseConfirmation = true
-                    } label: {
-                        Text(L.t("Close Room", hostLanguage))
-                    }
-                    .buttonStyle(.chunky(EC.red, size: .mini))
-                    .padding(.horizontal, 10)
-                    .padding(.top, 4)
                 }
                 .padding(.vertical, 10)
                 .frame(width: 230)
@@ -365,7 +354,7 @@ struct HostConversationView: View {
     private var contextMenuOverlay: some View {
         if let menuMessageId = contextMenuMessageId,
            let message = viewModel.messages.first(where: { $0.id == menuMessageId }),
-           let frame = messageFrames[menuMessageId] {
+           let frame = messageFrames.frames[menuMessageId] {
             let sender = viewModel.participant(for: message.senderId)
             let replyTarget = viewModel.replyTarget(for: message)
             let replyTargetSender = replyTarget.flatMap { viewModel.participant(for: $0.senderId) }
@@ -601,6 +590,9 @@ struct HostConversationView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { isTextEditorFocused = false }
+        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in isTextEditorFocused = false })
     }
 
     // MARK: - Message list
@@ -698,9 +690,9 @@ struct HostConversationView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 14)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .onPreferenceChange(MessageFramePreferenceKey.self) { frames in
-                messageFrames = frames
+                messageFrames.frames = frames
             }
             .onChange(of: viewModel.messages.count) { _ in
                 guard contextMenuMessageId == nil else { return }
@@ -718,6 +710,15 @@ struct HostConversationView: View {
                 guard contextMenuMessageId == nil else { return }
                 withAnimation {
                     proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                }
+            }
+            .onChange(of: isTextEditorFocused) { focused in
+                guard focused else { return }
+                // After the keyboard has shrunk the list, so the newest message sits above it
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                    }
                 }
             }
         }
@@ -943,6 +944,35 @@ struct HostConversationView: View {
         .accessibilityLabel(L.t("Voice", hostLanguage))
     }
 
+    @ViewBuilder
+    private var clearTextButton: some View {
+        if !messageText.isEmpty {
+            Button {
+                Haptics.tap()
+                speechRecognizer.transcript = ""
+                if speechRecognizer.isRecording { speechRecognizer.stopRecording() }
+                messageText = ""
+            } label: {
+                // Same glyph as web .ec-clear-text: 12pt box, arms inset 1.2
+                Path { p in
+                    p.move(to: CGPoint(x: 1.2, y: 1.2))
+                    p.addLine(to: CGPoint(x: 10.8, y: 10.8))
+                    p.move(to: CGPoint(x: 10.8, y: 1.2))
+                    p.addLine(to: CGPoint(x: 1.2, y: 10.8))
+                }
+                .stroke(EC.inkSoft, style: StrokeStyle(lineWidth: 1.7, lineCap: .round))
+                .frame(width: 12, height: 12)
+                .padding(10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 7)
+            .padding(.trailing, 4)
+            .accessibilityLabel(L.t("Clear", hostLanguage))
+            .transition(.opacity)
+        }
+    }
+
     private var inputView: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
@@ -966,7 +996,8 @@ struct HostConversationView: View {
                             viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
                         }
                     }
-                    .padding(.horizontal, 10)
+                    .padding(.leading, 10)
+                    .padding(.trailing, messageText.isEmpty ? 10 : 30)
                     .padding(.vertical, 3)
                     .overlay(alignment: .topLeading) {
                         if messageText.isEmpty {
@@ -978,6 +1009,7 @@ struct HostConversationView: View {
                                 .allowsHitTesting(false)
                         }
                     }
+                    .overlay(alignment: .topTrailing) { clearTextButton }
                     .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(EC.paper))
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -1415,6 +1447,20 @@ struct HostConversationView: View {
                     .listRowBackground(Color.white)
                 }
 
+                if !viewModel.isClosed {
+                    Section {
+                        Button {
+                            Haptics.tap()
+                            showCloseConfirmation = true
+                        } label: {
+                            Text(L.t("Close Room", hostLanguage))
+                        }
+                        .buttonStyle(.chunky(EC.red, size: .mini))
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    }
+                }
+
                 Section {
                     Stepper(
                         "\(L.t("Max participants:", hostLanguage)) \(maxParticipants)",
@@ -1509,6 +1555,14 @@ struct HostConversationView: View {
             }
             .onAppear {
                 maxParticipants = viewModel.room?.settings.maxParticipants ?? 10
+            }
+            .confirmationDialog(L.t("Close this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
+                Button(L.t("Close Room", hostLanguage), role: .destructive) {
+                    viewModel.showParticipantSheet = false
+                    Task { await viewModel.closeRoom() }
+                }
+            } message: {
+                Text(L.t("All participants will be disconnected. This cannot be undone.", hostLanguage))
             }
         }
         .presentationDetents([.medium, .large])

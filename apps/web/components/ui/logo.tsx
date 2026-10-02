@@ -28,7 +28,7 @@ export function Ribbon({ children }: { children: React.ReactNode }) {
 
 function Letters({ text, className }: { text: string; className: string }) {
   return (
-    <div className={className} aria-label={text}>
+    <div className={className} role="img" aria-label={text}>
       {[...text].map((ch, i) => (
         <i
           key={i}

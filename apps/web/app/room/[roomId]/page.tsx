@@ -54,6 +54,22 @@ const CHAT_SIZES = [
 ] as const;
 type ChatSize = (typeof CHAT_SIZES)[number]["key"];
 const CHAT_SIZE_KEY = "enchatto_chatTextSize";
+const DISPLAY_KEY = "enchatto_displaySettings";
+type DisplayPrefs = { showEnglish: boolean; showJapanese: boolean; showRomaji: boolean };
+
+function readDisplayPrefs(): DisplayPrefs | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DISPLAY_KEY) ?? "null") as Partial<DisplayPrefs> | null;
+    if (
+      typeof saved?.showEnglish === "boolean" &&
+      typeof saved.showJapanese === "boolean" &&
+      typeof saved.showRomaji === "boolean"
+    ) {
+      return { showEnglish: saved.showEnglish, showJapanese: saved.showJapanese, showRomaji: saved.showRomaji };
+    }
+  } catch {}
+  return null;
+}
 
 const VIBE_WINDOW_MS = 60_000;
 const COMBO_GAP_MS = 90_000;
@@ -273,9 +289,12 @@ function RoomContent() {
   const setTypingAction = useMutation(api.participants.setTypingAction);
   const updateDisplaySettings = useMutation(api.participants.updateDisplaySettings);
 
+  // Set once saved prefs have been read, so the first render's defaults never reach Convex
+  const initializedRef = useRef(false);
+
   // Sync display settings to Convex whenever toggles change
   useEffect(() => {
-    if (!participantId) return;
+    if (!participantId || !initializedRef.current) return;
     updateDisplaySettings({
       participantId: participantId as Id<"participants">,
       displaySettings: { showEnglish, showJapanese, showRomaji },
@@ -285,7 +304,25 @@ function RoomContent() {
   useEffect(() => {
     const saved = localStorage.getItem(CHAT_SIZE_KEY);
     if (CHAT_SIZES.some((s) => s.key === saved)) setChatSize(saved as ChatSize);
+    const prefs = readDisplayPrefs();
+    initializedRef.current = true;
+    if (prefs) {
+      setShowEnglish(prefs.showEnglish);
+      setShowJapanese(prefs.showJapanese);
+      setShowRomaji(prefs.showRomaji);
+    }
   }, []);
+  const toggleDisplay = useCallback(
+    (key: keyof DisplayPrefs) => {
+      const current = { showEnglish, showJapanese, showRomaji };
+      const next = { ...current, [key]: !current[key] };
+      setShowEnglish(next.showEnglish);
+      setShowJapanese(next.showJapanese);
+      setShowRomaji(next.showRomaji);
+      localStorage.setItem(DISPLAY_KEY, JSON.stringify(next));
+    },
+    [showEnglish, showJapanese, showRomaji],
+  );
   const pickChatSize = useCallback((size: ChatSize) => {
     setChatSize(size);
     localStorage.setItem(CHAT_SIZE_KEY, size);
@@ -314,17 +351,6 @@ function RoomContent() {
 
   const me = participants.find((p) => p._id === participantId);
   const lang = me?.preferredLanguage ?? "ja";
-
-  // Initialize display toggles from participant's saved settings (once on load)
-  const initializedRef = useRef(false);
-  useEffect(() => {
-    if (me?.displaySettings && !initializedRef.current) {
-      initializedRef.current = true;
-      setShowEnglish(me.displaySettings.showEnglish);
-      setShowJapanese(me.displaySettings.showJapanese);
-      setShowRomaji(me.displaySettings.showRomaji);
-    }
-  }, [me?.displaySettings]);
 
   // Redirect to join screen if participant was removed (kicked)
   useEffect(() => {
@@ -1453,9 +1479,9 @@ function RoomContent() {
               </span>
               <div style={{ marginTop: 8 }}>
                 {([
-                  { key: "en", label: t("English", lang), value: showEnglish, toggle: () => setShowEnglish((v) => !v) },
-                  { key: "ja", label: t("Japanese", lang), value: showJapanese, toggle: () => setShowJapanese((v) => !v) },
-                  { key: "romaji", label: t("Romaji", lang), value: showRomaji, toggle: () => setShowRomaji((v) => !v) },
+                  { key: "en", label: t("English", lang), value: showEnglish, toggle: () => toggleDisplay("showEnglish") },
+                  { key: "ja", label: t("Japanese", lang), value: showJapanese, toggle: () => toggleDisplay("showJapanese") },
+                  { key: "romaji", label: t("Romaji", lang), value: showRomaji, toggle: () => toggleDisplay("showRomaji") },
                 ] as const).map((item) => (
                   <label key={item.key} className="ec-toggle-row">
                     <span style={{ display: "flex", alignItems: "center", gap: 10 }}>

@@ -135,6 +135,18 @@ export function MessageInput({
     }
   };
 
+  const handleClear = () => {
+    if (isListening) {
+      stopVoice();
+      onTypingChange?.(null);
+    }
+    usedVoiceRef.current = false;
+    preVoiceTextRef.current = "";
+    clearTyping();
+    setText("");
+    inputRef.current?.focus();
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -267,6 +279,19 @@ export function MessageInput({
                 el.style.height = Math.min(el.scrollHeight, 120) + "px";
               }}
             />
+            {text.length > 0 && (
+              <button
+                type="button"
+                className="ec-clear-text"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleClear}
+                aria-label={t("Clear", lang)}
+              >
+                <svg viewBox="0 0 10 10" aria-hidden>
+                  <path d="M1 1l8 8M9 1l-8 8" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Right side: mic/send toggle */}
