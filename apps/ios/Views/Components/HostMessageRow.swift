@@ -528,8 +528,10 @@ private struct FreshMessagePop: ViewModifier {
 @MainActor
 final class VoicePlayback: ObservableObject {
     static let shared = VoicePlayback()
-    static let speeds: [Float] = [1, 1.5, 2]
+    /// Slow speeds are for language learners catching every word
+    static let speeds: [Float] = [0.25, 0.5, 0.75, 1, 1.5, 2]
     private static let playedKey = "enchatto_playedVoice"
+    private static let speedKey = "enchatto_voiceSpeed"
 
     @Published private(set) var currentId: String?
     @Published private(set) var isPlaying = false
@@ -546,6 +548,8 @@ final class VoicePlayback: ObservableObject {
 
     private init() {
         playedIds = Set(UserDefaults.standard.stringArray(forKey: Self.playedKey) ?? [])
+        let saved = UserDefaults.standard.float(forKey: Self.speedKey)
+        if Self.speeds.contains(saved) { speed = saved }
     }
 
     func toggle(id: String, url: URL, durationMs: Double?) {
@@ -570,10 +574,11 @@ final class VoicePlayback: ObservableObject {
         play(id: id, url: url, durationMs: durationMs, from: fraction)
     }
 
-    func cycleSpeed() {
-        let i = Self.speeds.firstIndex(of: speed) ?? 0
-        speed = Self.speeds[(i + 1) % Self.speeds.count]
-        if isPlaying { player?.rate = speed }
+    /// Applies to every voice message and is remembered
+    func setSpeed(_ newSpeed: Float) {
+        speed = newSpeed
+        UserDefaults.standard.set(newSpeed, forKey: Self.speedKey)
+        if isPlaying { player?.rate = newSpeed }
     }
 
     func stop() {
@@ -592,6 +597,8 @@ final class VoicePlayback: ObservableObject {
         try? session.setActive(true)
 
         let item = AVPlayerItem(url: url)
+        // The default pitch algorithm only covers 0.5–2×; spectral keeps 0.25× audible and at pitch
+        item.audioTimePitchAlgorithm = .spectral
         let player = AVPlayer(playerItem: item)
         self.player = player
         duration = max(0.1, (durationMs ?? 1000) / 1000)
@@ -689,16 +696,24 @@ private struct VoiceMessagePlayer: View {
                     Text(Self.clock(playing || progress > 0 ? progress * totalSeconds : totalSeconds))
                         .font(.round(12, .black))
                         .monospacedDigit()
-                    Button {
-                        Haptics.tap()
-                        playback.cycleSpeed()
+                    Menu {
+                        Picker(L.t("Playback speed", lang), selection: Binding(
+                            get: { playback.speed },
+                            set: { Haptics.tap(); playback.setSpeed($0) }
+                        )) {
+                            ForEach(VoicePlayback.speeds, id: \.self) { s in
+                                Text(Self.speedLabel(s)).tag(s)
+                            }
+                        }
                     } label: {
                         Text(Self.speedLabel(playback.speed))
                             .font(.round(10.5, .black))
+                            .foregroundStyle(tint)
                             .padding(.horizontal, 5)
                             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(tint, lineWidth: 2))
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .menuOrder(.fixed)
                     .accessibilityLabel(L.t("Playback speed", lang))
                 } else {
                     Text(L.t("Voice message expired", lang))

@@ -850,6 +850,8 @@
 .ec-vm-wave i.played { opacity: 1; }
 .ec-vm-meta { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font-size: 12px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .ec-vm-speed {
+  appearance: none;
+  -webkit-appearance: none;
   padding: 0 5px;
   border: 2px solid currentColor;
   border-radius: 6px;
@@ -858,7 +860,12 @@
   font: inherit;
   font-size: 10.5px;
   line-height: 1.4;
+  text-align: center;
+  text-align-last: center;
   cursor: pointer;
+}
+.ec-vm-speed option {
+  color: var(--ink);
 }
 .ec-vm.expired .ec-vm-wave { cursor: default; opacity: 0.5; }
 .ec-vm-expired { max-width: 84px; text-align: right; font-size: 10.5px; line-height: 1.2; opacity: 0.75; }

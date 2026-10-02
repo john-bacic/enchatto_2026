@@ -1,15 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { t } from "@/lib/i18n";
 
 const PLAYED_KEY = "enchatto_playedVoice";
 const PLAYED_LIMIT = 300;
-const SPEEDS = [1, 1.5, 2];
+const SPEED_KEY = "enchatto_voiceSpeed";
+/** Slow speeds are for language learners catching every word */
+const SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 const BARS = 48;
 
 /** Only one voice message plays at a time */
 let activeAudio: HTMLAudioElement | null = null;
+
+/** One playback speed for every voice message, remembered across visits */
+let sharedSpeed = 1;
+if (typeof window !== "undefined") {
+  try {
+    const saved = Number(localStorage.getItem(SPEED_KEY));
+    if (SPEEDS.includes(saved)) sharedSpeed = saved;
+  } catch {
+    // storage blocked
+  }
+}
+const speedListeners = new Set<() => void>();
+
+function subscribeSpeed(listener: () => void) {
+  speedListeners.add(listener);
+  return () => speedListeners.delete(listener);
+}
+
+function setSharedSpeed(speed: number) {
+  sharedSpeed = speed;
+  try {
+    localStorage.setItem(SPEED_KEY, String(speed));
+  } catch {
+    // storage blocked
+  }
+  if (activeAudio) activeAudio.playbackRate = speed;
+  speedListeners.forEach((l) => l());
+}
 
 function readPlayed(): string[] {
   try {
@@ -65,7 +95,7 @@ export function VoiceMessage({ messageId, src, durationMs = 0, waveform, trackUn
   const rafRef = useRef<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [speed, setSpeed] = useState(0);
+  const speed = useSyncExternalStore(subscribeSpeed, () => sharedSpeed, () => 1);
   const [unplayed, setUnplayed] = useState(false);
 
   const bars = useMemo(
@@ -127,7 +157,8 @@ export function VoiceMessage({ messageId, src, durationMs = 0, waveform, trackUn
     const audio = ensureAudio();
     if (activeAudio && activeAudio !== audio) activeAudio.pause();
     activeAudio = audio;
-    audio.playbackRate = SPEEDS[speed];
+    audio.preservesPitch = true;
+    audio.playbackRate = sharedSpeed;
     if (fromFraction != null) {
       const seek = () => {
         audio.currentTime = fromFraction * durationOf(audio);
@@ -153,12 +184,6 @@ export function VoiceMessage({ messageId, src, durationMs = 0, waveform, trackUn
   const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     play(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)));
-  };
-
-  const cycleSpeed = () => {
-    const next = (speed + 1) % SPEEDS.length;
-    setSpeed(next);
-    if (audioRef.current) audioRef.current.playbackRate = SPEEDS[next];
   };
 
   const shownSeconds = playing || progress > 0 ? progress * totalSeconds : totalSeconds;
@@ -202,15 +227,20 @@ export function VoiceMessage({ messageId, src, durationMs = 0, waveform, trackUn
         {src ? (
           <>
             <span>{formatClock(shownSeconds)}</span>
-            <button
-              type="button"
+            {/* Native picker: a sheet on phones, a dropdown on desktop */}
+            <select
               className="ec-vm-speed"
-              onClick={cycleSpeed}
+              value={speed}
+              onChange={(e) => setSharedSpeed(Number(e.target.value))}
               onPointerDown={(e) => e.stopPropagation()}
               aria-label={t("Playback speed", lang)}
             >
-              {SPEEDS[speed]}×
-            </button>
+              {SPEEDS.map((s) => (
+                <option key={s} value={s}>
+                  {s}×
+                </option>
+              ))}
+            </select>
           </>
         ) : (
           <span className="ec-vm-expired">{t("Voice message expired", lang)}</span>
