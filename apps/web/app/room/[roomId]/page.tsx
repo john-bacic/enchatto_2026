@@ -501,6 +501,7 @@ function RoomContent() {
           durationMs: clip.durationMs,
           waveform: clip.waveform,
           text: clip.text,
+          lang: clip.lang,
           replyToId,
         });
       } catch (err) {

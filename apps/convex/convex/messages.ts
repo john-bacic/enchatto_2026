@@ -92,6 +92,7 @@ async function insertAudioMessage(
     durationMs: number;
     waveform: number[];
     text?: string;
+    lang?: "en" | "ja";
     replyToId?: Id<"messages">;
   }
 ): Promise<Id<"messages">> {
@@ -140,9 +141,18 @@ async function insertAudioMessage(
       messageId,
       roomId: args.roomId,
     });
+  } else if (waveform.length > 0) {
+    // No live transcript (Android can't recognize while recording); an empty waveform means silence
+    await ctx.scheduler.runAfter(0, internal.messages.transcribeAudio, {
+      messageId,
+      storageId: args.storageId,
+      lang: args.lang,
+    });
   }
   return messageId;
 }
+
+const langValidator = v.union(v.literal("en"), v.literal("ja"));
 
 export const sendAudioMessage = mutation({
   args: {
@@ -152,10 +162,96 @@ export const sendAudioMessage = mutation({
     durationMs: v.number(),
     waveform: v.array(v.number()),
     text: v.optional(v.string()),
+    lang: v.optional(langValidator),
     replyToId: v.optional(v.id("messages")),
   },
   returns: v.id("messages"),
   handler: async (ctx, args) => await insertAudioMessage(ctx, args),
+});
+
+const GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
+/** Whisper invents text for silence; segments it rates as probably not speech are dropped */
+const MAX_NO_SPEECH_PROB = 0.6;
+
+function audioExtension(contentType: string): string {
+  if (contentType.includes("wav")) return "wav";
+  if (contentType.includes("webm")) return "webm";
+  if (contentType.includes("ogg")) return "ogg";
+  if (contentType.includes("mpeg")) return "mp3";
+  return "m4a";
+}
+
+type WhisperResponse = {
+  text?: string;
+  segments?: { text: string; no_speech_prob?: number }[];
+};
+
+async function transcribeWithGroq(apiKey: string, audio: Blob, lang?: "en" | "ja"): Promise<string | null> {
+  const form = new FormData();
+  // Groq picks the decoder from the file extension
+  form.append("file", audio, `voice.${audioExtension(audio.type)}`);
+  form.append("model", "whisper-large-v3-turbo");
+  form.append("response_format", "verbose_json");
+  form.append("temperature", "0");
+  if (lang) form.append("language", lang);
+  const response = await fetch(GROQ_TRANSCRIBE_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+  if (!response.ok) {
+    console.error("Groq transcription failed", response.status, (await response.text()).slice(0, 300));
+    return null;
+  }
+  const data = (await response.json()) as WhisperResponse;
+  const text = data.segments
+    ? data.segments
+        .filter((s) => (s.no_speech_prob ?? 0) < MAX_NO_SPEECH_PROB)
+        .map((s) => s.text)
+        .join("")
+    : (data.text ?? "");
+  return text.trim() || null;
+}
+
+export const transcribeAudio = internalAction({
+  args: {
+    messageId: v.id("messages"),
+    storageId: v.id("_storage"),
+    lang: v.optional(langValidator),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      console.warn("GROQ_API_KEY not set; voice message left without a transcript");
+      return null;
+    }
+    const audio = await ctx.storage.get(args.storageId);
+    if (!audio) return null;
+    const text = await transcribeWithGroq(apiKey, audio, args.lang);
+    if (text) await ctx.runMutation(internal.messages.applyTranscript, { messageId: args.messageId, text });
+    return null;
+  },
+});
+
+/** Gives a voice message its server-made transcript and sends it through translation like typed text */
+export const applyTranscript = internalMutation({
+  args: { messageId: v.id("messages"), text: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.kind !== "audio" || message.text) return null;
+    await ctx.db.patch(args.messageId, {
+      text: args.text.slice(0, 2000),
+      status: "pending",
+      processedAt: undefined,
+    });
+    await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
+      messageId: args.messageId,
+      roomId: message.roomId,
+    });
+    return null;
+  },
 });
 
 /** Deletes every voice clip in a room once it closes; transcripts and translations stay. */

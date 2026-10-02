@@ -137,7 +137,11 @@ function launch(recognition: any) {
 }
 
 /** Detect Android browser */
-function isAndroid(): boolean {
+/**
+ * Android's recognizer is a separate system service that opens the mic itself, so it hears nothing
+ * while the page holds a getUserMedia stream: recording and live transcription can't run together.
+ */
+export function isAndroid(): boolean {
   return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
@@ -240,13 +244,19 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   /**
    * Resolves with the held mic stream once recognition is launching (null if none was held or the
    * session was already stopped). Pass `holdMic` to get a stream on platforms that don't need one.
+   * `recognize: false` only holds the mic (a listening session with no transcript), for recording
+   * where recognition can't share it.
    */
   const start = useCallback(
-    (lang?: string, opts?: { holdMic?: boolean }): Promise<MediaStream | null> => {
+    (lang?: string, opts?: { holdMic?: boolean; recognize?: boolean }): Promise<MediaStream | null> => {
       if (!supported) return Promise.resolve(null);
+      const recognize = opts?.recognize !== false;
+      const wantsMic = isIOSWebKit() || !!opts?.holdMic || !recognize;
+      // A stream still held for the last recording's flush would starve Android's recognizer
+      if (!wantsMic) releaseMic();
       const released = Promise.all([releasedRef.current, retire(recognitionRef.current)]);
       releasedRef.current = released;
-      const mic = isIOSWebKit() || opts?.holdMic ? holdMic() : Promise.resolve(null);
+      const mic = wantsMic ? holdMic() : Promise.resolve(null);
       const ready = Promise.all([released, mic]);
       recognitionRef.current = null;
       if (restartTimerRef.current) {
@@ -256,6 +266,20 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
 
       const session = ++sessionRef.current;
       const isCurrent = () => sessionRef.current === session && listeningRef.current;
+
+      if (!recognize) {
+        listeningRef.current = true;
+        committedTextRef.current = "";
+        lastTranscriptRef.current = "";
+        setIsListening(true);
+        debugLog(`#${session} record-only`);
+        return mic.then((stream) => {
+          if (!isCurrent()) return null;
+          if (!stream) stop();
+          return stream;
+        });
+      }
+
       const android = isAndroid();
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SR();
@@ -374,7 +398,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
         return stream;
       });
     },
-    [supported, stop, holdMic]
+    [supported, stop, holdMic, releaseMic]
   );
 
   // Don't keep the mic open behind a hidden tab

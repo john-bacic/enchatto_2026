@@ -155,6 +155,7 @@ http.route({
       durationMs: body.durationMs,
       waveform: body.waveform ?? [],
       text: body.text,
+      lang: body.lang,
       replyToId: body.replyToId,
     });
     return { messageId };

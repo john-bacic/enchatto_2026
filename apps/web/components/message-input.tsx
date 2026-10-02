@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { DrawingModal } from "@/components/drawing-modal";
-import { useSpeechRecognition, ensurePunctuation } from "@/hooks/use-speech-recognition";
+import { useSpeechRecognition, ensurePunctuation, isAndroid } from "@/hooks/use-speech-recognition";
 import { useVoiceClip, type VoiceClip } from "@/hooks/use-voice-clip";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
@@ -103,7 +103,8 @@ function VoiceModeSwitch({
   );
 }
 
-export type OutgoingVoiceClip = VoiceClip & { text?: string };
+/** No `text` means the server transcribes the clip; `lang` is what was spoken, as a hint for that */
+export type OutgoingVoiceClip = VoiceClip & { text?: string; lang: "en" | "ja" };
 
 interface ReplyTo {
   _id: string;
@@ -286,7 +287,7 @@ export function MessageInput({
     preVoiceTextRef.current = "";
     const clip = await voiceClip.finish();
     if (clip && clip.durationMs >= MIN_CLIP_MS) {
-      onSendVoice?.({ ...clip, text: transcript || undefined });
+      onSendVoice?.({ ...clip, text: transcript || undefined, lang: lang === "ja" ? "ja" : "en" });
     } else if (transcript) {
       onSend(transcript);
     }
@@ -348,19 +349,26 @@ export function MessageInput({
     onSendDrawing?.(dataUrl);
   };
 
-  const beginVoice = (mode: VoiceMode) => {
-    if (isListening) return;
-    preVoiceTextRef.current = text.trim();
+  const canRecord = !!onSendVoice && voiceClip.supported;
+  const android = isAndroid();
+
+  /** `base` restarts a running dictation (Android mode switch) on top of the text typed before it */
+  const beginVoice = (mode: VoiceMode, base?: string) => {
+    if (isListening && base === undefined) return;
+    preVoiceTextRef.current = base ?? text.trim();
     dictatedRef.current = "";
     usedVoiceRef.current = true;
     if (mode !== voiceMode) chooseVoiceMode(mode);
-    const canRecord = !!onSendVoice && voiceClip.supported;
-    const mic = startVoice(lang, { holdMic: canRecord });
+    // Android: one or the other. Voice mode records and the server transcribes; text mode only recognizes
+    const record = canRecord && (!android || mode === "voice");
+    const mic = startVoice(lang, { holdMic: record, recognize: !(android && record) });
     onTypingChange?.("voicing");
-    if (canRecord) {
+    if (record) {
       void mic.then((stream) => {
         if (stream) voiceClip.start(stream);
       });
+    }
+    if (canRecord) {
       try {
         if (!localStorage.getItem(VOICE_HINT_KEY)) {
           localStorage.setItem(VOICE_HINT_KEY, "1");
@@ -402,6 +410,20 @@ export function MessageInput({
       voiceClip.arm();
       beginVoice(voiceMode);
     },
+  };
+
+  const handleModeSwitch = (mode: VoiceMode) => {
+    if (mode === voiceMode) return;
+    if (!android || !isListening) {
+      chooseVoiceMode(mode);
+      return;
+    }
+    // Android can't record and recognize at once, so start over in the new mode
+    const base = preVoiceTextRef.current;
+    voiceClip.discard();
+    stopVoice();
+    setText(base);
+    beginVoice(mode, base);
   };
 
   /** Keeps the dictated text in the field for editing */
@@ -471,8 +493,8 @@ export function MessageInput({
                 {text.trim() || (sendingVoice ? t("Recording...", lang) : t("Listening...", lang))}
               </span>
             </div>
-            {clipRecording && (
-              <VoiceModeSwitch mode={voiceMode} nudge={modeNudge} onChange={chooseVoiceMode} lang={lang} />
+            {(clipRecording || (android && canRecord)) && (
+              <VoiceModeSwitch mode={voiceMode} nudge={modeNudge} onChange={handleModeSwitch} lang={lang} />
             )}
           </div>
         )}
