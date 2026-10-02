@@ -46,6 +46,8 @@ enum L {
         "Settings": ["ja": "設定"],
         "Done": ["ja": "完了"],
         "host": ["ja": "ホスト"],
+        "me": ["ja": "自分"],
+        "In this room": ["ja": "このルームのメンバー"],
         "Online": ["ja": "オンライン"],
         "Offline": ["ja": "オフライン"],
         "Away": ["ja": "離席中"],

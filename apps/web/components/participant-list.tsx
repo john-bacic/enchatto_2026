@@ -36,10 +36,15 @@ const PRESENCE_ORDER = { online: 0, away: 1, offline: 2 } as const;
 export function ParticipantList({ participants, currentParticipantId, onLeave, lang }: ParticipantListProps) {
   const [open, setOpen] = useState(false);
 
-  // Show all non-departed participants (online, away, AND offline)
-  const visibleParticipants = participants
+  // Everyone not departed (online, away, AND offline), me first; the header stack shows only the others
+  const members = participants
     .filter((p) => !p.departed)
-    .sort((a, b) => PRESENCE_ORDER[presenceOf(a)] - PRESENCE_ORDER[presenceOf(b)]);
+    .sort(
+      (a, b) =>
+        Number(b._id === currentParticipantId) - Number(a._id === currentParticipantId) ||
+        PRESENCE_ORDER[presenceOf(a)] - PRESENCE_ORDER[presenceOf(b)]
+    );
+  const visibleParticipants = members.filter((p) => p._id !== currentParticipantId);
   const [first, second] = visibleParticipants;
   const collapsed = visibleParticipants.length > STACK_MAX;
 
@@ -79,19 +84,20 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
             <div className="ec-sheet-grip" />
             <div className="ec-sheet-head">
               <h2>{t("In this room", lang)}</h2>
-              <span className="ec-chip outline">{visibleParticipants.length}</span>
+              <span className="ec-chip outline">{members.length}</span>
               <button className="ec-round-btn" onClick={() => setOpen(false)} aria-label={t("Close", lang)}>
                 ✕
               </button>
             </div>
             <div className="ec-sheet-body">
-              {visibleParticipants.length === 0 ? (
+              {visibleParticipants.length === 0 && (
                 <p style={{ padding: "18px 0", textAlign: "center", opacity: 0.6 }}>
                   {t("Nobody else is here yet.", lang)}
                 </p>
-              ) : (
+              )}
+              {members.length > 0 && (
                 <div className="ec-people">
-                  {visibleParticipants.map((p, i) => {
+                  {members.map((p, i) => {
                     const isMe = p._id === currentParticipantId;
                     const presence = presenceOf(p);
                     return (
@@ -105,15 +111,13 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
                       >
                         <AvatarPreview avatarId={p.avatar.value} nickname={p.nickname} size={44} presence={presence} isMe={isMe} />
                         <div className="ec-person-name">
-                          <b>
-                            {p.nickname}
-                            {isMe ? ` ${t("(you)", lang)}` : ""}
-                          </b>
+                          <b>{p.nickname}</b>
                           <small>
                             <span className={`ec-presence-dot ${presence}`} />
                             {t(presence, lang)}
                           </small>
                         </div>
+                        {isMe && <span className="ec-chip" style={{ background: "var(--pink)" }}>{t("me", lang).toUpperCase()}</span>}
                         {p.role === "host" && <span className="ec-chip" style={{ background: "var(--violet)" }}>{t("host", lang).toUpperCase()}</span>}
                       </div>
                     );

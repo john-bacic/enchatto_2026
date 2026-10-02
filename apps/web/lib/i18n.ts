@@ -353,6 +353,7 @@ const translations: Record<string, Record<string, string>> = {
   "Join Game": { ja: "参加する" },
   "Leave Lobby": { ja: "ロビーを出る" },
   "host": { ja: "ホスト" },
+  "me": { ja: "自分" },
   "called": { ja: "コール済み" },
   "remaining": { ja: "残り" },
   "Game in progress": { ja: "ゲーム中" },

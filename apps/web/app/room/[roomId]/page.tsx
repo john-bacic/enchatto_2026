@@ -1418,7 +1418,7 @@ function RoomContent() {
           />
         )}
         <ParticipantList
-          participants={participants.filter((p) => p._id !== participantId)}
+          participants={participants}
           currentParticipantId={participantId}
           onLeave={() => setShowLeaveConfirm(true)}
           lang={lang}

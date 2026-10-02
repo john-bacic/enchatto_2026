@@ -22,15 +22,11 @@ struct ParticipantAvatarRow: View {
     let participants: [Participant]
     var maxVisible: Int = 5
     var avatarSize: CGFloat = 32
-    var onTapParticipant: ((Participant) -> Void)?
 
     var body: some View {
         HStack(spacing: -avatarSize * 0.25) {
             ForEach(participants.prefix(maxVisible)) { participant in
                 ParticipantAvatarView(participant: participant, size: avatarSize)
-                    .onTapGesture {
-                        onTapParticipant?(participant)
-                    }
                     .transition(.scale.combined(with: .opacity))
             }
 

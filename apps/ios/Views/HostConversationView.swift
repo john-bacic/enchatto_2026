@@ -84,7 +84,7 @@ struct HostConversationView: View {
     @AppStorage("enchatto_showRomaji") private var showRomaji = true
     @AppStorage(ChatTextSize.storageKey) private var chatTextSize: ChatTextSize = .small
     @State private var showHostSettings = false
-    @State private var tooltipParticipant: Participant?
+    @State private var showInRoom = false
     @State private var fullScreenImage: (url: String, messageId: String)?
     @State private var showGamePicker = false
     @State private var showGameReplay = false
@@ -172,6 +172,9 @@ struct HostConversationView: View {
         .sheet(isPresented: $viewModel.showParticipantSheet) {
             participantSheet
         }
+        .sheet(isPresented: $showInRoom) {
+            inRoomSheet
+        }
         .overlay { hostSettingsOverlay }
         .overlay { contextMenuOverlay }
         .overlay { qrOverlay }
@@ -185,31 +188,6 @@ struct HostConversationView: View {
         .overlay { DebugConsoleView() }
         .onTapGesture(count: 3) {
             DebugConsole.shared.isEnabled.toggle()
-        }
-        .overlay {
-            if let participant = tooltipParticipant {
-                Color.black.opacity(0.01)
-                    .onTapGesture {
-                        withAnimation { tooltipParticipant = nil }
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        HStack(spacing: 6) {
-                            AvatarDisc(avatarId: participant.avatar.value, size: 22)
-                            Text(participant.nickname)
-                                .font(.round(13, .black))
-                                .foregroundStyle(EC.ink)
-                            if participant.isAway {
-                                ECChip(text: L.t("Away", hostLanguage), fill: EC.yellow)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .ecCard(radius: 14, border: 2.5, shadow: 3)
-                        .padding(.top, 62)
-                        .padding(.trailing, 44)
-                        .transition(.scale(scale: 0.6, anchor: .topTrailing).combined(with: .opacity))
-                    }
-            }
         }
         .confirmationDialog(
             L.t("Delete this message?", hostLanguage),
@@ -592,31 +570,23 @@ struct HostConversationView: View {
         viewModel.participants.filter { $0.id != hostId && !hiddenOfflineIds.contains($0.id) }
     }
 
-    /// Up to three avatars (tap for a name tooltip); past that they fold into one stack that opens the participants sheet
+    /// Up to three avatars, past that one stack; either opens "In this room"
     @ViewBuilder
     private var headerParticipants: some View {
         let others = headerOthers
-        if others.count > 3 {
+        if !others.isEmpty {
             Button {
                 Haptics.tap()
-                viewModel.showParticipantSheet = true
+                showInRoom = true
             } label: {
-                ParticipantStack(participants: others)
+                if others.count > 3 {
+                    ParticipantStack(participants: others)
+                } else {
+                    ParticipantAvatarRow(participants: others, maxVisible: 3, avatarSize: 30)
+                }
             }
             .buttonStyle(.pressable)
-            .accessibilityLabel("\(L.t("Participants", hostLanguage)) \(others.count)")
-            .transition(.scale.combined(with: .opacity))
-        } else if !others.isEmpty {
-            ParticipantAvatarRow(
-                participants: others,
-                maxVisible: 3,
-                avatarSize: 30,
-                onTapParticipant: { participant in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        tooltipParticipant = tooltipParticipant?.id == participant.id ? nil : participant
-                    }
-                }
-            )
+            .accessibilityLabel("\(L.t("In this room", hostLanguage)) \(others.count + 1)")
             .transition(.scale.combined(with: .opacity))
         }
     }
@@ -1745,36 +1715,123 @@ struct HostConversationView: View {
     @State private var maxParticipants: Int = 10
 
     private func participantRow(_ participant: Participant, onRemove: @escaping () -> Void) -> some View {
-        HStack(spacing: 12) {
-            ParticipantAvatarView(participant: participant, size: 42)
+        personCard(participant, onRemove: participant.role == .host ? nil : onRemove)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
+    }
+
+    /// One member as a chunky card (matches web "In this room"); guests carry their avatar tint
+    private func personCard(_ participant: Participant, onRemove: (() -> Void)? = nil) -> some View {
+        let away = participant.online && participant.isAway
+        let status = participant.online ? (away ? "Away" : "Online") : "Offline"
+        let dot = participant.online ? (away ? EC.yellow : EC.mint) : EC.inkSoft
+        return HStack(spacing: 12) {
+            ParticipantAvatarView(participant: participant, size: 44)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(participant.nickname)
                         .font(.round(16, .black))
                         .foregroundStyle(EC.ink)
+                        .lineLimit(1)
                     LangBadge(lang: participant.preferredLanguage, size: 18)
-                    if participant.role == .host {
-                        ECChip(text: L.t("host", hostLanguage), fill: EC.blue)
-                    }
                 }
-                Text(participant.online ? (participant.isAway ? L.t("Away", hostLanguage) : L.t("Online", hostLanguage)) : L.t("Offline", hostLanguage))
-                    .font(.round(12, .bold))
-                    .foregroundStyle(participant.online ? (participant.isAway ? Color(hex: "c78a00") : Color(hex: "14a37c")) : EC.inkSoft)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(dot)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().strokeBorder(EC.ink, lineWidth: 1.5))
+                    Text(L.t(status, hostLanguage))
+                        .font(.round(12, .bold))
+                        .foregroundStyle(EC.inkSoft)
+                }
             }
 
-            Spacer()
+            Spacer(minLength: 6)
 
-            // Kick button (non-host only)
-            if participant.role != .host {
+            if participant.id == hostId {
+                ECChip(text: L.t("me", hostLanguage).uppercased(), fill: EC.pink)
+            }
+            if participant.role == .host {
+                ECChip(text: L.t("host", hostLanguage).uppercased(), fill: EC.violet)
+            }
+            if let onRemove {
                 Button(role: .destructive, action: onRemove) {
                     Text(L.t("Remove", hostLanguage))
                 }
                 .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
             }
         }
-        .padding(.vertical, 4)
-        .listRowBackground(participant.role == .host ? Color.white : participant.tint)
+        .padding(.leading, 8)
+        .padding(.trailing, 12)
+        .padding(.vertical, 8)
+        .ecCard(fill: participant.role == .host ? .white : participant.tint, radius: 18, border: 3, shadow: 4)
+        .opacity(participant.online ? 1 : 0.6)
+    }
+
+    /// Host first, then online, away, offline
+    private var roomMembers: [Participant] {
+        func rank(_ p: Participant) -> Int {
+            if p.id == hostId { return 0 }
+            return p.online ? (p.isAway ? 2 : 1) : 3
+        }
+        return viewModel.participants.sorted { rank($0) < rank($1) }
+    }
+
+    /// Bottom sheet from the header avatars, like web's "In this room"
+    private var inRoomSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Text(L.t("In this room", hostLanguage))
+                    .font(.chunky(24))
+                    .foregroundStyle(EC.ink)
+                Spacer()
+                ECChip(text: "\(roomMembers.count)")
+                Button {
+                    Haptics.tap()
+                    showInRoom = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(EC.ink)
+                }
+                .buttonStyle(.roundIcon(.white, diameter: 40))
+                .accessibilityLabel(L.t("Close", hostLanguage))
+            }
+
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(roomMembers) { personCard($0) }
+                }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 4)
+            }
+
+            if !viewModel.isClosed {
+                Button {
+                    Haptics.tap()
+                    showCloseConfirmation = true
+                } label: {
+                    Text(L.t("Close Room", hostLanguage))
+                }
+                .buttonStyle(.chunky(EC.red, size: .mini))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 26)
+        .padding(.bottom, 12)
+        .background(EC.paper.ignoresSafeArea())
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .confirmationDialog(L.t("Close this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
+            Button(L.t("Close Room", hostLanguage), role: .destructive) {
+                showInRoom = false
+                Task { await viewModel.closeRoom() }
+            }
+        } message: {
+            Text(L.t("All participants will be disconnected. This cannot be undone.", hostLanguage))
+        }
     }
 
     private func closeRoomButton(_ action: @escaping () -> Void) -> some View {
