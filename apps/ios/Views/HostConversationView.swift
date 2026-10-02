@@ -170,7 +170,7 @@ struct HostConversationView: View {
             Text(viewModel.error ?? "")
         }
         .sheet(isPresented: $viewModel.showParticipantSheet) {
-            participantSheet
+            settingsSheet
         }
         .sheet(isPresented: $showInRoom) {
             inRoomSheet
@@ -292,7 +292,7 @@ struct HostConversationView: View {
                         showHostSettings = false
                         viewModel.showParticipantSheet = true
                     } label: {
-                        Label(L.t("Participants", hostLanguage), systemImage: "person.2.fill")
+                        Label(L.t("Settings", hostLanguage), systemImage: "gearshape.fill")
                             .font(.round(15, .black))
                             .foregroundStyle(EC.ink)
                             .padding(.horizontal, 14)
@@ -1710,16 +1710,7 @@ struct HostConversationView: View {
         .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 
-    // MARK: - Participant sheet
-
-    @State private var maxParticipants: Int = 10
-
-    private func participantRow(_ participant: Participant, onRemove: @escaping () -> Void) -> some View {
-        personCard(participant, onRemove: participant.role == .host ? nil : onRemove)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
-    }
+    // MARK: - In this room / Settings sheets
 
     /// One member as a chunky card (matches web "In this room"); guests carry their avatar tint
     private func personCard(_ participant: Participant, onRemove: (() -> Void)? = nil) -> some View {
@@ -1783,9 +1774,17 @@ struct HostConversationView: View {
     private var inRoomSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                Text(L.t("In this room", hostLanguage))
-                    .font(.chunky(24))
-                    .foregroundStyle(EC.ink)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L.t("In this room", hostLanguage))
+                        .font(.chunky(24))
+                        .foregroundStyle(EC.ink)
+                    if let code = viewModel.room?.joinCode {
+                        HStack(spacing: 6) {
+                            ECLabel(L.t("Room", hostLanguage))
+                            ECChip(text: code, fill: EC.yellow)
+                        }
+                    }
+                }
                 Spacer()
                 ECChip(text: "\(roomMembers.count)")
                 Button {
@@ -1802,7 +1801,12 @@ struct HostConversationView: View {
 
             ScrollView {
                 VStack(spacing: 10) {
-                    ForEach(roomMembers) { personCard($0) }
+                    ForEach(roomMembers) { participant in
+                        personCard(participant, onRemove: participant.role == .host || viewModel.isClosed ? nil : {
+                            Haptics.tap()
+                            Task { await viewModel.kickParticipant(participant.id) }
+                        })
+                    }
                 }
                 .padding(.horizontal, 2)
                 .padding(.vertical, 4)
@@ -1834,55 +1838,10 @@ struct HostConversationView: View {
         }
     }
 
-    private func closeRoomButton(_ action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.tap()
-            action()
-        } label: {
-            Text(L.t("Close Room", hostLanguage))
-        }
-        .buttonStyle(.chunky(EC.red, size: .mini))
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-    }
-
-    /// "ROOM ABC123" plus a status chip
-    private func roomHeader(code: String, chip: String, chipFill: Color) -> some View {
-        HStack(spacing: 8) {
-            ECLabel("\(L.t("Room", hostLanguage)) \(code)")
-            ECChip(text: chip, fill: chipFill)
-            Spacer()
-        }
-        .textCase(nil)
-    }
-
-    private var participantSheet: some View {
+    private var settingsSheet: some View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(viewModel.participants) { participant in
-                        participantRow(participant) {
-                            Task { await viewModel.kickParticipant(participant.id) }
-                        }
-                    }
-                    if !viewModel.isClosed {
-                        closeRoomButton { showCloseConfirmation = true }
-                    }
-                } header: {
-                    if let code = viewModel.room?.joinCode {
-                        roomHeader(code: code, chip: L.t("This room", hostLanguage), chipFill: EC.yellow)
-                    }
-                }
-                Section {
-                    Stepper(
-                        "\(L.t("Max participants:", hostLanguage)) \(maxParticipants)",
-                        value: $maxParticipants,
-                        in: 2...20
-                    )
-                    .font(.round(15, .bold))
-                    .foregroundStyle(EC.ink)
-                    .listRowBackground(Color.white)
-
                     HStack(spacing: 10) {
                         Text(L.t("Language", hostLanguage))
                             .font(.round(15, .bold))
@@ -1934,8 +1893,6 @@ struct HostConversationView: View {
                         }
                         .listRowBackground(Color.white)
                     }
-                } header: {
-                    ECLabel(L.t("Settings", hostLanguage))
                 } footer: {
                     let deployment = AppConfig.convexDeploymentURL
                         .replacingOccurrences(of: "https://", with: "")
@@ -1955,7 +1912,7 @@ struct HostConversationView: View {
             .scrollContentBackground(.hidden)
             .background(RoomBackground(room: viewModel.room).ignoresSafeArea())
             .tint(EC.blue)
-            .navigationTitle(L.t("Participants", hostLanguage))
+            .navigationTitle(L.t("Settings", hostLanguage))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1964,17 +1921,6 @@ struct HostConversationView: View {
                     }
                     .buttonStyle(.chunky(EC.blue, size: .mini, fullWidth: false))
                 }
-            }
-            .onAppear {
-                maxParticipants = viewModel.room?.settings.maxParticipants ?? 10
-            }
-            .confirmationDialog(L.t("Close this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
-                Button(L.t("Close Room", hostLanguage), role: .destructive) {
-                    viewModel.showParticipantSheet = false
-                    Task { await viewModel.closeRoom() }
-                }
-            } message: {
-                Text(L.t("All participants will be disconnected. This cannot be undone.", hostLanguage))
             }
         }
         .presentationDetents([.medium, .large])
