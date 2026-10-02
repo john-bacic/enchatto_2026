@@ -141,6 +141,19 @@ function isAndroid(): boolean {
   return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 }
 
+/** Every iOS browser is WebKit; iPadOS reports itself as a Mac with touch */
+function isIOSWebKit(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
+/**
+ * On iOS, WebKit's shared mic unit won't restart for about a minute after a capture stops, so a
+ * second recognition in that window gets no audio at all. Holding a getUserMedia stream keeps the
+ * unit running between dictations; it's released after this long without one.
+ */
+const IOS_MIC_HOLD_MS = 90_000;
+
 export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -160,10 +173,38 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   const runGotResultRef = useRef(false);
   /** Settles when the last retired instance has released the mic */
   const releasedRef = useRef<Promise<unknown>>(Promise.resolve());
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const supported =
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  const releaseMic = useCallback(() => {
+    if (micReleaseTimerRef.current) {
+      clearTimeout(micReleaseTimerRef.current);
+      micReleaseTimerRef.current = null;
+    }
+    if (!micStreamRef.current) return;
+    micStreamRef.current.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    debugLog("mic released");
+  }, []);
+
+  const holdMic = useCallback(async () => {
+    if (micReleaseTimerRef.current) {
+      clearTimeout(micReleaseTimerRef.current);
+      micReleaseTimerRef.current = null;
+    }
+    if (micStreamRef.current?.getAudioTracks().some((t) => t.readyState === "live")) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    try {
+      micStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      debugLog("mic held");
+    } catch (err) {
+      debugLog(`mic hold failed ${String(err)}`);
+    }
+  }, []);
 
   const stop = useCallback(() => {
     // Invalidate the session first so late events from the old instance are ignored
@@ -176,6 +217,10 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     }
     releasedRef.current = Promise.all([releasedRef.current, retire(recognitionRef.current)]);
     recognitionRef.current = null;
+    if (micStreamRef.current) {
+      if (micReleaseTimerRef.current) clearTimeout(micReleaseTimerRef.current);
+      micReleaseTimerRef.current = setTimeout(releaseMic, IOS_MIC_HOLD_MS);
+    }
     // Apply punctuation to final transcript after stopping
     if (lastTranscriptRef.current) {
       const punctuated = ensurePunctuation(lastTranscriptRef.current);
@@ -185,13 +230,14 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     }
     committedTextRef.current = "";
     onEndRef.current?.();
-  }, []);
+  }, [releaseMic]);
 
   const start = useCallback(
     (lang?: string) => {
       if (!supported) return;
       const released = Promise.all([releasedRef.current, retire(recognitionRef.current)]);
       releasedRef.current = released;
+      const ready = isIOSWebKit() ? Promise.all([released, holdMic()]) : released;
       recognitionRef.current = null;
       if (restartTimerRef.current) {
         clearTimeout(restartTimerRef.current);
@@ -305,7 +351,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       quickFailsRef.current = 0;
       setIsListening(true);
       debugLog(`#${session} requested`);
-      void released.then(() => {
+      void ready.then(() => {
         if (!isCurrent()) return;
         markRunStart();
         try {
@@ -316,8 +362,17 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
         }
       });
     },
-    [supported, stop]
+    [supported, stop, holdMic]
   );
+
+  // Don't keep the mic open behind a hidden tab
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden" && !listeningRef.current) releaseMic();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [releaseMic]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -327,8 +382,9 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
       void retire(recognitionRef.current);
       recognitionRef.current = null;
+      releaseMic();
     };
-  }, []);
+  }, [releaseMic]);
 
   return { isListening, start, stop, supported };
 }
