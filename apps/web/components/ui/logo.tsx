@@ -26,6 +26,38 @@ export function Ribbon({ children }: { children: React.ReactNode }) {
   );
 }
 
+function Letters({ text, className }: { text: string; className: string }) {
+  return (
+    <div className={className} aria-label={text}>
+      {[...text].map((ch, i) => (
+        <i
+          key={i}
+          data-c={ch}
+          style={
+            {
+              "--r": `${i % 2 ? 6 : -7}deg`,
+              "--dy": `${i % 2 ? -5 : 0}px`,
+              "--d": `${-i * 0.18}s`,
+              "--c": LETTER_COLORS[i % LETTER_COLORS.length],
+            } as React.CSSProperties
+          }
+        >
+          {ch}
+        </i>
+      ))}
+    </div>
+  );
+}
+
+/** Still, header-sized version of the logo letters. */
+export function Wordmark({ text = "Enchatto", size = 24 }: { text?: string; size?: number }) {
+  return (
+    <div className="ec-wordmark" style={{ "--fs": `${size}px` } as React.CSSProperties}>
+      <Letters text={text} className="ec-logo-top" />
+    </div>
+  );
+}
+
 /** Hopping "Enchatto" wordmark on a spinning burst with a ribbon tagline. */
 export function Logo({
   text = "Enchatto",
@@ -46,24 +78,7 @@ export function Logo({
         <polygon points={BURST_OUTER} fill="#ffd23f" stroke="#1d1b4f" strokeWidth="5" strokeLinejoin="round" />
         <polygon points={BURST_INNER} fill="#ff7ab6" stroke="#1d1b4f" strokeWidth="4" strokeLinejoin="round" />
       </svg>
-      <div className="ec-logo-top" aria-label={text}>
-        {[...text].map((ch, i) => (
-          <i
-            key={i}
-            data-c={ch}
-            style={
-              {
-                "--r": `${i % 2 ? 6 : -7}deg`,
-                "--dy": `${i % 2 ? -5 : 0}px`,
-                "--d": `${-i * 0.18}s`,
-                "--c": LETTER_COLORS[i % LETTER_COLORS.length],
-              } as React.CSSProperties
-            }
-          >
-            {ch}
-          </i>
-        ))}
-      </div>
+      <Letters text={text} className="ec-logo-top" />
       {tagline && <Ribbon>{tagline}</Ribbon>}
       {bits && (
         <div className="ec-logo-bits" aria-hidden>

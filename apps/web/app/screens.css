@@ -281,15 +281,7 @@
   border-bottom: 3px solid var(--ink);
 }
 .ec-chat-title { flex: 1; min-width: 0; }
-.ec-chat-title h1 {
-  font-family: var(--chunky);
-  font-weight: 400;
-  font-size: 20px;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.ec-chat-title h1 { display: flex; margin: 0; font-size: inherit; white-space: nowrap; }
 .ec-chat-title > span {
   display: inline-flex;
   align-items: center;

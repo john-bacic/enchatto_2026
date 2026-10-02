@@ -508,6 +508,15 @@ textarea {
   clip-path: polygon(0 60%, 100% 48%, 100% 100%, 0 100%);
   text-shadow: none;
 }
+.ec-wordmark { font-family: var(--chunky); font-weight: 400; line-height: 1; padding: 2px 4px 4px 2px; }
+.ec-wordmark i {
+  animation: none;
+  transform: rotate(var(--r)) translateY(calc(var(--dy, 0px) * 0.4));
+  text-shadow:
+    1.5px 0 0 var(--ink), -1.5px 0 0 var(--ink), 0 1.5px 0 var(--ink), 0 -1.5px 0 var(--ink),
+    1.2px 1.2px 0 var(--ink), -1.2px 1.2px 0 var(--ink), 1.2px -1.2px 0 var(--ink), -1.2px -1.2px 0 var(--ink),
+    2px 2.5px 0 var(--pink), 3px 3.5px 0 var(--ink);
+}
 .ec-ribbon {
   position: relative;
   margin-top: 6px;

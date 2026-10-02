@@ -131,7 +131,12 @@ struct HostConversationView: View {
         .overlay { hostSettingsOverlay }
         .overlay { contextMenuOverlay }
         .overlay { qrOverlay }
-        .overlay { fullScreenImageOverlay }
+        .overlay {
+            ZStack {
+                vibeConfettiLayer
+                fullScreenImageOverlay
+            }
+        }
         .overlay(alignment: .topTrailing) { minimizedGameResumeButtons }
         .overlay { DebugConsoleView() }
         .onTapGesture(count: 3) {
@@ -472,29 +477,18 @@ struct HostConversationView: View {
                 .accessibilityLabel(L.t("Settings", hostLanguage))
             }
 
-            // Title + room code chip — tap chip to show QR panel
+            // Wordmark + QR button
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(L.t("Enchatto", hostLanguage))
-                        .font(.chunky(20))
-                        .foregroundStyle(EC.ink)
-                        .lineLimit(1)
+                HStack(spacing: 8) {
+                    EnchattoWordmark(text: L.t("Enchatto", hostLanguage), size: 22)
                     if let joinCode = viewModel.room?.joinCode {
                         Button {
                             Haptics.tap()
                             showQRCode = true
                         } label: {
-                            HStack(spacing: 4) {
-                                QRCodeIcon()
-                                    .frame(width: 11, height: 11)
-                                Text(joinCode)
-                                    .font(.chunky(11))
-                                    .tracking(1)
-                            }
-                            .foregroundStyle(EC.yellow)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(EC.ink))
+                            QRCodeIcon()
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle().inset(by: -6))
                         }
                         .buttonStyle(.pressable)
                         .accessibilityLabel("\(L.t("Room Code", hostLanguage)) \(joinCode)")
@@ -785,6 +779,30 @@ struct HostConversationView: View {
     // MARK: - Input
 
     @State private var showAttachMenu = false
+    @State private var vibeHot = false
+    @State private var vibeConfetti = 0
+    @State private var knownParticipantIds: Set<String> = []
+
+    private func fireVibeConfetti() {
+        Haptics.thump()
+        vibeConfetti += 1
+    }
+
+    /// Web parity: a new arrival while the room is hot gets a confetti welcome
+    private func confettiForNewArrivals(_ ids: [String]) {
+        let arrived = Set(ids).subtracting(knownParticipantIds)
+        let isFirstLoad = knownParticipantIds.isEmpty
+        knownParticipantIds.formUnion(ids)
+        if !isFirstLoad, vibeHot, arrived.contains(where: { $0 != hostId }) {
+            fireVibeConfetti()
+        }
+    }
+
+    private var vibeConfettiLayer: some View {
+        ConfettiBurst(trigger: vibeConfetti, count: 50)
+            .ignoresSafeArea()
+            .onChange(of: viewModel.participants.map(\.id)) { confettiForNewArrivals($0) }
+    }
 
     private var inputToolbar: some View {
         HStack(spacing: 8) {
@@ -840,6 +858,18 @@ struct HostConversationView: View {
                     .padding(.bottom, 4)
             }
             .accessibilityLabel(L.t("Photo", hostLanguage))
+
+            VibeBadge(
+                messages: viewModel.messages,
+                languageOf: { message in
+                    if message.kind == .text, let text = message.text {
+                        return VibeScore.isJapanese(text) ? "ja" : "en"
+                    }
+                    return viewModel.participant(for: message.senderId)?.preferredLanguage ?? "en"
+                },
+                hot: $vibeHot,
+                onHype: fireVibeConfetti
+            )
 
             Spacer()
 
@@ -2542,12 +2572,166 @@ private struct OfflineTranslator: View {
     }
 }
 
-// MARK: - QR Code Icon (from Font Awesome qrcode-solid)
-private struct QRCodeIcon: View {
+// MARK: - Vibe meter
+
+/// Party meter ported from web `computeVibe`: chatter in the last minute, boosted by EN⇄JA back-and-forth.
+private struct VibeScore {
+    static let window: TimeInterval = 60
+    static let comboGap: TimeInterval = 90
+    static let hypeAt = 150
+
+    let vibe: Int
+    let hype: Bool
+
+    init(messages: [Message], languageOf: (Message) -> String, now: Date) {
+        let real = messages.filter { $0.kind != .system }
+        let reference = max(now, real.last?.createdAt ?? now)
+        let recent = real.filter { reference.timeIntervalSince($0.createdAt) < Self.window }
+
+        var switches = 0
+        for i in recent.indices.dropFirst() where languageOf(recent[i]) != languageOf(recent[i - 1]) {
+            switches += 1
+        }
+
+        var combo = 0
+        if let last = real.last, reference.timeIntervalSince(last.createdAt) < Self.comboGap {
+            combo = 1
+            for i in stride(from: real.count - 1, to: 0, by: -1) {
+                let cur = real[i], prev = real[i - 1]
+                if cur.createdAt.timeIntervalSince(prev.createdAt) > Self.comboGap
+                    || languageOf(cur) == languageOf(prev) { break }
+                combo += 1
+            }
+        }
+
+        let mult = 1 + Double(min(combo, 20)) * 0.05
+        vibe = Int((Double(recent.count * 12 + switches * 20) * mult).rounded())
+        hype = vibe >= Self.hypeAt
+    }
+
+    static func isJapanese(_ text: String) -> Bool {
+        text.unicodeScalars.contains {
+            (0x3040...0x309F).contains($0.value) || (0x30A0...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value)
+        }
+    }
+}
+
+private struct VibeBadge: View {
+    let messages: [Message]
+    let languageOf: (Message) -> String
+    @Binding var hot: Bool
+    /// Fired when the meter crosses into hype while the room is open
+    var onHype: () -> Void = {}
+
+    /// Opening a room whose last minute was already hot shouldn't burst
+    @State private var shownAt = Date()
+
     var body: some View {
-        Image(systemName: "qrcode")
-            .resizable()
-            .scaledToFit()
+        TimelineView(.periodic(from: .now, by: 5)) { context in
+            let score = VibeScore(messages: messages, languageOf: languageOf, now: context.date)
+            LoopClock(active: score.hype) { t in
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("VIBE")
+                        .font(.round(9, .black))
+                    Text(Self.format(score.vibe))
+                        .font(.chunky(16))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .foregroundStyle(EC.ink)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .background(Capsule().fill(fill(hype: score.hype, t: t)))
+                .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+                .background(Capsule().fill(EC.ink).offset(y: 3))
+                .padding(.bottom, 3)
+            }
+            .nudge(on: score.vibe, active: score.vibe > 0, angle: 6, hop: 4)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: score.vibe)
+            .onAppear { hot = score.hype }
+            .onChange(of: score.hype) { isHype in
+                hot = isHype
+                if isHype, Date().timeIntervalSince(shownAt) > 3 { onHype() }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Vibe \(score.vibe)")
+        }
+    }
+
+    private func fill(hype: Bool, t: Double) -> AnyShapeStyle {
+        guard hype else { return AnyShapeStyle(EC.yellow) }
+        let shift = (t / 2).truncatingRemainder(dividingBy: 1)
+        return AnyShapeStyle(LinearGradient(
+            colors: [EC.yellow, EC.pinkSoft, EC.blueSoft, EC.yellow, EC.pinkSoft],
+            startPoint: UnitPoint(x: -shift * 2, y: 0.5),
+            endPoint: UnitPoint(x: 2 - shift * 2, y: 0.5)
+        ))
+    }
+
+    private static func format(_ n: Int) -> String {
+        guard n >= 1000 else { return "\(n)" }
+        let k = (Double(n) / 100).rounded() / 10
+        return k == k.rounded() ? "\(Int(k))K" : "\(k)K"
+    }
+}
+
+// MARK: - QR Code Icon
+/// QR glyph made of sushi: side-view maki sit in the three finder corners, roe and sesame fill the
+/// data corner. Drawn in a 100×100 box.
+private struct QRCodeIcon: View {
+    private static let rice = Color(hex: "fffaf0")
+    private static let salmon = Color(hex: "ff8a5c")
+    private static let cucumber = Color(hex: "8ad35c")
+    private static let tamago = Color(hex: "ffc93c")
+
+    var body: some View {
+        Canvas { ctx, size in
+            ctx.scaleBy(x: size.width / 100, y: size.height / 100)
+            Self.maki(ctx, cx: 28, top: 24, w: 40, h: 17, filling: Self.salmon)
+            Self.maki(ctx, cx: 72, top: 24, w: 40, h: 17, filling: Self.cucumber)
+            Self.maki(ctx, cx: 28, top: 66, w: 40, h: 17, filling: Self.tamago)
+            for (x, y, color) in [(66.0, 64.0, Self.salmon), (80, 70, Self.cucumber), (70, 80, Self.salmon)] {
+                let roe = Path(ellipseIn: CGRect(x: x - 5.5, y: y - 5.5, width: 11, height: 11))
+                ctx.fill(roe, with: .color(color))
+                ctx.stroke(roe, with: .color(EC.ink), lineWidth: 2.4)
+            }
+            ctx.fill(Path(ellipseIn: CGRect(x: 79, y: 81, width: 6, height: 6)), with: .color(EC.ink))
+            ctx.fill(Path(ellipseIn: CGRect(x: 59.4, y: 75.4, width: 5.2, height: 5.2)), with: .color(EC.ink))
+        }
+    }
+
+    /// Nori cylinder with a rice top and a finder-square filling
+    private static func maki(_ ctx: GraphicsContext, cx: CGFloat, top: CGFloat, w: CGFloat, h: CGFloat, filling: Color) {
+        let rx = w / 2
+        let ry = w * 0.27
+        var body = Path()
+        body.move(to: CGPoint(x: cx - rx, y: top))
+        body.addLine(to: CGPoint(x: cx - rx, y: top + h))
+        for i in 1...24 {
+            let a = Double.pi - Double.pi * Double(i) / 24
+            body.addLine(to: CGPoint(x: cx + rx * cos(a), y: top + h + ry * sin(a)))
+        }
+        body.addLine(to: CGPoint(x: cx + rx, y: top))
+        body.closeSubpath()
+        let lid = Path(ellipseIn: CGRect(x: cx - rx, y: top - ry, width: w, height: ry * 2))
+
+        ctx.fill(body, with: .color(EC.ink))
+        ctx.fill(lid, with: .color(EC.ink))
+
+        let rrx = rx * 0.8
+        let rry = ry * 0.72
+        ctx.fill(Path(ellipseIn: CGRect(x: cx - rrx, y: top - rry, width: rrx * 2, height: rry * 2)), with: .color(rice))
+        let core = Path(
+            roundedRect: CGRect(x: cx - rrx * 0.475, y: top - rry * 0.5, width: rrx * 0.95, height: rry),
+            cornerRadius: rry * 0.22
+        )
+        ctx.fill(core, with: .color(filling))
+        ctx.stroke(core, with: .color(EC.ink), lineWidth: rrx * 0.12)
+
+        var shine = Path()
+        shine.move(to: CGPoint(x: cx - rx * 0.7, y: top + ry * 0.95))
+        shine.addLine(to: CGPoint(x: cx - rx * 0.7, y: top + h * 0.85))
+        ctx.stroke(shine, with: .color(.white.opacity(0.9)), style: StrokeStyle(lineWidth: w * 0.07, lineCap: .round))
     }
 }
 

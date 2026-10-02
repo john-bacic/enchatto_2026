@@ -195,6 +195,30 @@ struct EnchattoLogo: View {
     }
 }
 
+/// Still, header-sized `EnchattoLogo` letters: same two-tone colors and alternating tilt, no burst
+struct EnchattoWordmark: View {
+    var text = "Enchatto"
+    var size: CGFloat = 22
+
+    private let accents: [Color] = [EC.blue, EC.pink, EC.mint, EC.violet]
+
+    var body: some View {
+        let letters = Array(text)
+        HStack(spacing: -size * 0.03) {
+            ForEach(letters.indices, id: \.self) { i in
+                let odd = !i.isMultiple(of: 2)
+                LogoLetter(character: String(letters[i]), size: size, accent: accents[i % accents.count])
+                    .offset(y: odd ? -size * 0.04 : 0)
+                    .rotationEffect(.degrees(odd ? 6 : -7))
+            }
+        }
+        .padding(.trailing, size * 0.12)
+        .padding(.bottom, size * 0.14)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+    }
+}
+
 /// One wordmark letter: white top, accent bottom cut on a slant, ink outline, pink then ink drop
 private struct LogoLetter: View {
     let character: String
@@ -203,13 +227,14 @@ private struct LogoLetter: View {
 
     var body: some View {
         let k = size / 54
+        let outline = min(3, max(1.5, 3.6 * k))
         let glyph = Text(character).font(.chunky(size))
         ZStack {
             glyph.foregroundStyle(EC.ink).offset(x: 7 * k, y: 8 * k)
             glyph.foregroundStyle(EC.pink).offset(x: 5 * k, y: 6 * k)
             ForEach(0..<12, id: \.self) { i in
                 let a = Double(i) * .pi / 6
-                glyph.foregroundStyle(EC.ink).offset(x: cos(a) * 3, y: sin(a) * 3)
+                glyph.foregroundStyle(EC.ink).offset(x: cos(a) * outline, y: sin(a) * outline)
             }
             glyph.foregroundStyle(.white)
             glyph.foregroundStyle(accent).mask(SlantedBottom())

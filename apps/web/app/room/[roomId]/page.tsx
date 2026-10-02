@@ -21,6 +21,7 @@ import { isJapaneseText } from "@/components/message-item";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon, LangBadge } from "@/components/ui/icon";
+import { Wordmark } from "@/components/ui/logo";
 import { Bunting, Confetti, CutIn, Rays, RoomBackground } from "@/components/ui/effects";
 import { avatarIconSrc, getAvatarById } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
@@ -1296,7 +1297,9 @@ function RoomContent() {
           </button>
         )}
         <div className="ec-chat-title">
-          <h1>{t("Enchatto", lang)}</h1>
+          <h1>
+            <Wordmark text={t("Enchatto", lang)} size={22} />
+          </h1>
           {isClosed ? (
             <span style={{ color: "var(--red)", opacity: 1 }}>{t("Room closed", lang)}</span>
           ) : (
