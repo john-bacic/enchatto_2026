@@ -113,6 +113,22 @@ const translations: Record<string, Record<string, string>> = {
   "🎤 Voice": { ja: "🎤 音声" },
   "Listening...": { ja: "聞いています…" },
 
+  // Vibe explainer
+  "What's the Vibe?": { ja: "バイブって？" },
+  "A live party meter for the room. It climbs when people chat, and fastest when English and Japanese go back and forth.": {
+    ja: "部屋の盛り上がりメーター。チャットすると上がり、英語と日本語が交互に飛び交うと一番上がります。",
+  },
+  "Last minute": { ja: "直近1分" },
+  "Each message": { ja: "メッセージ1件" },
+  "EN ⇄ JA switch": { ja: "英⇄日の切り替え" },
+  "Back-and-forth combo": { ja: "かけ合いコンボ" },
+  "up to ×2": { ja: "最大×2" },
+  "Party mode is on!": { ja: "パーティーモード中！" },
+  "Party mode at 150: confetti for every new message": { ja: "150でパーティーモード：新しいメッセージごとに紙吹雪" },
+  "Only the last minute counts, so it cools off when the chat goes quiet.": {
+    ja: "直近1分だけをカウントするので、静かになると下がります。",
+  },
+
   // Drawing
   "Draw something": { ja: "何か描いてみよう" },
   "Clear": { ja: "消去" },

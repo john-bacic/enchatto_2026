@@ -16,13 +16,20 @@ import AVFoundation
 final class SpeechRecognizer: ObservableObject {
     @Published var transcript = ""
     @Published var isRecording = false
-    /// Normalized audio level (0...1) representing current mic input volume.
-    @Published var audioLevel: CGFloat = 0
+    /// Normalized mic level (0...1). Deliberately not @Published: a 20Hz publish would re-render
+    /// every view observing this object, so meters poll it instead.
+    private(set) var level: CGFloat = 0
 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var audioEngine = AVAudioEngine()
+    private var tapInstalled = false
+    /// Changes on every start/stop so permission callbacks from a superseded start bail out.
+    private var startToken = UUID()
+    private var isStarting = false
+    private var restartWork: DispatchWorkItem?
+    private var observers: [NSObjectProtocol] = []
 
     /// Accumulated text from completed sessions (each line is one utterance).
     private var committedText = ""
@@ -34,11 +41,19 @@ final class SpeechRecognizer: ObservableObject {
     private var silenceTimer: Timer?
     /// Unique ID for the current session — callbacks from old sessions are ignored.
     private var sessionId: UUID = UUID()
-    /// Timestamp of last audio level update (throttle to ~20fps).
-    private var lastLevelUpdate: CFAbsoluteTime = 0
 
     init(locale: Locale = Locale(identifier: "en-US")) {
         speechRecognizer = SFSpeechRecognizer(locale: locale)
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+            Task { @MainActor in self?.stopRecording() }
+        })
+    }
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
     }
 
     func updateLocale(_ localeIdentifier: String) {
@@ -57,6 +72,10 @@ final class SpeechRecognizer: ObservableObject {
     // MARK: - Public start/stop
 
     func startRecording() {
+        guard !isRecording, !isStarting else { return }
+        isStarting = true
+        let token = UUID()
+        startToken = token
         recognitionTask?.cancel()
         recognitionTask = nil
         committedText = ""
@@ -65,23 +84,34 @@ final class SpeechRecognizer: ObservableObject {
 
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
-                guard status == .authorized else { return }
-                self?.requestMicPermission()
+                guard let self, self.startToken == token else { return }
+                guard status == .authorized else {
+                    self.isStarting = false
+                    return
+                }
+                self.requestMicPermission(token: token)
             }
         }
     }
 
-    private func requestMicPermission() {
+    private func requestMicPermission(token: UUID) {
         AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
             Task { @MainActor in
+                guard let self, self.startToken == token else { return }
+                self.isStarting = false
                 guard granted else { return }
-                self?.isRecording = true
-                self?.beginSession()
+                self.isRecording = true
+                self.beginSession()
             }
         }
     }
 
     func stopRecording() {
+        startToken = UUID()
+        isStarting = false
+        restartWork?.cancel()
+        restartWork = nil
+        isRestarting = false
         silenceTimer?.invalidate()
         silenceTimer = nil
         isRecording = false
@@ -95,7 +125,7 @@ final class SpeechRecognizer: ObservableObject {
         }
         committedText = ""
         currentSessionText = ""
-        audioLevel = 0
+        level = 0
         // Release audio session so keyboard dictation and other apps can use the mic
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
@@ -104,7 +134,12 @@ final class SpeechRecognizer: ObservableObject {
 
     /// Start a fresh recognition session (request + audio tap + task).
     private func beginSession() {
-        guard let speechRecognizer, speechRecognizer.isAvailable, isRecording else { return }
+        guard isRecording else { return }
+        guard let speechRecognizer, speechRecognizer.isAvailable else {
+            stopRecording()
+            return
+        }
+        tearDownSession()
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -120,6 +155,7 @@ final class SpeechRecognizer: ObservableObject {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
+            stopRecording()
             return
         }
 
@@ -127,26 +163,27 @@ final class SpeechRecognizer: ObservableObject {
         audioEngine = AVAudioEngine()
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
+        // installTap raises an uncatchable NSException on a 0Hz/0ch format (no input route, mid-interruption)
+        guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
+            stopRecording()
+            return
+        }
+        let meter = LevelMeter()
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             request.append(buffer)
-            // Throttle level updates
-            let now = CFAbsoluteTimeGetCurrent()
-            guard let self, now - self.lastLevelUpdate > 0.05 else { return }
-            self.lastLevelUpdate = now
-            guard let channelData = buffer.floatChannelData?[0] else { return }
-            let frameLength = UInt(buffer.frameLength)
-            var rms: Float = 0
-            vDSP_rmsqv(channelData, 1, &rms, frameLength)
-            let normalized = min(CGFloat(rms) * 10.0, 1.0)
+            guard let normalized = meter.process(buffer) else { return }
             DispatchQueue.main.async { [weak self] in
-                self?.audioLevel = normalized
+                guard let self, self.isRecording else { return }
+                self.level = normalized
             }
         }
+        tapInstalled = true
 
         audioEngine.prepare()
         do {
             try audioEngine.start()
         } catch {
+            stopRecording()
             return
         }
 
@@ -191,7 +228,10 @@ final class SpeechRecognizer: ObservableObject {
         if audioEngine.isRunning {
             audioEngine.stop()
         }
-        audioEngine.inputNode.removeTap(onBus: 0)
+        if tapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         // Cancel task first, then nil out — sessionId is already invalidated
         // so any callbacks triggered by cancel will be ignored.
         recognitionTask?.cancel()
@@ -218,14 +258,15 @@ final class SpeechRecognizer: ObservableObject {
 
         // Tear down and restart after a brief delay to let audio system settle
         tearDownSession()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self, self.isRecording else {
-                self?.isRestarting = false
-                return
-            }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.restartWork = nil
             self.isRestarting = false
+            guard self.isRecording else { return }
             self.beginSession()
         }
+        restartWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     /// Build the full display transcript from committed lines + current session.
@@ -294,6 +335,27 @@ final class SpeechRecognizer: ObservableObject {
     }
 }
 
+/// Mic level as dB above a tracked noise floor, so it reads the same regardless of input gain
+/// (.measurement mode disables AGC, which leaves raw RMS tiny). Only touched from the audio thread.
+private final class LevelMeter: @unchecked Sendable {
+    private var floor: Float?
+    private var lastEmit: CFAbsoluteTime = 0
+
+    func process(_ buffer: AVAudioPCMBuffer) -> CGFloat? {
+        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return nil }
+        var rms: Float = 0
+        vDSP_rmsqv(data, 1, &rms, vDSP_Length(buffer.frameLength))
+        let db = 20 * log10(max(rms, 1e-7))
+        // Snaps down to quiet instantly, creeps up ~1.5dB/s so steady hum fades out of the meter
+        let current = floor.map { db < $0 ? db : min($0 + 0.07, db) } ?? db
+        floor = current
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastEmit >= 0.04 else { return nil }
+        lastEmit = now
+        return CGFloat(min(1, max(0, (db - current - 6) / 24)))
+    }
+}
+
 #else
 
 /// Stub for non-iOS platforms (satisfies SourceKit on macOS).
@@ -301,8 +363,10 @@ final class SpeechRecognizer: ObservableObject {
 final class SpeechRecognizer: ObservableObject {
     @Published var transcript = ""
     @Published var isRecording = false
+    private(set) var level: CGFloat = 0
     func updateLocale(_ localeIdentifier: String) {}
     func toggleRecording() {}
+    func startRecording() {}
     func stopRecording() {}
 }
 

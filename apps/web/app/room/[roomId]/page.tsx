@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
+import { VibeInfo } from "@/components/vibe-info";
 import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
 import { GamePickerModal } from "@/components/game-picker-modal";
@@ -96,7 +97,7 @@ function computeVibe(messages: VibeMessage[], langOf: (m: VibeMessage) => string
   }
   const mult = 1 + Math.min(combo, 20) * 0.05;
   const vibe = Math.round((recent.length * 12 + switches * 20) * mult);
-  return { vibe, combo, mult, hype: vibe >= HYPE_AT };
+  return { vibe, combo, mult, hype: vibe >= HYPE_AT, recentCount: recent.length, switches };
 }
 
 function formatVibe(n: number) {
@@ -1199,7 +1200,14 @@ function RoomContent() {
     },
     [participants]
   );
-  const { vibe, combo, mult, hype } = computeVibe(messageList, langOf, Math.max(now, messageList[messageList.length - 1]?.createdAt ?? 0));
+  const { vibe, combo, mult, hype, recentCount, switches } = computeVibe(
+    messageList,
+    langOf,
+    Math.max(now, messageList[messageList.length - 1]?.createdAt ?? 0),
+  );
+  const [showVibeInfo, setShowVibeInfo] = useState(false);
+  const vibeRef = useRef<HTMLButtonElement>(null);
+  const closeVibeInfo = useCallback(() => setShowVibeInfo(false), []);
 
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [cutIn, setCutIn] = useState<{ key: string; name: string; avatar: string } | null>(null);
@@ -1335,10 +1343,31 @@ function RoomContent() {
             </span>
           )}
         </div>
-        <div className={`ec-vibe${hype ? " hot" : ""}`} title="VIBE">
+        <button
+          ref={vibeRef}
+          type="button"
+          className={`ec-vibe${hype ? " hot" : ""}`}
+          onClick={() => setShowVibeInfo((v) => !v)}
+          aria-expanded={showVibeInfo}
+          aria-label={`VIBE ${vibe}`}
+        >
           <small>VIBE</small>
           <b key={vibe}>{formatVibe(vibe)}</b>
-        </div>
+        </button>
+        {showVibeInfo && (
+          <VibeInfo
+            vibe={formatVibe(vibe)}
+            score={vibe}
+            hypeAt={HYPE_AT}
+            messageCount={recentCount}
+            switches={switches}
+            mult={mult}
+            hype={hype}
+            lang={lang}
+            anchorRef={vibeRef}
+            onClose={closeVibeInfo}
+          />
+        )}
         <ParticipantList
           participants={participants.filter((p) => p._id !== participantId)}
           currentParticipantId={participantId}

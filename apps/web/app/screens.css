@@ -310,8 +310,66 @@
   background: var(--yellow);
   box-shadow: 0 3px 0 var(--ink);
   white-space: nowrap;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
 }
+.ec-vibe:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .ec-vibe small { font-size: 10px; font-weight: 900; }
+.ec-vibe-info {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 12px;
+  z-index: 30;
+  width: min(320px, calc(100vw - 24px));
+  padding: 16px;
+  border: 3px solid var(--ink);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 var(--ink);
+  color: var(--ink);
+  animation: ec-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transform-origin: top right;
+}
+.ec-vibe-info-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ec-vibe-info-head h3,
+.ec-vibe-info-head b { margin: 0; font-family: var(--chunky); font-weight: 400; font-size: 18px; }
+.ec-vibe-info p { margin: 10px 0 12px; font-size: 13px; font-weight: 600; line-height: 1.45; opacity: 0.75; }
+.ec-vibe-info p.note { margin: 12px 0 0; font-size: 11px; font-weight: 700; color: var(--ink-soft); opacity: 1; }
+.ec-vibe-info-col { text-align: right; font-size: 10px; font-weight: 900; color: var(--ink-soft); margin-bottom: 4px; }
+.ec-vibe-info-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.ec-vibe-info-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ec-vibe-info-row strong { font-size: 13px; font-weight: 900; }
+.ec-vibe-info-row small { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.ec-vibe-info-row > i {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  color: #fff;
+}
+.ec-vibe-info-row > i svg { width: 13px; height: 13px; }
+.ec-vibe-info-row > i.msg { background: var(--blue); }
+.ec-vibe-info-row > i.swap { background: var(--pink); }
+.ec-vibe-info-row > i.combo { background: var(--yellow); color: var(--ink); }
+.ec-vibe-info-row > span {
+  flex: none;
+  min-width: 34px;
+  padding: 1px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  text-align: center;
+  font-family: var(--chunky);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.ec-vibe-info-goal { margin-top: 12px; font-size: 12px; font-weight: 900; }
+.ec-vibe-info-bar { height: 8px; margin-top: 6px; border-radius: 999px; background: rgba(42, 43, 74, 0.08); overflow: hidden; }
+.ec-vibe-info-bar i { display: block; height: 100%; border-radius: inherit; background: var(--pink); transition: width 0.4s; }
 .ec-vibe b {
   display: inline-block;
   min-width: 1ch;
