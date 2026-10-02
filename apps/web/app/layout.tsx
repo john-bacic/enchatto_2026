@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Dela_Gothic_One, Zen_Maru_Gothic } from "next/font/google";
 import { ConvexClientProvider } from "@/lib/convex";
+import { DeployRefresh } from "@/components/deploy-refresh";
 import "./globals.css";
 
 // Japanese glyphs come in unicode-range chunks, so skip preloading.
@@ -38,6 +39,7 @@ export default function RootLayout({
     <html lang="en" className={`${chunky.variable} ${round.variable}`}>
       <body>
         <ConvexClientProvider>{children}</ConvexClientProvider>
+        <DeployRefresh />
       </body>
     </html>
   );
