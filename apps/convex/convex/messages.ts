@@ -270,6 +270,40 @@ export const transcribeAudio = internalAction({
   },
 });
 
+export const checkDictationClip = internalQuery({
+  args: { roomId: v.id("rooms"), senderId: v.id("participants"), storageId: v.id("_storage") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room || room.status === "closed") throw new Error("Room is closed");
+    const sender = await ctx.db.get(args.senderId);
+    if (!sender || sender.roomId !== args.roomId) throw new Error("Not a member of this room");
+    const file = await ctx.db.system.get(args.storageId);
+    if (!file) throw new Error("Upload not found");
+    if (file.size > AUDIO_MAX_BYTES) throw new Error("Recording too large");
+    return null;
+  },
+});
+
+/** Dictation text for a device whose speech recognizer is unusable (iOS 26 simulator); the clip is deleted after */
+export const transcribeDictation = internalAction({
+  args: { roomId: v.id("rooms"), senderId: v.id("participants"), storageId: v.id("_storage") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    try {
+      await ctx.runQuery(internal.messages.checkDictationClip, args);
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return null;
+      const stored = await ctx.storage.get(args.storageId);
+      if (!stored) return null;
+      const audio = new Blob([await stored.arrayBuffer()], { type: stored.type });
+      return await transcribeWithGroq(apiKey, audio);
+    } finally {
+      await ctx.storage.delete(args.storageId).catch(() => undefined);
+    }
+  },
+});
+
 /** Gives a voice message its server-made transcript and sends it through translation like typed text */
 export const applyTranscript = internalMutation({
   args: { messageId: v.id("messages"), text: v.string() },

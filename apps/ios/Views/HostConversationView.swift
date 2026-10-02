@@ -882,6 +882,7 @@ struct HostConversationView: View {
     @State private var showAttachMenu = false
     @State private var toolsOpen = false
     @State private var preVoiceText = ""
+    @State private var transcribingDictation = false
     @State private var vibeHot = false
     @State private var vibeConfetti = 0
     @State private var logoHop = 0
@@ -994,7 +995,8 @@ struct HostConversationView: View {
         Group {
             if speechRecognizer.isRecording {
                 SendButton(
-                    hasText: sendingVoice || !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
+                    hasText: sendingVoice || speechRecognizer.audioOnly
+                        || !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
                     action: sendingVoice ? sendVoiceMessage : sendCurrentMessage,
                     pulsate: false
                 )
@@ -1177,7 +1179,13 @@ struct HostConversationView: View {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 guard speechRecognizer.clipActive,
                       speechRecognizer.clipDuration >= SpeechRecognizer.maxClipSeconds - 0.5 else { continue }
-                if sendingVoice { sendVoiceMessage() } else { speechRecognizer.discardClip() }
+                if sendingVoice {
+                    sendVoiceMessage()
+                } else if speechRecognizer.audioOnly {
+                    stopVoice()
+                } else {
+                    speechRecognizer.discardClip()
+                }
                 return
             }
         }
@@ -1189,7 +1197,21 @@ struct HostConversationView: View {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         viewModel.setTypingAction(nil)
         speechRecognizer.stopRecording()
+        if let clip = audioOnlyDictation() {
+            transcribingDictation = true
+            Task {
+                if let text = await viewModel.transcribeDictation(clip), !text.isEmpty { messageText = text }
+                transcribingDictation = false
+            }
+            return
+        }
         speechRecognizer.discardClip()
+    }
+
+    /// The recording of a dictation the recognizer couldn't transcribe (call after stopRecording)
+    private func audioOnlyDictation() -> VoiceClipFile? {
+        guard speechRecognizer.audioOnly else { return nil }
+        return speechRecognizer.takeClip()
     }
 
     /// Throws the dictation away and restores whatever was typed before
@@ -1316,7 +1338,7 @@ struct HostConversationView: View {
             .padding(.vertical, 3)
             .overlay(alignment: .topLeading) {
                 if messageText.isEmpty {
-                    Text(L.t("Type a message...", hostLanguage))
+                    Text(L.t(transcribingDictation ? "Transcribing..." : "Type a message...", hostLanguage))
                         .font(.round(16, .bold))
                         .foregroundStyle(EC.inkSoft)
                         .padding(.leading, 15)
@@ -1907,6 +1929,20 @@ struct HostConversationView: View {
         let wasRecording = speechRecognizer.isRecording
         if wasRecording {
             speechRecognizer.stopRecording()
+        }
+        if wasRecording, let clip = audioOnlyDictation() {
+            viewModel.setTypingAction(nil)
+            let reply = replyToId
+            replyToId = nil
+            transcribingDictation = true
+            Task {
+                let text = await viewModel.transcribeDictation(clip)
+                transcribingDictation = false
+                guard let text, !text.isEmpty else { return }
+                await viewModel.sendMessage(text, replyToId: reply)
+                messageText = ""
+            }
+            return
         }
         speechRecognizer.discardClip()
         var text = messageText.trimmingCharacters(in: .whitespaces)

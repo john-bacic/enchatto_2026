@@ -21,6 +21,7 @@ enum L {
         "No messages yet": ["ja": "まだメッセージがありません"],
         "Waiting for participants to start chatting": ["ja": "参加者がチャットを始めるのを待っています"],
         "Type a message...": ["ja": "メッセージを入力…"],
+        "Transcribing...": ["ja": "文字起こし中…"],
         "Camera": ["ja": "カメラ"],
         "Draw": ["ja": "描く"],
         "Voice": ["ja": "音声"],

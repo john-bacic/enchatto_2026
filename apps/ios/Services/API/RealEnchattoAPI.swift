@@ -130,6 +130,16 @@ class RealEnchattoAPI: EnchattoAPI {
         return response.messageId
     }
 
+    func transcribeDictation(roomId: String, senderId: String, storageId: String) async throws -> String? {
+        struct Response: Decodable { let text: String? }
+        let response: Response = try await client.post("/api/messages/transcribe", body: [
+            "roomId": roomId,
+            "senderId": senderId,
+            "storageId": storageId,
+        ])
+        return response.text
+    }
+
     func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
         struct Response: Decodable { let messageId: String }
         var body: [String: Any] = [

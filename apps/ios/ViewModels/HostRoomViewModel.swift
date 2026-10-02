@@ -398,6 +398,22 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    /// Dictation text made on the server from the recording (device recognizer unusable); nil on failure
+    func transcribeDictation(_ clip: VoiceClipFile) async -> String? {
+        defer { try? FileManager.default.removeItem(at: clip.url) }
+        do {
+            guard networkMonitor.isConnected else { throw APIError.serverError("Offline") }
+            let data = try Data(contentsOf: clip.url)
+            let uploadUrl = try await api.generateUploadUrl()
+            let storageId = try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
+            let text = try await api.transcribeDictation(roomId: roomId, senderId: hostId, storageId: storageId)
+            return text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            DebugConsole.shared.trace(source: .network, action: "transcribeDictation:error", detail: error.localizedDescription, ok: false)
+            return nil
+        }
+    }
+
     func closeRoom() async {
         do {
             try await api.closeRoom(roomId: roomId)

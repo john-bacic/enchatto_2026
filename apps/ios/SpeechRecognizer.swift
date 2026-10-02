@@ -49,7 +49,7 @@ final class SpeechRecognizer: ObservableObject {
     private var quickFailures = 0
     /// Recognizer is unusable (iOS 26 simulator, broken model) but a voice message is recording:
     /// keep capturing audio without a transcript and let the server transcribe the clip
-    private var audioOnly = false
+    @Published private(set) var audioOnly = false
     private var sessionGotResult = false
     private let log = Logger(subsystem: "com.enchatto.app", category: "speech")
 

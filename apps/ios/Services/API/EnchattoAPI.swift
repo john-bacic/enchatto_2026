@@ -44,6 +44,8 @@ protocol EnchattoAPI {
 
     /// Send a voice message (uploaded clip); the transcript, if any, is translated like a text message
     func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String
+    /// Server-side transcript of a dictation recording, for when the device recognizer is unusable
+    func transcribeDictation(roomId: String, senderId: String, storageId: String) async throws -> String?
 
     /// Close a room
     func closeRoom(roomId: String) async throws

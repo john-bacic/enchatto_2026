@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const http = httpRouter();
 
@@ -159,6 +159,19 @@ http.route({
       replyToId: body.replyToId,
     });
     return { messageId };
+  }),
+});
+
+http.route({
+  path: "/api/messages/transcribe",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const text = await ctx.runAction(internal.messages.transcribeDictation, {
+      roomId: body.roomId,
+      senderId: body.senderId,
+      storageId: body.storageId,
+    });
+    return { text };
   }),
 });
 

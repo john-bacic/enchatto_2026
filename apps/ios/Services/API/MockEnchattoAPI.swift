@@ -148,6 +148,10 @@ class MockEnchattoAPI: EnchattoAPI {
         return messageId
     }
 
+    func transcribeDictation(roomId: String, senderId: String, storageId: String) async throws -> String? {
+        "Mock dictation"
+    }
+
     func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String {
         let messageId = UUID().uuidString
         let message = Message(
