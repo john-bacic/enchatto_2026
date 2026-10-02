@@ -310,6 +310,8 @@ struct HostMessageRow: View {
                     }
                 } else if showEnglish, let en = englishText, !en.isEmpty {
                     primaryText(en)
+                } else if let original = message.text, !original.isEmpty {
+                    primaryText(original)
                 }
             } else {
                 if showEnglish, let en = englishText, !en.isEmpty {
@@ -321,6 +323,8 @@ struct HostMessageRow: View {
                        let romaji = message.processing?.romaji, !romaji.isEmpty {
                         romajiText(romaji)
                     }
+                } else if let original = message.text, !original.isEmpty {
+                    primaryText(original)
                 }
             }
 

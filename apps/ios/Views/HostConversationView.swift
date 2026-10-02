@@ -304,6 +304,12 @@ struct HostConversationView: View {
                 .frame(width: 230)
                 .ecCard(radius: 20, border: 3, shadow: 6)
                 .offset(x: 12, y: 62)
+                .onChange(of: showEnglish) { on in
+                    if !on && !showJapanese { showJapanese = true }
+                }
+                .onChange(of: showJapanese) { on in
+                    if !on && !showEnglish { showEnglish = true }
+                }
             }
             .transition(.scale(scale: 0.7, anchor: .topLeading).combined(with: .opacity))
         }
@@ -1923,7 +1929,8 @@ struct HostConversationView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(320)])
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Helpers
