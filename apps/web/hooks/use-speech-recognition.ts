@@ -67,6 +67,22 @@ export function ensurePunctuation(text: string): string {
   return trimmed + (jp ? "。" : ".");
 }
 
+/**
+ * Detach and abort an instance. iOS Safari can deliver onend seconds after stop() and keeps the mic
+ * until then, so a lingering instance would restart itself over the next session and steal the mic.
+ */
+function retire(recognition: any) {
+  if (!recognition) return;
+  recognition.onresult = null;
+  recognition.onend = null;
+  recognition.onerror = null;
+  try {
+    recognition.abort();
+  } catch {
+    // Already ended
+  }
+}
+
 /** Detect Android browser */
 function isAndroid(): boolean {
   return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
@@ -83,20 +99,23 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   const onEndRef = useRef(onEnd);
   onEndRef.current = onEnd;
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Bumped on every start/stop; events from an instance whose session is stale are dropped */
+  const sessionRef = useRef(0);
 
   const supported =
     typeof window !== "undefined" &&
     !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   const stop = useCallback(() => {
-    // Stop recognition first to prevent further onresult events
+    // Invalidate the session first so late events from the old instance are ignored
+    sessionRef.current++;
     listeningRef.current = false;
     setIsListening(false);
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
-    recognitionRef.current?.stop();
+    retire(recognitionRef.current);
     recognitionRef.current = null;
     // Apply punctuation to final transcript after stopping
     if (lastTranscriptRef.current) {
@@ -112,12 +131,15 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   const start = useCallback(
     (lang?: string) => {
       if (!supported) return;
-      // Stop any existing instance
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
+      retire(recognitionRef.current);
+      recognitionRef.current = null;
+      if (restartTimerRef.current) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
       }
 
+      const session = ++sessionRef.current;
+      const isCurrent = () => sessionRef.current === session && listeningRef.current;
       const android = isAndroid();
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SR();
@@ -128,7 +150,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       recognition.lang = lang === "ja" ? "ja-JP" : "en-US";
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        if (!listeningRef.current) return;
+        if (!isCurrent()) return;
         // Build transcript from final + latest interim results.
         let finalText = "";
         let interimText = "";
@@ -150,7 +172,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       };
 
       recognition.onend = () => {
-        if (!listeningRef.current) return;
+        if (!isCurrent()) return;
 
         // Commit current transcript before restarting
         if (lastTranscriptRef.current) {
@@ -161,21 +183,20 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
         // and doesn't re-capture the same speech.
         if (android) {
           restartTimerRef.current = setTimeout(() => {
-            if (listeningRef.current) {
-              // Create a fresh recognition instance on Android to avoid stale results
-              const newRecognition = new SR();
-              newRecognition.continuous = false;
-              newRecognition.interimResults = true;
-              newRecognition.lang = recognition.lang;
-              newRecognition.onresult = recognition.onresult;
-              newRecognition.onend = recognition.onend;
-              newRecognition.onerror = recognition.onerror;
-              recognitionRef.current = newRecognition;
-              try {
-                newRecognition.start();
-              } catch {
-                // Already started or stopped
-              }
+            if (!isCurrent()) return;
+            // Create a fresh recognition instance on Android to avoid stale results
+            const newRecognition = new SR();
+            newRecognition.continuous = false;
+            newRecognition.interimResults = true;
+            newRecognition.lang = recognition.lang;
+            newRecognition.onresult = recognition.onresult;
+            newRecognition.onend = recognition.onend;
+            newRecognition.onerror = recognition.onerror;
+            recognitionRef.current = newRecognition;
+            try {
+              newRecognition.start();
+            } catch {
+              // Already started or stopped
             }
           }, 300);
         } else {
@@ -188,6 +209,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       };
 
       recognition.onerror = (e: any) => {
+        if (!isCurrent()) return;
         if (e.error === "not-allowed" || e.error === "service-not-allowed") {
           stop();
         }
@@ -198,7 +220,11 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       committedTextRef.current = "";
       lastTranscriptRef.current = "";
       setIsListening(true);
-      recognition.start();
+      try {
+        recognition.start();
+      } catch {
+        stop();
+      }
     },
     [supported, stop]
   );
@@ -206,12 +232,11 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      sessionRef.current++;
+      listeningRef.current = false;
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-      if (recognitionRef.current) {
-        listeningRef.current = false;
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
-      }
+      retire(recognitionRef.current);
+      recognitionRef.current = null;
     };
   }, []);
 
