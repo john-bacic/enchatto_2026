@@ -9,9 +9,8 @@ struct HostStartRoomView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 16) {
                     EnchattoLogo(ribbon: L.t("Create a conversation room", lang))
-                        .padding(.top, 8)
 
                     chattoSays
 
