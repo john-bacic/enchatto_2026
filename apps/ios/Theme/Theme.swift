@@ -58,6 +58,29 @@ extension Font {
     }
 }
 
+/// Chat bubble text size from the room's display settings, stored per device
+enum ChatTextSize: String, CaseIterable {
+    case small, medium, large
+
+    static let storageKey = "enchatto_chatTextSize"
+
+    var scale: CGFloat {
+        switch self {
+        case .small: 1
+        case .medium: 1.15
+        case .large: 1.3
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .small: "Small"
+        case .medium: "Medium"
+        case .large: "Large"
+        }
+    }
+}
+
 // MARK: - Card
 
 struct ECCardModifier: ViewModifier {

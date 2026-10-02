@@ -46,6 +46,14 @@ interface VibeMessage {
   createdAt: number;
 }
 
+const CHAT_SIZES = [
+  { key: "s", scale: 1, glyph: 13 },
+  { key: "m", scale: 1.15, glyph: 16 },
+  { key: "l", scale: 1.3, glyph: 19 },
+] as const;
+type ChatSize = (typeof CHAT_SIZES)[number]["key"];
+const CHAT_SIZE_KEY = "enchatto_chatTextSize";
+
 const VIBE_WINDOW_MS = 60_000;
 const COMBO_GAP_MS = 90_000;
 const HYPE_AT = 150;
@@ -99,6 +107,7 @@ function RoomContent() {
   const [showEnglish, setShowEnglish] = useState(true);
   const [showJapanese, setShowJapanese] = useState(true);
   const [showRomaji, setShowRomaji] = useState(true);
+  const [chatSize, setChatSize] = useState<ChatSize>("s");
   const [showGamePicker, setShowGamePicker] = useState(false);
   const [showGameReplay, setShowGameReplay] = useState(false);
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
@@ -271,6 +280,15 @@ function RoomContent() {
       displaySettings: { showEnglish, showJapanese, showRomaji },
     }).catch(() => {});
   }, [showEnglish, showJapanese, showRomaji, participantId, updateDisplaySettings]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(CHAT_SIZE_KEY);
+    if (CHAT_SIZES.some((s) => s.key === saved)) setChatSize(saved as ChatSize);
+  }, []);
+  const pickChatSize = useCallback((size: ChatSize) => {
+    setChatSize(size);
+    localStorage.setItem(CHAT_SIZE_KEY, size);
+  }, []);
 
   // Set typing action to "drawing" while on a draw step so other players see pencil indicator
   useEffect(() => {
@@ -1260,8 +1278,10 @@ function RoomContent() {
 
   const wordRushLive = wordRushGame != null && (wordRushGame.status === "lobby" || wordRushGame.status === "active");
 
+  const chatScale = CHAT_SIZES.find((s) => s.key === chatSize)?.scale ?? 1;
+
   return (
-    <div className="ec-room">
+    <div className="ec-room" style={{ "--chat-scale": chatScale } as React.CSSProperties}>
       {background}
 
       {/* Header */}
@@ -1452,6 +1472,24 @@ function RoomContent() {
                     <span className={`ec-switch${item.value ? " on" : ""}`} aria-hidden />
                   </label>
                 ))}
+                <div className="ec-toggle-row" style={{ cursor: "default" }}>
+                  <span>{t("Chat text size", lang)}</span>
+                  <div className="ec-size-picker" role="radiogroup" aria-label={t("Chat text size", lang)}>
+                    {CHAT_SIZES.map((s) => (
+                      <button
+                        key={s.key}
+                        role="radio"
+                        aria-checked={chatSize === s.key}
+                        aria-label={t(s.key === "s" ? "Small" : s.key === "m" ? "Medium" : "Large", lang)}
+                        className={chatSize === s.key ? "on" : undefined}
+                        style={{ fontSize: s.glyph }}
+                        onClick={() => pickChatSize(s.key)}
+                      >
+                        A
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                 <button className="ec-btn red sm" style={{ flex: 1 }} onClick={() => { setShowDisplaySettings(false); setShowLeaveConfirm(true); }}>

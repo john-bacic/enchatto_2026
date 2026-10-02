@@ -36,6 +36,7 @@ struct HostConversationView: View {
     @State private var showEnglish = true
     @State private var showJapanese = true
     @State private var showRomaji = true
+    @AppStorage(ChatTextSize.storageKey) private var chatTextSize: ChatTextSize = .small
     @State private var showHostSettings = false
     @State private var tooltipParticipant: Participant?
     @State private var fullScreenImage: (url: String, messageId: String)?
@@ -254,6 +255,8 @@ struct HostConversationView: View {
                             .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2))
                     }
 
+                    chatTextSizePicker
+
                     DashedRule()
                         .padding(.vertical, 6)
                         .padding(.horizontal, 12)
@@ -287,6 +290,43 @@ struct HostConversationView: View {
             }
             .transition(.scale(scale: 0.7, anchor: .topLeading).combined(with: .opacity))
         }
+    }
+
+    private var chatTextSizePicker: some View {
+        HStack(spacing: 10) {
+            Text(L.t("Chat text size", hostLanguage))
+                .font(.round(15, .black))
+                .foregroundStyle(EC.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            HStack(spacing: 0) {
+                ForEach(Array(ChatTextSize.allCases.enumerated()), id: \.element) { index, size in
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { chatTextSize = size }
+                    } label: {
+                        Text("A")
+                            .font(.chunky(11 + CGFloat(index) * 3))
+                            .foregroundStyle(EC.ink)
+                            .frame(width: 30, height: 28)
+                            .background(chatTextSize == size ? EC.yellow : .white)
+                            .overlay(alignment: .leading) {
+                                if index > 0 {
+                                    Rectangle().fill(EC.ink).frame(width: 2)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L.t(size.label, hostLanguage))
+                    .accessibilityAddTraits(chatTextSize == size ? .isSelected : [])
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(EC.ink, lineWidth: 2.5))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
     }
 
     private func settingsToggle<Badge: View>(_ title: String, isOn: Binding<Bool>, @ViewBuilder badge: () -> Badge) -> some View {

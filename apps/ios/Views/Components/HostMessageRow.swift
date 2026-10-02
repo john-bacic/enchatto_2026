@@ -20,6 +20,8 @@ struct HostMessageRow: View {
     private let maxBubbleWidth = UIScreen.main.bounds.width * 0.75
     private let avatarSize: CGFloat = 36
 
+    @AppStorage(ChatTextSize.storageKey) private var textSize: ChatTextSize = .small
+
     var onImageTap: ((String) -> Void)?
 
     var body: some View {
@@ -214,14 +216,14 @@ struct HostMessageRow: View {
 
     private func primaryText(_ text: String) -> some View {
         Text(text)
-            .font(.round(16, .black))
+            .font(.round(16 * textSize.scale, .black))
             .foregroundStyle(textColor)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private func romajiText(_ text: String) -> some View {
         Text(text)
-            .font(.round(12, .bold))
+            .font(.round(12 * textSize.scale, .bold))
             .italic()
             .foregroundStyle(isOwn && !isPending ? EC.pinkSoft : EC.pink)
             .fixedSize(horizontal: false, vertical: true)
@@ -237,7 +239,7 @@ struct HostMessageRow: View {
                 .background(RoundedRectangle(cornerRadius: 5).fill(EC.yellow))
                 .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(EC.ink, lineWidth: 1.5))
             Text(text)
-                .font(.round(14, .bold))
+                .font(.round(14 * textSize.scale, .bold))
                 .foregroundStyle(textColor)
                 .fixedSize(horizontal: false, vertical: true)
         }

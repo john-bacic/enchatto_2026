@@ -82,6 +82,10 @@ enum L {
 
         // Language toggles
         "Romaji": ["ja": "ローマ字"],
+        "Chat text size": ["ja": "文字サイズ"],
+        "Small": ["ja": "小"],
+        "Medium": ["ja": "中"],
+        "Large": ["ja": "大"],
 
         // Typing indicator
         "is typing": ["ja": "が入力中"],

@@ -145,6 +145,10 @@ const translations: Record<string, Record<string, string>> = {
   "English": { ja: "英語" },
   "Japanese": { ja: "日本語" },
   "Romaji": { ja: "ローマ字" },
+  "Chat text size": { ja: "文字サイズ" },
+  "Small": { ja: "小" },
+  "Medium": { ja: "中" },
+  "Large": { ja: "大" },
   "Done": { ja: "完了" },
 
   // System messages
