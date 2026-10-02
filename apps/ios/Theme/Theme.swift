@@ -222,13 +222,16 @@ struct OutlinedText: View {
     var fill: Color = .white
     var outline: CGFloat = 3
     var dropShadow = true
+    /// Defaults to the chunky display face
+    var font: Font?
 
-    init(_ text: String, size: CGFloat = 28, fill: Color = .white, outline: CGFloat = 3, dropShadow: Bool = true) {
+    init(_ text: String, size: CGFloat = 28, fill: Color = .white, outline: CGFloat = 3, dropShadow: Bool = true, font: Font? = nil) {
         self.text = text
         self.size = size
         self.fill = fill
         self.outline = outline
         self.dropShadow = dropShadow
+        self.font = font
     }
 
     var body: some View {
@@ -242,7 +245,7 @@ struct OutlinedText: View {
             }
             Text(text).foregroundStyle(fill)
         }
-        .font(.chunky(size))
+        .font(font ?? .chunky(size))
         .padding(outline)
     }
 }

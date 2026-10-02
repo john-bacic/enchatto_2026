@@ -98,7 +98,7 @@ export function Logo({
       {tagline && <Ribbon>{tagline}</Ribbon>}
       {bits && (
         <div className="ec-logo-bits" aria-hidden>
-          <b style={{ "--c": "var(--mint)", left: -22, top: -12, "--d": "-.4s" } as React.CSSProperties}>あ</b>
+          <b className="kana" style={{ "--c": "var(--mint)", left: -22, top: -14, "--d": "-.4s" } as React.CSSProperties}>あ</b>
           <b style={{ "--c": "var(--violet)", right: -20, top: -18, "--d": "-1.2s" } as React.CSSProperties}>A</b>
           <b style={{ "--c": "var(--red)", left: -10, top: size * 1.45, "--d": "-1.8s" } as React.CSSProperties}>！</b>
           <b style={{ "--c": "var(--yellow)", right: -8, top: size * 1.37, "--d": "-.9s" } as React.CSSProperties}>?</b>

@@ -556,6 +556,16 @@ textarea {
   animation: ec-float 2.4s ease-in-out infinite;
   animation-delay: var(--d);
 }
+/* At this size a heavy face plus the full outline and drop fill in the kana loops; keep あ open */
+.ec-logo-bits b.kana {
+  font-family: var(--round);
+  font-weight: 900;
+  font-size: calc(var(--fs) * 0.62);
+  text-shadow:
+    1.5px 0 0 var(--ink), -1.5px 0 0 var(--ink), 0 1.5px 0 var(--ink), 0 -1.5px 0 var(--ink),
+    1px 1px 0 var(--ink), -1px 1px 0 var(--ink), 1px -1px 0 var(--ink), -1px -1px 0 var(--ink),
+    1.5px 2.5px 0 var(--ink);
+}
 
 /* ─── Keyframes ──────────────────────────────────────────────────────────── */
 @keyframes ec-spin { to { transform: rotate(360deg); } }

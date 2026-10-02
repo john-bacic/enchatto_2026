@@ -140,7 +140,7 @@ struct EnchattoLogo: View {
                 LogoRibbon(text: ribbon, size: size)
             }
         }
-        .overlay(alignment: .topLeading) { bit("あ", EC.mint, lead: 0.4).offset(x: -22 * k, y: -12 * k) }
+        .overlay(alignment: .topLeading) { bit("あ", EC.mint, lead: 0.4, kana: true).offset(x: -22 * k, y: -14 * k) }
         .overlay(alignment: .topTrailing) { bit("A", EC.violet, lead: 1.2).offset(x: 20 * k, y: -18 * k) }
         .overlay(alignment: .topLeading) { bit("!", EC.red, lead: 1.8).offset(x: -10 * k, y: size * 1.45) }
         .overlay(alignment: .topTrailing) { bit("?", EC.yellow, lead: 0.9).offset(x: 8 * k, y: size * 1.37) }
@@ -189,10 +189,12 @@ struct EnchattoLogo: View {
     }
 
     /// Web `ec-float`: 8px ease-in-out bob every 2.4s
-    private func bit(_ glyph: String, _ color: Color, lead: Double) -> some View {
+    /// `kana` gets the rounded face and a thinner outline so the loops stay open (web `.ec-logo-bits b.kana`)
+    private func bit(_ glyph: String, _ color: Color, lead: Double, kana: Bool = false) -> some View {
         LoopClock { t in
             let rise = (1 - cos((t + lead) * 2 * .pi / 2.4)) / 2
-            OutlinedText(glyph, size: size * 0.5, fill: color, outline: 2)
+            let glyphSize = size * (kana ? 0.62 : 0.5)
+            OutlinedText(glyph, size: glyphSize, fill: color, outline: kana ? 1.5 : 2, font: kana ? .round(glyphSize, .black) : nil)
                 .offset(y: -8 * k * (t > 0 ? rise : 0))
         }
     }
