@@ -10,6 +10,7 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { SuggestionChips } from "@/components/suggestion-chips";
 import { MessageImage } from "@/components/message-image";
 import { MessageDrawing } from "@/components/message-drawing";
+import { VoiceMessage } from "@/components/message-voice";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { EmojiArt, Icon } from "@/components/ui/icon";
@@ -29,6 +30,8 @@ interface MessageData {
   status: string;
   text?: string;
   mediaUrl?: string;
+  durationMs?: number;
+  waveform?: number[];
   processing?: ProcessingState;
   replyToId?: string;
   createdAt: number;
@@ -159,8 +162,12 @@ export function MessageItem({
   highlight = false,
 }: MessageItemProps) {
   const senderName = sender?.nickname ?? "Unknown";
-  const isPending = message.status === "pending";
-  const isFailed = message.status === "failed";
+  const isAudio = message.kind === "audio";
+  const [textOpen, setTextOpen] = useState(false);
+  // A voice message is delivered the moment it lands; only its collapsed transcript is still translating
+  const showsText = message.kind === "text" || (isAudio && textOpen);
+  const isPending = message.status === "pending" && (!isAudio || textOpen);
+  const isFailed = message.status === "failed" && (!isAudio || textOpen);
   const isMedia = message.kind === "image" || message.kind === "drawing";
 
   const [showModal, setShowModal] = useState(false);
@@ -203,8 +210,8 @@ export function MessageItem({
   const bubbleClass = [
     "ec-bubble",
     isMedia ? "media" : "",
-    isPending ? "pending" : "",
-    isFailed ? "failed" : "",
+    isPending && !isAudio ? "pending" : "",
+    isFailed && !isAudio ? "failed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -254,7 +261,33 @@ export function MessageItem({
               {message.kind === "drawing" && message.mediaUrl && (
                 <MessageDrawing src={message.mediaUrl} onLoad={onImageLoad} />
               )}
-              {message.kind === "text" && (() => {
+              {isAudio && (
+                <>
+                  <VoiceMessage
+                    messageId={message._id}
+                    src={message.mediaUrl}
+                    durationMs={message.durationMs}
+                    waveform={message.waveform}
+                    trackUnplayed={!isOwn}
+                    lang={lang}
+                  />
+                  {message.text && (
+                    <button
+                      type="button"
+                      className={`ec-vm-show${textOpen ? " open" : ""}`}
+                      onClick={() => setTextOpen((open) => !open)}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      aria-expanded={textOpen}
+                    >
+                      <svg viewBox="0 0 10 10" aria-hidden>
+                        <path d="M2 3.5l3 3 3-3" />
+                      </svg>
+                      {textOpen ? t("Hide text", lang) : t("Show text", lang)}
+                    </button>
+                  )}
+                </>
+              )}
+              {showsText && (() => {
                 const { english, japanese } = getLanguageTexts(message);
                 const romaji = message.processing?.romaji;
                 // Primary: show preferred language first, fallback to other
@@ -278,7 +311,7 @@ export function MessageItem({
               )}
               {message.processing &&
                 message.status === "processed" &&
-                message.kind === "text" && (() => {
+                showsText && (() => {
                   const { english, japanese } = getLanguageTexts(message);
                   // Only show secondary if primary showed the preferred language (not a fallback)
                   const primaryShowedPreferred = preferredLanguage === "ja"

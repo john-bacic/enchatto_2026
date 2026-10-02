@@ -50,6 +50,15 @@ final class SpeechRecognizer: ObservableObject {
     private var sessionGotResult = false
     private let log = Logger(subsystem: "com.enchatto.app", category: "speech")
 
+    /// Set before startRecording to also record the dictation, so it can go out as a voice message
+    var captureClip = false
+    /// True while a recording is being written alongside the transcript
+    @Published private(set) var clipActive = false
+    private var clipWriter: ClipWriter?
+    /// Seconds recorded so far; polled by the timer rather than published
+    var clipDuration: TimeInterval { clipWriter?.duration ?? 0 }
+    static let maxClipSeconds = ClipWriter.maxSeconds
+
     init(locale: Locale = Locale(identifier: "en-US")) {
         speechRecognizer = SFSpeechRecognizer(locale: locale)
         let center = NotificationCenter.default
@@ -83,6 +92,9 @@ final class SpeechRecognizer: ObservableObject {
         guard !isRecording, !isStarting else { return }
         isStarting = true
         quickFailures = 0
+        discardClip()
+        VoicePlayback.shared.stop()
+        VoicePlayback.shared.blocked = true
         let token = UUID()
         startToken = token
         recognitionTask?.cancel()
@@ -96,6 +108,7 @@ final class SpeechRecognizer: ObservableObject {
                 guard let self, self.startToken == token else { return }
                 guard status == .authorized else {
                     self.isStarting = false
+                    VoicePlayback.shared.blocked = false
                     return
                 }
                 self.requestMicPermission(token: token)
@@ -108,7 +121,10 @@ final class SpeechRecognizer: ObservableObject {
             Task { @MainActor in
                 guard let self, self.startToken == token else { return }
                 self.isStarting = false
-                guard granted else { return }
+                guard granted else {
+                    VoicePlayback.shared.blocked = false
+                    return
+                }
                 self.isRecording = true
                 self.beginSession()
             }
@@ -135,8 +151,26 @@ final class SpeechRecognizer: ObservableObject {
         committedText = ""
         currentSessionText = ""
         level = 0
+        clipActive = false
+        VoicePlayback.shared.blocked = false
         // Release audio session so keyboard dictation and other apps can use the mic
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    /// The finished recording of the last dictation (call after stopRecording); nil if none was captured
+    func takeClip() -> VoiceClipFile? {
+        let writer = clipWriter
+        clipWriter = nil
+        clipActive = false
+        return writer?.finish()
+    }
+
+    func discardClip() {
+        clipWriter?.cancel()
+        clipWriter = nil
+        clipActive = false
+        // Dropped mid-dictation (length limit): the next session restart mustn't open a fresh file
+        if isRecording { captureClip = false }
     }
 
     // MARK: - Session lifecycle
@@ -162,7 +196,8 @@ final class SpeechRecognizer: ObservableObject {
         // Configure audio session
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+            // .measurement turns off input gain control, which leaves a recorded voice message very quiet
+            try audioSession.setCategory(.record, mode: captureClip ? .default : .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             stopRecording()
@@ -178,9 +213,16 @@ final class SpeechRecognizer: ObservableObject {
             stopRecording()
             return
         }
+        // One file spans every recognition session of this dictation
+        if captureClip, clipWriter == nil {
+            clipWriter = ClipWriter(format: recordingFormat)
+            clipActive = clipWriter != nil
+        }
+        let writer = clipWriter
         let meter = LevelMeter()
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             request.append(buffer)
+            writer?.append(buffer)
             guard let normalized = meter.process(buffer) else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.isRecording else { return }
@@ -381,6 +423,100 @@ private final class LevelMeter: @unchecked Sendable {
     }
 }
 
+/// Writes tap buffers to an AAC file and keeps per-buffer levels for the waveform.
+/// append() runs on the audio thread, everything else on main; the lock covers both.
+final class ClipWriter: @unchecked Sendable {
+    static let maxSeconds: TimeInterval = 120
+    private static let bars = 48
+
+    private let lock = NSLock()
+    private let url: URL
+    private let sampleRate: Double
+    private let channels: AVAudioChannelCount
+    private var file: AVAudioFile?
+    private var frames: AVAudioFramePosition = 0
+    private var levels: [Float] = []
+
+    init?(format: AVAudioFormat) {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-\(UUID().uuidString).m4a")
+        sampleRate = format.sampleRate
+        channels = format.channelCount
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: format.channelCount,
+            AVEncoderBitRateKey: 64_000,
+        ]
+        guard let file = try? AVAudioFile(
+            forWriting: url, settings: settings, commonFormat: format.commonFormat, interleaved: format.isInterleaved
+        ) else { return nil }
+        self.file = file
+        levels.reserveCapacity(Int(Self.maxSeconds * format.sampleRate / 1024) + 64)
+    }
+
+    var duration: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return Double(frames) / sampleRate
+    }
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        defer { lock.unlock() }
+        // A route change mid-dictation can switch formats; AVAudioFile can't take a mismatched buffer
+        guard let file, buffer.format.sampleRate == sampleRate, buffer.format.channelCount == channels,
+              Double(frames) < Self.maxSeconds * sampleRate else { return }
+        do {
+            try file.write(from: buffer)
+            frames += AVAudioFramePosition(buffer.frameLength)
+        } catch {
+            self.file = nil
+            return
+        }
+        if let data = buffer.floatChannelData?[0], buffer.frameLength > 0 {
+            var rms: Float = 0
+            vDSP_rmsqv(data, 1, &rms, vDSP_Length(buffer.frameLength))
+            levels.append(rms)
+        }
+    }
+
+    /// Closes the file (AVAudioFile finalizes when released) and returns it, or nil if nothing usable was written
+    func finish() -> VoiceClipFile? {
+        lock.lock()
+        let wrote = file != nil && frames > 0
+        file = nil
+        let durationMs = Int(Double(frames) / sampleRate * 1000)
+        let waveform = Self.waveform(from: levels)
+        lock.unlock()
+        guard wrote else {
+            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
+        return VoiceClipFile(url: url, durationMs: durationMs, waveform: waveform)
+    }
+
+    func cancel() {
+        lock.lock()
+        file = nil
+        lock.unlock()
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Same shaping as the web recorder so bubbles look alike on both platforms
+    private static func waveform(from levels: [Float]) -> [Double] {
+        guard let max = levels.max(), max >= 0.002 else { return [] }
+        return (0..<bars).map { i in
+            let from = i * levels.count / bars
+            let to = Swift.max(from + 1, (i + 1) * levels.count / bars)
+            let slice = levels[from..<Swift.min(to, levels.count)]
+            guard let peak = slice.max() else { return 0 }
+            let mean = slice.reduce(0, +) / Float(slice.count)
+            let value = Double((peak + mean) / 2 / max)
+            return (pow(value, 0.8) * 100).rounded() / 100
+        }
+    }
+}
+
 #else
 
 /// Stub for non-iOS platforms (satisfies SourceKit on macOS).
@@ -389,10 +525,23 @@ final class SpeechRecognizer: ObservableObject {
     @Published var transcript = ""
     @Published var isRecording = false
     private(set) var level: CGFloat = 0
+    var captureClip = false
+    @Published private(set) var clipActive = false
+    var clipDuration: TimeInterval { 0 }
+    static let maxClipSeconds: TimeInterval = 120
     func updateLocale(_ localeIdentifier: String) {}
     func toggleRecording() {}
     func startRecording() {}
     func stopRecording() {}
+    func takeClip() -> VoiceClipFile? { nil }
+    func discardClip() {}
 }
 
 #endif
+
+struct VoiceClipFile {
+    let url: URL
+    let durationMs: Int
+    /// Peak levels (0...1); empty when nothing was measurable
+    let waveform: [Double]
+}

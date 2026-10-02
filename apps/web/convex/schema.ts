@@ -54,7 +54,8 @@ export default defineSchema({
       v.literal("text"),
       v.literal("image"),
       v.literal("drawing"),
-      v.literal("system")
+      v.literal("system"),
+      v.literal("audio")
     ),
     status: v.union(
       v.literal("pending"),
@@ -63,6 +64,10 @@ export default defineSchema({
     ),
     text: v.optional(v.string()),
     mediaUrl: v.optional(v.string()),
+    audioStorageId: v.optional(v.id("_storage")),
+    durationMs: v.optional(v.number()),
+    /** Peak levels (0..1) sampled across the clip, drawn as the bubble's waveform */
+    waveform: v.optional(v.array(v.number())),
     processing: v.optional(
       v.object({
         translatedText: v.optional(v.string()),

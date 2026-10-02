@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query, internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, internalAction, internalMutation, internalQuery, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 export const sendTextMessage = mutation({
   args: {
@@ -74,6 +75,104 @@ export const sendImageMessage = mutation({
       createdAt: Date.now(),
       processedAt: Date.now(),
     });
+  },
+});
+
+const AUDIO_MIN_MS = 300;
+const AUDIO_MAX_MS = 180_000;
+const AUDIO_MAX_BYTES = 12 * 1024 * 1024;
+const WAVEFORM_MAX_BARS = 64;
+
+async function insertAudioMessage(
+  ctx: MutationCtx,
+  args: {
+    roomId: Id<"rooms">;
+    senderId: Id<"participants">;
+    storageId: Id<"_storage">;
+    durationMs: number;
+    waveform: number[];
+    text?: string;
+    replyToId?: Id<"messages">;
+  }
+): Promise<Id<"messages">> {
+  const room = await ctx.db.get(args.roomId);
+  if (!room) throw new Error("Room not found");
+  if (room.status === "closed") throw new Error("Room is closed");
+  const sender = await ctx.db.get(args.senderId);
+  if (!sender || sender.roomId !== args.roomId) throw new Error("Not a member of this room");
+
+  const file = await ctx.db.system.get(args.storageId);
+  if (!file) throw new Error("Upload not found");
+  if (file.size > AUDIO_MAX_BYTES) throw new Error("Voice message too large");
+  if (file.contentType && !file.contentType.startsWith("audio/")) throw new Error("Not an audio file");
+
+  const durationMs = Math.round(args.durationMs);
+  if (durationMs < AUDIO_MIN_MS) throw new Error("Voice message too short");
+  if (durationMs > AUDIO_MAX_MS) throw new Error("Voice message too long (max 3 minutes)");
+
+  const mediaUrl = await ctx.storage.getUrl(args.storageId);
+  if (!mediaUrl) throw new Error("Failed to get file URL");
+
+  const waveform = args.waveform
+    .slice(0, WAVEFORM_MAX_BARS)
+    .map((p) => Math.round(Math.min(1, Math.max(0, Number.isFinite(p) ? p : 0)) * 100) / 100);
+  const text = args.text?.trim().slice(0, 2000) || undefined;
+  const now = Date.now();
+
+  const messageId = await ctx.db.insert("messages", {
+    roomId: args.roomId,
+    senderId: args.senderId,
+    kind: "audio",
+    // The transcript goes through the same translation pipeline as a text message
+    status: text ? "pending" : "processed",
+    text,
+    mediaUrl,
+    audioStorageId: args.storageId,
+    durationMs,
+    waveform,
+    replyToId: args.replyToId,
+    createdAt: now,
+    processedAt: text ? undefined : now,
+  });
+
+  if (text) {
+    await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
+      messageId,
+      roomId: args.roomId,
+    });
+  }
+  return messageId;
+}
+
+export const sendAudioMessage = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    senderId: v.id("participants"),
+    storageId: v.id("_storage"),
+    durationMs: v.number(),
+    waveform: v.array(v.number()),
+    text: v.optional(v.string()),
+    replyToId: v.optional(v.id("messages")),
+  },
+  returns: v.id("messages"),
+  handler: async (ctx, args) => await insertAudioMessage(ctx, args),
+});
+
+/** Deletes every voice clip in a room once it closes; transcripts and translations stay. */
+export const purgeRoomAudio = internalMutation({
+  args: { roomId: v.id("rooms") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    for (const m of messages) {
+      if (m.kind !== "audio" || !m.audioStorageId) continue;
+      await ctx.storage.delete(m.audioStorageId);
+      await ctx.db.patch(m._id, { audioStorageId: undefined, mediaUrl: undefined });
+    }
+    return null;
   },
 });
 
@@ -152,6 +251,7 @@ export const deleteMessage = mutation({
       await ctx.db.delete(reaction._id);
     }
 
+    if (message.audioStorageId) await ctx.storage.delete(message.audioStorageId);
     await ctx.db.delete(args.messageId);
   },
 });

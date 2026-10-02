@@ -300,7 +300,7 @@ class HostRoomViewModel: ObservableObject {
 
             for message in pending {
                 // Skip if already being processed or not a text message
-                guard message.kind == .text,
+                guard message.kind == .text || message.kind == .audio,
                       !processingMessageIds.contains(message.id) else { continue }
 
                 guard let text = message.text, !text.isEmpty else { continue }
@@ -362,6 +362,32 @@ class HostRoomViewModel: ObservableObject {
         } catch {
             // Network may have dropped mid-request — enqueue instead of showing error
             enqueueMessage(text: text, replyToId: replyToId)
+        }
+    }
+
+    /// Uploads a recorded clip as a voice message. Audio can't wait in the offline queue,
+    /// so if it can't go out the transcript is sent as a text message instead.
+    func sendVoice(_ clip: VoiceClipFile, text: String, replyToId: String? = nil) async {
+        defer { try? FileManager.default.removeItem(at: clip.url) }
+        let transcript = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            guard networkMonitor.isConnected else { throw APIError.serverError("Offline") }
+            let data = try Data(contentsOf: clip.url)
+            let uploadUrl = try await api.generateUploadUrl()
+            let storageId = try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
+            _ = try await api.sendAudioMessage(
+                roomId: roomId,
+                senderId: hostId,
+                storageId: storageId,
+                durationMs: clip.durationMs,
+                waveform: clip.waveform,
+                text: transcript.isEmpty ? nil : transcript,
+                replyToId: replyToId
+            )
+            await refresh()
+        } catch {
+            DebugConsole.shared.trace(source: .network, action: "sendVoice:error", detail: error.localizedDescription, ok: false)
+            if !transcript.isEmpty { await sendMessage(transcript, replyToId: replyToId) }
         }
     }
 
@@ -882,7 +908,7 @@ class HostRoomViewModel: ObservableObject {
                         mediaUrl: queued.mediaUrl ?? "",
                         replyToId: queued.replyToId
                     )
-                case .system:
+                case .system, .audio, .unknown:
                     break
                 }
                 offlineQueue.removeFirst()

@@ -42,6 +42,9 @@ protocol EnchattoAPI {
     /// Send a drawing message
     func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String
 
+    /// Send a voice message (uploaded clip); the transcript, if any, is translated like a text message
+    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String
+
     /// Close a room
     func closeRoom(roomId: String) async throws
 

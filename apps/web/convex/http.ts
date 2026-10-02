@@ -145,6 +145,23 @@ http.route({
 });
 
 http.route({
+  path: "/api/messages/send-audio",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    const messageId = await ctx.runMutation(api.messages.sendAudioMessage, {
+      roomId: body.roomId,
+      senderId: body.senderId,
+      storageId: body.storageId,
+      durationMs: body.durationMs,
+      waveform: body.waveform ?? [],
+      text: body.text,
+      replyToId: body.replyToId,
+    });
+    return { messageId };
+  }),
+});
+
+http.route({
   path: "/api/messages/send-drawing",
   method: "OPTIONS",
   handler: httpAction(async () => {

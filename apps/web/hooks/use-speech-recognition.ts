@@ -153,6 +153,8 @@ function isIOSWebKit(): boolean {
  * unit running between dictations; it's released after this long without one.
  */
 const IOS_MIC_HOLD_MS = 90_000;
+/** Elsewhere a held stream only feeds the voice recorder; keep it just long enough for it to flush */
+const MIC_HOLD_MS = 1_500;
 
 export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
@@ -191,18 +193,21 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     debugLog("mic released");
   }, []);
 
-  const holdMic = useCallback(async () => {
+  const holdMic = useCallback(async (): Promise<MediaStream | null> => {
     if (micReleaseTimerRef.current) {
       clearTimeout(micReleaseTimerRef.current);
       micReleaseTimerRef.current = null;
     }
-    if (micStreamRef.current?.getAudioTracks().some((t) => t.readyState === "live")) return;
-    if (!navigator.mediaDevices?.getUserMedia) return;
+    const held = micStreamRef.current;
+    if (held?.getAudioTracks().some((t) => t.readyState === "live")) return held;
+    if (!navigator.mediaDevices?.getUserMedia) return null;
     try {
       micStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       debugLog("mic held");
+      return micStreamRef.current;
     } catch (err) {
       debugLog(`mic hold failed ${String(err)}`);
+      return null;
     }
   }, []);
 
@@ -219,7 +224,7 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     recognitionRef.current = null;
     if (micStreamRef.current) {
       if (micReleaseTimerRef.current) clearTimeout(micReleaseTimerRef.current);
-      micReleaseTimerRef.current = setTimeout(releaseMic, IOS_MIC_HOLD_MS);
+      micReleaseTimerRef.current = setTimeout(releaseMic, isIOSWebKit() ? IOS_MIC_HOLD_MS : MIC_HOLD_MS);
     }
     // Apply punctuation to final transcript after stopping
     if (lastTranscriptRef.current) {
@@ -232,12 +237,17 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
     onEndRef.current?.();
   }, [releaseMic]);
 
+  /**
+   * Resolves with the held mic stream once recognition is launching (null if none was held or the
+   * session was already stopped). Pass `holdMic` to get a stream on platforms that don't need one.
+   */
   const start = useCallback(
-    (lang?: string) => {
-      if (!supported) return;
+    (lang?: string, opts?: { holdMic?: boolean }): Promise<MediaStream | null> => {
+      if (!supported) return Promise.resolve(null);
       const released = Promise.all([releasedRef.current, retire(recognitionRef.current)]);
       releasedRef.current = released;
-      const ready = isIOSWebKit() ? Promise.all([released, holdMic()]) : released;
+      const mic = isIOSWebKit() || opts?.holdMic ? holdMic() : Promise.resolve(null);
+      const ready = Promise.all([released, mic]);
       recognitionRef.current = null;
       if (restartTimerRef.current) {
         clearTimeout(restartTimerRef.current);
@@ -351,15 +361,17 @@ export function useSpeechRecognition({ onTranscript, onEnd }: UseSpeechRecogniti
       quickFailsRef.current = 0;
       setIsListening(true);
       debugLog(`#${session} requested`);
-      void ready.then(() => {
-        if (!isCurrent()) return;
+      return ready.then(([, stream]) => {
+        if (!isCurrent()) return null;
         markRunStart();
         try {
           launch(recognition);
         } catch (err) {
           debugLog(`#${session} start threw ${String(err)}`);
           stop();
+          return null;
         }
+        return stream;
       });
     },
     [supported, stop, holdMic]

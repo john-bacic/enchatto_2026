@@ -8,7 +8,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
 import { VibeInfo } from "@/components/vibe-info";
 import { MessageList } from "@/components/message-list";
-import { MessageInput } from "@/components/message-input";
+import { MessageInput, type OutgoingVoiceClip } from "@/components/message-input";
 import { GamePickerModal } from "@/components/game-picker-modal";
 import { GameTaskOverlay } from "@/components/game-task-overlay";
 import { GameReplayModal } from "@/components/game-replay-modal";
@@ -226,6 +226,7 @@ function RoomContent() {
   const sendTextMessage = useMutation(api.messages.sendTextMessage);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
   const sendImageMessage = useMutation(api.messages.sendImageMessage);
+  const sendAudioMessage = useMutation(api.messages.sendAudioMessage);
   const setParticipantOnline = useMutation(api.participants.setParticipantOnline);
   const startGameMutation = useMutation(api.games.startGame);
   const submitGameStepMutation = useMutation(api.games.submitGameStep);
@@ -476,6 +477,39 @@ function RoomContent() {
       }
     },
     [generateUploadUrl, sendImageMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
+  );
+
+  const handleSendVoice = useCallback(
+    async (clip: OutgoingVoiceClip) => {
+      if (!participantId) return;
+      const replyToId = replyTo ? (replyTo as Id<"messages">) : undefined;
+      setReplyTo(null);
+      try {
+        if (!isOnline) throw new Error("offline");
+        const uploadUrl = await generateUploadUrl();
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": clip.blob.type || "audio/mp4" },
+          body: clip.blob,
+        });
+        if (!result.ok) throw new Error(`Upload failed (${result.status})`);
+        const { storageId } = await result.json();
+        await sendAudioMessage({
+          roomId: roomId as Id<"rooms">,
+          senderId: participantId as Id<"participants">,
+          storageId,
+          durationMs: clip.durationMs,
+          waveform: clip.waveform,
+          text: clip.text,
+          replyToId,
+        });
+      } catch (err) {
+        // Audio can't sit in the offline queue, but the words can
+        console.error("Failed to send voice message:", err);
+        if (clip.text) enqueueMessage({ kind: "text", text: clip.text, replyToId });
+      }
+    },
+    [generateUploadUrl, sendAudioMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
   );
 
   const handleSendDrawing = useCallback(
@@ -1456,6 +1490,7 @@ function RoomContent() {
           onSend={handleSend}
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
+          onSendVoice={handleSendVoice}
           onGameTap={() => setShowGamePicker(true)}
           isGameActive={(activeGameSession != null || wordRushLive || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
           onEndGame={me?.role === "host" ? async () => {

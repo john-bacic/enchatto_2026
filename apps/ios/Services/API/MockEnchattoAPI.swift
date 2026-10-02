@@ -148,6 +148,26 @@ class MockEnchattoAPI: EnchattoAPI {
         return messageId
     }
 
+    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String {
+        let messageId = UUID().uuidString
+        let message = Message(
+            id: messageId,
+            roomId: roomId,
+            senderId: senderId,
+            kind: .audio,
+            status: .processed,
+            text: text,
+            mediaUrl: "https://mock-audio-url.example.com/\(storageId)",
+            replyToId: replyToId,
+            createdAt: Date(),
+            processedAt: Date(),
+            durationMs: Double(durationMs),
+            waveform: waveform
+        )
+        messages[roomId, default: []].append(message)
+        return messageId
+    }
+
     func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
         let messageId = UUID().uuidString
         let message = Message(

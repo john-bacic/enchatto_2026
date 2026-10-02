@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 10;
@@ -95,6 +96,8 @@ export const closeRoom = mutation({
         ctx.db.patch(p._id, { online: false, departed: true, lastSeenAt: Date.now() })
       )
     );
+
+    await ctx.scheduler.runAfter(0, internal.messages.purgeRoomAudio, { roomId: args.roomId });
   },
 });
 

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { DrawingModal } from "@/components/drawing-modal";
 import { useSpeechRecognition, ensurePunctuation } from "@/hooks/use-speech-recognition";
+import { useVoiceClip, type VoiceClip } from "@/hooks/use-voice-clip";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 
@@ -13,18 +14,38 @@ function fitTextarea(el: HTMLTextAreaElement) {
 }
 
 const WAVE_SAMPLES = 64;
+const VOICE_MODE_KEY = "enchatto_voiceMode";
+const VOICE_HINT_KEY = "enchatto_voiceModeHinted";
+const LONG_PRESS_MS = 450;
+const MIN_CLIP_MS = 600;
+const MAX_CLIP_MS = 120_000;
+
+type VoiceMode = "text" | "voice";
+
+function formatClock(ms: number) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 
 /** Scrolling dictation meter: newest sample on the right, silence drawn as dots */
-function VoiceWave({ level }: { level: number }) {
+function VoiceWave({ level, micLevelRef }: { level: number; micLevelRef?: React.RefObject<number> }) {
   const levelRef = useRef(level);
   levelRef.current = level;
+  const micRef = useRef(micLevelRef);
+  micRef.current = micLevelRef;
   const [samples, setSamples] = useState<number[]>(() => Array(WAVE_SAMPLES).fill(0));
 
   useEffect(() => {
-    // Web Speech exposes no mic level, only word activity, so jitter it into a believable wave
     const id = setInterval(() => {
-      const l = levelRef.current;
-      const v = l > 0 ? Math.min(1, l * (1.4 + Math.random() * 1.8)) : 0;
+      const mic = micRef.current?.current;
+      let v: number;
+      if (mic != null) {
+        v = mic < 0.04 ? 0 : mic;
+      } else {
+        // Web Speech exposes no mic level, only word activity, so jitter it into a believable wave
+        const l = levelRef.current;
+        v = l > 0 ? Math.min(1, l * (1.4 + Math.random() * 1.8)) : 0;
+      }
       setSamples((prev) => [...prev.slice(1), v]);
     }, 70);
     return () => clearInterval(id);
@@ -39,6 +60,51 @@ function VoiceWave({ level }: { level: number }) {
   );
 }
 
+/** Icon-only Text | Voice switch; the selected side takes the pill's color */
+function VoiceModeSwitch({
+  mode,
+  nudge,
+  onChange,
+  lang,
+}: {
+  mode: VoiceMode;
+  nudge: boolean;
+  onChange: (mode: VoiceMode) => void;
+  lang?: string;
+}) {
+  return (
+    <div className={`ec-voice-mode${nudge ? " nudge" : ""}`} role="radiogroup" aria-label={t("Send as", lang)}>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={mode === "text"}
+        aria-label={t("Text", lang)}
+        className={mode === "text" ? "on" : undefined}
+        onClick={() => onChange("text")}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M4 6h16M4 12h11M4 18h7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={mode === "voice"}
+        aria-label={t("Voice message", lang)}
+        className={mode === "voice" ? "on voice" : "voice"}
+        onClick={() => onChange("voice")}
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <rect x="8.5" y="2" width="7" height="12.5" rx="3.5" />
+          <path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+export type OutgoingVoiceClip = VoiceClip & { text?: string };
+
 interface ReplyTo {
   _id: string;
   text?: string;
@@ -49,6 +115,7 @@ interface MessageInputProps {
   onSend: (text: string) => void;
   onSendImage?: (file: File) => void;
   onSendDrawing?: (dataUrl: string) => void;
+  onSendVoice?: (clip: OutgoingVoiceClip) => void;
   onGameTap?: () => void;
   isGameActive?: boolean;
   onEndGame?: () => void;
@@ -62,6 +129,7 @@ export function MessageInput({
   onSend,
   onSendImage,
   onSendDrawing,
+  onSendVoice,
   onGameTap,
   isGameActive,
   onEndGame,
@@ -82,11 +150,20 @@ export function MessageInput({
   const lastTranscriptRef = useRef("");
   const audioDecayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const usedVoiceRef = useRef(false);
+  /** Only the dictated words, without whatever was typed before; becomes a voice message's transcript */
+  const dictatedRef = useRef("");
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>("text");
+  const [modeNudge, setModeNudge] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressedRef = useRef(false);
+  const clipLimitRef = useRef<() => void>(() => {});
+  const voiceClip = useVoiceClip({ maxMs: MAX_CLIP_MS, onLimit: () => clipLimitRef.current() });
   const { isListening, start: startVoice, stop: stopVoice, supported: voiceSupported } =
     useSpeechRecognition({
       onTranscript: (transcript) => {
         const base = preVoiceTextRef.current;
         const punctuated = ensurePunctuation(transcript);
+        dictatedRef.current = punctuated;
         setText(base ? `${base} ${punctuated} ` : `${punctuated} `);
         // Detect speech activity from transcript changes
         if (transcript !== lastTranscriptRef.current) {
@@ -135,6 +212,37 @@ export function MessageInput({
     }
   }, [isListening]);
 
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(VOICE_MODE_KEY) === "voice") setVoiceMode("voice");
+    } catch {
+      // storage blocked
+    }
+  }, []);
+
+  const chooseVoiceMode = (mode: VoiceMode) => {
+    setVoiceMode(mode);
+    try {
+      localStorage.setItem(VOICE_MODE_KEY, mode);
+    } catch {
+      // storage blocked
+    }
+  };
+
+  // Dictation ended on its own (error, repeated failures): drop the half-made recording
+  const { recording: clipRecording, discard: discardClip } = voiceClip;
+  useEffect(() => {
+    if (!isListening && clipRecording) discardClip();
+  }, [isListening, clipRecording, discardClip]);
+
+  useEffect(() => {
+    if (!modeNudge) return;
+    const timer = setTimeout(() => setModeNudge(false), 1600);
+    return () => clearTimeout(timer);
+  }, [modeNudge]);
+
+  const sendingVoice = isListening && clipRecording && voiceMode === "voice";
+
   const clearTyping = useCallback(() => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -147,6 +255,7 @@ export function MessageInput({
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     };
   }, []);
 
@@ -165,9 +274,37 @@ export function MessageInput({
     }
   };
 
+  const handleSendVoice = async () => {
+    if (!isListening) return;
+    // stop() synchronously emits the final transcript into dictatedRef
+    stopVoice();
+    onTypingChange?.(null);
+    const transcript = dictatedRef.current ? ensurePunctuation(dictatedRef.current) : "";
+    dictatedRef.current = "";
+    usedVoiceRef.current = false;
+    setText(preVoiceTextRef.current);
+    preVoiceTextRef.current = "";
+    const clip = await voiceClip.finish();
+    if (clip && clip.durationMs >= MIN_CLIP_MS) {
+      onSendVoice?.({ ...clip, text: transcript || undefined });
+    } else if (transcript) {
+      onSend(transcript);
+    }
+  };
+
+  clipLimitRef.current = () => {
+    if (sendingVoice) void handleSendVoice();
+    else voiceClip.discard();
+  };
+
   const handleSubmit = () => {
+    if (sendingVoice) {
+      void handleSendVoice();
+      return;
+    }
     let trimmed = text.trim();
     if (!trimmed) return;
+    voiceClip.discard();
     if (isListening) stopVoice();
     // Apply punctuation if voice was used for this message
     if (usedVoiceRef.current) {
@@ -185,6 +322,7 @@ export function MessageInput({
   };
 
   const handleClear = () => {
+    voiceClip.discard();
     if (isListening) {
       stopVoice();
       onTypingChange?.(null);
@@ -210,26 +348,72 @@ export function MessageInput({
     onSendDrawing?.(dataUrl);
   };
 
-  const handleMicTap = () => {
-    if (isListening) {
-      stopVoice();
-      onTypingChange?.(null);
-    } else {
-      preVoiceTextRef.current = text.trim();
-      usedVoiceRef.current = true;
-      startVoice(lang);
-      onTypingChange?.("voicing");
+  const beginVoice = (mode: VoiceMode) => {
+    if (isListening) return;
+    preVoiceTextRef.current = text.trim();
+    dictatedRef.current = "";
+    usedVoiceRef.current = true;
+    if (mode !== voiceMode) chooseVoiceMode(mode);
+    const canRecord = !!onSendVoice && voiceClip.supported;
+    const mic = startVoice(lang, { holdMic: canRecord });
+    onTypingChange?.("voicing");
+    if (canRecord) {
+      void mic.then((stream) => {
+        if (stream) voiceClip.start(stream);
+      });
+      try {
+        if (!localStorage.getItem(VOICE_HINT_KEY)) {
+          localStorage.setItem(VOICE_HINT_KEY, "1");
+          setModeNudge(true);
+        }
+      } catch {
+        // storage blocked
+      }
     }
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  };
+
+  // Tap dictates in the last-used mode; holding the mic starts straight in voice mode
+  const micHandlers = {
+    onPointerDown: () => {
+      voiceClip.arm();
+      longPressedRef.current = false;
+      clearLongPress();
+      longPressTimerRef.current = setTimeout(() => {
+        longPressedRef.current = true;
+        navigator.vibrate?.(12);
+        beginVoice("voice");
+      }, LONG_PRESS_MS);
+    },
+    onPointerUp: clearLongPress,
+    onPointerLeave: clearLongPress,
+    onPointerCancel: clearLongPress,
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    onClick: () => {
+      clearLongPress();
+      if (longPressedRef.current) {
+        longPressedRef.current = false;
+        return;
+      }
+      voiceClip.arm();
+      beginVoice(voiceMode);
+    },
   };
 
   /** Keeps the dictated text in the field for editing */
   const handleVoiceStop = () => {
+    voiceClip.discard();
     stopVoice();
     onTypingChange?.(null);
   };
 
   /** Throws the dictation away and restores whatever was typed before */
   const handleVoiceCancel = () => {
+    voiceClip.discard();
     stopVoice();
     usedVoiceRef.current = false;
     setText(preVoiceTextRef.current);
@@ -258,8 +442,8 @@ export function MessageInput({
     <button
       className="ec-round-btn send"
       onClick={handleSubmit}
-      disabled={!hasText}
-      aria-label={t("Send", lang)}
+      disabled={!hasText && !sendingVoice}
+      aria-label={sendingVoice ? t("Send voice message", lang) : t("Send", lang)}
     >
       <SendIcon />
     </button>
@@ -281,26 +465,38 @@ export function MessageInput({
         )}
 
         {isListening && (
-          <div className="ec-voice-live" aria-live="polite">
-            <span className={text.trim() ? undefined : "idle"}>
-              {text.trim() || t("Listening...", lang)}
-            </span>
+          <div className="ec-voice-live-row">
+            <div className="ec-voice-live" aria-live="polite">
+              <span className={text.trim() ? undefined : "idle"}>
+                {text.trim() || (sendingVoice ? t("Recording...", lang) : t("Listening...", lang))}
+              </span>
+            </div>
+            {clipRecording && (
+              <VoiceModeSwitch mode={voiceMode} nudge={modeNudge} onChange={chooseVoiceMode} lang={lang} />
+            )}
           </div>
         )}
 
         <div className="ec-input-row">
           {isListening ? (
             /* Replaces the field while dictating; send stays outside where the mic was */
-            <div className="ec-voice-pill">
+            <div className={`ec-voice-pill${sendingVoice ? " voice" : ""}`}>
               <button type="button" className="ec-voice-btn" onClick={handleVoiceCancel} aria-label={t("Cancel", lang)}>
                 <svg viewBox="0 0 10 10" aria-hidden>
                   <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
                 </svg>
               </button>
-              <VoiceWave level={audioLevel} />
-              <button type="button" className="ec-voice-btn" onClick={handleVoiceStop} aria-label={t("Stop", lang)}>
-                <span className="ec-voice-stop" />
-              </button>
+              <VoiceWave level={audioLevel} micLevelRef={clipRecording ? voiceClip.levelRef : undefined} />
+              {sendingVoice ? (
+                <span className="ec-voice-timer" role="timer">
+                  <i aria-hidden />
+                  {formatClock(voiceClip.elapsedMs)}
+                </span>
+              ) : (
+                <button type="button" className="ec-voice-btn" onClick={handleVoiceStop} aria-label={t("Stop", lang)}>
+                  <span className="ec-voice-stop" />
+                </button>
+              )}
             </div>
           ) : (
           <>
@@ -415,7 +611,7 @@ export function MessageInput({
           {isListening || hasText || !voiceSupported ? (
             sendButton
           ) : (
-            <button className="ec-round-btn mic" onClick={handleMicTap} aria-label={t("Voice", lang)}>
+            <button className="ec-round-btn mic" {...micHandlers} aria-label={t("Voice", lang)}>
               <MicIcon />
             </button>
           )}

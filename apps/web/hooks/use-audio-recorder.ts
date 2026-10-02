@@ -29,12 +29,12 @@ interface ClipRecorder {
   stop: () => void;
 }
 
-function pickMp4Type(): string | undefined {
+export function pickMp4Type(): string | undefined {
   if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return undefined;
   return MP4_TYPES.find((m) => MediaRecorder.isTypeSupported(m));
 }
 
-function encodeWav(chunks: Float32Array[], sampleRate: number): Blob {
+export function encodeWav(chunks: Float32Array[], sampleRate: number): Blob {
   const length = chunks.reduce((n, c) => n + c.length, 0);
   const view = new DataView(new ArrayBuffer(44 + length * 2));
   const ascii = (offset: number, s: string) => {

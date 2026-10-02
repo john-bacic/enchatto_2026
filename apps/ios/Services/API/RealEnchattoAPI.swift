@@ -115,6 +115,21 @@ class RealEnchattoAPI: EnchattoAPI {
         return response.messageId
     }
 
+    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String {
+        struct Response: Decodable { let messageId: String }
+        var body: [String: Any] = [
+            "roomId": roomId,
+            "senderId": senderId,
+            "storageId": storageId,
+            "durationMs": durationMs,
+            "waveform": waveform,
+        ]
+        if let text, !text.isEmpty { body["text"] = text }
+        if let replyToId { body["replyToId"] = replyToId }
+        let response: Response = try await client.post("/api/messages/send-audio", body: body)
+        return response.messageId
+    }
+
     func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
         struct Response: Decodable { let messageId: String }
         var body: [String: Any] = [

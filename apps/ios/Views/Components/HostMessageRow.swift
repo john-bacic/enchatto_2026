@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -21,8 +22,13 @@ struct HostMessageRow: View {
     private let avatarSize: CGFloat = 36
 
     @AppStorage(ChatTextSize.storageKey) private var textSize: ChatTextSize = .small
+    @State private var textOpen = false
 
     var onImageTap: ((String) -> Void)?
+
+    private var isAudio: Bool { message.kind == .audio }
+    /// A voice message's transcript (and its translation) stays collapsed until "Show text"
+    private var showsText: Bool { !isAudio || textOpen }
 
     var body: some View {
         HStack {
@@ -137,6 +143,8 @@ struct HostMessageRow: View {
                     Label(L.t("Photo", preferredLanguage), systemImage: "photo")
                 case .drawing:
                     Label(L.t("Drawing", preferredLanguage), systemImage: "pencil.tip")
+                case .audio:
+                    Label(replyTarget.text?.prefix(60).description ?? L.t("Voice message", preferredLanguage), systemImage: "mic.fill")
                 default:
                     Text(replyTarget.text?.prefix(60).description ?? "")
                 }
@@ -149,7 +157,8 @@ struct HostMessageRow: View {
 
     // MARK: - Bubble
 
-    private var isPending: Bool { message.status == .pending }
+    /// A voice message counts as delivered right away; only its collapsed transcript is still translating
+    private var isPending: Bool { message.status == .pending && !isAudio }
 
     private var textColor: Color { isOwn && !isPending ? .white : EC.ink }
 
@@ -247,6 +256,45 @@ struct HostMessageRow: View {
 
     @ViewBuilder
     private var bubbleContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if isAudio {
+                VoiceMessagePlayer(message: message, isOwn: isOwn, lang: preferredLanguage)
+                if let text = message.text, !text.isEmpty {
+                    showTextToggle
+                }
+            }
+            if showsText {
+                textBlocks
+            }
+        }
+    }
+
+    private var showTextToggle: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            DashedRule(color: isOwn ? .white.opacity(0.45) : EC.lineSoft)
+            Button {
+                Haptics.tap()
+                withAnimation(.easeOut(duration: 0.2)) { textOpen.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .black))
+                        .rotationEffect(.degrees(textOpen ? 180 : 0))
+                    Text(L.t(textOpen ? "Hide text" : "Show text", preferredLanguage))
+                        .font(.round(12.5, .black))
+                }
+                .foregroundStyle(isOwn ? Color.white.opacity(0.85) : EC.inkSoft)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isButton)
+        }
+        .padding(.top, 6)
+    }
+
+    @ViewBuilder
+    private var textBlocks: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Primary text — show preferred language first
             if preferredLanguage == "ja" {
@@ -353,11 +401,11 @@ struct HostMessageRow: View {
             }
 
             // Pending
-            if isPending {
+            if message.status == .pending {
                 HStack(spacing: 6) {
                     Text(L.t("Processing...", preferredLanguage))
                         .font(.round(11, .black))
-                        .foregroundStyle(EC.blue)
+                        .foregroundStyle(isAudio && isOwn ? .white : EC.blue)
                     PendingDots()
                 }
                 .padding(.top, 2)
@@ -471,6 +519,254 @@ private struct FreshMessagePop: ViewModifier {
                 guard isFresh, !shown else { return }
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { shown = true }
             }
+    }
+}
+
+// MARK: - Voice messages
+
+/// One AVPlayer for the whole chat, so starting a voice message stops whichever was playing
+@MainActor
+final class VoicePlayback: ObservableObject {
+    static let shared = VoicePlayback()
+    static let speeds: [Float] = [1, 1.5, 2]
+    private static let playedKey = "enchatto_playedVoice"
+
+    @Published private(set) var currentId: String?
+    @Published private(set) var isPlaying = false
+    @Published private(set) var progress: Double = 0
+    @Published private(set) var speed: Float = 1
+    @Published private(set) var playedIds: Set<String>
+    /// Set while dictating: playback would switch the audio session away from recording
+    var blocked = false
+
+    private var player: AVPlayer?
+    private var duration: Double = 1
+    private var timeObserver: Any?
+    private var endObserver: NSObjectProtocol?
+
+    private init() {
+        playedIds = Set(UserDefaults.standard.stringArray(forKey: Self.playedKey) ?? [])
+    }
+
+    func toggle(id: String, url: URL, durationMs: Double?) {
+        if currentId == id, let player {
+            if isPlaying { player.pause() } else { resume(player) }
+            isPlaying.toggle()
+            return
+        }
+        play(id: id, url: url, durationMs: durationMs, from: 0)
+    }
+
+    func seek(id: String, url: URL, durationMs: Double?, to fraction: Double) {
+        if currentId == id, let player {
+            player.seek(to: CMTime(seconds: fraction * duration, preferredTimescale: 600))
+            progress = fraction
+            if !isPlaying {
+                resume(player)
+                isPlaying = true
+            }
+            return
+        }
+        play(id: id, url: url, durationMs: durationMs, from: fraction)
+    }
+
+    func cycleSpeed() {
+        let i = Self.speeds.firstIndex(of: speed) ?? 0
+        speed = Self.speeds[(i + 1) % Self.speeds.count]
+        if isPlaying { player?.rate = speed }
+    }
+
+    func stop() {
+        player?.pause()
+        teardown()
+        currentId = nil
+        isPlaying = false
+        progress = 0
+    }
+
+    private func play(id: String, url: URL, durationMs: Double?, from fraction: Double) {
+        guard !blocked else { return }
+        stop()
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .spokenAudio)
+        try? session.setActive(true)
+
+        let item = AVPlayerItem(url: url)
+        let player = AVPlayer(playerItem: item)
+        self.player = player
+        duration = max(0.1, (durationMs ?? 1000) / 1000)
+        currentId = id
+        progress = fraction
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 20), queue: .main) { [weak self] time in
+            Task { @MainActor in
+                guard let self, self.currentId == id else { return }
+                if let real = player.currentItem?.duration.seconds, real.isFinite, real > 0 { self.duration = real }
+                self.progress = min(1, time.seconds / self.duration)
+            }
+        }
+        endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.currentId == id else { return }
+                self.stop()
+            }
+        }
+        if fraction > 0 { player.seek(to: CMTime(seconds: fraction * duration, preferredTimescale: 600)) }
+        resume(player)
+        isPlaying = true
+        markPlayed(id)
+    }
+
+    private func resume(_ player: AVPlayer) {
+        player.playImmediately(atRate: speed)
+    }
+
+    private func teardown() {
+        if let timeObserver { player?.removeTimeObserver(timeObserver) }
+        timeObserver = nil
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        endObserver = nil
+        player = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func markPlayed(_ id: String) {
+        guard !playedIds.contains(id) else { return }
+        playedIds.insert(id)
+        var list = UserDefaults.standard.stringArray(forKey: Self.playedKey) ?? []
+        list.append(id)
+        UserDefaults.standard.set(Array(list.suffix(300)), forKey: Self.playedKey)
+    }
+}
+
+/// Play/pause, seekable waveform that fills as it plays, duration and speed
+private struct VoiceMessagePlayer: View {
+    let message: Message
+    let isOwn: Bool
+    let lang: String
+    @ObservedObject private var playback = VoicePlayback.shared
+
+    private var url: URL? { message.mediaUrl.flatMap(URL.init(string:)) }
+    private var isCurrent: Bool { playback.currentId == message.id }
+    private var playing: Bool { isCurrent && playback.isPlaying }
+    private var progress: Double { isCurrent ? playback.progress : 0 }
+    private var totalSeconds: Double { (message.durationMs ?? 0) / 1000 }
+    private var unplayed: Bool { !isOwn && !playback.playedIds.contains(message.id) }
+    private var tint: Color { isOwn ? .white : EC.ink }
+
+    private var bars: [Double] {
+        if let waveform = message.waveform, !waveform.isEmpty { return waveform }
+        return Self.placeholder(seed: message.id)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                guard let url else { return }
+                Haptics.tap()
+                playback.toggle(id: message.id, url: url, durationMs: message.durationMs)
+            } label: {
+                Image(systemName: playing ? "pause.fill" : "play.fill")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(EC.ink)
+                    .offset(x: playing ? 0 : 1.5)
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(isOwn ? .white : EC.yellow))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 3))
+                    .background(Circle().fill(EC.ink).offset(y: 3))
+                    .padding(.bottom, 3)
+            }
+            .buttonStyle(.pressable)
+            .disabled(url == nil)
+            .opacity(url == nil ? 0.5 : 1)
+            .accessibilityLabel(L.t(playing ? "Pause" : "Play", lang))
+
+            waveform
+                .frame(height: 30)
+                .frame(minWidth: 120)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                if url != nil {
+                    Text(Self.clock(playing || progress > 0 ? progress * totalSeconds : totalSeconds))
+                        .font(.round(12, .black))
+                        .monospacedDigit()
+                    Button {
+                        Haptics.tap()
+                        playback.cycleSpeed()
+                    } label: {
+                        Text(Self.speedLabel(playback.speed))
+                            .font(.round(10.5, .black))
+                            .padding(.horizontal, 5)
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(tint, lineWidth: 2))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L.t("Playback speed", lang))
+                } else {
+                    Text(L.t("Voice message expired", lang))
+                        .font(.round(10.5, .black))
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 84, alignment: .trailing)
+                        .opacity(0.75)
+                }
+            }
+            .foregroundStyle(tint)
+        }
+        .overlay(alignment: .topTrailing) {
+            if unplayed {
+                Circle()
+                    .fill(EC.pink)
+                    .frame(width: 14, height: 14)
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
+                    .offset(x: 20, y: -16)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var waveform: some View {
+        GeometryReader { geo in
+            Canvas { ctx, size in
+                let count = bars.count
+                let gap: CGFloat = 1.5
+                let bar = max(1.5, min(3.5, (size.width - gap * CGFloat(count - 1)) / CGFloat(count)))
+                let step = (size.width - bar) / CGFloat(max(1, count - 1))
+                for (i, p) in bars.enumerated() {
+                    let h = 4 + CGFloat(p) * (size.height - 4)
+                    let rect = CGRect(x: CGFloat(i) * step, y: (size.height - h) / 2, width: bar, height: h)
+                    let played = (Double(i) + 0.5) / Double(count) <= progress
+                    ctx.fill(Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(tint.opacity(played ? 1 : 0.32)))
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture().onEnded { value in
+                    guard let url else { return }
+                    let fraction = min(1, max(0, value.location.x / geo.size.width))
+                    playback.seek(id: message.id, url: url, durationMs: message.durationMs, to: fraction)
+                }
+            )
+        }
+        .accessibilityHidden(true)
+    }
+
+    private static func clock(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds.rounded()))
+        return "\(s / 60):" + String(format: "%02d", s % 60)
+    }
+
+    private static func speedLabel(_ speed: Float) -> String {
+        speed == speed.rounded() ? "\(Int(speed))×" : "\(speed)×"
+    }
+
+    /// Stand-in shape for clips recorded without a level meter, stable per message (same as web)
+    private static func placeholder(seed: String) -> [Double] {
+        var h: UInt32 = 2_166_136_261
+        for c in seed.utf8 { h = (h ^ UInt32(c)) &* 16_777_619 }
+        var prev = 0.5
+        return (0..<48).map { _ in
+            h = (h ^ (h >> 13)) &* 1_274_126_177
+            prev = prev * 0.45 + Double(h % 1000) / 1000 * 0.55
+            return 0.2 + prev * 0.8
+        }
     }
 }
 

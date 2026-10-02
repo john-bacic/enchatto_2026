@@ -112,6 +112,17 @@ const translations: Record<string, Record<string, string>> = {
   "✏️ Draw": { ja: "✏️ 描く" },
   "🎤 Voice": { ja: "🎤 音声" },
   "Listening...": { ja: "聞いています…" },
+  "Recording...": { ja: "録音中…" },
+  "Send as": { ja: "送信形式" },
+  "Text": { ja: "テキスト" },
+  "Voice message": { ja: "ボイスメッセージ" },
+  "Send voice message": { ja: "ボイスメッセージを送信" },
+  "Show text": { ja: "テキストを表示" },
+  "Hide text": { ja: "テキストを隠す" },
+  "Play": { ja: "再生" },
+  "Pause": { ja: "一時停止" },
+  "Playback speed": { ja: "再生速度" },
+  "Voice message expired": { ja: "ボイスメッセージの期限切れ" },
 
   // Vibe explainer
   "What's the Vibe?": { ja: "バイブって？" },

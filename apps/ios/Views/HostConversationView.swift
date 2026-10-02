@@ -101,6 +101,11 @@ struct HostConversationView: View {
     @State private var minimizedWordRushGameId: String? = nil
     @State private var showEmojiBingoGame = false
     @StateObject private var speechRecognizer = SpeechRecognizer()
+    /// "text" or "voice": what the send button does while dictating; remembered between dictations
+    @AppStorage("enchatto_voiceMode") private var voiceMode = "text"
+    @AppStorage("enchatto_voiceModeHinted") private var voiceModeHinted = false
+    @State private var modeNudge = false
+    @State private var micLongPressed = false
 
     init(roomId: String, hostId: String) {
         self.roomId = roomId
@@ -690,7 +695,8 @@ struct HostConversationView: View {
 
     private var filteredMessages: [Message] {
         viewModel.messages.filter { msg in
-            !(msg.kind == .system && (msg.text?.hasPrefix("away:") == true || msg.text?.hasPrefix("back:") == true))
+            msg.kind != .unknown
+                && !(msg.kind == .system && (msg.text?.hasPrefix("away:") == true || msg.text?.hasPrefix("back:") == true))
         }
     }
 
@@ -975,10 +981,11 @@ struct HostConversationView: View {
         Group {
             if speechRecognizer.isRecording {
                 SendButton(
-                    hasText: !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
-                    action: sendCurrentMessage,
+                    hasText: sendingVoice || !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
+                    action: sendingVoice ? sendVoiceMessage : sendCurrentMessage,
                     pulsate: false
                 )
+                .accessibilityLabel(sendingVoice ? L.t("Send voice message", hostLanguage) : "Send")
                 .transition(.scale.combined(with: .opacity))
             } else if !messageText.trimmingCharacters(in: .whitespaces).isEmpty {
                 SendButton(
@@ -995,25 +1002,117 @@ struct HostConversationView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: speechRecognizer.isRecording)
     }
 
+    /// Tap dictates in the remembered mode; long-press goes straight to a voice message
     private var voiceMicButton: some View {
         Button {
-            let haptic = UIImpactFeedbackGenerator(style: .medium)
-            haptic.prepare()
-            haptic.impactOccurred()
-            AudioServicesPlaySystemSound(1113)
-            isTextEditorFocused = false
-            preVoiceText = messageText
-            viewModel.setTypingAction("voicing")
-            speechRecognizer.updateLocale(hostLanguage)
-            // Delay recording start so haptic/audio play before audio session is claimed
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                self.speechRecognizer.startRecording()
+            // The long-press already started; this is its finger-up
+            if micLongPressed {
+                micLongPressed = false
+                return
             }
+            beginVoice(voiceMode)
         } label: {
             Image(systemName: "mic.fill")
         }
         .buttonStyle(.roundIcon(diameter: 44))
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                micLongPressed = true
+                beginVoice("voice")
+            }
+        )
         .accessibilityLabel(L.t("Voice", hostLanguage))
+        .accessibilityAction(named: L.t("Voice message", hostLanguage)) { beginVoice("voice") }
+    }
+
+    /// Send goes out as audio: recording is running and the switch is on Voice
+    private var sendingVoice: Bool {
+        speechRecognizer.isRecording && speechRecognizer.clipActive && voiceMode == "voice"
+    }
+
+    private func beginVoice(_ mode: String) {
+        guard !speechRecognizer.isRecording else { return }
+        voiceMode = mode
+        let haptic = UIImpactFeedbackGenerator(style: .medium)
+        haptic.prepare()
+        haptic.impactOccurred()
+        AudioServicesPlaySystemSound(1113)
+        isTextEditorFocused = false
+        preVoiceText = messageText
+        viewModel.setTypingAction("voicing")
+        speechRecognizer.updateLocale(hostLanguage)
+        speechRecognizer.captureClip = true
+        // Delay recording start so haptic/audio play before audio session is claimed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            self.speechRecognizer.startRecording()
+        }
+    }
+
+    private var voiceModeSwitch: some View {
+        HStack(spacing: 2) {
+            voiceModeButton("text", icon: "text.alignleft", label: "Text")
+            voiceModeButton("voice", icon: "waveform", label: "Voice message")
+        }
+        .padding(2)
+        .background(Capsule().fill(.white))
+        .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
+        .scaleEffect(modeNudge ? 1.14 : 1)
+        .rotationEffect(.degrees(modeNudge ? -5 : 0))
+        .animation(
+            modeNudge ? .easeInOut(duration: 0.16).repeatCount(5, autoreverses: true) : .easeOut(duration: 0.15),
+            value: modeNudge
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(L.t("Send as", hostLanguage))
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
+    }
+
+    private func voiceModeButton(_ mode: String, icon: String, label: String) -> some View {
+        let on = voiceMode == mode
+        return Button {
+            guard !on else { return }
+            Haptics.tap()
+            withAnimation(.easeOut(duration: 0.15)) { voiceMode = mode }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .black))
+                .foregroundStyle(on ? .white : EC.inkSoft)
+                .frame(width: 30, height: 22)
+                .background(Capsule().fill(on ? (mode == "voice" ? EC.blue : EC.pink) : .clear))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L.t(label, hostLanguage))
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// First recording ever: wiggle the switch once so people notice it
+    private func nudgeModeSwitchIfNew(_ active: Bool) {
+        guard active, !voiceModeHinted else { return }
+        voiceModeHinted = true
+        modeNudge = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { modeNudge = false }
+    }
+
+    /// Stops dictation and sends the recording (transcript attached); field goes back to what was typed before
+    private func sendVoiceMessage() {
+        speechRecognizer.stopRecording()
+        // stopRecording publishes the final, punctuated transcript synchronously
+        let transcript = speechRecognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        speechRecognizer.transcript = ""
+        messageText = preVoiceText
+        viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
+        let clip = speechRecognizer.takeClip()
+        let reply = replyToId
+        replyToId = nil
+        Task {
+            if let clip, clip.durationMs >= 600 {
+                await viewModel.sendVoice(clip, text: transcript, replyToId: reply)
+            } else {
+                if let clip { try? FileManager.default.removeItem(at: clip.url) }
+                if !transcript.isEmpty { await viewModel.sendMessage(transcript, replyToId: reply) }
+            }
+        }
     }
 
     /// Replaces the field while dictating: cancel, live waveform, stop (send sits outside like the mic did)
@@ -1030,24 +1129,45 @@ struct HostConversationView: View {
             .buttonStyle(.pressable)
             .accessibilityLabel(L.t("Cancel", hostLanguage))
 
-            VoiceWaveform(recognizer: speechRecognizer)
+            VoiceWaveform(recognizer: speechRecognizer, tint: sendingVoice ? EC.blue : EC.ink)
                 .frame(height: 28)
 
-            Button(action: stopVoice) {
-                RoundedRectangle(cornerRadius: 2.5)
-                    .fill(EC.ink)
-                    .frame(width: 11, height: 11)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(.white))
-                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
+            if sendingVoice {
+                ClipTimer(recognizer: speechRecognizer, lang: hostLanguage)
+                    .transition(.opacity)
+            } else {
+                Button(action: stopVoice) {
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(EC.ink)
+                        .frame(width: 11, height: 11)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(.white))
+                        .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel(L.t("Stop", hostLanguage))
+                .transition(.opacity)
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel(L.t("Stop", hostLanguage))
         }
         .padding(.horizontal, 5)
         .frame(height: 46)
         .background(RoundedRectangle(cornerRadius: 23, style: .continuous).fill(EC.paper))
-        .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(EC.pink, lineWidth: 3))
+        .overlay(
+            RoundedRectangle(cornerRadius: 23, style: .continuous)
+                .strokeBorder(sendingVoice ? EC.blue : EC.pink, lineWidth: 3)
+        )
+        .animation(.easeOut(duration: 0.18), value: sendingVoice)
+        // Length cap: send what's there in voice mode, otherwise just stop recording audio
+        .task(id: speechRecognizer.clipActive) {
+            guard speechRecognizer.clipActive else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard speechRecognizer.clipActive,
+                      speechRecognizer.clipDuration >= SpeechRecognizer.maxClipSeconds - 0.5 else { continue }
+                if sendingVoice { sendVoiceMessage() } else { speechRecognizer.discardClip() }
+                return
+            }
+        }
     }
 
     /// Keeps the dictated text in the field for editing
@@ -1056,6 +1176,7 @@ struct HostConversationView: View {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         viewModel.setTypingAction(nil)
         speechRecognizer.stopRecording()
+        speechRecognizer.discardClip()
     }
 
     /// Throws the dictation away and restores whatever was typed before
@@ -1063,6 +1184,7 @@ struct HostConversationView: View {
         AudioServicesPlaySystemSound(1114)
         Haptics.tap()
         speechRecognizer.stopRecording()
+        speechRecognizer.discardClip()
         // stopRecording publishes the final transcript; clear it so the isRecording handler doesn't apply it
         speechRecognizer.transcript = ""
         messageText = preVoiceText
@@ -1076,6 +1198,7 @@ struct HostConversationView: View {
                 Haptics.tap()
                 speechRecognizer.transcript = ""
                 if speechRecognizer.isRecording { speechRecognizer.stopRecording() }
+                speechRecognizer.discardClip()
                 messageText = ""
             } label: {
                 // Same glyph as web .ec-clear-text: 12pt box, arms inset 1.2
@@ -1100,17 +1223,24 @@ struct HostConversationView: View {
 
     private var voiceLiveLine: some View {
         let live = speechRecognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Text(live.isEmpty ? L.t("Listening...", hostLanguage) : live)
-            .font(.round(15, .bold))
-            .foregroundStyle(live.isEmpty ? EC.inkSoft.opacity(0.7) : EC.ink)
-            .lineLimit(2)
-            .truncationMode(.head)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 20)
-            .padding(.trailing, 68)
-            .padding(.top, 10)
-            .transition(.opacity)
-            .accessibilityAddTraits(.updatesFrequently)
+        return HStack(spacing: 10) {
+            Text(live.isEmpty ? L.t("Listening...", hostLanguage) : live)
+                .font(.round(15, .bold))
+                .foregroundStyle(live.isEmpty ? EC.inkSoft.opacity(0.7) : EC.ink)
+                .lineLimit(2)
+                .truncationMode(.head)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.updatesFrequently)
+            if speechRecognizer.clipActive {
+                voiceModeSwitch
+            }
+        }
+        .padding(.leading, 20)
+        .padding(.trailing, speechRecognizer.clipActive ? 12 : 68)
+        .padding(.top, 10)
+        .animation(.easeOut(duration: 0.18), value: speechRecognizer.clipActive)
+        .transition(.opacity)
+        .onChange(of: speechRecognizer.clipActive) { nudgeModeSwitchIfNew($0) }
     }
 
     private var inputBar: some View {
@@ -1164,6 +1294,7 @@ struct HostConversationView: View {
                 if focused { toolsOpen = false }
                 if focused && speechRecognizer.isRecording {
                     speechRecognizer.stopRecording()
+                    speechRecognizer.discardClip()
                     viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
                 }
             }
@@ -1198,6 +1329,9 @@ struct HostConversationView: View {
             })
             .onChange(of: speechRecognizer.isRecording, perform: { recording in
                 if !recording {
+                    micLongPressed = false
+                    // Ended without a send (interruption, recognizer gave up): nothing will claim the recording
+                    speechRecognizer.discardClip()
                     // Apply final transcript then clear so it doesn't interfere with keyboard
                     if !speechRecognizer.transcript.isEmpty {
                         messageText = speechRecognizer.transcript
@@ -1741,6 +1875,7 @@ struct HostConversationView: View {
         if wasRecording {
             speechRecognizer.stopRecording()
         }
+        speechRecognizer.discardClip()
         var text = messageText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         // Ensure punctuation for voice input (SwiftUI onChange may not have fired yet)
@@ -3025,6 +3160,7 @@ private struct VibeInfoCard: View {
 private struct VoiceWaveform: View {
     /// Polled, not observed — observing would re-render on every level tick
     let recognizer: SpeechRecognizer
+    var tint: Color = EC.ink
     @State private var samples = [CGFloat](repeating: 0, count: 64)
     private let timer = Timer.publish(every: 0.07, on: .main, in: .common).autoconnect()
 
@@ -3039,7 +3175,7 @@ private struct VoiceWaveform: View {
                 let h = live ? max(bar, min(size.height, 4 + v * (size.height - 4))) : bar
                 let x = size.width - CGFloat(count - i) * step + (step - bar) / 2
                 let rect = CGRect(x: x, y: (size.height - h) / 2, width: bar, height: h)
-                ctx.fill(Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(live ? EC.ink : EC.inkSoft.opacity(0.45)))
+                ctx.fill(Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(live ? tint : EC.inkSoft.opacity(0.45)))
             }
         }
         .onReceive(timer) { _ in
@@ -3048,6 +3184,36 @@ private struct VoiceWaveform: View {
             samples.append(level < 0.05 ? 0 : level)
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// Red dot + elapsed recording time; replaces the stop button while sending as a voice message
+private struct ClipTimer: View {
+    /// Polled for the same reason as VoiceWaveform
+    let recognizer: SpeechRecognizer
+    let lang: String
+    @State private var blink = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(EC.red)
+                .frame(width: 8, height: 8)
+                .opacity(blink ? 0.35 : 1)
+                .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: blink)
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                let s = Int(recognizer.clipDuration)
+                Text("\(s / 60):" + String(format: "%02d", s % 60))
+                    .font(.round(13, .black))
+                    .monospacedDigit()
+                    .foregroundStyle(EC.ink)
+            }
+        }
+        .padding(.horizontal, 6)
+        .frame(height: 32)
+        .onAppear { blink = true }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L.t("Recording...", lang))
     }
 }
 

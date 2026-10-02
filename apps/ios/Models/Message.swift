@@ -5,6 +5,14 @@ enum MessageKind: String, Codable {
     case image
     case drawing
     case system
+    case audio
+    /// A kind this build doesn't know; decoding it as an error would drop the whole message list
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MessageKind(rawValue: raw) ?? .unknown
+    }
 }
 
 enum MessageStatus: String, Codable {
@@ -32,11 +40,15 @@ struct Message: Identifiable, Codable {
     var replyToId: String?
     let createdAt: Date
     var processedAt: Date?
+    var durationMs: Double? = nil
+    /// Peak levels (0...1) across a voice message
+    var waveform: [Double]? = nil
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case roomId, senderId, kind, status, text, mediaUrl
         case processing, replyToId, createdAt, processedAt
+        case durationMs, waveform
     }
 }
 
