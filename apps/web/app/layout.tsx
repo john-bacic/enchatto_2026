@@ -22,6 +22,7 @@ const round = Zen_Maru_Gothic({
 export const metadata: Metadata = {
   title: "Enchatto",
   description: "Real-time multilingual conversation rooms",
+  appleWebApp: { capable: true, title: "Enchatto", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

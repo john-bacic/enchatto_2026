@@ -106,6 +106,7 @@ enum L {
         // Game
         "Game": ["ja": "ゲーム"],
         "Games": ["ja": "ゲーム"],
+        "More tools": ["ja": "ツール"],
         "Only the host can start a game.": ["ja": "ゲームを開始できるのはホストだけです。"],
         "Got it": ["ja": "了解"],
         "Lost in Translation": ["ja": "ロスト・イン・トランスレーション"],

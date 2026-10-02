@@ -7,6 +7,8 @@ import Dictionary
 /// using MeCab morphological analysis for accurate verb de-conjugation.
 class MeCabCasualizer {
     private let tokenizer: Tokenizer
+    // MeCab taggers aren't thread-safe; messages are processed concurrently
+    private let lock = NSLock()
 
     init() {
         // IPADic bundles the dictionary with the SPM package
@@ -16,7 +18,9 @@ class MeCabCasualizer {
     /// Convert polite Japanese text to casual form
     func casualify(_ text: String) -> String {
         // Use .katakana so dictionaryForm preserves kanji from IPADic features[6] (原形)
+        lock.lock()
         let annotations = tokenizer.tokenize(text: text, transliteration: .katakana)
+        lock.unlock()
         guard !annotations.isEmpty else { return text }
 
         var result = ""

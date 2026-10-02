@@ -39,28 +39,36 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
   const visibleParticipants = participants
     .filter((p) => !p.departed)
     .sort((a, b) => PRESENCE_ORDER[presenceOf(a)] - PRESENCE_ORDER[presenceOf(b)]);
-  const extra = visibleParticipants.length - STACK_MAX;
+  const [first, second] = visibleParticipants;
+  const collapsed = visibleParticipants.length > STACK_MAX;
 
   return (
     <>
       <button
-        className="ec-stack"
+        className={`ec-stack${collapsed ? " pile" : ""}`}
         onClick={() => setOpen(true)}
-        aria-label={t("In this room", lang)}
+        aria-label={`${t("In this room", lang)} ${visibleParticipants.length}`}
         aria-haspopup="dialog"
       >
         {visibleParticipants.length === 0 && <span className="ec-stack-empty">?</span>}
-        {visibleParticipants.slice(0, extra > 0 ? STACK_MAX - 1 : STACK_MAX).map((p) => (
-          <AvatarDisc
-            key={p._id}
-            id={p.avatar.value}
-            size={30}
-            border={2.5}
-            shadow={false}
-            style={presenceOf(p) === "online" ? undefined : { filter: "grayscale(0.8)", opacity: 0.7 }}
-          />
-        ))}
-        {extra > 0 && <span className="ec-stack-more">+{extra + 1}</span>}
+        {collapsed ? (
+          <>
+            <AvatarDisc id={second.avatar.value} size={26} border={2.5} shadow={false} className="ec-pile-back" />
+            <AvatarDisc id={first.avatar.value} size={32} border={2.5} shadow={false} />
+            <span className="ec-pile-count">{visibleParticipants.length}</span>
+          </>
+        ) : (
+          visibleParticipants.map((p) => (
+            <AvatarDisc
+              key={p._id}
+              id={p.avatar.value}
+              size={30}
+              border={2.5}
+              shadow={false}
+              style={presenceOf(p) === "online" ? undefined : { filter: "grayscale(0.8)", opacity: 0.7 }}
+            />
+          ))
+        )}
       </button>
 
       {open &&

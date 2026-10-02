@@ -17,6 +17,46 @@ private final class MessageFrameStore {
     var frames: [String: CGRect] = [:]
 }
 
+/// Keyboard dismiss with a gentler slide than the system's scroll dismiss; the keyboard inherits this animation's duration
+private enum KeyboardDismiss {
+    static func slow(duration: TimeInterval = 0.42) {
+        UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+    }
+}
+
+/// Put inside a ScrollView's content: dismisses the keyboard as soon as the enclosing scroll view starts a drag
+private struct ScrollDragKeyboardDismisser: UIViewRepresentable {
+    func makeUIView(context: Context) -> HookView {
+        let view = HookView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: HookView, context: Context) {}
+
+    /// Attaches when it lands in a window, the first moment its scroll view ancestor is guaranteed to exist
+    final class HookView: UIView {
+        private weak var pan: UIPanGestureRecognizer?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil else { return }
+            var ancestor = superview
+            while let current = ancestor, !(current is UIScrollView) { ancestor = current.superview }
+            guard let scrollView = ancestor as? UIScrollView, pan !== scrollView.panGestureRecognizer else { return }
+            pan?.removeTarget(self, action: #selector(handlePan(_:)))
+            scrollView.panGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+            pan = scrollView.panGestureRecognizer
+        }
+
+        @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+            if gesture.state == .began { KeyboardDismiss.slow() }
+        }
+    }
+}
+
 
 struct HostConversationView: View {
     let roomId: String
@@ -503,26 +543,65 @@ struct HostConversationView: View {
                     }
                 }
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 0)
 
-            // Other participant avatars — tap to show name tooltip
-            ParticipantAvatarRow(
-                participants: viewModel.participants.filter { $0.id != hostId && !hiddenOfflineIds.contains($0.id) },
-                maxVisible: 4,
-                avatarSize: 32,
-                onTapParticipant: { participant in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        tooltipParticipant = tooltipParticipant?.id == participant.id ? nil : participant
-                    }
-                }
-            )
+            HStack(spacing: 8) {
+                VibeBadge(
+                    messages: viewModel.messages,
+                    languageOf: { message in
+                        if message.kind == .text, let text = message.text {
+                            return VibeScore.isJapanese(text) ? "ja" : "en"
+                        }
+                        return viewModel.participant(for: message.senderId)?.preferredLanguage ?? "en"
+                    },
+                    hot: $vibeHot,
+                    onHype: fireVibeConfetti
+                )
+                .fixedSize()
+                headerParticipants
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: headerOthers.count > 3)
         }
         .padding(.horizontal, 14)
         .padding(.top, 6)
         .padding(.bottom, 10)
         .background(Color.white.opacity(0.92).ignoresSafeArea(edges: .top))
         .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
+    }
+
+    private var headerOthers: [Participant] {
+        viewModel.participants.filter { $0.id != hostId && !hiddenOfflineIds.contains($0.id) }
+    }
+
+    /// Up to three avatars (tap for a name tooltip); past that they fold into one stack that opens the participants sheet
+    @ViewBuilder
+    private var headerParticipants: some View {
+        let others = headerOthers
+        if others.count > 3 {
+            Button {
+                Haptics.tap()
+                viewModel.showParticipantSheet = true
+            } label: {
+                ParticipantStack(participants: others)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("\(L.t("Participants", hostLanguage)) \(others.count)")
+            .transition(.scale.combined(with: .opacity))
+        } else if !others.isEmpty {
+            ParticipantAvatarRow(
+                participants: others,
+                maxVisible: 3,
+                avatarSize: 30,
+                onTapParticipant: { participant in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        tooltipParticipant = tooltipParticipant?.id == participant.id ? nil : participant
+                    }
+                }
+            )
+            .transition(.scale.combined(with: .opacity))
+        }
     }
 
     // MARK: - Offline banner
@@ -591,8 +670,10 @@ struct HostConversationView: View {
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
-        .onTapGesture { isTextEditorFocused = false }
-        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in isTextEditorFocused = false })
+        .onTapGesture { KeyboardDismiss.slow() }
+        .simultaneousGesture(DragGesture(minimumDistance: 8).onChanged { _ in
+            if isTextEditorFocused { KeyboardDismiss.slow() }
+        })
     }
 
     // MARK: - Message list
@@ -689,8 +770,9 @@ struct HostConversationView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 14)
+                .background(ScrollDragKeyboardDismisser())
             }
-            .scrollDismissesKeyboard(.immediately)
+            .scrollDismissesKeyboard(.interactively)
             .onPreferenceChange(MessageFramePreferenceKey.self) { frames in
                 messageFrames.frames = frames
             }
@@ -780,6 +862,7 @@ struct HostConversationView: View {
     // MARK: - Input
 
     @State private var showAttachMenu = false
+    @State private var toolsOpen = false
     @State private var vibeHot = false
     @State private var vibeConfetti = 0
     @State private var knownParticipantIds: Set<String> = []
@@ -805,7 +888,31 @@ struct HostConversationView: View {
             .onChange(of: viewModel.participants.map(\.id)) { confettiForNewArrivals($0) }
     }
 
-    private var inputToolbar: some View {
+    /// Tools fold into a chevron while typing so the field gets the width (web parity)
+    private var toolsCollapsed: Bool {
+        (isTextEditorFocused || !messageText.isEmpty) && !toolsOpen
+    }
+
+    private var toolsToggle: some View {
+        Button {
+            Haptics.tap()
+            toolsOpen = true
+        } label: {
+            Path { p in
+                p.move(to: CGPoint(x: 2.5, y: 2))
+                p.addLine(to: CGPoint(x: 8, y: 8))
+                p.addLine(to: CGPoint(x: 2.5, y: 14))
+            }
+            .stroke(EC.ink, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
+            .frame(width: 10, height: 16)
+            .frame(width: 24, height: 44)
+            .contentShape(Rectangle().inset(by: -6))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L.t("More tools", hostLanguage))
+    }
+
+    private var toolButtons: some View {
         HStack(spacing: 8) {
             // Game button — End Game when active, Start Game otherwise
             if viewModel.activeGameSession != nil {
@@ -859,22 +966,11 @@ struct HostConversationView: View {
                     .padding(.bottom, 4)
             }
             .accessibilityLabel(L.t("Photo", hostLanguage))
+        }
+    }
 
-            VibeBadge(
-                messages: viewModel.messages,
-                languageOf: { message in
-                    if message.kind == .text, let text = message.text {
-                        return VibeScore.isJapanese(text) ? "ja" : "en"
-                    }
-                    return viewModel.participant(for: message.senderId)?.preferredLanguage ?? "en"
-                },
-                hot: $vibeHot,
-                onHype: fireVibeConfetti
-            )
-
-            Spacer()
-
-            // Voice/send toggle
+    private var trailingInputButton: some View {
+        Group {
             if speechRecognizer.isRecording {
                 HStack(spacing: 6) {
                     voiceRecordingButton
@@ -973,323 +1069,339 @@ struct HostConversationView: View {
         }
     }
 
-    private var inputView: some View {
+    private var inputBar: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 8) {
-                // Text area
-                TextEditor(text: $messageText)
-                    .focused($isTextEditorFocused)
-                    .font(.round(16, .bold))
-                    .foregroundStyle(EC.ink)
-                    .tint(EC.pink)
-                    .frame(minHeight: 40, maxHeight: 120)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .scrollContentBackground(.hidden)
-                    .onChange(of: messageText) { text in
-                        if !speechRecognizer.isRecording {
-                            viewModel.setTypingAction(text.isEmpty ? nil : "typing")
-                        }
-                    }
-                    .onChange(of: isTextEditorFocused) { focused in
-                        if focused && speechRecognizer.isRecording {
-                            speechRecognizer.stopRecording()
-                            viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
-                        }
-                    }
-                    .padding(.leading, 10)
-                    .padding(.trailing, messageText.isEmpty ? 10 : 30)
-                    .padding(.vertical, 3)
-                    .overlay(alignment: .topLeading) {
-                        if messageText.isEmpty {
-                            Text(L.t("Type a message...", hostLanguage))
-                                .font(.round(16, .bold))
-                                .foregroundStyle(EC.inkSoft)
-                                .padding(.leading, 15)
-                                .padding(.top, 11)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .overlay(alignment: .topTrailing) { clearTextButton }
-                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(EC.paper))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(isTextEditorFocused ? EC.blue : EC.ink, lineWidth: 3)
-                    )
-                    .animation(.easeOut(duration: 0.15), value: isTextEditorFocused)
-
-                inputToolbar
+            HStack(alignment: .bottom, spacing: 8) {
+                if toolsCollapsed {
+                    toolsToggle
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                } else {
+                    toolButtons
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+                messageField
+                trailingInputButton
             }
+            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: toolsCollapsed)
             .padding(.horizontal, 12)
             .padding(.top, 10)
             .padding(.bottom, 6)
         }
         .background(Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
-        .onChange(of: speechRecognizer.transcript, perform: { newTranscript in
-            if speechRecognizer.isRecording && !newTranscript.isEmpty {
-                messageText = newTranscript
-            }
-        })
-        .onChange(of: speechRecognizer.isRecording, perform: { recording in
-            if !recording {
-                // Apply final transcript then clear so it doesn't interfere with keyboard
-                if !speechRecognizer.transcript.isEmpty {
-                    messageText = speechRecognizer.transcript
-                    speechRecognizer.transcript = ""
+    }
+
+    private var messageField: some View {
+        TextEditor(text: $messageText)
+            .focused($isTextEditorFocused)
+            .font(.round(16, .bold))
+            .foregroundStyle(EC.ink)
+            .tint(EC.pink)
+            .frame(minHeight: 40, maxHeight: 120)
+            .fixedSize(horizontal: false, vertical: true)
+            .scrollContentBackground(.hidden)
+            .onChange(of: messageText) { text in
+                toolsOpen = false
+                if !speechRecognizer.isRecording {
+                    viewModel.setTypingAction(text.isEmpty ? nil : "typing")
                 }
             }
-        })
-        .fullScreenCover(isPresented: $showDrawingComposer) {
-            DrawingComposerView(
-                lang: hostLanguage,
-                onSend: { image in
-                    showDrawingComposer = false
-                    viewModel.setTypingAction(nil)
-                    Task { await viewModel.sendDrawing(image, replyToId: replyToId); replyToId = nil }
-                },
-                onCancel: {
-                    showDrawingComposer = false
-                    viewModel.setTypingAction(nil)
-                },
-                triggerAutoSubmit: .constant(false)
-            )
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraPickerView(
-                onImageCaptured: { image in
-                    Task { await viewModel.sendImage(image, replyToId: replyToId); replyToId = nil }
-                },
-                isPresented: $showCamera
-            )
-            .ignoresSafeArea()
-        }
-        .photosPicker(isPresented: $showPhotoLibrary, selection: $selectedPhotoItem, matching: .images)
-        .onChange(of: selectedPhotoItem) { newItem in
-            guard let newItem else { return }
-            Task {
-                if let data = try? await newItem.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await viewModel.sendImage(image, replyToId: replyToId)
-                    replyToId = nil
+            .onChange(of: isTextEditorFocused) { focused in
+                if focused { toolsOpen = false }
+                if focused && speechRecognizer.isRecording {
+                    speechRecognizer.stopRecording()
+                    viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
                 }
-                selectedPhotoItem = nil
             }
-        }
-        .sheet(isPresented: $showGamePicker) {
-            GamePickerView(
-                isHost: true,
-                playerCount: viewModel.participants.filter { $0.online }.count,
-                nextLevel: (viewModel.latestGameSession?.status == .complete && viewModel.latestGameSession?.cancelled != true ? (viewModel.latestGameSession?.level ?? 1) + 1 : 1),
-                lang: hostLanguage,
-                onStartGame: { gameType, level, timerSeconds in
-                    showGamePicker = false
-                    Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds) }
-                },
-                onStartWordRush: { pack, sayIt in
-                    showGamePicker = false
+            .padding(.leading, 10)
+            .padding(.trailing, messageText.isEmpty ? 10 : 30)
+            .padding(.vertical, 3)
+            .overlay(alignment: .topLeading) {
+                if messageText.isEmpty {
+                    Text(L.t("Type a message...", hostLanguage))
+                        .font(.round(16, .bold))
+                        .foregroundStyle(EC.inkSoft)
+                        .padding(.leading, 15)
+                        .padding(.top, 11)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .topTrailing) { clearTextButton }
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(EC.paper))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(isTextEditorFocused ? EC.blue : EC.ink, lineWidth: 3)
+            )
+            .animation(.easeOut(duration: 0.15), value: isTextEditorFocused)
+    }
+
+    private var inputView: some View {
+        inputBar
+            .onChange(of: speechRecognizer.transcript, perform: { newTranscript in
+                if speechRecognizer.isRecording && !newTranscript.isEmpty {
+                    messageText = newTranscript
+                }
+            })
+            .onChange(of: speechRecognizer.isRecording, perform: { recording in
+                if !recording {
+                    // Apply final transcript then clear so it doesn't interfere with keyboard
+                    if !speechRecognizer.transcript.isEmpty {
+                        messageText = speechRecognizer.transcript
+                        speechRecognizer.transcript = ""
+                    }
+                }
+            })
+            .fullScreenCover(isPresented: $showDrawingComposer) {
+                DrawingComposerView(
+                    lang: hostLanguage,
+                    onSend: { image in
+                        showDrawingComposer = false
+                        viewModel.setTypingAction(nil)
+                        Task { await viewModel.sendDrawing(image, replyToId: replyToId); replyToId = nil }
+                    },
+                    onCancel: {
+                        showDrawingComposer = false
+                        viewModel.setTypingAction(nil)
+                    },
+                    triggerAutoSubmit: .constant(false)
+                )
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPickerView(
+                    onImageCaptured: { image in
+                        Task { await viewModel.sendImage(image, replyToId: replyToId); replyToId = nil }
+                    },
+                    isPresented: $showCamera
+                )
+                .ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $showPhotoLibrary, selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { newItem in
+                guard let newItem else { return }
+                Task {
+                    if let data = try? await newItem.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        await viewModel.sendImage(image, replyToId: replyToId)
+                        replyToId = nil
+                    }
+                    selectedPhotoItem = nil
+                }
+            }
+            .sheet(isPresented: $showGamePicker) {
+                GamePickerView(
+                    isHost: true,
+                    playerCount: viewModel.participants.filter { $0.online }.count,
+                    nextLevel: (viewModel.latestGameSession?.status == .complete && viewModel.latestGameSession?.cancelled != true ? (viewModel.latestGameSession?.level ?? 1) + 1 : 1),
+                    lang: hostLanguage,
+                    onStartGame: { gameType, level, timerSeconds in
+                        showGamePicker = false
+                        Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds) }
+                    },
+                    onStartWordRush: { pack, sayIt in
+                        showGamePicker = false
+                        minimizedWordRushGameId = nil
+                        Task {
+                            await viewModel.createWordRushLobby(pack: pack, sayIt: sayIt)
+                            if viewModel.presentableWordRushGame != nil { showWordRushGame = true }
+                        }
+                    },
+                    onStartEmojiMatch: {
+                        showGamePicker = false
+                        Task {
+                            await viewModel.createEmojiMatchLobby()
+                        }
+                    },
+                    onStartEmojiBingo: {
+                        showGamePicker = false
+                        Task {
+                            await viewModel.createEmojiBingoLobby()
+                        }
+                    },
+                    onStartTruthOrDare: { mode in
+                        showGamePicker = false
+                        Task {
+                            await viewModel.createTruthOrDare(promptMode: mode)
+                        }
+                    },
+                    onDismiss: { showGamePicker = false }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(isPresented: $showGameTask) {
+                if let step = viewModel.myActiveStep {
+                    GameTaskOverlayView(
+                        step: step,
+                        lang: hostLanguage,
+                        onSubmitDrawing: { image in
+                            guard let data = image.pngData() else { return }
+                            let base64 = data.base64EncodedString()
+                            let mediaUrl = "data:image/png;base64,\(base64)"
+                            Task {
+                                await viewModel.submitGameStep(stepId: step.id, outputText: nil, outputDrawingUrl: mediaUrl)
+                                // Don't set showGameTask = false here — .onChange handles it.
+                                // Setting it here would race with .onChange and override
+                                // showGameTask = true when the next step is immediately available.
+                            }
+                        },
+                        onSubmitGuess: { selectedOption in
+                            Task {
+                                await viewModel.submitGameStep(stepId: step.id, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
+                                // Don't set showGameTask = false here — .onChange handles it.
+                            }
+                        },
+                        onQuit: {
+                            showQuitGameConfirm = true
+                        }
+                    )
+                    .id(step.id)
+                    .alert(L.t("Quit game?", hostLanguage), isPresented: $showQuitGameConfirm) {
+                        Button(L.t("Cancel", hostLanguage), role: .cancel) {}
+                        Button(L.t("Quit", hostLanguage), role: .destructive) {
+                            showGameTask = false
+                            Task {
+                                await viewModel.cancelGame()
+                            }
+                        }
+                    } message: {
+                        Text(L.t("Are you sure you want to quit the game?", hostLanguage))
+                    }
+                }
+            }
+            .sheet(isPresented: $showGameReplay) {
+                if let replay = viewModel.gameReplay {
+                    GameReplayView(
+                        replay: replay,
+                        lang: hostLanguage,
+                        onDismiss: { showGameReplay = false },
+                        onNextLevel: { timerSeconds in
+                            let nextLevel = (viewModel.latestGameSession?.level ?? 1) + 1
+                            showGameReplay = false
+                            Task { await viewModel.startGame(gameType: "lost-in-translation", level: nextLevel, timerSeconds: timerSeconds) }
+                        }
+                    )
+                }
+            }
+            .onChange(of: viewModel.myActiveStep?.id) { newStepId in
+                showGameTask = newStepId != nil
+            }
+            .onChange(of: viewModel.isGameComplete) { complete in
+                if complete {
+                    showGameReplay = true
+                }
+            }
+            .alert(L.t("End game?", hostLanguage), isPresented: $showEndGameConfirm) {
+                Button(L.t("Cancel", hostLanguage), role: .cancel) {}
+                Button(L.t("End Game", hostLanguage), role: .destructive) {
+                    Task { await viewModel.cancelGame() }
+                }
+            } message: {
+                Text(L.t("This will end the game for all players and show results.", hostLanguage))
+            }
+            // MARK: - Word Rush full-screen game
+            .fullScreenCover(isPresented: $showWordRushGame) {
+                WordRushGameView(
+                    viewModel: viewModel,
+                    lang: hostLanguage,
+                    onClose: {
+                        viewModel.dismissWordRushResults()
+                        showWordRushGame = false
+                    },
+                    onMinimize: {
+                        minimizedWordRushGameId = viewModel.activeWordRushGame?.id
+                        showWordRushGame = false
+                    }
+                )
+                .overlay { DebugConsoleView() }
+            }
+            .onChange(of: viewModel.presentableWordRushGame.map { "\($0.id)|\($0.status.rawValue)" }) { _ in
+                if let g = viewModel.presentableWordRushGame {
+                    if !showWordRushGame && minimizedWordRushGameId != g.id {
+                        showWordRushGame = true
+                    }
+                } else {
+                    showWordRushGame = false
                     minimizedWordRushGameId = nil
-                    Task {
-                        await viewModel.createWordRushLobby(pack: pack, sayIt: sayIt)
-                        if viewModel.presentableWordRushGame != nil { showWordRushGame = true }
-                    }
-                },
-                onStartEmojiMatch: {
-                    showGamePicker = false
-                    Task {
-                        await viewModel.createEmojiMatchLobby()
-                    }
-                },
-                onStartEmojiBingo: {
-                    showGamePicker = false
-                    Task {
-                        await viewModel.createEmojiBingoLobby()
-                    }
-                },
-                onStartTruthOrDare: { mode in
-                    showGamePicker = false
-                    Task {
-                        await viewModel.createTruthOrDare(promptMode: mode)
-                    }
-                },
-                onDismiss: { showGamePicker = false }
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .fullScreenCover(isPresented: $showGameTask) {
-            if let step = viewModel.myActiveStep {
-                GameTaskOverlayView(
-                    step: step,
+                }
+            }
+            // MARK: - Emoji Match full-screen game
+            .fullScreenCover(isPresented: $showEmojiMatchGame) {
+                EmojiMatchGameView(
+                    viewModel: viewModel,
                     lang: hostLanguage,
-                    onSubmitDrawing: { image in
-                        guard let data = image.pngData() else { return }
-                        let base64 = data.base64EncodedString()
-                        let mediaUrl = "data:image/png;base64,\(base64)"
-                        Task {
-                            await viewModel.submitGameStep(stepId: step.id, outputText: nil, outputDrawingUrl: mediaUrl)
-                            // Don't set showGameTask = false here — .onChange handles it.
-                            // Setting it here would race with .onChange and override
-                            // showGameTask = true when the next step is immediately available.
+                    onDismiss: { showEmojiMatchGame = false },
+                    onMinimize: {
+                        if let g = viewModel.activeEmojiMatchGame {
+                            minimizedEmojiMatchGameId = g.id
                         }
-                    },
-                    onSubmitGuess: { selectedOption in
-                        Task {
-                            await viewModel.submitGameStep(stepId: step.id, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
-                            // Don't set showGameTask = false here — .onChange handles it.
-                        }
-                    },
-                    onQuit: {
-                        showQuitGameConfirm = true
+                        showEmojiMatchGame = false
                     }
                 )
-                .id(step.id)
-                .alert(L.t("Quit game?", hostLanguage), isPresented: $showQuitGameConfirm) {
-                    Button(L.t("Cancel", hostLanguage), role: .cancel) {}
-                    Button(L.t("Quit", hostLanguage), role: .destructive) {
-                        showGameTask = false
-                        Task {
-                            await viewModel.cancelGame()
-                        }
+                .overlay { DebugConsoleView() }
+                .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
+            }
+            .onChange(of: viewModel.activeEmojiMatchGame) { game in
+                if let g = game, g.status != .canceled, g.status != .completed {
+                    if !showEmojiMatchGame && minimizedEmojiMatchGameId != g.id {
+                        showEmojiMatchGame = true
                     }
-                } message: {
-                    Text(L.t("Are you sure you want to quit the game?", hostLanguage))
-                }
-            }
-        }
-        .sheet(isPresented: $showGameReplay) {
-            if let replay = viewModel.gameReplay {
-                GameReplayView(
-                    replay: replay,
-                    lang: hostLanguage,
-                    onDismiss: { showGameReplay = false },
-                    onNextLevel: { timerSeconds in
-                        let nextLevel = (viewModel.latestGameSession?.level ?? 1) + 1
-                        showGameReplay = false
-                        Task { await viewModel.startGame(gameType: "lost-in-translation", level: nextLevel, timerSeconds: timerSeconds) }
-                    }
-                )
-            }
-        }
-        .onChange(of: viewModel.myActiveStep?.id) { newStepId in
-            showGameTask = newStepId != nil
-        }
-        .onChange(of: viewModel.isGameComplete) { complete in
-            if complete {
-                showGameReplay = true
-            }
-        }
-        .alert(L.t("End game?", hostLanguage), isPresented: $showEndGameConfirm) {
-            Button(L.t("Cancel", hostLanguage), role: .cancel) {}
-            Button(L.t("End Game", hostLanguage), role: .destructive) {
-                Task { await viewModel.cancelGame() }
-            }
-        } message: {
-            Text(L.t("This will end the game for all players and show results.", hostLanguage))
-        }
-        // MARK: - Word Rush full-screen game
-        .fullScreenCover(isPresented: $showWordRushGame) {
-            WordRushGameView(
-                viewModel: viewModel,
-                lang: hostLanguage,
-                onClose: {
-                    viewModel.dismissWordRushResults()
-                    showWordRushGame = false
-                },
-                onMinimize: {
-                    minimizedWordRushGameId = viewModel.activeWordRushGame?.id
-                    showWordRushGame = false
-                }
-            )
-            .overlay { DebugConsoleView() }
-        }
-        .onChange(of: viewModel.presentableWordRushGame.map { "\($0.id)|\($0.status.rawValue)" }) { _ in
-            if let g = viewModel.presentableWordRushGame {
-                if !showWordRushGame && minimizedWordRushGameId != g.id {
-                    showWordRushGame = true
-                }
-            } else {
-                showWordRushGame = false
-                minimizedWordRushGameId = nil
-            }
-        }
-        // MARK: - Emoji Match full-screen game
-        .fullScreenCover(isPresented: $showEmojiMatchGame) {
-            EmojiMatchGameView(
-                viewModel: viewModel,
-                lang: hostLanguage,
-                onDismiss: { showEmojiMatchGame = false },
-                onMinimize: {
-                    if let g = viewModel.activeEmojiMatchGame {
-                        minimizedEmojiMatchGameId = g.id
-                    }
+                } else if game == nil || game?.status == .canceled {
                     showEmojiMatchGame = false
+                    minimizedEmojiMatchGameId = nil
                 }
-            )
-            .overlay { DebugConsoleView() }
-            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
-        }
-        .onChange(of: viewModel.activeEmojiMatchGame) { game in
-            if let g = game, g.status != .canceled, g.status != .completed {
-                if !showEmojiMatchGame && minimizedEmojiMatchGameId != g.id {
-                    showEmojiMatchGame = true
-                }
-            } else if game == nil || game?.status == .canceled {
-                showEmojiMatchGame = false
-                minimizedEmojiMatchGameId = nil
             }
-        }
-        // MARK: - Emoji Bingo full-screen game
-        .fullScreenCover(isPresented: $showEmojiBingoGame) {
-            EmojiBingoGameView(
-                viewModel: viewModel,
-                lang: hostLanguage,
-                onDismiss: { showEmojiBingoGame = false },
-                onMinimize: {
-                    if let g = viewModel.activeEmojiBingoGame {
-                        minimizedEmojiBingoGameId = g.id
+            // MARK: - Emoji Bingo full-screen game
+            .fullScreenCover(isPresented: $showEmojiBingoGame) {
+                EmojiBingoGameView(
+                    viewModel: viewModel,
+                    lang: hostLanguage,
+                    onDismiss: { showEmojiBingoGame = false },
+                    onMinimize: {
+                        if let g = viewModel.activeEmojiBingoGame {
+                            minimizedEmojiBingoGameId = g.id
+                        }
+                        showEmojiBingoGame = false
                     }
+                )
+                .overlay { DebugConsoleView() }
+                .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
+            }
+            .onChange(of: viewModel.activeEmojiBingoGame) { game in
+                if let g = game, g.status != .canceled, g.status != .completed {
+                    if !showEmojiBingoGame && minimizedEmojiBingoGameId != g.id {
+                        showEmojiBingoGame = true
+                    }
+                } else if game == nil || game?.status == .canceled {
                     showEmojiBingoGame = false
+                    minimizedEmojiBingoGameId = nil
                 }
-            )
-            .overlay { DebugConsoleView() }
-            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
-        }
-        .onChange(of: viewModel.activeEmojiBingoGame) { game in
-            if let g = game, g.status != .canceled, g.status != .completed {
-                if !showEmojiBingoGame && minimizedEmojiBingoGameId != g.id {
-                    showEmojiBingoGame = true
-                }
-            } else if game == nil || game?.status == .canceled {
-                showEmojiBingoGame = false
-                minimizedEmojiBingoGameId = nil
             }
-        }
-        // MARK: - Truth or Dare full-screen game
-        .fullScreenCover(isPresented: $showTruthOrDareGame) {
-            TruthOrDareGameView(
-                viewModel: viewModel,
-                lang: hostLanguage,
-                onDismiss: { showTruthOrDareGame = false },
-                onMinimize: {
-                    if let g = viewModel.activeTruthOrDareGame {
-                        minimizedTruthOrDareGameId = g.id
+            // MARK: - Truth or Dare full-screen game
+            .fullScreenCover(isPresented: $showTruthOrDareGame) {
+                TruthOrDareGameView(
+                    viewModel: viewModel,
+                    lang: hostLanguage,
+                    onDismiss: { showTruthOrDareGame = false },
+                    onMinimize: {
+                        if let g = viewModel.activeTruthOrDareGame {
+                            minimizedTruthOrDareGameId = g.id
+                        }
+                        showTruthOrDareGame = false
                     }
-                    showTruthOrDareGame = false
-                }
-            )
-            .overlay { DebugConsoleView() }
-            .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
-        }
-        .onChange(of: viewModel.activeTruthOrDareGame) { game in
-            if let g = game, g.status == .active {
-                if !showTruthOrDareGame && minimizedTruthOrDareGameId != g.id {
-                    showTruthOrDareGame = true
-                }
-            } else if game == nil || game?.status == .completed || game?.status == .canceled {
-                showTruthOrDareGame = false
-                minimizedTruthOrDareGameId = nil
+                )
+                .overlay { DebugConsoleView() }
+                .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
             }
-        }
+            .onChange(of: viewModel.activeTruthOrDareGame) { game in
+                if let g = game, g.status == .active {
+                    if !showTruthOrDareGame && minimizedTruthOrDareGameId != g.id {
+                        showTruthOrDareGame = true
+                    }
+                } else if game == nil || game?.status == .completed || game?.status == .canceled {
+                    showTruthOrDareGame = false
+                    minimizedTruthOrDareGameId = nil
+                }
+            }
     }
 
     // MARK: - Minimized game resume buttons
@@ -2726,6 +2838,34 @@ private struct VibeBadge: View {
         guard n >= 1000 else { return "\(n)" }
         let k = (Double(n) / 100).rounded() / 10
         return k == k.rounded() ? "\(Int(k))K" : "\(k)K"
+    }
+}
+
+/// Collapsed header stand-in for a crowded room: two overlapped avatars with a head count
+private struct ParticipantStack: View {
+    let participants: [Participant]
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            ZStack {
+                if participants.count > 1 {
+                    AvatarDisc(avatarId: participants[1].avatar.value, size: 26)
+                        .offset(x: -12, y: 2)
+                }
+                if let first = participants.first {
+                    AvatarDisc(avatarId: first.avatar.value, size: 32)
+                }
+            }
+            .padding(.leading, 12)
+            Text("\(participants.count)")
+                .font(.chunky(11))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 4)
+                .frame(minWidth: 19, minHeight: 19)
+                .background(Capsule().fill(EC.pink))
+                .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
+                .offset(x: 6, y: -6)
+        }
     }
 }
 

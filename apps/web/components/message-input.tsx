@@ -7,6 +7,11 @@ import { useSpeechRecognition, ensurePunctuation } from "@/hooks/use-speech-reco
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 
+function fitTextarea(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+}
+
 interface ReplyTo {
   _id: string;
   text?: string;
@@ -41,6 +46,10 @@ export function MessageInput({
   const [text, setText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsCollapsed = (isFocused || text.length > 0) && !toolsOpen;
+  const refocusRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const preVoiceTextRef = useRef("");
   const lastTranscriptRef = useRef("");
@@ -72,11 +81,22 @@ export function MessageInput({
 
   // Auto-resize textarea when text changes (e.g. from voice input)
   useEffect(() => {
+    if (inputRef.current) fitTextarea(inputRef.current);
+  }, [text]);
+
+  // Re-fit when the field widens or narrows as the tools fold away
+  useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 120) + "px";
-  }, [text]);
+    let lastWidth = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === lastWidth) return;
+      lastWidth = el.clientWidth;
+      fitTextarea(el);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Reset audio level and transcript ref when listening stops
   useEffect(() => {
@@ -104,6 +124,7 @@ export function MessageInput({
 
   const handleTextChange = (value: string) => {
     setText(value);
+    setToolsOpen(false);
     if (value.trim() && !isListening) {
       onTypingChange?.("typing");
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -218,25 +239,47 @@ export function MessageInput({
         )}
 
         <div className="ec-input-row">
-          {/* Game button — End Game when active, Game otherwise */}
-          {isGameActive && onEndGame ? (
-            <button className="ec-end-game" onClick={onEndGame}>
-              {t("End Game", lang)}
-            </button>
-          ) : onGameTap ? (
-            <button className="ec-round-btn game" onClick={onGameTap} aria-label={t("Games", lang)}>
-              <Icon name="ui-game" size={28} />
-            </button>
-          ) : null}
+          {/* Tools fold into a chevron while typing so the field gets the width */}
+          <div className={`ec-tools${toolsCollapsed ? " collapsed" : ""}`} aria-hidden={toolsCollapsed || undefined}>
+            {/* Game button — End Game when active, Game otherwise */}
+            {isGameActive && onEndGame ? (
+              <button className="ec-end-game" onClick={onEndGame} tabIndex={toolsCollapsed ? -1 : undefined}>
+                {t("End Game", lang)}
+              </button>
+            ) : onGameTap ? (
+              <button
+                className="ec-round-btn game"
+                onClick={onGameTap}
+                aria-label={t("Games", lang)}
+                tabIndex={toolsCollapsed ? -1 : undefined}
+              >
+                <Icon name="ui-game" size={28} />
+              </button>
+            ) : null}
 
-          {/* Photo — directly opens native image picker */}
-          <button
-            className="ec-round-btn"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label={t("Photo", lang)}
-          >
-            <Icon name="ui-photo" size={28} />
-          </button>
+            {/* Photo — directly opens native image picker */}
+            <button
+              className="ec-round-btn"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label={t("Photo", lang)}
+              tabIndex={toolsCollapsed ? -1 : undefined}
+            >
+              <Icon name="ui-photo" size={28} />
+            </button>
+
+            {/* Drawing */}
+            <button
+              className="ec-round-btn"
+              onClick={() => {
+                setShowDrawing(true);
+                onTypingChange?.("drawing");
+              }}
+              aria-label={t("Drawing", lang)}
+              tabIndex={toolsCollapsed ? -1 : undefined}
+            >
+              <Icon name="g-pencil" size={28} />
+            </button>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
@@ -244,17 +287,24 @@ export function MessageInput({
             onChange={handleImageUpload}
             style={{ display: "none" }}
           />
-
-          {/* Drawing */}
           <button
-            className="ec-round-btn"
-            onClick={() => {
-              setShowDrawing(true);
-              onTypingChange?.("drawing");
+            type="button"
+            className={`ec-tools-toggle${toolsCollapsed ? " shown" : ""}`}
+            onPointerDown={() => {
+              refocusRef.current = document.activeElement === inputRef.current;
             }}
-            aria-label={t("Drawing", lang)}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setToolsOpen(true);
+              if (refocusRef.current) inputRef.current?.focus();
+            }}
+            aria-label={t("More tools", lang)}
+            aria-hidden={!toolsCollapsed || undefined}
+            tabIndex={toolsCollapsed ? undefined : -1}
           >
-            <Icon name="g-pencil" size={28} />
+            <svg viewBox="0 0 10 16" aria-hidden>
+              <path d="M2.5 2l5.5 6-5.5 6" />
+            </svg>
           </button>
 
           {/* Text field */}
@@ -263,7 +313,11 @@ export function MessageInput({
               ref={inputRef}
               value={text}
               readOnly={isListening}
-              onFocus={(e) => { if (isListening) e.currentTarget.blur(); }}
+              onFocus={(e) => {
+                if (isListening) e.currentTarget.blur();
+                else setIsFocused(true);
+              }}
+              onBlur={() => setIsFocused(false)}
               onChange={(e) => handleTextChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -273,11 +327,7 @@ export function MessageInput({
               }}
               placeholder={isListening ? t("Listening...", lang) : t("Type a message...", lang)}
               rows={1}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                el.style.height = Math.min(el.scrollHeight, 120) + "px";
-              }}
+              onInput={(e) => fitTextarea(e.currentTarget)}
             />
             {text.length > 0 && (
               <button

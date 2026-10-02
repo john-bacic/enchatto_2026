@@ -332,16 +332,27 @@
   padding-left: 8px;
 }
 .ec-stack > * { margin-left: -8px; }
-.ec-stack-more {
+/* 4+ others: two overlapped avatars and a head count, same as the iOS header */
+.ec-stack.pile { position: relative; padding: 4px 6px 0 12px; }
+.ec-stack.pile > * { margin-left: 0; }
+.ec-pile-back { position: absolute; left: 0; top: 9px; }
+.ec-stack.pile > :nth-child(2) { position: relative; }
+.ec-pile-count {
+  position: absolute;
+  top: -2px;
+  right: 0;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 2.5px solid var(--ink);
-  background: #fff;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--pink);
+  color: #fff;
   font-family: var(--chunky);
   font-size: 11px;
+  line-height: 1;
 }
 .ec-stack-empty {
   display: grid;
@@ -975,7 +986,55 @@
   background: #fff;
   border-top: 3px solid var(--ink);
 }
+@media (pointer: coarse) {
+  /* Keyboard covers the home indicator, so the safe-area padding is dead space */
+  .ec-inputbar:has(textarea:focus) { padding-bottom: 6px; }
+}
 .ec-input-row { display: flex; align-items: flex-end; gap: 7px; }
+.ec-tools,
+.ec-tools-toggle {
+  flex: none;
+  overflow: hidden;
+  transition:
+    max-width 0.3s cubic-bezier(0.3, 0.7, 0.2, 1),
+    margin-right 0.3s cubic-bezier(0.3, 0.7, 0.2, 1),
+    opacity 0.2s;
+}
+/* Bottom padding keeps the buttons' drop shadows outside the clip */
+.ec-tools {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  max-width: 220px;
+  margin-bottom: -4px;
+  padding-bottom: 4px;
+}
+.ec-tools > * { flex: none; }
+.ec-tools.collapsed { max-width: 0; margin-right: -7px; opacity: 0; pointer-events: none; }
+.ec-tools-toggle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  max-width: 0;
+  height: 40px;
+  margin-right: -7px;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+}
+.ec-tools-toggle.shown { max-width: 24px; margin-right: 0; opacity: 1; pointer-events: auto; }
+.ec-tools-toggle svg {
+  width: 10px;
+  height: 16px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .ec-inputbar .ec-round-btn { width: 40px; height: 40px; box-shadow: 0 3px 0 var(--ink); }
 .ec-inputbar .ec-round-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .ec-inputbar .ec-round-btn .ec-icon { width: 28px; height: 28px; }
