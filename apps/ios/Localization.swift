@@ -6,6 +6,7 @@ enum L {
         // Start room
         "Enchatto": ["ja": "Enchatto"],
         "Create a conversation room": ["ja": "会話ルームを作成"],
+        "CHAT ACROSS LANGUAGES": ["ja": "ことばの壁をこえよう"],
         "Your nickname": ["ja": "ニックネーム"],
         "Enter your name": ["ja": "名前を入力"],
         "Choose your avatar": ["ja": "アバターを選ぶ"],

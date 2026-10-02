@@ -126,6 +126,34 @@ func loopWave(_ seconds: Double, period: Double, delay: Double = 0) -> Double {
     sin((seconds - delay) * 2 * .pi / period)
 }
 
+/// CSS `cubic-bezier(x1, y1, x2, y2)` timing function
+func cubicBezier(_ x: Double, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> Double {
+    func curve(_ t: Double, _ p1: Double, _ p2: Double) -> Double {
+        let u = 1 - t
+        return 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t
+    }
+    var lo = 0.0, hi = 1.0, t = x
+    for _ in 0..<24 {
+        t = (lo + hi) / 2
+        if curve(t, x1, x2) < x { lo = t } else { hi = t }
+    }
+    return curve(t, y1, y2)
+}
+
+/// Value of a looping CSS keyframe track at `seconds`, eased per segment with the web's
+/// overshooting spring `cubic-bezier(0.3, 1.6, 0.5, 1)`. Stops must start at 0 and end at 1.
+/// `lead` mirrors a negative CSS animation-delay (starts the loop that far in).
+func keyframed(_ seconds: Double, period: Double, lead: Double = 0, _ stops: [(at: Double, value: Double)]) -> Double {
+    let raw = (seconds + lead) / period
+    let p = raw - floor(raw)
+    for i in 1..<stops.count where p <= stops[i].at {
+        let a = stops[i - 1], b = stops[i]
+        let local = (p - a.at) / (b.at - a.at)
+        return a.value + (b.value - a.value) * cubicBezier(local, 0.3, 1.6, 0.5, 1)
+    }
+    return stops[stops.count - 1].value
+}
+
 /// One-shot damped wiggle/hop, replayed whenever `trigger` changes. Finite, so nothing loops.
 private struct NudgeEffect: GeometryEffect {
     var progress: Double
