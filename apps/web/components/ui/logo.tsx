@@ -38,6 +38,7 @@ function Letters({ text, className }: { text: string; className: string }) {
               "--r": `${i % 2 ? 6 : -7}deg`,
               "--dy": `${i % 2 ? -5 : 0}px`,
               "--d": `${-i * 0.18}s`,
+              "--i": i,
               "--c": LETTER_COLORS[i % LETTER_COLORS.length],
             } as React.CSSProperties
           }
@@ -49,11 +50,26 @@ function Letters({ text, className }: { text: string; className: string }) {
   );
 }
 
-/** Still, header-sized version of the logo letters. */
-export function Wordmark({ text = "Enchatto", size = 24 }: { text?: string; size?: number }) {
+/**
+ * Header-sized version of the logo letters. Still by default; each new `hopKey` plays one hop wave,
+ * and `hot` keeps them hopping like the home logo.
+ */
+export function Wordmark({
+  text = "Enchatto",
+  size = 24,
+  hopKey = 0,
+  hot = false,
+}: {
+  text?: string;
+  size?: number;
+  hopKey?: number;
+  hot?: boolean;
+}) {
+  const motion = hot ? " hot" : hopKey ? " hop" : "";
   return (
-    <div className="ec-wordmark" style={{ "--fs": `${size}px` } as React.CSSProperties}>
-      <Letters text={text} className="ec-logo-top" />
+    <div className={`ec-wordmark${motion}`} style={{ "--fs": `${size}px` } as React.CSSProperties}>
+      {/* Remounting restarts the one-shot animation */}
+      <Letters key={hot ? "hot" : hopKey} text={text} className="ec-logo-top" />
     </div>
   );
 }

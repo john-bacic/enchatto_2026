@@ -514,7 +514,18 @@ struct HostConversationView: View {
             // Wordmark + QR button
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
-                    EnchattoWordmark(text: L.t("Enchatto", hostLanguage), size: 22)
+                    EnchattoWordmark(
+                        text: L.t("Enchatto", hostLanguage),
+                        size: 22,
+                        hopTrigger: logoHop,
+                        hot: vibeHot && viewModel.room?.status != .closed
+                    )
+                    .onChange(of: viewModel.messages.last?.id) { _ in
+                        // Polls replace the whole list, so "new" means sent after this screen opened
+                        guard let last = viewModel.messages.last, last.kind != .system,
+                              last.createdAt > screenOpenedAt else { return }
+                        logoHop += 1
+                    }
                     if let joinCode = viewModel.room?.joinCode {
                         Button {
                             Haptics.tap()
@@ -873,6 +884,8 @@ struct HostConversationView: View {
     @State private var preVoiceText = ""
     @State private var vibeHot = false
     @State private var vibeConfetti = 0
+    @State private var logoHop = 0
+    @State private var screenOpenedAt = Date()
     @State private var knownParticipantIds: Set<String> = []
 
     private func fireVibeConfetti() {

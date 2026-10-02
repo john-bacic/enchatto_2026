@@ -1247,6 +1247,7 @@ function RoomContent() {
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [cutIn, setCutIn] = useState<{ key: string; name: string; avatar: string } | null>(null);
   const [confettiKey, setConfettiKey] = useState<string | null>(null);
+  const [logoHop, setLogoHop] = useState(0);
   const seenIdsRef = useRef<Set<string> | null>(null);
   const hypeRef = useRef(hype);
   hypeRef.current = hype;
@@ -1261,6 +1262,7 @@ function RoomContent() {
     const fresh = messages.filter((m) => !seen.has(m._id));
     if (fresh.length === 0) return;
     fresh.forEach((m) => seen.add(m._id));
+    if (fresh.some((m) => m.kind !== "system")) setLogoHop((n) => n + 1);
 
     for (const m of fresh) {
       if (m.kind !== "system" || !m.text?.startsWith("join:")) continue;
@@ -1367,7 +1369,7 @@ function RoomContent() {
         )}
         <div className="ec-chat-title">
           <h1>
-            <Wordmark text={t("Enchatto", lang)} size={22} />
+            <Wordmark text={t("Enchatto", lang)} size={22} hopKey={logoHop} hot={hype && !isClosed} />
           </h1>
           {isClosed ? (
             <span style={{ color: "var(--red)", opacity: 1 }}>{t("Room closed", lang)}</span>

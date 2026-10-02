@@ -195,27 +195,70 @@ struct EnchattoLogo: View {
     }
 }
 
-/// Still, header-sized `EnchattoLogo` letters: same two-tone colors and alternating tilt, no burst
+/// Header-sized `EnchattoLogo` letters: same two-tone colors and alternating tilt, no burst.
+/// Still by default; each change of `hopTrigger` plays one hop wave, and `hot` keeps them hopping.
 struct EnchattoWordmark: View {
     var text = "Enchatto"
     var size: CGFloat = 22
+    var hopTrigger = 0
+    var hot = false
+
+    @State private var hopStart: Date?
 
     private let accents: [Color] = [EC.blue, EC.pink, EC.mint, EC.violet]
+    private static let period = 1.6
+    private static let stagger = 0.12
 
     var body: some View {
         let letters = Array(text)
-        HStack(spacing: -size * 0.03) {
-            ForEach(letters.indices, id: \.self) { i in
-                let odd = !i.isMultiple(of: 2)
-                LogoLetter(character: String(letters[i]), size: size, accent: accents[i % accents.count])
-                    .offset(y: odd ? -size * 0.04 : 0)
-                    .rotationEffect(.degrees(odd ? 6 : -7))
+        LoopClock(active: hot || hopStart != nil) { t in
+            HStack(spacing: -size * 0.03) {
+                ForEach(letters.indices, id: \.self) { i in
+                    letter(i, String(letters[i]), phase: phase(of: i, t: t))
+                }
             }
         }
         .padding(.trailing, size * 0.12)
         .padding(.bottom, size * 0.14)
+        .onChange(of: hopTrigger) { _ in
+            // A wave already in flight absorbs back-to-back messages instead of restarting mid-hop
+            guard !hot, hopStart == nil else { return }
+            let start = Date()
+            hopStart = start
+            let length = Self.period * 0.55 + Self.stagger * Double(letters.count)
+            DispatchQueue.main.asyncAfter(deadline: .now() + length) {
+                if hopStart == start { hopStart = nil }
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(text)
+    }
+
+    /// Seconds into the current hop for letter `i`, or nil while it rests
+    private func phase(of i: Int, t: Double) -> Double? {
+        guard t > 0 else { return nil }
+        if hot { return t + Double(i) * 0.18 }
+        guard let hopStart else { return nil }
+        let elapsed = t - hopStart.timeIntervalSinceReferenceDate - Double(i) * Self.stagger
+        return elapsed >= 0 && elapsed < Self.period ? elapsed : nil
+    }
+
+    /// Web `ec-wordmark-hop`: the home logo's squash, leap and land, scaled to the header size
+    private func letter(_ i: Int, _ character: String, phase: Double?) -> some View {
+        let odd = !i.isMultiple(of: 2)
+        let tilt = odd ? 6.0 : -7.0
+        let k = size / 54
+        var lift = 0.0, rot = tilt, sx = 1.0, sy = 1.0
+        if let p = phase {
+            lift = keyframed(p, period: Self.period, [(0, 0), (0.12, 4), (0.3, -12), (0.55, 0), (1, 0)])
+            rot = keyframed(p, period: Self.period, [(0, tilt), (0.12, tilt), (0.3, -tilt * 0.5), (0.55, tilt), (1, tilt)])
+            sx = keyframed(p, period: Self.period, [(0, 1), (0.12, 1.1), (0.3, 0.95), (0.55, 1), (1, 1)])
+            sy = keyframed(p, period: Self.period, [(0, 1), (0.12, 0.88), (0.3, 1.07), (0.55, 1), (1, 1)])
+        }
+        return LogoLetter(character: character, size: size, accent: accents[i % accents.count])
+            .scaleEffect(x: sx, y: sy)
+            .offset(y: (odd ? -size * 0.04 : 0) + lift * k)
+            .rotationEffect(.degrees(rot))
     }
 }
 

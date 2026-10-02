@@ -510,12 +510,21 @@ textarea {
 }
 .ec-wordmark { font-family: var(--chunky); font-weight: 400; line-height: 1; padding: 2px 4px 4px 2px; }
 .ec-wordmark i {
+  --dy0: calc(var(--dy, 0px) * 0.4);
   animation: none;
-  transform: rotate(var(--r)) translateY(calc(var(--dy, 0px) * 0.4));
+  transform: rotate(var(--r)) translateY(var(--dy0));
   text-shadow:
     1.5px 0 0 var(--ink), -1.5px 0 0 var(--ink), 0 1.5px 0 var(--ink), 0 -1.5px 0 var(--ink),
     1.2px 1.2px 0 var(--ink), -1.2px 1.2px 0 var(--ink), 1.2px -1.2px 0 var(--ink), -1.2px -1.2px 0 var(--ink),
     2px 2.5px 0 var(--pink), 3px 3.5px 0 var(--ink);
+}
+.ec-wordmark.hop i {
+  animation: ec-wordmark-hop 1.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  animation-delay: calc(var(--i) * 0.12s);
+}
+.ec-wordmark.hot i {
+  animation: ec-wordmark-hop 1.6s cubic-bezier(0.3, 1.6, 0.5, 1) infinite;
+  animation-delay: var(--d);
 }
 .ec-ribbon {
   position: relative;
@@ -591,6 +600,13 @@ textarea {
   12% { transform: rotate(var(--r)) translateY(calc(var(--dy, 0px) + 4px)) scale(1.1, 0.88); }
   30% { transform: rotate(calc(var(--r) * -0.5)) translateY(calc(var(--dy, 0px) - 12px)) scale(0.95, 1.07); }
   55% { transform: rotate(var(--r)) translateY(var(--dy, 0)) scale(1); }
+}
+/* ec-hop in em, so the lift scales with the header wordmark */
+@keyframes ec-wordmark-hop {
+  0%, 100% { transform: rotate(var(--r)) translateY(var(--dy0)) scale(1); }
+  12% { transform: rotate(var(--r)) translateY(calc(var(--dy0) + 0.07em)) scale(1.1, 0.88); }
+  30% { transform: rotate(calc(var(--r) * -0.5)) translateY(calc(var(--dy0) - 0.22em)) scale(0.95, 1.07); }
+  55% { transform: rotate(var(--r)) translateY(var(--dy0)) scale(1); }
 }
 @keyframes ec-float { 50% { translate: 0 -8px; } }
 @keyframes ec-bob {
