@@ -26,6 +26,7 @@ import { avatarIconSrc, getAvatarById } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import { useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
 interface QueuedMessage {
@@ -89,6 +90,8 @@ function RoomContent() {
   const router = useRouter();
   const roomId = params.roomId as string;
   const participantId = searchParams.get("pid") ?? "";
+  const convexSiteUrl = useConvexSiteUrl();
+  const convexUrl = useConvexUrl();
 
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -440,7 +443,6 @@ function RoomContent() {
       try {
         // Use HTTP POST to convert base64 to file storage server-side.
         // This keeps the messages subscription payload small (CDN URLs only).
-        const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
         const res = await fetch(`${convexSiteUrl}/api/messages/send-drawing`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -461,7 +463,7 @@ function RoomContent() {
         setReplyTo(null);
       }
     },
-    [sendDrawingMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
+    [sendDrawingMessage, roomId, participantId, replyTo, isOnline, enqueueMessage, convexSiteUrl]
   );
 
   const lastTypingAction = useRef<string | null>(null);
@@ -940,8 +942,7 @@ function RoomContent() {
       try {
         if (isImage) {
           await tracedMutation("submitResponse:drawing", `${payloadKB}KB`, async () => {
-            const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
-            const res = await fetch(`${convexSiteUrl}/api/truth-or-dare/submit-response`, {
+                const res = await fetch(`${convexSiteUrl}/api/truth-or-dare/submit-response`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ gameId, participantId, responseText, responseMediaUrl }),
@@ -965,7 +966,7 @@ function RoomContent() {
         console.error("Failed to submit response:", err);
       }
     },
-    [submitTruthOrDareResponse, participantId]
+    [submitTruthOrDareResponse, participantId, convexSiteUrl]
   );
 
   const handleAdvanceTruthOrDareTurn = useCallback(
@@ -1461,7 +1462,7 @@ function RoomContent() {
                 </button>
               </div>
               <p className="ec-version" style={{ marginTop: 14 }}>
-                {process.env.NEXT_PUBLIC_CONVEX_URL?.replace("https://", "").replace(".convex.cloud", "") ?? ""} · web v0.1.0
+                {convexUrl.replace("https://", "").replace(".convex.cloud", "")} · web v0.1.0
                 {process.env.NEXT_PUBLIC_GIT_SHA && process.env.NEXT_PUBLIC_GIT_SHA !== "dev" ? (<><br />github: {process.env.NEXT_PUBLIC_GIT_SHA}</>) : null}
                 {process.env.NEXT_PUBLIC_VERCEL_URL ? (<><br />vercel: {process.env.NEXT_PUBLIC_VERCEL_URL}</>) : null}
               </p>

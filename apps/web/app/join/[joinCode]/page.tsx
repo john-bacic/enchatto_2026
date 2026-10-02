@@ -13,6 +13,13 @@ import { RoomBackground } from "@/components/ui/effects";
 import { LANGUAGES, PRESET_AVATARS, PresetAvatarId, LanguageCode } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
+import {
+  LEGACY_PARAM,
+  LEGACY_VALUE,
+  hasLegacyBackend,
+  legacyConvex,
+  useIsLegacyBackend,
+} from "@/lib/convex";
 import "../../screens.css";
 
 export default function JoinPage() {
@@ -33,6 +40,25 @@ export default function JoinPage() {
   const [error, setError] = useState<string | null>(null);
 
   const room = useQuery(api.rooms.getRoomByJoinCode, { joinCode });
+  const isLegacy = useIsLegacyBackend();
+  const [legacyChecked, setLegacyChecked] = useState(false);
+
+  useEffect(() => {
+    if (room !== null || isLegacy || !legacyConvex) return;
+    let cancelled = false;
+    legacyConvex
+      .query(api.rooms.getRoomByJoinCode, { joinCode })
+      .then((legacyRoom) => {
+        if (cancelled) return;
+        if (legacyRoom) router.replace(`/join/${joinCode}?${LEGACY_PARAM}=${LEGACY_VALUE}`);
+        else setLegacyChecked(true);
+      })
+      .catch(() => !cancelled && setLegacyChecked(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [room, isLegacy, joinCode, router]);
+
   const participants = useQuery(
     api.participants.getRoomParticipants,
     room ? { roomId: room._id as Id<"rooms"> } : "skip"
@@ -98,7 +124,8 @@ export default function JoinPage() {
       localStorage.setItem("enchatto_lastAvatarId", avatar);
       localStorage.setItem("enchatto_lastLanguage", language);
 
-      router.push(`/room/${room._id}?pid=${participantId}`);
+      const backend = isLegacy ? `&${LEGACY_PARAM}=${LEGACY_VALUE}` : "";
+      router.push(`/room/${room._id}?pid=${participantId}${backend}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("Failed to join room", language));
       setJoining(false);
@@ -107,8 +134,10 @@ export default function JoinPage() {
 
   const background = <RoomBackground texture={textureForRoom(room)} />;
 
+  const awaitingLegacy = room === null && !isLegacy && hasLegacyBackend && !legacyChecked;
+
   // Loading state
-  if (room === undefined) {
+  if (room === undefined || awaitingLegacy) {
     return (
       <main className="ec-center-state">
         {background}
