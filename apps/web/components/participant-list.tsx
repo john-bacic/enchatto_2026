@@ -100,7 +100,7 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
                         className={`ec-person${presence === "offline" ? " dim" : ""}`}
                         style={{
                           animationDelay: `${i * 0.04}s`,
-                          background: p.role === "host" ? undefined : avatarTint(p.avatar.value),
+                          background: avatarTint(p.avatar.value),
                         }}
                       >
                         <AvatarPreview avatarId={p.avatar.value} nickname={p.nickname} size={44} presence={presence} isMe={isMe} />

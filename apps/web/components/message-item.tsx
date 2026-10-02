@@ -208,8 +208,8 @@ export function MessageItem({
     setShowModal(true);
   };
 
-  // Guests' bubbles take their avatar colour so a busy room is easy to scan; the host's stay white
-  const tint = !isOwn && sender && sender.role !== "host" ? avatarTint(sender.avatar.value) : undefined;
+  // Others' bubbles take their avatar colour so a busy room is easy to scan
+  const tint = !isOwn && sender ? avatarTint(sender.avatar.value) : undefined;
 
   const bubbleClass = [
     "ec-bubble",
