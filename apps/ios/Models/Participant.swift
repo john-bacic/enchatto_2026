@@ -96,6 +96,13 @@ extension Participant {
         presetAvatar(for: avatar.value).color
     }
 
+    /// Very light avatar colour (60% colour, 40% white) for this guest's bubbles; web `avatarTint`
+    var tint: Color {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(avatarColor).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return Color(red: r * 0.6 + 0.4, green: g * 0.6 + 0.4, blue: b * 0.6 + 0.4)
+    }
+
     var avatarIcon: String {
         presetAvatar(for: avatar.value).icon
     }

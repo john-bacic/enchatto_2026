@@ -1752,7 +1752,7 @@ struct HostConversationView: View {
             }
         }
         .padding(.vertical, 4)
-        .listRowBackground(Color.white)
+        .listRowBackground(participant.role == .host ? Color.white : participant.tint)
     }
 
     private func closeRoomButton(_ action: @escaping () -> Void) -> some View {

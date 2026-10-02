@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AvatarPreview } from "@/components/avatar-preview";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { t } from "@/lib/i18n";
+import { avatarTint } from "@/lib/types";
 
 interface Participant {
   _id: string;
@@ -97,7 +98,10 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
                       <div
                         key={p._id}
                         className={`ec-person${presence === "offline" ? " dim" : ""}`}
-                        style={{ animationDelay: `${i * 0.04}s` }}
+                        style={{
+                          animationDelay: `${i * 0.04}s`,
+                          background: p.role === "host" ? undefined : avatarTint(p.avatar.value),
+                        }}
                       >
                         <AvatarPreview avatarId={p.avatar.value} nickname={p.nickname} size={44} presence={presence} isMe={isMe} />
                         <div className="ec-person-name">

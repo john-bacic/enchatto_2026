@@ -15,6 +15,7 @@ import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { EmojiArt, Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
+import { avatarTint } from "@/lib/types";
 
 interface ProcessingState {
   translatedText?: string;
@@ -207,6 +208,9 @@ export function MessageItem({
     setShowModal(true);
   };
 
+  // Guests' bubbles take their avatar colour so a busy room is easy to scan; the host's stay white
+  const tint = !isOwn && sender && sender.role !== "host" ? avatarTint(sender.avatar.value) : undefined;
+
   const bubbleClass = [
     "ec-bubble",
     isMedia ? "media" : "",
@@ -250,6 +254,7 @@ export function MessageItem({
             {/* Bubble */}
             <div
               className={bubbleClass}
+              style={tint ? ({ "--bubble-tint": tint } as React.CSSProperties) : undefined}
               onPointerDown={handlePointerDown}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}

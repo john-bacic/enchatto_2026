@@ -24,7 +24,7 @@ import { Chatto } from "@/components/ui/chatto";
 import { Icon, LangBadge } from "@/components/ui/icon";
 import { Wordmark } from "@/components/ui/logo";
 import { Bunting, Confetti, CutIn, Rays, RoomBackground } from "@/components/ui/effects";
-import { avatarIconSrc, getAvatarById } from "@/lib/types";
+import { avatarIconSrc, avatarTint, getAvatarById } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -353,6 +353,18 @@ function RoomContent() {
 
   const me = participants.find((p) => p._id === participantId);
   const lang = me?.preferredLanguage ?? "ja";
+
+  // A guest's header, input bar and browser chrome take a light tint of their avatar colour
+  const meTint = me && me.role !== "host" ? avatarTint(me.avatar.value) : undefined;
+  useEffect(() => {
+    if (!meTint) return;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const prevMeta = meta?.content;
+    meta?.setAttribute("content", meTint);
+    return () => {
+      if (meta && prevMeta) meta.setAttribute("content", prevMeta);
+    };
+  }, [meTint]);
 
   // Redirect to join screen if participant was removed (kicked)
   useEffect(() => {
@@ -1353,7 +1365,7 @@ function RoomContent() {
   const chatScale = CHAT_SIZES.find((s) => s.key === chatSize)?.scale ?? 1;
 
   return (
-    <div className="ec-room" style={{ "--chat-scale": chatScale } as React.CSSProperties}>
+    <div className="ec-room" style={{ "--chat-scale": chatScale, "--me-tint": meTint } as React.CSSProperties}>
       {background}
 
       {/* Header */}

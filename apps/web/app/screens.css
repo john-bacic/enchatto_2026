@@ -277,7 +277,7 @@
   align-items: center;
   gap: 10px;
   padding: calc(8px + env(safe-area-inset-top)) 12px 10px;
-  background: #fff;
+  background: var(--me-tint, #fff);
   border-bottom: 3px solid var(--ink);
 }
 .ec-chat-title { flex: 1; min-width: 0; }
@@ -756,7 +756,7 @@
   padding: 10px 14px 11px;
   border: 3px solid var(--ink);
   border-radius: 20px 20px 20px 6px;
-  background: #fff;
+  background: var(--bubble-tint, #fff);
   box-shadow: 0 5px 0 var(--ink);
   font-size: calc(15.5px * var(--chat-scale, 1));
   line-height: 1.4;
@@ -1115,7 +1115,7 @@
   position: relative;
   z-index: 8;
   padding: 10px 10px calc(12px + env(safe-area-inset-bottom));
-  background: #fff;
+  background: var(--me-tint, #fff);
   border-top: 3px solid var(--ink);
 }
 @media (pointer: coarse) {

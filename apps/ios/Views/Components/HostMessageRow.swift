@@ -164,7 +164,10 @@ struct HostMessageRow: View {
 
     private var bubbleFill: Color {
         if isPending { return EC.blueSoft }
-        return isOwn ? EC.blue : .white
+        if isOwn { return EC.blue }
+        // Guests' bubbles carry their avatar colour so a busy room is easy to scan
+        if let sender, sender.role != .host { return sender.tint }
+        return .white
     }
 
     private var bubbleShape: UnevenRoundedRectangle {

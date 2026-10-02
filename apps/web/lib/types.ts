@@ -33,6 +33,19 @@ export function getAvatarById(id: string) {
   return PRESET_AVATARS.find((a) => a.id === id) ?? PRESET_AVATARS[0];
 }
 
+/**
+ * Very light version of an avatar's colour, tinting a guest's own screen and their bubbles for others.
+ * Keep in sync with `Participant.tint` on iOS.
+ */
+export function avatarTint(id: string) {
+  const hex = getAvatarById(id).color.slice(1);
+  const channel = (i: number) =>
+    Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.6 + 255 * 0.4)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${channel(0)}${channel(2)}${channel(4)}`;
+}
+
 /** Public path of an avatar's icon-pack image */
 export function avatarIconSrc(id: string) {
   return `/icons/av-${getAvatarById(id).icon}.png`;
