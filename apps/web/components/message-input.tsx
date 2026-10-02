@@ -12,6 +12,33 @@ function fitTextarea(el: HTMLTextAreaElement) {
   el.style.height = Math.min(el.scrollHeight, 120) + "px";
 }
 
+const WAVE_SAMPLES = 64;
+
+/** Scrolling dictation meter: newest sample on the right, silence drawn as dots */
+function VoiceWave({ level }: { level: number }) {
+  const levelRef = useRef(level);
+  levelRef.current = level;
+  const [samples, setSamples] = useState<number[]>(() => Array(WAVE_SAMPLES).fill(0));
+
+  useEffect(() => {
+    // Web Speech exposes no mic level, only word activity, so jitter it into a believable wave
+    const id = setInterval(() => {
+      const l = levelRef.current;
+      const v = l > 0 ? Math.min(1, l * (1.4 + Math.random() * 1.8)) : 0;
+      setSamples((prev) => [...prev.slice(1), v]);
+    }, 70);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="ec-voice-wave" aria-hidden>
+      {samples.map((v, i) => (
+        <i key={i} className={v > 0 ? "on" : undefined} style={v > 0 ? { height: `${Math.round(4 + v * 22)}px` } : undefined} />
+      ))}
+    </div>
+  );
+}
+
 interface ReplyTo {
   _id: string;
   text?: string;
@@ -88,6 +115,7 @@ export function MessageInput({
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
+    fitTextarea(el);
     let lastWidth = el.clientWidth;
     const observer = new ResizeObserver(() => {
       if (el.clientWidth === lastWidth) return;
@@ -96,7 +124,7 @@ export function MessageInput({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [isListening]);
 
   // Reset audio level and transcript ref when listening stops
   useEffect(() => {
@@ -194,8 +222,22 @@ export function MessageInput({
     }
   };
 
+  /** Keeps the dictated text in the field for editing */
+  const handleVoiceStop = () => {
+    stopVoice();
+    onTypingChange?.(null);
+  };
+
+  /** Throws the dictation away and restores whatever was typed before */
+  const handleVoiceCancel = () => {
+    stopVoice();
+    usedVoiceRef.current = false;
+    setText(preVoiceTextRef.current);
+    preVoiceTextRef.current = "";
+    onTypingChange?.(null);
+  };
+
   const hasText = text.trim().length > 0;
-  const micScale = 1.0 + audioLevel * 0.8;
 
   const MicIcon = ({ size = 20 }: { size?: number }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -238,7 +280,30 @@ export function MessageInput({
           </div>
         )}
 
+        {isListening && (
+          <div className="ec-voice-live" aria-live="polite">
+            <span className={text.trim() ? undefined : "idle"}>
+              {text.trim() || t("Listening...", lang)}
+            </span>
+          </div>
+        )}
+
         <div className="ec-input-row">
+          {isListening ? (
+            /* Replaces the field while dictating; send stays outside where the mic was */
+            <div className="ec-voice-pill">
+              <button type="button" className="ec-voice-btn" onClick={handleVoiceCancel} aria-label={t("Cancel", lang)}>
+                <svg viewBox="0 0 10 10" aria-hidden>
+                  <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
+                </svg>
+              </button>
+              <VoiceWave level={audioLevel} />
+              <button type="button" className="ec-voice-btn" onClick={handleVoiceStop} aria-label={t("Stop", lang)}>
+                <span className="ec-voice-stop" />
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Tools fold into a chevron while typing so the field gets the width */}
           <div className={`ec-tools${toolsCollapsed ? " collapsed" : ""}`} aria-hidden={toolsCollapsed || undefined}>
             {/* Game button — End Game when active, Game otherwise */}
@@ -343,20 +408,11 @@ export function MessageInput({
               </button>
             )}
           </div>
+          </>
+          )}
 
           {/* Right side: mic/send toggle */}
-          {isListening ? (
-            <>
-              {/* Live mic with audio-reactive ring */}
-              <div className="ec-mic-wrap">
-                <span className="ec-mic-ring" style={{ transform: `scale(${micScale})` }} />
-                <button className="ec-round-btn mic live" onClick={handleMicTap} aria-label={t("Voice", lang)} style={{ position: "relative" }}>
-                  <MicIcon />
-                </button>
-              </div>
-              {sendButton}
-            </>
-          ) : hasText || !voiceSupported ? (
+          {isListening || hasText || !voiceSupported ? (
             sendButton
           ) : (
             <button className="ec-round-btn mic" onClick={handleMicTap} aria-label={t("Voice", lang)}>

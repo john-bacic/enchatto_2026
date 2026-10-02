@@ -62,6 +62,7 @@ enum L {
         "Reply": ["ja": "返信"],
         "Save": ["ja": "保存"],
         "Cancel": ["ja": "キャンセル"],
+        "Listening...": ["ja": "聞いています…"],
         "Photo": ["ja": "写真"],
         "Drawing": ["ja": "お絵描き"],
         "Processing failed": ["ja": "処理に失敗しました"],

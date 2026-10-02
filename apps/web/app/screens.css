@@ -1041,7 +1041,6 @@
 .ec-inputbar .ec-round-btn:disabled { opacity: 0.4; cursor: default; }
 .ec-round-btn.game { background: var(--pink); }
 .ec-round-btn.send { background: var(--blue); color: #fff; }
-.ec-round-btn.mic.live { background: var(--pink); color: #fff; }
 .ec-end-game {
   flex: none;
   height: 40px;
@@ -1106,14 +1105,75 @@
   stroke-linecap: round;
 }
 .ec-clear-text:hover svg { stroke: var(--ink); }
-.ec-mic-wrap { position: relative; flex: none; }
-.ec-mic-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: rgba(255, 122, 182, 0.45);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.ec-voice-pill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 4px;
+  border: 3px solid var(--pink);
+  border-radius: 22px;
+  background: var(--paper);
+  animation: ec-fade-in 0.2s ease-out;
 }
+@keyframes ec-fade-in { from { opacity: 0; } }
+/* Bottom-anchored so the newest words stay visible and older lines clip off the top */
+.ec-voice-live {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  max-height: calc(2 * 1.35em);
+  overflow: hidden;
+  margin: 0 56px 6px 8px;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ink);
+  animation: ec-fade-in 0.2s ease-out;
+}
+.ec-voice-live .idle { color: var(--ink-soft); opacity: 0.7; }
+.ec-voice-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: #fff;
+}
+.ec-voice-btn:active { transform: scale(0.92); }
+.ec-voice-btn svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.ec-voice-stop { width: 11px; height: 11px; border-radius: 2.5px; background: var(--ink); }
+/* Newest sample hugs the right edge; older ones fall off the left */
+.ec-voice-wave {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  overflow: hidden;
+}
+.ec-voice-wave i {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink-soft);
+  opacity: 0.45;
+}
+.ec-voice-wave i.on { background: var(--ink); opacity: 1; }
 .ec-reply-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; animation: ec-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
 
 /* ─── QR scanner ─────────────────────────────────────────────────────────── */

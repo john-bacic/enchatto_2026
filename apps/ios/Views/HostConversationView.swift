@@ -863,6 +863,7 @@ struct HostConversationView: View {
 
     @State private var showAttachMenu = false
     @State private var toolsOpen = false
+    @State private var preVoiceText = ""
     @State private var vibeHot = false
     @State private var vibeConfetti = 0
     @State private var knownParticipantIds: Set<String> = []
@@ -972,14 +973,11 @@ struct HostConversationView: View {
     private var trailingInputButton: some View {
         Group {
             if speechRecognizer.isRecording {
-                HStack(spacing: 6) {
-                    voiceRecordingButton
-                    SendButton(
-                        hasText: !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
-                        action: sendCurrentMessage,
-                        pulsate: false
-                    )
-                }
+                SendButton(
+                    hasText: !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
+                    action: sendCurrentMessage,
+                    pulsate: false
+                )
                 .transition(.scale.combined(with: .opacity))
             } else if !messageText.trimmingCharacters(in: .whitespaces).isEmpty {
                 SendButton(
@@ -1003,6 +1001,7 @@ struct HostConversationView: View {
             haptic.impactOccurred()
             AudioServicesPlaySystemSound(1113)
             isTextEditorFocused = false
+            preVoiceText = messageText
             viewModel.setTypingAction("voicing")
             speechRecognizer.updateLocale(hostLanguage)
             // Delay recording start so haptic/audio play before audio session is claimed
@@ -1016,28 +1015,57 @@ struct HostConversationView: View {
         .accessibilityLabel(L.t("Voice", hostLanguage))
     }
 
-    private var voiceRecordingButton: some View {
-        Button {
-            AudioServicesPlaySystemSound(1114)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            viewModel.setTypingAction(nil)
-            speechRecognizer.toggleRecording()
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(EC.pink.opacity(0.45))
-                    .frame(width: 44, height: 44)
-                    .scaleEffect(1.0 + speechRecognizer.audioLevel * 1.6)
-                    .animation(.interpolatingSpring(stiffness: 200, damping: 12), value: speechRecognizer.audioLevel)
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 17, weight: .black))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(EC.pink))
-                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 3))
+    /// Replaces the field while dictating: cancel, live waveform, stop (send sits outside like the mic did)
+    private var voicePill: some View {
+        HStack(spacing: 6) {
+            Button(action: cancelVoice) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .black))
+                    .foregroundStyle(EC.ink)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(.white))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
             }
+            .buttonStyle(.pressable)
+            .accessibilityLabel(L.t("Cancel", hostLanguage))
+
+            VoiceWaveform(level: speechRecognizer.audioLevel)
+                .frame(height: 28)
+
+            Button(action: stopVoice) {
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(EC.ink)
+                    .frame(width: 11, height: 11)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(.white))
+                    .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2.5))
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel(L.t("Stop", hostLanguage))
         }
-        .accessibilityLabel(L.t("Voice", hostLanguage))
+        .padding(.horizontal, 5)
+        .frame(height: 46)
+        .background(RoundedRectangle(cornerRadius: 23, style: .continuous).fill(EC.paper))
+        .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(EC.pink, lineWidth: 3))
+    }
+
+    /// Keeps the dictated text in the field for editing
+    private func stopVoice() {
+        AudioServicesPlaySystemSound(1114)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        viewModel.setTypingAction(nil)
+        speechRecognizer.stopRecording()
+    }
+
+    /// Throws the dictation away and restores whatever was typed before
+    private func cancelVoice() {
+        AudioServicesPlaySystemSound(1114)
+        Haptics.tap()
+        speechRecognizer.stopRecording()
+        // stopRecording publishes the final transcript; clear it so the isRecording handler doesn't apply it
+        speechRecognizer.transcript = ""
+        messageText = preVoiceText
+        viewModel.setTypingAction(messageText.isEmpty ? nil : "typing")
     }
 
     @ViewBuilder
@@ -1069,24 +1097,49 @@ struct HostConversationView: View {
         }
     }
 
+    private var voiceLiveLine: some View {
+        let live = speechRecognizer.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Text(live.isEmpty ? L.t("Listening...", hostLanguage) : live)
+            .font(.round(15, .bold))
+            .foregroundStyle(live.isEmpty ? EC.inkSoft.opacity(0.7) : EC.ink)
+            .lineLimit(2)
+            .truncationMode(.head)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 20)
+            .padding(.trailing, 68)
+            .padding(.top, 10)
+            .transition(.opacity)
+            .accessibilityAddTraits(.updatesFrequently)
+    }
+
     private var inputBar: some View {
         VStack(spacing: 0) {
+            if speechRecognizer.isRecording {
+                voiceLiveLine
+            }
             HStack(alignment: .bottom, spacing: 8) {
-                if toolsCollapsed {
-                    toolsToggle
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                if speechRecognizer.isRecording {
+                    voicePill
+                        .transition(.opacity)
                 } else {
-                    toolButtons
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                    if toolsCollapsed {
+                        toolsToggle
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    } else {
+                        toolButtons
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+                    messageField
                 }
-                messageField
                 trailingInputButton
             }
             .animation(.spring(response: 0.34, dampingFraction: 0.86), value: toolsCollapsed)
+            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: speechRecognizer.isRecording)
             .padding(.horizontal, 12)
             .padding(.top, 10)
             .padding(.bottom, 6)
         }
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: speechRecognizer.isRecording)
         .background(Color.white.opacity(0.94).ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
@@ -2838,6 +2891,35 @@ private struct VibeBadge: View {
         guard n >= 1000 else { return "\(n)" }
         let k = (Double(n) / 100).rounded() / 10
         return k == k.rounded() ? "\(Int(k))K" : "\(k)K"
+    }
+}
+
+/// Scrolling dictation meter: newest sample on the right, silence drawn as dots
+private struct VoiceWaveform: View {
+    let level: CGFloat
+    @State private var samples = [CGFloat](repeating: 0, count: 64)
+    private let timer = Timer.publish(every: 0.07, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Canvas { ctx, size in
+            let step: CGFloat = 6
+            let bar: CGFloat = 3
+            let count = min(samples.count, Int(size.width / step))
+            for i in 0..<count {
+                let v = samples[samples.count - count + i]
+                let live = v > 0
+                let h = live ? max(bar, min(size.height, 4 + v * (size.height - 4))) : bar
+                let x = size.width - CGFloat(count - i) * step + (step - bar) / 2
+                let rect = CGRect(x: x, y: (size.height - h) / 2, width: bar, height: h)
+                ctx.fill(Path(roundedRect: rect, cornerRadius: bar / 2), with: .color(live ? EC.ink : EC.inkSoft.opacity(0.45)))
+            }
+        }
+        .onReceive(timer) { _ in
+            samples.removeFirst()
+            // Room noise sits under ~0.06; sqrt lifts quiet speech into view
+            samples.append(level < 0.06 ? 0 : min(1, sqrt(level)))
+        }
+        .accessibilityHidden(true)
     }
 }
 
