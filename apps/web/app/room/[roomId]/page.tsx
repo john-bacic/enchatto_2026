@@ -1420,6 +1420,7 @@ function RoomContent() {
         <ParticipantList
           participants={participants}
           currentParticipantId={participantId}
+          roomCode={roomState.room.joinCode}
           onLeave={() => setShowLeaveConfirm(true)}
           lang={lang}
         />

@@ -20,6 +20,7 @@ interface Participant {
 interface ParticipantListProps {
   participants: Participant[];
   currentParticipantId?: string;
+  roomCode?: string;
   onLeave?: () => void;
   lang?: string;
 }
@@ -33,7 +34,7 @@ function presenceOf(p: Participant): "online" | "away" | "offline" {
 const PRESENCE_ORDER = { online: 0, away: 1, offline: 2 } as const;
 
 /** Header avatar stack; tapping it opens the member sheet. */
-export function ParticipantList({ participants, currentParticipantId, onLeave, lang }: ParticipantListProps) {
+export function ParticipantList({ participants, currentParticipantId, roomCode, onLeave, lang }: ParticipantListProps) {
   const [open, setOpen] = useState(false);
 
   // Everyone not departed (online, away, AND offline), me first; the header stack shows only the others
@@ -94,7 +95,15 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
           <div className="ec-sheet" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
             <div className="ec-sheet-grip" />
             <div className="ec-sheet-head">
-              <h2>{t("In this room", lang)}</h2>
+              <div className="ec-sheet-title">
+                <h2>{t("In this room", lang)}</h2>
+                {roomCode && (
+                  <div className="ec-sheet-room">
+                    <small>{t("Room", lang)}</small>
+                    <span className="ec-chip outline">{roomCode}</span>
+                  </div>
+                )}
+              </div>
               <span className="ec-chip outline">{members.length}</span>
               <button className="ec-round-btn" onClick={() => setOpen(false)} aria-label={t("Close", lang)}>
                 ✕
