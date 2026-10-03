@@ -1,0 +1,1723 @@
+// rooms.ts and participants.ts: creating, joining, presence, leaving, kicking, the update mutations, closing,
+// the two sweeps the crons run, and the /api/rooms/* and /api/participants/* routes the iOS host calls.
+// The caller-token rules (AUTH_MODE, requireCaller and friends) have their own file.
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { api, internal } from "../../convex/_generated/api";
+import { Doc, Id } from "../../convex/_generated/dataModel";
+import crons from "../../convex/crons";
+import { isAround, isPresent } from "../../convex/participants";
+import { Backend, createRoom, joinGuest, newBackend } from "./setup";
+
+const START = new Date("2026-10-03T12:00:00Z").getTime();
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(START);
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Moves the clock without running anything that was scheduled */
+function clockTo(ms: number) {
+  vi.setSystemTime(START + ms);
+}
+
+function settings(over: Partial<Doc<"rooms">["settings"]> = {}): Doc<"rooms">["settings"] {
+  return {
+    sourceLanguage: "en",
+    targetLanguage: "ja",
+    romajiEnabled: true,
+    suggestionsEnabled: true,
+    maxParticipants: 10,
+    ...over,
+  };
+}
+
+async function roomRow(t: Backend, roomId: Id<"rooms">): Promise<Doc<"rooms">> {
+  const room = await t.run((ctx) => ctx.db.get(roomId));
+  if (!room) throw new Error(`No room ${roomId}`);
+  return room;
+}
+
+async function person(t: Backend, participantId: Id<"participants">): Promise<Doc<"participants">> {
+  const participant = await t.run((ctx) => ctx.db.get(participantId));
+  if (!participant) throw new Error(`No participant ${participantId}`);
+  return participant;
+}
+
+async function people(t: Backend, roomId: Id<"rooms">): Promise<Doc<"participants">[]> {
+  return await t.query(api.participants.getRoomParticipants, { roomId });
+}
+
+/** The room's system messages, oldest first: what the chat shows as "X joined" and "X left" */
+async function announcements(t: Backend, roomId: Id<"rooms">): Promise<string[]> {
+  const messages = await t.run((ctx) =>
+    ctx.db
+      .query("messages")
+      .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+      .collect()
+  );
+  return messages.filter((m) => m.kind === "system").map((m) => m.text ?? "");
+}
+
+/** Everything a mutation has asked the scheduler to run, run or not */
+async function scheduled(t: Backend) {
+  return await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+}
+
+function heartbeat(t: Backend, participantId: Id<"participants">, presence?: "online" | "away") {
+  return t.mutation(api.participants.setParticipantOnline, { participantId, online: true, presence });
+}
+
+function goOffline(t: Backend, participantId: Id<"participants">) {
+  return t.mutation(api.participants.setParticipantOnline, { participantId, online: false });
+}
+
+/** What the web's unload beacon calls */
+function leave(t: Backend, participantId: Id<"participants">) {
+  return t.mutation(api.participants.leaveRoom, { participantId });
+}
+
+/** A room id of the right kind that points at nothing */
+async function deletedRoom(t: Backend): Promise<Id<"rooms">> {
+  const { roomId, hostId } = await createRoom(t);
+  await t.run(async (ctx) => {
+    await ctx.db.delete(hostId);
+    await ctx.db.delete(roomId);
+  });
+  return roomId;
+}
+
+/** POSTs JSON the way ConvexHTTPClient does */
+async function post(t: Backend, path: string, body: unknown) {
+  const res = await t.fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+  return { status: res.status, headers: res.headers, body: await res.json() };
+}
+
+/** A device token in the shape APNs gives out: 64 hex characters */
+const DEVICE_TOKEN = "9e8d7c6b".repeat(8);
+
+// ─── createRoom ──────────────────────────────────────────────────────────────
+
+describe("createRoom", () => {
+  test("makes a waiting room whose host is an online iOS participant", async () => {
+    const t = newBackend();
+    const { roomId, hostId, joinCode } = await createRoom(t, { hostNickname: "Mika" });
+
+    const state = await t.query(api.rooms.getRoomState, { roomId });
+    expect(state?.room).toMatchObject({ status: "waiting", hostId, joinCode, createdAt: START });
+    expect(state?.room.closedAt).toBeUndefined();
+    expect(state?.participants).toHaveLength(1);
+    expect(state?.participants[0]).toMatchObject({
+      _id: hostId,
+      roomId,
+      nickname: "Mika",
+      role: "host",
+      platform: "ios",
+      avatar: { type: "preset", value: "default" },
+      online: true,
+      lastSeenAt: START,
+      joinedAt: START,
+    });
+  });
+
+  test("gives a six-character join code with no 0, 1, I or O, and the code finds the room", async () => {
+    const t = newBackend();
+    // Not left to chance: these draws step through every position of the generator's alphabet, so a
+    // character that should not be there turns up in one of the codes
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
+    const first = await createRoom(t);
+    const found = await t.query(api.rooms.getRoomByJoinCode, { joinCode: first.joinCode });
+    expect(found?._id).toBe(first.roomId);
+
+    const used = new Set<string>(first.joinCode);
+    expect(first.joinCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+    for (let i = 0; i < 40; i++) {
+      const { joinCode } = await createRoom(t);
+      expect(joinCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+      for (const character of joinCode) used.add(character);
+    }
+    // All 32 turned up: the codes above held every character a code can hold
+    expect([...used].sort().join("")).toBe("23456789ABCDEFGHJKLMNPQRSTUVWXYZ");
+  });
+
+  test("uses the default settings when the host sends none", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    expect((await roomRow(t, roomId)).settings).toEqual({
+      sourceLanguage: "ja",
+      targetLanguage: "en",
+      romajiEnabled: true,
+      suggestionsEnabled: true,
+      maxParticipants: 10,
+    });
+  });
+
+  test("the host nickname is trimmed and must then be 1 to 30 characters", async () => {
+    const t = newBackend();
+    const { hostId } = await createRoom(t, { hostNickname: "  Mika  " });
+    expect((await person(t, hostId)).nickname).toBe("Mika");
+    const longest = await createRoom(t, { hostNickname: "x".repeat(30) });
+    expect((await person(t, longest.hostId)).nickname).toHaveLength(30);
+
+    for (const hostNickname of ["", "   ", "x".repeat(31)]) {
+      await expect(t.mutation(api.rooms.createRoom, { hostNickname })).rejects.toThrow(/Nickname must be/);
+    }
+  });
+
+  test("maxParticipants must be between 2 and 50", async () => {
+    const t = newBackend();
+    for (const maxParticipants of [2, 50]) {
+      const { roomId } = await t.mutation(api.rooms.createRoom, {
+        hostNickname: "Mika",
+        settings: settings({ maxParticipants }),
+      });
+      expect((await roomRow(t, roomId)).settings.maxParticipants).toBe(maxParticipants);
+    }
+    for (const maxParticipants of [1, 51, 0, -5, Infinity]) {
+      await expect(
+        t.mutation(api.rooms.createRoom, { hostNickname: "Mika", settings: settings({ maxParticipants }) })
+      ).rejects.toThrow(/Max participants/);
+    }
+  });
+
+  // 93ed5d0: `max < 2 || max > 50` let NaN through, and a room with NaN seats refuses nobody
+  test("a maxParticipants that is not a number (NaN) is refused", async () => {
+    const t = newBackend();
+    await expect(
+      t.mutation(api.rooms.createRoom, { hostNickname: "Mika", settings: settings({ maxParticipants: NaN }) })
+    ).rejects.toThrow(/Max participants/);
+    expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(0);
+  });
+
+  test("an avatar id over 64 characters and a language code over 16 are refused", async () => {
+    const t = newBackend();
+    await expect(
+      t.mutation(api.rooms.createRoom, { hostNickname: "Mika", hostAvatarId: "a".repeat(65) })
+    ).rejects.toThrow(/Invalid avatar/);
+    await expect(
+      t.mutation(api.rooms.createRoom, { hostNickname: "Mika", settings: settings({ sourceLanguage: "e".repeat(17) }) })
+    ).rejects.toThrow(/Unsupported language/);
+    await expect(
+      t.mutation(api.rooms.createRoom, { hostNickname: "Mika", settings: settings({ targetLanguage: "j".repeat(17) }) })
+    ).rejects.toThrow(/Unsupported language/);
+  });
+
+  // Review bug 19: the host was always stored with the room's source language, whatever they had chosen
+  test("the host's own language is stored when the app sends it", async () => {
+    const t = newBackend();
+    const { hostId } = await t.mutation(api.rooms.createRoom, {
+      hostNickname: "Mika",
+      hostLanguage: "ja",
+      settings: settings({ sourceLanguage: "en", targetLanguage: "ja" }),
+    });
+    expect((await person(t, hostId)).preferredLanguage).toBe("ja");
+  });
+
+  test("a host language that is missing or not one the apps offer falls back to the room's source language", async () => {
+    const t = newBackend();
+    const base = { hostNickname: "Mika", settings: settings({ sourceLanguage: "en" }) };
+    const older = await t.mutation(api.rooms.createRoom, base);
+    expect((await person(t, older.hostId)).preferredLanguage).toBe("en");
+    const odd = await t.mutation(api.rooms.createRoom, { ...base, hostLanguage: "fr" });
+    expect((await person(t, odd.hostId)).preferredLanguage).toBe("en");
+  });
+
+  test("two rooms made one after the other never get the same background", async () => {
+    const t = newBackend();
+    // Every one of these draws picks the same texture: without the rule every room would get it. They are
+    // not one constant, so that the rooms' join codes, which come from the same draws, are not all alike
+    const sameTexture = [0.45, 0.48, 0.51, 0.54];
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => sameTexture[draws++ % sameTexture.length]);
+    const backgrounds: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const { roomId } = await createRoom(t);
+      const state = await t.query(api.rooms.getRoomState, { roomId });
+      backgrounds.push(state?.room.background ?? -1);
+    }
+    for (const [i, background] of backgrounds.entries()) {
+      // One of the ten textures both apps ship
+      expect(Number.isInteger(background) && background >= 0 && background <= 9).toBe(true);
+      if (i > 0) expect(background).not.toBe(backgrounds[i - 1]);
+    }
+  });
+});
+
+// ─── joinRoom ────────────────────────────────────────────────────────────────
+
+describe("joinRoom", () => {
+  test("adds the guest as an online participant with what they chose", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const displaySettings = { showEnglish: true, showJapanese: true, showRomaji: false };
+    const guestId = await t.mutation(api.participants.joinRoom, {
+      roomId,
+      nickname: "Ana",
+      platform: "web",
+      avatar: { type: "preset", value: "panda" },
+      preferredLanguage: "ja",
+      displaySettings,
+    });
+    expect(await person(t, guestId)).toMatchObject({
+      roomId,
+      nickname: "Ana",
+      role: "participant",
+      platform: "web",
+      avatar: { type: "preset", value: "panda" },
+      preferredLanguage: "ja",
+      displaySettings,
+      online: true,
+      presence: "online",
+      lastSeenAt: START,
+      joinedAt: START,
+    });
+  });
+
+  test("the first join turns a waiting room active and is announced in the chat", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    expect((await roomRow(t, roomId)).status).toBe("waiting");
+    await joinGuest(t, roomId, "Ana");
+    expect((await roomRow(t, roomId)).status).toBe("active");
+    expect(await announcements(t, roomId)).toEqual(["join:Ana"]);
+  });
+
+  test("the nickname is trimmed and must then be 1 to 30 characters", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const guestId = await joinGuest(t, roomId, "  Ana ");
+    expect((await person(t, guestId)).nickname).toBe("Ana");
+    for (const nickname of ["", "   ", "x".repeat(31)]) {
+      await expect(joinGuest(t, roomId, nickname)).rejects.toThrow(/Nickname must be/);
+    }
+    expect(await people(t, roomId)).toHaveLength(2);
+  });
+
+  test("an avatar value over 64 characters and a language code over 16 are refused", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await expect(joinGuest(t, roomId, "Ana", { avatar: "a".repeat(65) })).rejects.toThrow(/Invalid avatar/);
+    await expect(joinGuest(t, roomId, "Ana", { language: "e".repeat(17) })).rejects.toThrow(/Unsupported language/);
+  });
+
+  test("a closed room takes no new guests", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    await expect(joinGuest(t, roomId, "Ana")).rejects.toThrow(/Room is closed/);
+  });
+
+  test("a room that does not exist is reported as not found", async () => {
+    const t = newBackend();
+    const roomId = await deletedRoom(t);
+    await expect(joinGuest(t, roomId, "Ana")).rejects.toThrow(/Room not found/);
+  });
+
+  test("a new guest is refused once the people online, the host included, reach maxParticipants", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, {
+      hostNickname: "Mika",
+      settings: settings({ maxParticipants: 2 }),
+    });
+    await joinGuest(t, roomId, "Ana");
+    await expect(joinGuest(t, roomId, "Ben", { avatar: "cat" })).rejects.toThrow(/Room is full/);
+    expect(await people(t, roomId)).toHaveLength(2);
+  });
+
+  test("a seat frees up when someone goes offline", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, {
+      hostNickname: "Mika",
+      settings: settings({ maxParticipants: 2 }),
+    });
+    const ana = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, ana);
+    const ben = await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    expect((await person(t, ben)).online).toBe(true);
+  });
+
+  test("a guest who left and joins again with the same name and avatar gets their own participant back", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana", { avatar: "panda", language: "en" });
+    await heartbeat(t, ana, "away"); // the tab was in the background when it closed, as on a phone
+    await leave(t, ana);
+    clockTo(5 * MINUTE);
+    const again = await joinGuest(t, roomId, "Ana", { avatar: "panda", language: "ja" });
+    expect(again).toBe(ana);
+    expect(await people(t, roomId)).toHaveLength(2);
+
+    // Back in the room: online, not departed, announced, and with the language chosen this time
+    const row = await person(t, ana);
+    expect(row).toMatchObject({ online: true, presence: "online", preferredLanguage: "ja", lastSeenAt: START + 5 * MINUTE });
+    expect(row.departed).toBeUndefined();
+    expect(row.joinedAt).toBe(START);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana", "join:Ana"]);
+  });
+
+  test("the match on the name ignores case and spaces around it", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const first = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, first);
+    expect(await joinGuest(t, roomId, "  aNA ")).toBe(first);
+  });
+
+  test("the same name with another avatar is a new participant", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const first = await joinGuest(t, roomId, "Ana", { avatar: "panda" });
+    await leave(t, first);
+    const other = await joinGuest(t, roomId, "Ana", { avatar: "cat" });
+    expect(other).not.toBe(first);
+    expect((await person(t, first)).online).toBe(false);
+  });
+
+  test("a second person with the name and avatar of someone who is online gets their own participant", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const first = await joinGuest(t, roomId, "Ana", { avatar: "panda" });
+    const second = await joinGuest(t, roomId, "Ana", { avatar: "panda" });
+    expect(second).not.toBe(first);
+    expect((await people(t, roomId)).filter((p) => p.nickname === "Ana" && p.online)).toHaveLength(2);
+  });
+
+  test("the host's participant is never handed to a guest who joins under the host's name and avatar", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t, { hostNickname: "Mika" });
+    await goOffline(t, hostId);
+    const guestId = await joinGuest(t, roomId, "Mika", { avatar: "default" });
+    expect(guestId).not.toBe(hostId);
+    expect((await person(t, guestId)).role).toBe("participant");
+    expect(await person(t, hostId)).toMatchObject({ role: "host", online: false, platform: "ios" });
+  });
+
+  describe("the limit of 300 members ever", () => {
+    /** People who joined and left: rows that no longer count towards maxParticipants */
+    async function addPastMembers(t: Backend, roomId: Id<"rooms">, count: number) {
+      await t.run(async (ctx) => {
+        for (let i = 0; i < count; i++) {
+          await ctx.db.insert("participants", {
+            roomId,
+            nickname: `Past ${i}`,
+            role: "participant",
+            platform: "web",
+            avatar: { type: "preset", value: "fox" },
+            preferredLanguage: "en",
+            online: false,
+            departed: true,
+            lastSeenAt: START,
+            joinedAt: START,
+          });
+        }
+      });
+    }
+
+    test("a new guest is refused once the room has had 300 members, however few are online", async () => {
+      const t = newBackend();
+      const { roomId } = await createRoom(t);
+      await addPastMembers(t, roomId, 298); // with the host: 299
+      await joinGuest(t, roomId, "Ana"); // the 300th
+      await expect(joinGuest(t, roomId, "Ben", { avatar: "cat" })).rejects.toThrow(/Room is full/);
+      const everyone = await people(t, roomId);
+      expect(everyone).toHaveLength(300);
+      expect(everyone.filter((p) => p.online)).toHaveLength(2);
+    });
+
+    test("someone who was already a member is still let back in at the limit", async () => {
+      const t = newBackend();
+      const { roomId } = await createRoom(t);
+      await addPastMembers(t, roomId, 299);
+      const past = (await people(t, roomId)).find((p) => p.nickname === "Past 7");
+      const back = await joinGuest(t, roomId, "Past 7", { avatar: "fox" });
+      expect(back).toBe(past?._id);
+      expect((await person(t, back)).online).toBe(true);
+      expect(await people(t, roomId)).toHaveLength(300);
+    });
+  });
+
+  describe("the push to a host who is not looking", () => {
+    async function roomWithDevice(t: Backend, hostLanguage: "en" | "ja") {
+      const room = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", hostLanguage });
+      await t.mutation(api.participants.setHostPushToken, {
+        roomId: room.roomId,
+        hostId: room.hostId,
+        token: DEVICE_TOKEN,
+      });
+      return room;
+    }
+    async function pushes(t: Backend) {
+      return (await scheduled(t)).filter((job) => job.name.includes("sendToHost"));
+    }
+
+    test("an away host is sent who joined and which room", async () => {
+      const t = newBackend();
+      const { roomId, hostId, joinCode } = await roomWithDevice(t, "en");
+      await heartbeat(t, hostId, "away");
+      await joinGuest(t, roomId, "Ana");
+      const sent = await pushes(t);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].args[0]).toMatchObject({
+        roomId,
+        token: DEVICE_TOKEN,
+        title: "Enchatto",
+        body: `Ana joined room ${joinCode}`,
+      });
+    });
+
+    test("a host whose language is Japanese gets the push in Japanese", async () => {
+      const t = newBackend();
+      const { roomId, hostId, joinCode } = await roomWithDevice(t, "ja");
+      await goOffline(t, hostId);
+      await joinGuest(t, roomId, "Ana");
+      const sent = await pushes(t);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].args[0]).toMatchObject({ body: `Anaさんがルーム${joinCode}に参加しました` });
+    });
+
+    test("no push is sent while the host is in the room", async () => {
+      const t = newBackend();
+      const { roomId } = await roomWithDevice(t, "en");
+      await joinGuest(t, roomId, "Ana");
+      expect(await pushes(t)).toHaveLength(0);
+    });
+
+    test("an away host is sent a push when a guest who had left comes back, too", async () => {
+      const t = newBackend();
+      const { roomId, hostId, joinCode } = await roomWithDevice(t, "en");
+      const ana = await joinGuest(t, roomId, "Ana");
+      await leave(t, ana);
+      expect(await pushes(t)).toHaveLength(0);
+
+      await heartbeat(t, hostId, "away");
+      expect(await joinGuest(t, roomId, "Ana")).toBe(ana);
+      const sent = await pushes(t);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].args[0]).toMatchObject({ token: DEVICE_TOKEN, body: `Ana joined room ${joinCode}` });
+    });
+
+    // DEFECT: the push is decided on the host's stored `online` and `presence` alone (notifyHostOfJoin), and
+    // those change only when the app says so. A host whose app was killed or crashed in the foreground sent no
+    // "away" and still reads online, so nobody who joins in the 15 to 20 minutes before closeAbandonedRooms
+    // closes the room is announced to them: the one time the push is the only way they would know. The review
+    // lists it ("The join push to the host is skipped while the host's stored presence is stale") and none of
+    // the five commits changed the server: 17f6267 made the app report "away" from the background, which a
+    // killed app cannot do. isPresent already says who is here.
+    test.fails("a host who has been silent for two minutes is sent the push, though their last heartbeat said online", async () => {
+      const t = newBackend();
+      const { roomId } = await roomWithDevice(t, "en");
+      clockTo(2 * MINUTE);
+      await joinGuest(t, roomId, "Ana");
+      expect(await pushes(t)).toHaveLength(1);
+    });
+  });
+});
+
+// ─── setParticipantOnline ────────────────────────────────────────────────────
+
+describe("setParticipantOnline", () => {
+  test("a heartbeat refreshes lastSeenAt, reads as online when no presence is sent, and announces nothing", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    clockTo(15 * SECOND);
+    await heartbeat(t, ana);
+    expect(await person(t, ana)).toMatchObject({ online: true, presence: "online", lastSeenAt: START + 15 * SECOND });
+    expect(await announcements(t, roomId)).toEqual(["join:Ana"]);
+  });
+
+  test("an away ping keeps the guest online but away, and coming back makes them online again", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await heartbeat(t, ana, "away");
+    expect(await person(t, ana)).toMatchObject({ online: true, presence: "away" });
+    await heartbeat(t, ana, "online");
+    expect(await person(t, ana)).toMatchObject({ online: true, presence: "online" });
+    expect(await announcements(t, roomId)).toEqual(["join:Ana"]);
+  });
+
+  test("going offline drops the presence and announces that the guest left", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, ana);
+    const row = await person(t, ana);
+    expect(row.online).toBe(false);
+    expect(row.presence).toBeUndefined();
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+  });
+
+  test("going offline a second time announces nothing more: a double tap on Leave sends it twice", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, ana);
+    await goOffline(t, ana);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+  });
+
+  test("coming back online after being offline announces the guest again", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, ana);
+    await heartbeat(t, ana, "online");
+    expect((await person(t, ana)).online).toBe(true);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana", "join:Ana"]);
+  });
+
+  test("the host going offline and coming back is never announced", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await goOffline(t, hostId);
+    await heartbeat(t, hostId, "online");
+    expect((await person(t, hostId)).online).toBe(true);
+    expect(await announcements(t, roomId)).toEqual([]);
+  });
+
+  // Review bug 2: every unload sets departed, and nothing cleared it, so a guest who reloaded could chat but
+  // was hidden from the member list and left out of games
+  test("a guest who reloads after the leave beacon is no longer departed", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await leave(t, ana);
+    expect((await person(t, ana)).departed).toBe(true);
+
+    await heartbeat(t, ana, "online"); // what the room page sends when it mounts
+    const row = await person(t, ana);
+    expect(row.online).toBe(true);
+    expect(row.departed).toBeUndefined();
+  });
+
+  // Review bug 2, the other way in: the sweep sets departed too
+  test("a guest the stale sweep took offline is no longer departed after their next heartbeat", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await heartbeat(t, ana, "away");
+    clockTo(MINUTE);
+    await t.mutation(internal.participants.cleanupStaleParticipants);
+    expect(await person(t, ana)).toMatchObject({ online: false, departed: true });
+
+    await heartbeat(t, ana); // an older build's heartbeat names no presence
+    const row = await person(t, ana);
+    expect(row.online).toBe(true);
+    expect(row.departed).toBeUndefined();
+  });
+
+  test("an away ping does not clear departed: a closing tab sends one right after its leave beacon", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await leave(t, ana);
+    await heartbeat(t, ana, "away");
+    expect((await person(t, ana)).departed).toBe(true);
+  });
+
+  // DEFECT: a closing tab sends its leave beacon and then, from its visibilitychange handler, an "away" ping
+  // (app/room/[roomId]/page.tsx). setParticipantOnline keeps `departed` for that ping, but it still writes
+  // online: true over the beacon's online: false, and because the guest was offline it posts "join:<name>".
+  // When the ping lands after the beacon, everyone sees the guest join a moment after they left (the web plays
+  // its cut-in for that message), and the row reads online again until the next hourly sweep: the iOS host,
+  // which does not know `departed`, lists the guest as "Away", the row counts towards maxParticipants, and
+  // joinRoom will not hand it back.
+  test.fails("an away ping that lands after the leave beacon does not announce the guest as joined", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await leave(t, ana);
+    await heartbeat(t, ana, "away");
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+    // The other half of the defect: a fix that only drops the message leaves the seat taken
+    expect((await person(t, ana)).online).toBe(false);
+  });
+
+  test("a heartbeat from a guest who was kicked fails and does not bring them back", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.kickParticipant, { participantId: ana, roomId });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined); // the "auth: unknown participant" line
+    await expect(heartbeat(t, ana, "online")).rejects.toThrow();
+    expect((await people(t, roomId)).map((p) => p.nickname)).toEqual(["Host"]);
+  });
+});
+
+// ─── Who counts as here ──────────────────────────────────────────────────────
+
+describe("presence as the games judge it (isPresent, isAround)", () => {
+  test("a guest is present until 45 seconds after their last heartbeat", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const row = await person(t, ana);
+    expect(isPresent(row, START)).toBe(true);
+    expect(isPresent(row, START + 45 * SECOND - 1)).toBe(true);
+    expect(isPresent(row, START + 45 * SECOND)).toBe(false);
+  });
+
+  test("an away guest is not present, but is around for three minutes", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await heartbeat(t, ana, "away");
+    const row = await person(t, ana);
+    expect(isPresent(row, START)).toBe(false);
+    expect(isAround(row, START)).toBe(true);
+    expect(isAround(row, START + 3 * MINUTE - 1)).toBe(true);
+    expect(isAround(row, START + 3 * MINUTE)).toBe(false);
+  });
+
+  // Review bug 2 as the games met it: a guest who had reloaded was never dealt in again
+  test("a guest who left is not present, and is present again from their next heartbeat", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await leave(t, ana);
+    expect(isPresent(await person(t, ana), START)).toBe(false);
+    expect(isAround(await person(t, ana), START)).toBe(false);
+
+    clockTo(10 * SECOND);
+    await heartbeat(t, ana, "online");
+    expect(isPresent(await person(t, ana), START + 10 * SECOND)).toBe(true);
+    expect(isAround(await person(t, ana), START + 10 * SECOND)).toBe(true);
+  });
+
+  // The room page's Leave button sends online: false, which refreshes lastSeenAt and does not set departed:
+  // only `online` says this guest has gone
+  test("a guest who went offline with Leave is neither present nor around, though heard from that moment", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    clockTo(10 * SECOND);
+    await goOffline(t, ana);
+    const row = await person(t, ana);
+    expect(row.lastSeenAt).toBe(START + 10 * SECOND);
+    expect(row.departed).toBeUndefined();
+    expect(isPresent(row, START + 10 * SECOND)).toBe(false);
+    expect(isAround(row, START + 10 * SECOND)).toBe(false);
+  });
+
+  // A row can read online and departed at once: an away ping does not clear departed, and rows from before
+  // ccda84d kept the flag through every heartbeat. Departed alone has to keep such a guest out of a game
+  test("a departed guest is neither present nor around while the row still reads online", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const row = await person(t, await joinGuest(t, roomId, "Ana"));
+    expect(isPresent(row, START)).toBe(true);
+    expect(isAround(row, START)).toBe(true);
+    expect(isPresent({ ...row, departed: true }, START)).toBe(false);
+    expect(isAround({ ...row, departed: true }, START)).toBe(false);
+    expect(isAround({ ...row, departed: true, presence: "away" }, START)).toBe(false);
+  });
+
+  test("nobody is present or around when there is no participant to ask about", () => {
+    expect(isPresent(null, START)).toBe(false);
+    expect(isPresent(undefined, START)).toBe(false);
+    expect(isAround(null, START)).toBe(false);
+    expect(isAround(undefined, START)).toBe(false);
+  });
+});
+
+// ─── leaveRoom ───────────────────────────────────────────────────────────────
+
+describe("leaveRoom", () => {
+  test("marks the guest offline and departed, keeps their row and announces that they left", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    clockTo(MINUTE);
+    await leave(t, ana);
+    expect(await person(t, ana)).toMatchObject({ online: false, departed: true, lastSeenAt: START + MINUTE });
+    expect((await people(t, roomId)).map((p) => p._id)).toContain(ana);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+  });
+
+  test("a repeated leave announces nothing more: the page sends the beacon from two events, twice each", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    for (let i = 0; i < 4; i++) await leave(t, ana);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+  });
+
+  // DEFECT: nothing clears typingAction when a guest leaves or goes offline. leaveRoom and setParticipantOnline
+  // do not touch it, and the stale sweep, the only place that clears it, skips rows that are already offline.
+  // A guest who closes the tab while typing, drawing or recording is shown as doing so to everyone else for
+  // good: both clients list whoever has a typingAction, online or not (room page `typingParticipants`,
+  // HostRoomViewModel). The review lists it ("Typing, drawing and voicing indicators are never cleared when a
+  // participant leaves") and none of the five commits fixed it.
+  test.fails("leaving clears what the guest was shown as doing", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "typing" });
+    await leave(t, ana);
+    expect((await person(t, ana)).typingAction).toBeUndefined();
+  });
+});
+
+// ─── kickParticipant ─────────────────────────────────────────────────────────
+
+describe("kickParticipant", () => {
+  test("removes the guest from the room and leaves everyone else", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const ben = await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    await t.mutation(api.participants.kickParticipant, { participantId: ana, roomId });
+    expect((await people(t, roomId)).map((p) => p._id).sort()).toEqual([hostId, ben].sort());
+  });
+
+  test("the host cannot be kicked", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await expect(t.mutation(api.participants.kickParticipant, { participantId: hostId, roomId })).rejects.toThrow(
+      /Cannot kick the host/
+    );
+    expect(await people(t, roomId)).toHaveLength(1);
+  });
+
+  test("a participant of another room is refused", async () => {
+    const t = newBackend();
+    const mine = await createRoom(t);
+    const theirs = await createRoom(t);
+    const ana = await joinGuest(t, theirs.roomId, "Ana");
+    await expect(
+      t.mutation(api.participants.kickParticipant, { participantId: ana, roomId: mine.roomId })
+    ).rejects.toThrow(/Participant not in room/);
+    expect(await people(t, theirs.roomId)).toHaveLength(2);
+  });
+
+  test("kicking someone who is already gone is reported, not ignored", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.kickParticipant, { participantId: ana, roomId });
+    await expect(t.mutation(api.participants.kickParticipant, { participantId: ana, roomId })).rejects.toThrow(
+      /Participant not found/
+    );
+  });
+
+  test("a kicked guest who joins again is a new participant", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.kickParticipant, { participantId: ana, roomId });
+    const again = await joinGuest(t, roomId, "Ana");
+    expect(again).not.toBe(ana);
+    expect((await people(t, roomId)).filter((p) => p.nickname === "Ana")).toHaveLength(1);
+  });
+});
+
+// ─── The update mutations ────────────────────────────────────────────────────
+
+describe("participant updates", () => {
+  // Review bug 19: there was no way to change the host's language after the room was made
+  test("updateParticipantLanguage stores en or ja", async () => {
+    const t = newBackend();
+    const { hostId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", hostLanguage: "en" });
+    expect(await t.mutation(api.participants.updateParticipantLanguage, { participantId: hostId, language: "ja" })).toBeNull();
+    expect((await person(t, hostId)).preferredLanguage).toBe("ja");
+    await t.mutation(api.participants.updateParticipantLanguage, { participantId: hostId, language: "en" });
+    expect((await person(t, hostId)).preferredLanguage).toBe("en");
+  });
+
+  test("updateParticipantLanguage refuses a language the apps do not offer", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana", { language: "en" });
+    for (const language of ["fr", "", "EN", "ja-JP"]) {
+      await expect(
+        t.mutation(api.participants.updateParticipantLanguage, { participantId: ana, language })
+      ).rejects.toThrow(/Unsupported language/);
+    }
+    expect((await person(t, ana)).preferredLanguage).toBe("en");
+  });
+
+  test("updateParticipantLanguage reports a participant that no longer exists", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.kickParticipant, { participantId: ana, roomId });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined); // the "auth: unknown participant" line
+    await expect(
+      t.mutation(api.participants.updateParticipantLanguage, { participantId: ana, language: "ja" })
+    ).rejects.toThrow(/Participant not found/);
+  });
+
+  test("updateParticipantNickname holds the new name to the rule joining does: trimmed, 1 to 30 characters", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.updateParticipantNickname, { participantId: ana, nickname: "  Anna " });
+    expect((await person(t, ana)).nickname).toBe("Anna");
+    for (const nickname of ["", "  ", "x".repeat(31)]) {
+      await expect(
+        t.mutation(api.participants.updateParticipantNickname, { participantId: ana, nickname })
+      ).rejects.toThrow(/Nickname must be/);
+    }
+    expect((await person(t, ana)).nickname).toBe("Anna");
+  });
+
+  test("updateParticipantAvatar stores the avatar and refuses a value over 64 characters", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana", { avatar: "fox" });
+    await t.mutation(api.participants.updateParticipantAvatar, {
+      participantId: ana,
+      avatar: { type: "preset", value: "whale" },
+    });
+    expect((await person(t, ana)).avatar).toEqual({ type: "preset", value: "whale" });
+    await expect(
+      t.mutation(api.participants.updateParticipantAvatar, {
+        participantId: ana,
+        avatar: { type: "custom", value: "a".repeat(65) },
+      })
+    ).rejects.toThrow(/Invalid avatar/);
+    expect((await person(t, ana)).avatar.value).toBe("whale");
+  });
+
+  test("updateDisplaySettings replaces the guest's display settings", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const displaySettings = { showEnglish: false, showJapanese: true, showRomaji: true };
+    await t.mutation(api.participants.updateDisplaySettings, { participantId: ana, displaySettings });
+    expect((await person(t, ana)).displaySettings).toEqual(displaySettings);
+  });
+
+  test("setTypingAction shows what the guest is doing and clears it when no action is sent", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    for (const action of ["typing", "voicing", "drawing"] as const) {
+      await t.mutation(api.participants.setTypingAction, { participantId: ana, action });
+      expect((await person(t, ana)).typingAction).toBe(action);
+    }
+    await t.mutation(api.participants.setTypingAction, { participantId: ana });
+    expect((await person(t, ana)).typingAction).toBeUndefined();
+  });
+
+  test("setTypingAction keeps drawingStartedAt only while the guest is drawing", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "drawing", drawingStartedAt: START });
+    expect((await person(t, ana)).drawingStartedAt).toBe(START);
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "typing", drawingStartedAt: START });
+    expect((await person(t, ana)).drawingStartedAt).toBeUndefined();
+  });
+});
+
+// ─── updateRoomSettings ──────────────────────────────────────────────────────
+
+describe("updateRoomSettings", () => {
+  test("replaces the room's settings", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const next = settings({ romajiEnabled: false, maxParticipants: 4 });
+    await t.mutation(api.rooms.updateRoomSettings, { roomId, settings: next });
+    expect((await roomRow(t, roomId)).settings).toEqual(next);
+  });
+
+  // 93ed5d0: the update had no bounds at all, so it was the way round createRoom's
+  test("holds the settings to the bounds createRoom does", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const before = (await roomRow(t, roomId)).settings;
+    for (const maxParticipants of [1, 51, NaN]) {
+      await expect(
+        t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants }) })
+      ).rejects.toThrow(/Max participants/);
+    }
+    for (const over of [{ sourceLanguage: "e".repeat(17) }, { targetLanguage: "j".repeat(17) }]) {
+      await expect(t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings(over) })).rejects.toThrow(
+        /Unsupported language/
+      );
+    }
+    expect((await roomRow(t, roomId)).settings).toEqual(before);
+  });
+
+  // DEFECT: the bounds check takes any number from 2 to 50, whole or not, here and in createRoom. The room
+  // document goes to the iOS host as it is, and Room.swift decodes maxParticipants as Int: with 2.5 stored,
+  // JSONDecoder refuses the whole /api/rooms/state answer, so every poll of that room fails on the host's
+  // phone. The iOS app only ever sends whole numbers, but while AUTH_MODE is "log" any guest can make this call.
+  test.fails("a maxParticipants that is not a whole number is refused", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await expect(
+      t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants: 2.5 }) })
+    ).rejects.toThrow(/Max participants/);
+  });
+
+  test("a closed room's settings cannot be changed", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    await expect(t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings() })).rejects.toThrow(
+      /Cannot update a closed room/
+    );
+  });
+
+  test("a lower limit keeps the people already in and refuses the next guest", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await joinGuest(t, roomId, "Ana");
+    await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    await t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants: 2 }) });
+    expect((await people(t, roomId)).filter((p) => p.online)).toHaveLength(3);
+    await expect(joinGuest(t, roomId, "Cy", { avatar: "dog" })).rejects.toThrow(/Room is full/);
+  });
+});
+
+// ─── closeRoom ───────────────────────────────────────────────────────────────
+
+describe("closeRoom", () => {
+  test("closes the room, stamps when, and marks everyone offline and departed", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await joinGuest(t, roomId, "Ana");
+    await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    clockTo(10 * MINUTE);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    expect(await roomRow(t, roomId)).toMatchObject({ status: "closed", closedAt: START + 10 * MINUTE });
+    const everyone = await people(t, roomId);
+    expect(everyone).toHaveLength(3);
+    for (const p of everyone) expect(p).toMatchObject({ online: false, departed: true });
+  });
+
+  test("closing a closed room changes nothing: closedAt keeps its first value", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    clockTo(HOUR);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    expect(await roomRow(t, roomId)).toMatchObject({ status: "closed", closedAt: START });
+    // One purge of the room's voice clips, from the first close only
+    expect((await scheduled(t)).filter((job) => job.name.includes("purgeRoomAudio"))).toHaveLength(1);
+  });
+
+  test("a room that does not exist is reported as not found", async () => {
+    const t = newBackend();
+    const roomId = await deletedRoom(t);
+    await expect(t.mutation(api.rooms.closeRoom, { roomId })).rejects.toThrow(/Room not found/);
+  });
+
+  test("the room's voice clips are deleted soon after it closes", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["a voice clip"], { type: "audio/webm" })));
+    const messageId = await t.run((ctx) =>
+      ctx.db.insert("messages", {
+        roomId,
+        senderId: ana,
+        kind: "audio",
+        status: "processed",
+        audioStorageId: storageId,
+        mediaUrl: "https://example.invalid/clip",
+        durationMs: 1200,
+        createdAt: START,
+      })
+    );
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await t.run((ctx) => ctx.db.system.get(storageId))).toBeNull();
+    const message = await t.run((ctx) => ctx.db.get(messageId));
+    expect(message?.audioStorageId).toBeUndefined();
+    expect(message?.mediaUrl).toBeUndefined();
+  });
+
+  test("a closed room is still found by its join code, as closed: the join page says so", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    expect(await t.query(api.rooms.getRoomByJoinCode, { joinCode })).toMatchObject({ _id: roomId, status: "closed" });
+  });
+});
+
+// ─── Queries ─────────────────────────────────────────────────────────────────
+
+describe("room queries", () => {
+  test("getRoomByJoinCode answers null for a code no room has", async () => {
+    const t = newBackend();
+    await createRoom(t);
+    expect(await t.query(api.rooms.getRoomByJoinCode, { joinCode: "000000" })).toBeNull();
+  });
+
+  // DEFECT: createRoom never checks that its code is free, closed rooms keep theirs for good (the purge is off
+  // unless PURGE_CLOSED_ROOMS_AFTER_DAYS is set), and getRoomByJoinCode returns the oldest room with the code.
+  // A new room that draws the code of any earlier room cannot be joined: the join page shows "Room closed"
+  // (or drops guests into the other open room). The review lists it ("Join codes are not checked for
+  // collisions") and none of the five commits fixed it. One in 32^6 per earlier room, per new room.
+  // The test asks only that the code the host is shown leads to the host's room, so it passes whichever way
+  // this is fixed: createRoom drawing again while a room holds the code, or the lookup preferring the open room.
+  test.fails("the join code a new room is given finds that room, though an earlier room drew the same code", async () => {
+    const t = newBackend();
+    // The same draws for both rooms, which is what createRoom meets one time in a billion per earlier room.
+    // Past those the draws differ, so a createRoom that draws again gets a code that is free
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
+    const old = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId: old.roomId });
+    clockTo(HOUR);
+    draws = 0;
+    const fresh = await createRoom(t);
+
+    const found = await t.query(api.rooms.getRoomByJoinCode, { joinCode: fresh.joinCode });
+    expect(found?._id).toBe(fresh.roomId);
+  });
+
+  test("getRoomState answers null for a room that does not exist", async () => {
+    const t = newBackend();
+    const roomId = await deletedRoom(t);
+    expect(await t.query(api.rooms.getRoomState, { roomId })).toBeNull();
+  });
+
+  test("getRoomState lists everyone who joined, with those who went offline or left", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const ben = await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    await goOffline(t, ana);
+    await leave(t, ben);
+
+    const state = await t.query(api.rooms.getRoomState, { roomId });
+    expect(state?.room._id).toBe(roomId);
+    expect(state?.participants.map((p) => p._id).sort()).toEqual([hostId, ana, ben].sort());
+    expect(state?.participants.find((p) => p._id === ben)).toMatchObject({ online: false, departed: true });
+  });
+
+  test("getRoomParticipants lists the people of that room only", async () => {
+    const t = newBackend();
+    const one = await createRoom(t, { hostNickname: "Mika" });
+    const two = await createRoom(t, { hostNickname: "Ken" });
+    await joinGuest(t, one.roomId, "Ana");
+    await joinGuest(t, two.roomId, "Ben");
+    expect((await people(t, one.roomId)).map((p) => p.nickname).sort()).toEqual(["Ana", "Mika"]);
+    expect((await people(t, two.roomId)).map((p) => p.nickname).sort()).toEqual(["Ben", "Ken"]);
+  });
+
+  // What the web room page subscribes to and the iOS host polls: another room's people must not be in it
+  test("getRoomState and rooms/state list the people of that room only", async () => {
+    const t = newBackend();
+    const one = await createRoom(t, { hostNickname: "Mika" });
+    const two = await createRoom(t, { hostNickname: "Ken" });
+    await joinGuest(t, one.roomId, "Ana");
+    await joinGuest(t, two.roomId, "Ben");
+    for (const [room, names] of [
+      [one, ["Ana", "Mika"]],
+      [two, ["Ben", "Ken"]],
+    ] as const) {
+      const state = await t.query(api.rooms.getRoomState, { roomId: room.roomId });
+      expect(state?.participants.map((p) => p.nickname).sort()).toEqual(names);
+      const res = await post(t, "/api/rooms/state", { roomId: room.roomId });
+      expect(res.body.room._id).toBe(room.roomId);
+      expect(res.body.participants.map((p: Doc<"participants">) => p.nickname).sort()).toEqual(names);
+    }
+  });
+
+  test("nothing a guest can read about a room carries a caller token or the host's device token", async () => {
+    const t = newBackend();
+    const hostToken = "a1b2c3d4".repeat(8);
+    const guestToken = "d4c3b2a1".repeat(8);
+    const { roomId, hostId, joinCode } = await createRoom(t, { hostToken });
+    await joinGuest(t, roomId, "Ana", { token: guestToken });
+    await t.mutation(api.participants.setHostPushToken, { roomId, hostId, token: DEVICE_TOKEN, callerToken: hostToken });
+
+    const readable = JSON.stringify([
+      await t.query(api.rooms.getRoomState, { roomId }),
+      await t.query(api.rooms.getRoomByJoinCode, { joinCode }),
+      await t.query(api.participants.getRoomParticipants, { roomId }),
+      (await post(t, "/api/rooms/state", { roomId })).body,
+    ]);
+    for (const secret of [hostToken, guestToken, DEVICE_TOKEN]) expect(readable).not.toContain(secret);
+    // The fixture did store all three, so the check above is not passing on an empty room
+    expect(await t.run((ctx) => ctx.db.query("participantSecrets").collect())).toHaveLength(2);
+    expect(await t.run((ctx) => ctx.db.query("hostPushTokens").collect())).toHaveLength(1);
+  });
+});
+
+// ─── The host's device token ─────────────────────────────────────────────────
+
+describe("setHostPushToken", () => {
+  async function tokensOf(t: Backend, roomId: Id<"rooms">) {
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("hostPushTokens")
+        .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+        .collect()
+    );
+    return rows.map((row) => row.token);
+  }
+
+  test("keeps one device token per room: registering again replaces it", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await t.mutation(api.participants.setHostPushToken, { roomId, hostId, token: DEVICE_TOKEN });
+    const newer = "0f1e2d3c".repeat(8);
+    await t.mutation(api.participants.setHostPushToken, { roomId, hostId, token: newer });
+    expect(await tokensOf(t, roomId)).toEqual([newer]);
+  });
+
+  test("only the room's host can register a device", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await expect(
+      t.mutation(api.participants.setHostPushToken, { roomId, hostId: ana, token: DEVICE_TOKEN })
+    ).rejects.toThrow(/Only the host/);
+    expect(await tokensOf(t, roomId)).toEqual([]);
+  });
+
+  test("a token that is not 64 to 200 hex characters is refused", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    for (const token of ["", "abc123", "z".repeat(64), "a".repeat(63), "a".repeat(201)]) {
+      await expect(t.mutation(api.participants.setHostPushToken, { roomId, hostId, token })).rejects.toThrow(
+        /Invalid device token/
+      );
+    }
+    expect(await tokensOf(t, roomId)).toEqual([]);
+  });
+
+  test("a token Apple rejected is forgotten, unless the host has registered a newer one since", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await t.mutation(api.participants.setHostPushToken, { roomId, hostId, token: DEVICE_TOKEN });
+    await t.mutation(internal.participants.clearHostPushToken, { roomId, token: "0f1e2d3c".repeat(8) });
+    expect(await tokensOf(t, roomId)).toEqual([DEVICE_TOKEN]);
+    await t.mutation(internal.participants.clearHostPushToken, { roomId, token: DEVICE_TOKEN });
+    expect(await tokensOf(t, roomId)).toEqual([]);
+  });
+});
+
+// ─── closeAbandonedRooms ─────────────────────────────────────────────────────
+
+// convex-test runs no crons: the two sweeps are called directly below. This is the only check that crons.ts
+// still registers them (the review found a copy of the backend in which both had gone missing)
+test("crons.ts runs closeAbandonedRooms every five minutes and the stale-participant sweep every hour", () => {
+  const jobs = Object.values(crons.crons);
+  expect(jobs.find((job) => job.name === "rooms:closeAbandonedRooms")?.schedule).toEqual({
+    type: "interval",
+    minutes: 5,
+  });
+  expect(jobs.find((job) => job.name === "participants:cleanupStaleParticipants")?.schedule).toEqual({
+    type: "interval",
+    hours: 1,
+  });
+});
+
+describe("closeAbandonedRooms", () => {
+  test("closes a room whose host has been silent for more than 15 minutes", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await joinGuest(t, roomId, "Ana");
+    clockTo(15 * MINUTE + 1);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(1);
+
+    expect(await roomRow(t, roomId)).toMatchObject({ status: "closed", closedAt: START + 15 * MINUTE + 1 });
+    const everyone = await people(t, roomId);
+    expect(everyone).toHaveLength(2);
+    for (const p of everyone) expect(p).toMatchObject({ online: false, departed: true });
+  });
+
+  // No host can ever heartbeat for such a room, and the purge only takes rooms that have closed
+  test("closes a room whose host participant no longer exists, however recently it was made", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await joinGuest(t, roomId, "Ana");
+    await t.run((ctx) => ctx.db.delete(hostId));
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(1);
+    expect((await roomRow(t, roomId)).status).toBe("closed");
+  });
+
+  test("leaves a room whose host was heard from within the last 15 minutes", async () => {
+    const t = newBackend();
+    const quiet = await createRoom(t); // last heard at START
+    const live = await createRoom(t);
+    clockTo(10 * MINUTE);
+    await heartbeat(t, live.hostId, "away"); // a backgrounded host still counts as there
+    clockTo(15 * MINUTE); // exactly 15 minutes for the first room, 5 for the second
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(0);
+    expect((await roomRow(t, quiet.roomId)).status).toBe("waiting");
+    expect((await roomRow(t, live.roomId)).status).toBe("waiting");
+  });
+
+  test("guests' heartbeats do not keep a room open: only the host's count", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    clockTo(16 * MINUTE);
+    await heartbeat(t, ana, "online");
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(1);
+    expect((await roomRow(t, roomId)).status).toBe("closed");
+  });
+
+  test("closes waiting and active rooms alike, and says how many", async () => {
+    const t = newBackend();
+    const waiting = await createRoom(t);
+    const active = await createRoom(t);
+    await joinGuest(t, active.roomId, "Ana");
+    expect((await roomRow(t, active.roomId)).status).toBe("active");
+    clockTo(20 * MINUTE);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(2);
+    expect((await roomRow(t, waiting.roomId)).status).toBe("closed");
+    expect((await roomRow(t, active.roomId)).status).toBe("closed");
+  });
+
+  test("leaves rooms that are already closed as they are", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    clockTo(HOUR);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(0);
+    expect((await roomRow(t, roomId)).closedAt).toBe(START);
+  });
+
+  test("closes at most 100 rooms in one run, and the rest in the next", async () => {
+    const t = newBackend();
+    for (let i = 0; i < 101; i++) await createRoom(t);
+    clockTo(20 * MINUTE);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(100);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(1);
+    const open = await t.run((ctx) =>
+      ctx.db
+        .query("rooms")
+        .filter((q) => q.neq(q.field("status"), "closed"))
+        .collect()
+    );
+    expect(open).toHaveLength(0);
+  });
+});
+
+// ─── cleanupStaleParticipants ────────────────────────────────────────────────
+
+describe("cleanupStaleParticipants", () => {
+  const sweep = (t: Backend) => t.mutation(internal.participants.cleanupStaleParticipants);
+
+  test("marks someone away once they have been silent for more than 45 seconds, and clears what they were shown as doing", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "typing" });
+    clockTo(45 * SECOND + 1);
+    await sweep(t);
+    const row = await person(t, ana);
+    expect(row).toMatchObject({ online: true, presence: "away", lastSeenAt: START });
+    expect(row.typingAction).toBeUndefined();
+    expect(row.departed).toBeUndefined();
+  });
+
+  // 17f6267: the sweep used to mark away at 20 s, so it could take out of a game someone isPresent still accepts
+  test("does not mark away anyone who still counts as present", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    clockTo(30 * SECOND);
+    await sweep(t);
+    expect((await person(t, ana)).presence).toBe("online");
+    expect(isPresent(await person(t, ana), START + 30 * SECOND)).toBe(true);
+    clockTo(45 * SECOND - 1);
+    await sweep(t);
+    expect((await person(t, ana)).presence).toBe("online");
+  });
+
+  test("takes an away participant offline and departed once they have been silent for more than 30 seconds", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    // A guest who switched apps mid-sentence: the tab reports away and says no more
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "typing" });
+    await heartbeat(t, ana, "away");
+    clockTo(30 * SECOND + 1);
+    await sweep(t);
+    const row = await person(t, ana);
+    expect(row).toMatchObject({ online: false, departed: true });
+    expect(row.presence).toBeUndefined();
+    // Nobody is left to clear it: both apps show whoever has a typingAction, online or not
+    expect(row.typingAction).toBeUndefined();
+    // Unlike a leave, the sweep announces nothing
+    expect(await announcements(t, roomId)).toEqual(["join:Ana"]);
+  });
+
+  test("leaves an away participant who was heard from within the last 30 seconds", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await heartbeat(t, ana, "away");
+    clockTo(30 * SECOND);
+    await sweep(t);
+    expect(await person(t, ana)).toMatchObject({ online: true, presence: "away" });
+  });
+
+  test("someone whose phone went silent while online is away after one run and offline after the next", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    clockTo(HOUR);
+    await sweep(t);
+    expect(await person(t, ana)).toMatchObject({ online: true, presence: "away" });
+    expect(await person(t, hostId)).toMatchObject({ online: true, presence: "away" });
+    clockTo(2 * HOUR);
+    await sweep(t);
+    expect(await person(t, ana)).toMatchObject({ online: false, departed: true });
+    expect(await person(t, hostId)).toMatchObject({ online: false, departed: true });
+  });
+
+  test("does not touch someone who is already offline", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, ana);
+    const before = await person(t, ana);
+    clockTo(HOUR);
+    await sweep(t);
+    expect(await person(t, ana)).toEqual(before);
+  });
+});
+
+// ─── purgeGameTraces ─────────────────────────────────────────────────────────
+
+describe("purgeGameTraces", () => {
+  /** Trace rows as the three games write them, each kind under a game of its own */
+  async function seedTraces(t: Backend, counts: { em: number; tod: number; bingo: number }) {
+    const { roomId, hostId } = await createRoom(t);
+    await t.run(async (ctx) => {
+      const emGame = await ctx.db.insert("emojiMatchGames", {
+        roomId,
+        status: "canceled",
+        hostParticipantId: hostId,
+        players: [],
+        turnOrder: [],
+        board: [],
+        selectedCardIds: [],
+        matchedPairCount: 0,
+        totalPairs: 0,
+        boardRows: 0,
+        boardCols: 0,
+        mismatchRevealMs: 1000,
+        createdAt: START,
+      });
+      const todGame = await ctx.db.insert("truthOrDareGames", {
+        roomId,
+        status: "canceled",
+        hostParticipantId: hostId,
+        playerOrder: [],
+        currentTurnIndex: 0,
+        createdAt: START,
+      });
+      const bingoGame = await ctx.db.insert("emojiBingoGames", {
+        roomId,
+        status: "canceled",
+        hostParticipantId: hostId,
+        winPattern: "line",
+        callIntervalMs: 5000,
+        players: [],
+        drawDeck: [],
+        calledEmojis: [],
+        drawIndex: 0,
+        createdAt: START,
+      });
+      for (let i = 0; i < counts.em; i++) {
+        await ctx.db.insert("emTrace", { gameId: emGame, action: "flip", participantId: hostId, ts: START + i });
+      }
+      for (let i = 0; i < counts.tod; i++) {
+        await ctx.db.insert("todTrace", { gameId: todGame, action: "advanceTurn", participantId: hostId, ts: START + i });
+      }
+      for (let i = 0; i < counts.bingo; i++) {
+        await ctx.db.insert("bingoTrace", { gameId: bingoGame, action: "roll", participantId: hostId, ts: START + i });
+      }
+    });
+  }
+
+  async function traceCounts(t: Backend) {
+    return await t.run(async (ctx) => ({
+      em: (await ctx.db.query("emTrace").collect()).length,
+      tod: (await ctx.db.query("todTrace").collect()).length,
+      bingo: (await ctx.db.query("bingoTrace").collect()).length,
+    }));
+  }
+
+  // Review bug 1: the trace rows hold game and participant ids for every room. The queries that returned them
+  // are gone (the games' own files test that); this is the function that empties the tables
+  test("empties the three trace tables, says how many rows it deleted and leaves the games alone", async () => {
+    const t = newBackend();
+    await seedTraces(t, { em: 3, tod: 2, bingo: 4 });
+    expect(await t.mutation(internal.rooms.purgeGameTraces)).toBe(9);
+    expect(await traceCounts(t)).toEqual({ em: 0, tod: 0, bingo: 0 });
+    expect(await t.run((ctx) => ctx.db.query("emojiMatchGames").collect())).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("truthOrDareGames").collect())).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("emojiBingoGames").collect())).toHaveLength(1);
+    expect((await scheduled(t)).filter((job) => job.name.includes("purgeGameTraces"))).toHaveLength(0);
+  });
+
+  test("deletes 500 rows in one run and carries on by itself until none are left", async () => {
+    const t = newBackend();
+    await seedTraces(t, { em: 498, tod: 2, bingo: 3 });
+    expect(await t.mutation(internal.rooms.purgeGameTraces)).toBe(500);
+    expect(await traceCounts(t)).toEqual({ em: 0, tod: 0, bingo: 3 });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await traceCounts(t)).toEqual({ em: 0, tod: 0, bingo: 0 });
+  });
+});
+
+// ─── HTTP routes the iOS host calls ──────────────────────────────────────────
+
+describe("/api/rooms/* and /api/participants/*", () => {
+  test("rooms/create answers 200 with exactly roomId, joinCode and hostId, as JSON", async () => {
+    const t = newBackend();
+    const res = await post(t, "/api/rooms/create", { hostNickname: "Mika" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    expect(res.body).toEqual({
+      roomId: expect.any(String),
+      hostId: expect.any(String),
+      joinCode: expect.stringMatching(/^[A-HJ-NP-Z2-9]{6}$/),
+    });
+    const room = await roomRow(t, res.body.roomId);
+    expect(room).toMatchObject({ hostId: res.body.hostId, joinCode: res.body.joinCode, status: "waiting" });
+  });
+
+  // Review bug 19, through the body the iOS app sends (RealEnchattoAPI.createRoom)
+  test("rooms/create takes the app's whole body: avatar, host language, host token and settings", async () => {
+    const t = newBackend();
+    const hostToken = "a1b2c3d4".repeat(8);
+    const sent = settings({ sourceLanguage: "en", targetLanguage: "ja", maxParticipants: 12 });
+    const res = await post(t, "/api/rooms/create", {
+      hostNickname: "Mika",
+      hostAvatarId: "rabbit",
+      hostLanguage: "ja",
+      hostToken,
+      settings: sent,
+    });
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(["hostId", "joinCode", "roomId"]);
+    expect((await roomRow(t, res.body.roomId)).settings).toEqual(sent);
+    expect(await person(t, res.body.hostId)).toMatchObject({
+      nickname: "Mika",
+      preferredLanguage: "ja",
+      avatar: { type: "preset", value: "rabbit" },
+    });
+  });
+
+  test("rooms/create answers 400 with the reason when the room is refused", async () => {
+    const t = newBackend();
+    const refused = await post(t, "/api/rooms/create", { hostNickname: "   " });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/Nickname must be/);
+    const incomplete = await post(t, "/api/rooms/create", {});
+    expect(incomplete.status).toBe(400);
+    expect(typeof incomplete.body.error).toBe("string");
+    expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(0);
+  });
+
+  test("rooms/state answers the room and its people with the fields the iOS models decode", async () => {
+    const t = newBackend();
+    const { roomId, hostId, joinCode } = await createRoom(t, { hostNickname: "Mika" });
+    const ana = await joinGuest(t, roomId, "Ana", { avatar: "panda", language: "ja" });
+    await heartbeat(t, ana, "away");
+
+    const res = await post(t, "/api/rooms/state", { roomId });
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual(["participants", "room"]);
+    // Room.swift: every field but closedAt and background is required
+    expect(res.body.room).toMatchObject({
+      _id: roomId,
+      joinCode,
+      status: "active",
+      hostId,
+      createdAt: START,
+      background: expect.any(Number),
+      settings: {
+        sourceLanguage: "ja",
+        targetLanguage: "en",
+        romajiEnabled: true,
+        suggestionsEnabled: true,
+        maxParticipants: 10,
+      },
+    });
+    // Participant.swift: every field but presence, typingAction and drawingStartedAt is required
+    expect(res.body.participants).toHaveLength(2);
+    expect(res.body.participants.find((p: Doc<"participants">) => p._id === hostId)).toMatchObject({
+      roomId,
+      nickname: "Mika",
+      role: "host",
+      platform: "ios",
+      avatar: { type: "preset", value: "default" },
+      preferredLanguage: "ja",
+      online: true,
+      lastSeenAt: START,
+      joinedAt: START,
+    });
+    expect(res.body.participants.find((p: Doc<"participants">) => p._id === ana)).toMatchObject({
+      roomId,
+      nickname: "Ana",
+      role: "participant",
+      platform: "web",
+      avatar: { type: "preset", value: "panda" },
+      preferredLanguage: "ja",
+      online: true,
+      presence: "away",
+      lastSeenAt: START,
+      joinedAt: START,
+    });
+  });
+
+  // Review bug 21: the app's "Rejoin room" reads a 200 with no "room" key as the server's word that the room is gone
+  test("rooms/state answers 200 {ok: true}, with no room key, for a room that no longer exists", async () => {
+    const t = newBackend();
+    const roomId = await deletedRoom(t);
+    const res = await post(t, "/api/rooms/state", { roomId });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  test("rooms/state answers 400 for an id that is not a room's", async () => {
+    const t = newBackend();
+    const { hostId } = await createRoom(t);
+    for (const roomId of ["not-an-id", hostId]) {
+      const res = await post(t, "/api/rooms/state", { roomId });
+      expect(res.status).toBe(400);
+      expect(typeof res.body.error).toBe("string");
+    }
+  });
+
+  test("rooms/close closes the room and answers {ok: true}, the second time too", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    for (let i = 0; i < 2; i++) {
+      const res = await post(t, "/api/rooms/close", { roomId });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+    }
+    expect((await post(t, "/api/rooms/state", { roomId })).body.room).toMatchObject({
+      status: "closed",
+      closedAt: START,
+    });
+  });
+
+  test("rooms/push-token stores the host's device token, and answers 400 to anyone else", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const refused = await post(t, "/api/rooms/push-token", { roomId, hostId: ana, token: DEVICE_TOKEN });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/Only the host/);
+
+    const res = await post(t, "/api/rooms/push-token", { roomId, hostId, token: DEVICE_TOKEN });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    const stored = await t.run((ctx) => ctx.db.query("hostPushTokens").collect());
+    expect(stored.map((row) => ({ roomId: row.roomId, token: row.token }))).toEqual([{ roomId, token: DEVICE_TOKEN }]);
+  });
+
+  test("participants/set-online is the host's heartbeat: it carries the presence and refreshes lastSeenAt", async () => {
+    const t = newBackend();
+    const { hostId } = await createRoom(t);
+    clockTo(15 * SECOND);
+    const away = await post(t, "/api/participants/set-online", { participantId: hostId, online: true, presence: "away" });
+    expect(away.status).toBe(200);
+    expect(away.body).toEqual({ ok: true });
+    expect(await person(t, hostId)).toMatchObject({ online: true, presence: "away", lastSeenAt: START + 15 * SECOND });
+
+    // Builds from before the app reported "away" send no presence at all
+    const plain = await post(t, "/api/participants/set-online", { participantId: hostId, online: true });
+    expect(plain.status).toBe(200);
+    expect((await person(t, hostId)).presence).toBe("online");
+  });
+
+  // Review bug 2 for the host: the sweep had marked a locked phone departed, and games then found too few players
+  test("participants/set-online brings back a host the sweep had marked departed", async () => {
+    const t = newBackend();
+    const { hostId } = await createRoom(t);
+    clockTo(HOUR);
+    await t.mutation(internal.participants.cleanupStaleParticipants);
+    await t.mutation(internal.participants.cleanupStaleParticipants);
+    expect(await person(t, hostId)).toMatchObject({ online: false, departed: true });
+
+    const res = await post(t, "/api/participants/set-online", { participantId: hostId, online: true, presence: "online" });
+    expect(res.status).toBe(200);
+    const host = await person(t, hostId);
+    expect(host.online).toBe(true);
+    expect(host.departed).toBeUndefined();
+    expect(isPresent(host, START + HOUR)).toBe(true);
+  });
+
+  test("participants/kick removes the guest, and answers 400 with the reason for the host", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const res = await post(t, "/api/participants/kick", { participantId: ana, roomId });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect((await people(t, roomId)).map((p) => p._id)).toEqual([hostId]);
+
+    const refused = await post(t, "/api/participants/kick", { participantId: hostId, roomId });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/Cannot kick the host/);
+  });
+
+  test("participants/set-typing shows what the host is doing, and a body with no action clears it", async () => {
+    const t = newBackend();
+    const { hostId } = await createRoom(t);
+    const drawing = await post(t, "/api/participants/set-typing", {
+      participantId: hostId,
+      action: "drawing",
+      drawingStartedAt: START,
+    });
+    expect(drawing.status).toBe(200);
+    expect(drawing.body).toEqual({ ok: true });
+    expect(await person(t, hostId)).toMatchObject({ typingAction: "drawing", drawingStartedAt: START });
+
+    const cleared = await post(t, "/api/participants/set-typing", { participantId: hostId });
+    expect(cleared.status).toBe(200);
+    expect((await person(t, hostId)).typingAction).toBeUndefined();
+  });
+
+  // Review bug 19: the route the app keeps the host's language in sync through
+  test("participants/set-language changes the host's language, and answers 400 for one the apps do not offer", async () => {
+    const t = newBackend();
+    const { hostId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", hostLanguage: "en" });
+    const res = await post(t, "/api/participants/set-language", { participantId: hostId, language: "ja" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect((await person(t, hostId)).preferredLanguage).toBe("ja");
+
+    const refused = await post(t, "/api/participants/set-language", { participantId: hostId, language: "fr" });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toMatch(/Unsupported language/);
+    expect((await person(t, hostId)).preferredLanguage).toBe("ja");
+  });
+
+  test("a body that is not JSON is answered 400 with an error, not a crash", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    for (const path of ["/api/rooms/close", "/api/participants/set-online"]) {
+      const res = await post(t, path, "this is not json");
+      expect(res.status).toBe(400);
+      expect(typeof res.body.error).toBe("string");
+    }
+    expect((await roomRow(t, roomId)).status).toBe("waiting");
+  });
+});

@@ -1,0 +1,53 @@
+name: CI
+
+# Everything here also runs locally from the repo root with the same commands.
+on:
+  push:
+    branches: [main, redesign]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web and Convex
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # The web app, the Convex functions and the tests are three TypeScript projects
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Runs the real Convex schema and functions against an in-memory backend. No network, no deployment
+      - name: Test
+        run: npm test
+
+      # apps/convex/convex is a backup of the deployed functions and must not drift from them
+      - name: Convex backup copy is in sync
+        run: diff -r -x _generated -x tsconfig.json apps/web/convex apps/convex/convex
+
+      # A duplicate key in the dictionary literal compiles and then crashes the iOS app at launch
+      - name: iOS localization keys are unique
+        run: node scripts/check-localization.mjs
+
+      # What Vercel runs. The URL only has to be well formed: the build never calls Convex.
+      # It does need the network: next/font downloads the two Google fonts in app/layout.tsx
+      - name: Build
+        run: npm run build:web
+        env:
+          NEXT_PUBLIC_CONVEX_URL: https://example.convex.cloud

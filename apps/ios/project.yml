@@ -39,6 +39,14 @@ targets:
           - README.md
           - "*.xcodeproj/**"
           - ".gitkeep"
+          # Design sources for the app icon; the asset catalog holds what ships
+          - "*.svg"
+          # The command-line text tests (Package.swift, run with `swift test`). Not app source
+          - ".gitignore"
+          - ".build"
+          - "Package.swift"
+          - "Package.resolved"
+          - "Tests"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.enchatto.app

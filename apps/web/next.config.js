@@ -21,6 +21,10 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_GIT_SHA: getGitSHA(),
   },
+  // Lint runs in CI (npm run lint), not in next build, so a lint finding can never block a deploy
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 module.exports = nextConfig;

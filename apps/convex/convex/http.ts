@@ -1,5 +1,5 @@
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+import { ActionCtx, httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { DRAWING_MAX_BYTES } from "./participants";
@@ -12,8 +12,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// Helper: parse JSON body and call a mutation/query
-function jsonAction(handler: (ctx: any, body: any) => Promise<any>) {
+// Helper: parse JSON body and call a mutation/query. ctx is typed so the compiler checks the
+// argument names each route passes: Convex refuses a call that carries an argument its function does not declare
+function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {
   return httpAction(async (ctx, request) => {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });

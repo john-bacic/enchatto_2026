@@ -1,0 +1,16 @@
+{
+  // The only ESLint config for the web app: stop ESLint looking in parent folders for another
+  "root": true,
+  // Brings react-hooks/rules-of-hooks as an error and react-hooks/exhaustive-deps as a warning
+  "extends": "next/core-web-vitals",
+  // Convex writes these files and overwrites them on every push
+  "ignorePatterns": ["convex/_generated/"],
+  "rules": {
+    // Pictures here are Convex storage URLs and data: URLs chosen at run time. next/image would
+    // need every storage host allow-listed and cannot optimise a data: URL, so <img> is what we want
+    "@next/next/no-img-element": "off",
+    // Stays a warning. Do not "fix" one by editing a dependency array without reading the effect:
+    // several effects here leave a value out on purpose, and adding it changes when they run
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}

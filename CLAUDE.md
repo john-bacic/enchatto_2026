@@ -23,14 +23,33 @@ npm install                     # Install all workspace dependencies
 npm run dev:web                 # Start Next.js dev server on :3000
 npm run dev:convex              # Start Convex dev watcher
 npm run build:web               # Production build of web app
-npm run lint                    # Lint all workspaces
+npm run lint                    # ESLint over the web app, Convex functions and tests
+npm run typecheck               # tsc over the web app, the Convex functions and the tests
+npm test                        # Convex function tests (vitest + convex-test), about 5 seconds, no network
+node scripts/check-localization.mjs   # Duplicate keys in apps/ios/Localization.swift crash the app at launch
 ```
 
 From `apps/web/`:
 
 ```bash
 npx convex dev --once           # One-time deploy Convex functions to dev deployment
+npx vitest run tests/convex/messages.test.ts   # One test file
 ```
+
+From `apps/ios/`:
+
+```bash
+swift test                      # Japanese text code (casualizer, romaji) as a Swift package, on macOS
+```
+
+## Testing
+
+- **Convex tests** live in `apps/web/tests/convex/`, one file per area. They run the real schema and functions against an in-memory backend (`newBackend()` in `setup.ts`), including HTTP routes (`t.fetch`) and scheduled functions (fake timers). Node 22 is needed. `tests/no-network.ts` makes any real network call fail; a test that needs a model's answer stubs `fetch`
+- **A test marked `test.fails` with a `DEFECT:` comment** states the correct behaviour for a known bug and passes only while the bug exists. Fixing the bug makes it report "Expect test to fail": remove `.fails` in the same change. `grep -rn "DEFECT:" apps/web/tests apps/ios/Tests` lists every known bug
+- **What the in-memory backend does not model:** stored files have no content type (tests set it by hand), there is no concurrency or write conflict, and crons do not run (tests call the cron functions directly)
+- **iOS text tests** live in `apps/ios/Tests/`. `apps/ios/Package.swift` compiles a few Foundation-only files from `Services/Processing` in place; it is not how the app is built. A known bug there is an `XCTExpectDefect` line
+- **CI** (`.github/workflows/`): `ci.yml` runs type-check, lint, tests, the Convex backup-copy check, the localization check and the web build on every push to `main` or `redesign` and on pull requests; `ios-text.yml` runs `swift test` when the text code changes. `deploy.sh` deploys from the local tree before it pushes, so CI does not gate a deploy: run `npm test` first
+- **Adding a Swift file under `apps/ios`:** the Xcode project is generated from `apps/ios/project.yml` by XcodeGen, which takes every file under `apps/ios` as app source unless `excludes` names it
 
 ## Deployment
 
