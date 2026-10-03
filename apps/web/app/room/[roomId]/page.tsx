@@ -1546,7 +1546,7 @@ function RoomContent() {
             <div className="ec-sheet-grip" />
             <div className="ec-sheet-head">
               {me && <AvatarDisc id={me.avatar.value} size={40} />}
-              <h2 style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <h2 style={{ minWidth: 0, overflowWrap: "anywhere" }}>
                 {t("Display for", lang)} {me?.nickname ?? ""}
               </h2>
               <button className="ec-round-btn" onClick={() => setShowDisplaySettings(false)} aria-label={t("Close", lang)}>
@@ -1554,10 +1554,7 @@ function RoomContent() {
               </button>
             </div>
             <div className="ec-sheet-body">
-              <span className="ec-chip ink">
-                {t("Room", lang)}: {roomState.room.joinCode}
-              </span>
-              <div style={{ marginTop: 8 }}>
+              <div>
                 {([
                   { key: "en", label: t("English", lang), value: showEnglish, toggle: () => toggleDisplay("showEnglish") },
                   { key: "ja", label: t("Japanese", lang), value: showJapanese, toggle: () => toggleDisplay("showJapanese") },
