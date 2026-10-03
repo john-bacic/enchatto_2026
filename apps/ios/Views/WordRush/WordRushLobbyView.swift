@@ -10,7 +10,8 @@ struct WordRushLobbyView: View {
     @State private var busy = false
 
     private var me: String { viewModel.hostId }
-    private var isHost: Bool { game.hostParticipantId == me }
+    private var isHost: Bool { viewModel.canControlWordRush }
+    private var isGameHost: Bool { game.hostParticipantId == me }
     private var joined: Bool { game.player(me) != nil }
 
     var body: some View {
@@ -195,35 +196,23 @@ struct WordRushLobbyView: View {
 
     // MARK: - Actions
 
-    @ViewBuilder
+    // Start and Cancel are always here: the room host can run a lobby a guest opened, joined or not
     private var actions: some View {
-        if isHost {
-            VStack(spacing: 6) {
-                Button(L.t("START WORD RUSH!", lang)) { run { await viewModel.startWordRush() } }
-                    .buttonStyle(.chunky(EC.pink))
-                Button(L.t("Cancel", lang), action: onCancel)
-                    .font(.round(14, .black))
-                    .foregroundStyle(EC.inkSoft)
-            }
-        } else if !joined {
-            HStack(spacing: 10) {
-                Button(L.t("Not now", lang), action: onMinimize)
-                    .buttonStyle(.chunky(.white, fullWidth: true))
+        VStack(spacing: 6) {
+            if !joined {
                 Button(L.t("JOIN!", lang)) { run { await viewModel.joinWordRush() } }
                     .buttonStyle(.chunky(EC.pink))
             }
-        } else {
-            VStack(spacing: 6) {
-                HStack(spacing: 8) {
-                    ProgressView().tint(EC.ink)
-                    Text(L.t("Waiting for the host to start…", lang))
-                        .font(.round(14, .black))
-                        .foregroundStyle(EC.ink)
+            Button(L.t("START WORD RUSH!", lang)) { run { await viewModel.startWordRush() } }
+                .buttonStyle(.chunky(joined ? EC.pink : .white))
+            HStack(spacing: 24) {
+                if joined && !isGameHost {
+                    Button(L.t("Leave", lang)) { run { await viewModel.leaveWordRush() } }
                 }
-                .padding(.vertical, 10)
-                Button(L.t("Leave", lang)) { run { await viewModel.leaveWordRush() } }
-                    .buttonStyle(.chunky(.white, size: .small))
+                Button(L.t("Cancel", lang), action: onCancel)
             }
+            .font(.round(14, .black))
+            .foregroundStyle(EC.inkSoft)
         }
     }
 

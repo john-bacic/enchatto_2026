@@ -32,6 +32,7 @@ interface TruthOrDareGameProps {
       status: string;
     } | null;
     completedTurns: number;
+    roundBreakAckedTurns?: number;
     completedTurnsList?: Array<{
       _id: string;
       participantId: string;
@@ -308,7 +309,8 @@ export function TruthOrDareGame({
   const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
   const [submitting, setSubmitting] = useState<string | null>(null); // tracks which action is in-flight
-  // Track which completedTurns milestone was dismissed (by user click or host advancing)
+  // Hides the round break at once on the device that tapped Keep Playing.
+  // The server's roundBreakAckedTurns is what releases everyone else.
   const [dismissedRoundBreak, setDismissedRoundBreak] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -336,39 +338,17 @@ export function TruthOrDareGame({
     setStarRating(0);
     setHasRated(false);
     setSubmitting(null); // clear any stale submitting state
+    setShowDrawing(false); // a turn skipped from under an open drawing sheet must not leave it open
     if (responseInputRef.current) responseInputRef.current.value = "";
   }, [game.currentTurn?._id, turnStatus]);
 
-  // Show round break at every 10-turn milestone.
-  // Track which turnIndex triggered the round break so we can detect
-  // when the host advances past it (Keep Playing creates a new turnIndex).
-  const [roundBreakTurnIndex, setRoundBreakTurnIndex] = useState<number | null>(null);
-
-  const shouldShowRoundBreak = game.completedTurns > 0 &&
+  // Show round break at every 10-turn milestone, until the host continues past it.
+  // The turn changing is not that signal: an absent player can be skipped while the break is up.
+  const isRoundBreak = game.completedTurns > 0 &&
     game.completedTurns % 10 === 0 &&
     game.currentTurn?.status === "waiting_for_choice" &&
+    game.roundBreakAckedTurns !== game.completedTurns &&
     dismissedRoundBreak !== game.completedTurns;
-
-  // When the round break condition is first met, record the turnIndex.
-  // If the turnIndex changes while the condition is still met, the host advanced — dismiss.
-  const isRoundBreak = shouldShowRoundBreak && (
-    roundBreakTurnIndex === null || roundBreakTurnIndex === game.currentTurnIndex
-  );
-
-  useEffect(() => {
-    if (shouldShowRoundBreak) {
-      if (roundBreakTurnIndex === null) {
-        // First time showing — record which turnIndex triggered it
-        setRoundBreakTurnIndex(game.currentTurnIndex);
-      } else if (roundBreakTurnIndex !== game.currentTurnIndex) {
-        // TurnIndex changed while round break active — host clicked Keep Playing
-        setDismissedRoundBreak(game.completedTurns);
-        setRoundBreakTurnIndex(null);
-      }
-    } else {
-      setRoundBreakTurnIndex(null);
-    }
-  }, [shouldShowRoundBreak, game.currentTurnIndex, roundBreakTurnIndex, game.completedTurns]);
 
   // Signal drawing state to other players via typing indicator
   useEffect(() => {

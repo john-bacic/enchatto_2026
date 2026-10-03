@@ -340,6 +340,10 @@ class MockEnchattoAPI: EnchattoAPI {
 
     func skipTruthOrDareTurn(gameId: String, participantId: String) async throws {}
 
+    func hostSkipTruthOrDareTurn(gameId: String, participantId: String, turnId: String) async throws {}
+
+    func acknowledgeTruthOrDareRoundBreak(gameId: String, participantId: String, completedTurns: Int) async throws {}
+
     func endTruthOrDare(gameId: String, participantId: String) async throws {}
 
     func submitTruthOrDareTranslation(turnId: String, translatedText: String) async throws {}

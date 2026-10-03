@@ -10,10 +10,11 @@ import { PACKS, errorText, unlockAudio, type ViewProps } from "./shared";
 export function LobbySheet({
   state,
   myId,
+  isHost,
   s,
   toast,
   onMinimize,
-}: Pick<ViewProps, "state" | "myId" | "s" | "toast"> & { onMinimize: () => void }) {
+}: Pick<ViewProps, "state" | "myId" | "isHost" | "s" | "toast"> & { onMinimize: () => void }) {
   const joinLobby = useMutation(api.wordRush.joinLobby);
   const leaveLobby = useMutation(api.wordRush.leaveLobby);
   const updateSettings = useMutation(api.wordRush.updateSettings);
@@ -22,7 +23,6 @@ export function LobbySheet({
   const [busy, setBusy] = useState(false);
 
   const joined = state.players.some((p) => p.participantId === myId);
-  const isHost = state.hostParticipantId === myId;
   const gameId = state._id;
 
   const run = async (fn: () => Promise<unknown>, after?: () => void) => {

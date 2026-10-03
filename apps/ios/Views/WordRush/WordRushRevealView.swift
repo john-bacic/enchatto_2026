@@ -12,7 +12,7 @@ struct WordRushRevealView: View {
     private var myPlayer: WordRushPlayer? { game.player(me) }
     private var learning: String { myPlayer?.learning ?? (lang == "ja" ? "en" : "ja") }
     private var reveal: WordRushReveal? { game.card?.reveal }
-    private var isHost: Bool { game.hostParticipantId == me }
+    private var isHost: Bool { viewModel.canControlWordRush }
 
     /// nil = spectator, false = wrong or no answer
     private var myCorrect: Bool? {

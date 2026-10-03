@@ -13,6 +13,8 @@ struct TruthOrDareGame: Codable, Identifiable, Equatable {
     var currentTurnParticipantId: String?
     let createdAt: Double
     var completedAt: Double?
+    /// The `completedTurns` count whose round break the host has continued past
+    var roundBreakAckedTurns: Int?
 
     // Joined data from query
     var currentTurn: TruthOrDareTurn?
@@ -26,7 +28,7 @@ struct TruthOrDareGame: Codable, Identifiable, Equatable {
         case roomId, status, hostParticipantId, promptMode, playerOrder
         case currentTurnIndex, currentTurnParticipantId
         case createdAt = "_creationTime"
-        case completedAt, currentTurn, completedTurns, completedTurnsList, totalTurns, playerInfo
+        case completedAt, roundBreakAckedTurns, currentTurn, completedTurns, completedTurnsList, totalTurns, playerInfo
     }
 }
 

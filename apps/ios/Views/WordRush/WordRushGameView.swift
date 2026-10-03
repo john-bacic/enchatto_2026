@@ -60,7 +60,7 @@ struct WordRushGameView: View {
     }
 
     private func activeView(_ game: WordRushGame) -> some View {
-        let isHost = game.hostParticipantId == viewModel.hostId
+        let isHost = viewModel.canControlWordRush
         return VStack(spacing: 0) {
             WordRushTopBar(
                 game: game,

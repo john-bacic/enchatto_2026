@@ -3,6 +3,35 @@ import { mutation, query, internalMutation, MutationCtx } from "./_generated/ser
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 
+/** A heartbeat arrives every 15 s from a visible web tab and from the iOS host */
+export const PRESENT_WITHIN_MS = 45_000;
+
+/**
+ * Whether someone is actually here right now, for deciding who to deal into a game or wait for.
+ * `online` alone is not enough: it only goes false through the unload beacon or the hourly sweep,
+ * so a pocketed phone stays "online" long after its owner stopped looking.
+ */
+export function isPresent(p: Doc<"participants"> | null | undefined, now: number): boolean {
+  return (
+    !!p &&
+    p.online &&
+    !p.departed &&
+    p.presence !== "away" &&
+    now - p.lastSeenAt < PRESENT_WITHIN_MS
+  );
+}
+
+const AROUND_WITHIN_MS = 3 * 60_000;
+
+/**
+ * Whether someone was here recently enough to be dealt into a game that has no way to join later.
+ * Looser than isPresent on purpose: a phone that dimmed while the host explained the rules should
+ * still get a seat. Each game's own timeout moves past them if they do not come back.
+ */
+export function isAround(p: Doc<"participants"> | null | undefined, now: number): boolean {
+  return !!p && p.online && !p.departed && now - p.lastSeenAt < AROUND_WITHIN_MS;
+}
+
 /** Push "X joined" to the iOS host when they're not looking at the room */
 async function notifyHostOfJoin(
   ctx: MutationCtx,
@@ -331,12 +360,13 @@ export const getRoomParticipants = query({
 
 // Two-tier stale detection:
 // "away" + 30s no heartbeat → offline (removed from list)
-// "online" + 20s no heartbeat → mark as "away" (safety net)
+// "online" + 45s no heartbeat → mark as "away" (safety net)
 export const cleanupStaleParticipants = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     const awayOfflineCutoff = now - 30 * 1000; // away users go offline after 30s
-    const onlineAwayCutoff = now - 20 * 1000;  // online users go away after 20s
+    // Never mark away someone isPresent still accepts: games skip a player who reads as away
+    const onlineAwayCutoff = now - PRESENT_WITHIN_MS;
     const allParticipants = await ctx.db.query("participants").collect();
     for (const p of allParticipants) {
       if (!p.online) continue;

@@ -13,7 +13,7 @@ struct WordRushMicView: View {
     private var performer: WordRushPerformer? { game.performer }
     private var performerPlayer: WordRushPlayer? { performer.flatMap { game.player($0.participantId) } }
     private var amPerformer: Bool { performer?.participantId == me }
-    private var isHost: Bool { game.hostParticipantId == me }
+    private var isHost: Bool { viewModel.canControlWordRush }
 
     var body: some View {
         ZStack {

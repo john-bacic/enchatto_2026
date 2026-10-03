@@ -72,6 +72,8 @@ struct EmojiMatchGameView: View {
                 .ignoresSafeArea()
         }
         .onChange(of: viewModel.activeEmojiMatchGame?.status) { newStatus in
+            // A miss ends a combo even when the same player keeps the turn (the others are away)
+            if newStatus == .resolving { streak = 0; lastScorer = nil }
             if newStatus == .completed {
                 showCompleted = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

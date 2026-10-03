@@ -1,7 +1,8 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
+import { isPresent } from "./participants";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -159,6 +160,88 @@ function getNextEligiblePlayer(
   return null;
 }
 
+type Game = Doc<"emojiMatchGames">;
+
+/**
+ * Who plays after `currentId`. A player who is not here right now is passed over, so someone who
+ * left is not handed turn after turn; they are back in the rotation as soon as they return.
+ * isActive is left alone on purpose: both clients hide inactive players from the score strip.
+ * `currentId` is the last candidate, so a lone present player keeps the turn and can finish the
+ * board. If nobody is present the plain rotation applies, so the turn clock keeps moving.
+ */
+async function pickNextPlayer(
+  ctx: MutationCtx,
+  turnOrder: Id<"participants">[],
+  players: Array<{ participantId: Id<"participants">; isActive: boolean }>,
+  currentId: Id<"participants">
+): Promise<Id<"participants"> | null> {
+  const fallback = getNextEligiblePlayer(turnOrder, players, currentId);
+  if (!fallback) return null;
+
+  const activeSet = new Set(
+    players.filter((p) => p.isActive).map((p) => p.participantId)
+  );
+  const now = Date.now();
+  const currentIndex = turnOrder.indexOf(currentId);
+  for (let offset = 1; offset <= turnOrder.length; offset++) {
+    const nextId = turnOrder[(currentIndex + offset) % turnOrder.length];
+    if (activeSet.has(nextId) && isPresent(await ctx.db.get(nextId), now)) return nextId;
+  }
+  return fallback;
+}
+
+/**
+ * The server owns the turn clock. Call this wherever turnStartedAt is set; the timeout carries that
+ * timestamp and does nothing if the turn has moved on by the time it fires.
+ */
+async function scheduleTurnTimeout(
+  ctx: MutationCtx,
+  gameId: Id<"emojiMatchGames">,
+  turnTimeoutMs: number | undefined,
+  turnStartedAt: number
+): Promise<void> {
+  if (!turnTimeoutMs) return; // single player: no turn clock
+  await ctx.scheduler.runAfter(turnTimeoutMs, internal.emojiMatch.internalTimeoutTurn, {
+    gameId,
+    turnStartedAt,
+  });
+}
+
+// Turns in a row that ran out with no card flipped before the game is ended: five minutes of 15 s
+// turns. Without it a game left minimised keeps passing the turn for as long as the room is open.
+const MAX_IDLE_TIMEOUTS = 20;
+
+/**
+ * Hands a lobby whose game host has gone to the room host. Installed iOS builds only show Start and
+ * Cancel to the game host, so this is how the room host gets an abandoned lobby back. Only on the room
+ * host's own request, and never from a game host who is here.
+ */
+async function claimLobby(ctx: MutationCtx, lobby: Game, callerId: Id<"participants">): Promise<boolean> {
+  const caller = await ctx.db.get(callerId);
+  if (!caller || caller.role !== "host" || caller.roomId !== lobby.roomId) return false;
+  const now = Date.now();
+  if (isPresent(await ctx.db.get(lobby.hostParticipantId), now)) return false;
+  const joined = lobby.players.some((p) => p.participantId === callerId);
+  await ctx.db.patch(lobby._id, {
+    hostParticipantId: callerId,
+    players: joined
+      ? lobby.players
+      : [
+          ...lobby.players,
+          {
+            participantId: callerId,
+            nickname: caller.nickname,
+            avatarValue: caller.avatar.value,
+            joinedAt: now,
+            isActive: true,
+            score: 0,
+            turns: 0,
+          },
+        ],
+  });
+  return true;
+}
+
 // --- Mutations ---
 
 export const createLobby = mutation({
@@ -183,7 +266,12 @@ export const createLobby = mutation({
           q.eq("roomId", args.roomId).eq("status", status)
         )
         .first();
-      if (existing) throw new Error("An emoji match game is already in progress");
+      if (!existing) continue;
+      // An abandoned lobby goes to the room host instead of blocking the room (see claimLobby)
+      if (status === "lobby" && (await claimLobby(ctx, existing, args.hostParticipantId))) {
+        return existing._id;
+      }
+      throw new Error("An emoji match game is already in progress");
     }
 
     const now = Date.now();
@@ -227,6 +315,9 @@ export const joinLobby = mutation({
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
 
+    if (game.hostParticipantId !== args.participantId && (await claimLobby(ctx, game, args.participantId))) {
+      return;
+    }
     if (game.players.some((p) => p.participantId === args.participantId)) {
       throw new Error("Already joined this lobby");
     }
@@ -343,6 +434,10 @@ export const startGame = mutation({
     const turnOrder = shuffleArray(activePlayers.map((p) => p.participantId));
     const now = Date.now();
     const isMultiplayer = activePlayers.length > 1;
+    const turnTimeoutMs = isMultiplayer ? 15000 : undefined;
+    // Open on someone who is here: a player who joined the lobby and left would cost a full turn clock
+    const firstPlayer =
+      (await pickNextPlayer(ctx, turnOrder, game.players, turnOrder[turnOrder.length - 1])) ?? turnOrder[0];
 
     await ctx.db.patch(args.gameId, {
       status: "active",
@@ -353,11 +448,12 @@ export const startGame = mutation({
       matchedPairCount: 0,
       selectedCardIds: [],
       turnOrder,
-      currentTurnParticipantId: turnOrder[0],
-      turnTimeoutMs: isMultiplayer ? 15000 : undefined,
+      currentTurnParticipantId: firstPlayer,
+      turnTimeoutMs,
       startedAt: now,
       turnStartedAt: now,
     });
+    await scheduleTurnTimeout(ctx, args.gameId, turnTimeoutMs, now);
 
     // Post system message only for the first game in this room
     const existingGameMsg = await ctx.db
@@ -473,13 +569,16 @@ export const flipCard = mutation({
       }
 
       // Match but game continues
+      const turnStartedAt = Date.now();
       await ctx.db.patch(args.gameId, {
         board: matchedBoard,
         selectedCardIds: [],
         matchedPairCount: newMatchedCount,
         players: updatedPlayers,
-        turnStartedAt: Date.now(),
+        turnStartedAt,
+        idleTimeouts: 0,
       });
+      await scheduleTurnTimeout(ctx, args.gameId, game.turnTimeoutMs, turnStartedAt);
       await emTrace(ctx, args.gameId, "flipCard:match", args.participantId.toString(), `pair=${firstCard.pairKey} matched=${newMatchedCount}/${game.totalPairs}`);
       return { action: "match" };
     }
@@ -519,7 +618,7 @@ export const resolveMismatch = mutation({
     if (game.status !== "resolving") return; // Already resolved — no error
     if (game.resolveAt && Date.now() < game.resolveAt) return; // Too early — wait
     await emTrace(ctx, args.gameId, "resolveMismatch", undefined, `turn=${game.currentTurnParticipantId?.toString().slice(-6)}`);
-    await doResolveMismatch(ctx, game);
+    await passTurn(ctx, game);
   },
 });
 
@@ -528,40 +627,67 @@ export const internalResolveMismatch = internalMutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game || game.status !== "resolving") return;
-    await doResolveMismatch(ctx, game);
+    await passTurn(ctx, game);
   },
 });
 
-async function doResolveMismatch(ctx: any, game: any) {
+/**
+ * End the current turn: turn back any unmatched card left open, hand the turn to the next player
+ * and arm that turn's timeout. Used when a mismatch reveal ends and when a turn's clock runs out.
+ */
+async function passTurn(ctx: MutationCtx, game: Game, timedOut: boolean = false): Promise<void> {
   const selectedSet = new Set(game.selectedCardIds);
-  const updatedBoard = game.board.map((c: any) =>
-    selectedSet.has(c.cardId) ? { ...c, isRevealed: false } : c
+  const updatedBoard = game.board.map((c) =>
+    selectedSet.has(c.cardId) && !c.isMatched ? { ...c, isRevealed: false } : c
   );
+  const now = Date.now();
 
-  const nextPlayer = getNextEligiblePlayer(
-    game.turnOrder,
-    game.players,
-    game.currentTurnParticipantId!
-  );
+  // Kept on the game, not in the scheduled job, so the server clock and a web tab's timeoutTurn
+  // count the same run. A turn in which a card was flipped is not idle, even though it ran out.
+  const idle = timedOut && game.selectedCardIds.length === 0 ? (game.idleTimeouts ?? 0) + 1 : 0;
+
+  // Nobody has touched the board for a long run of turns: end the game rather than tick on
+  const nextPlayer =
+    idle >= MAX_IDLE_TIMEOUTS
+      ? null
+      : await pickNextPlayer(ctx, game.turnOrder, game.players, game.currentTurnParticipantId!);
 
   if (!nextPlayer) {
-    const maxScore = Math.max(...game.players.map((p: any) => p.score));
-    const winners = game.players.filter(
-      (p: any) => p.score === maxScore && p.isActive
-    );
+    // Walked away from, not won: no winners, and the same chat record cancelGame leaves.
+    // Status stays "completed" because the active-game query would otherwise fall back to an
+    // older finished game; both clients show endReason "canceled" as a cancelled game.
+    const sorted = [...game.players].sort((a, b) => b.score - a.score);
+    const maxScore = sorted[0]?.score ?? 0;
     await ctx.db.patch(game._id, {
       board: updatedBoard,
       selectedCardIds: [],
       status: "completed",
       currentTurnParticipantId: undefined,
-      endedAt: Date.now(),
+      endedAt: now,
       resolveAt: undefined,
-      result: {
-        winnerParticipantIds: winners.map((w: any) => w.participantId),
-        isTie: winners.length > 1,
-        endReason: "abandoned",
-      },
+      result: { winnerParticipantIds: [], isTie: false, endReason: "canceled" },
     });
+    if (maxScore > 0) {
+      await upsertMatchEmojiSummary(ctx, game.roomId, game.hostParticipantId, {
+        players: sorted.map((p) => ({
+          name: p.nickname,
+          avatar: p.avatarValue,
+          score: p.score,
+          isWinner: p.score === maxScore,
+        })),
+        totalPairs: game.totalPairs,
+        isTie: sorted.filter((p) => p.score === maxScore).length > 1,
+      }, true);
+    } else {
+      await ctx.db.insert("messages", {
+        roomId: game.roomId,
+        senderId: game.hostParticipantId,
+        kind: "system",
+        status: "processed",
+        text: "game_cancelled:Match Emoji",
+        createdAt: now,
+      });
+    }
     return;
   }
 
@@ -570,9 +696,11 @@ async function doResolveMismatch(ctx: any, game: any) {
     selectedCardIds: [],
     status: "active",
     currentTurnParticipantId: nextPlayer,
-    turnStartedAt: Date.now(),
+    turnStartedAt: now,
+    idleTimeouts: idle,
     resolveAt: undefined,
   });
+  await scheduleTurnTimeout(ctx, game._id, game.turnTimeoutMs, now);
 }
 
 export const timeoutTurn = mutation({
@@ -583,56 +711,41 @@ export const timeoutTurn = mutation({
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
-    if (game.status !== "active") throw new Error("Game is not active");
-    if (game.currentTurnParticipantId !== args.participantId) {
-      throw new Error("Not this player's turn");
-    }
+    // The server ends turns itself (internalTimeoutTurn). Web clients still call this, racing that
+    // timer and each other, so a call for a turn that already moved on, or one that is early because
+    // the caller's clock runs fast, is expected: ignore it instead of rejecting it.
+    if (game.status !== "active") return;
+    if (game.currentTurnParticipantId !== args.participantId) return;
     if (!game.turnTimeoutMs || !game.turnStartedAt) return;
-    await emTrace(ctx, args.gameId, "timeoutTurn", args.participantId.toString());
     // Allow 1s grace for client/server clock skew
-    if (Date.now() - game.turnStartedAt < game.turnTimeoutMs - 1000) {
-      throw new Error("Turn has not timed out yet");
-    }
+    if (Date.now() - game.turnStartedAt < game.turnTimeoutMs - 1000) return;
+    await doTimeoutTurn(ctx, game, "client");
+  },
+});
 
-    const selectedSet = new Set(game.selectedCardIds);
-    const updatedBoard = game.board.map((c) =>
-      selectedSet.has(c.cardId) && !c.isMatched
-        ? { ...c, isRevealed: false }
-        : c
-    );
+/** A turn's clock ran out. Shared by the scheduled timeout and the public mutation web clients call. */
+async function doTimeoutTurn(ctx: MutationCtx, game: Game, source: "server" | "client"): Promise<void> {
+  await emTrace(ctx, game._id, "timeoutTurn", game.currentTurnParticipantId?.toString(), `by=${source}`);
+  await passTurn(ctx, game, true);
+}
 
-    const nextPlayer = getNextEligiblePlayer(
-      game.turnOrder,
-      game.players,
-      args.participantId
-    );
-
-    if (!nextPlayer) {
-      const maxScore = Math.max(...game.players.map((p) => p.score));
-      const winners = game.players.filter(
-        (p) => p.score === maxScore && p.isActive
-      );
-      await ctx.db.patch(args.gameId, {
-        board: updatedBoard,
-        selectedCardIds: [],
-        status: "completed",
-        currentTurnParticipantId: undefined,
-        endedAt: Date.now(),
-        result: {
-          winnerParticipantIds: winners.map((w) => w.participantId),
-          isTie: winners.length > 1,
-          endReason: "abandoned",
-        },
-      });
-      return;
-    }
-
-    await ctx.db.patch(args.gameId, {
-      board: updatedBoard,
-      selectedCardIds: [],
-      currentTurnParticipantId: nextPlayer,
-      turnStartedAt: Date.now(),
-    });
+export const internalTimeoutTurn = internalMutation({
+  args: {
+    gameId: v.id("emojiMatchGames"),
+    turnStartedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    // Not active: the game ended, or a mismatch is being revealed (its resolve starts the next
+    // turn and schedules that turn's timeout)
+    if (!game || game.status !== "active") return;
+    // Stale: a match, a mismatch or an earlier timeout already restarted the clock
+    if (game.turnStartedAt !== args.turnStartedAt) return;
+    if (!game.currentTurnParticipantId) return;
+    // A closed room has nobody left to play: stop here so an abandoned game does not tick forever
+    const room = await ctx.db.get(game.roomId);
+    if (!room || room.status === "closed") return;
+    await doTimeoutTurn(ctx, game, "server");
   },
 });
 
@@ -727,7 +840,10 @@ export const playAgain = mutation({
 
     for (const player of game.players) {
       const p = await ctx.db.get(player.participantId);
-      if (p && p.online && !p.departed && p.roomId === game.roomId) {
+      // Deal in only the people who are here right now; anyone else can tap Join when they are back.
+      // The caller is always in, whatever their last heartbeat says.
+      const isCaller = player.participantId === args.participantId;
+      if (p && p.roomId === game.roomId && (isCaller || isPresent(p, now))) {
         newPlayers.push({
           participantId: player.participantId,
           nickname: p.nickname,

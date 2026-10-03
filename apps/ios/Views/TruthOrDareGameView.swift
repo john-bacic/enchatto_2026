@@ -41,6 +41,7 @@ struct TruthOrDareGameView: View {
            completedTurns > 0,
            completedTurns % 10 == 0,
            game.currentTurn?.status == .waiting_for_choice,
+           game.roundBreakAckedTurns != completedTurns,
            dismissedRoundBreak != completedTurns {
             ZStack {
                 EC.ink.opacity(0.55)
@@ -67,8 +68,13 @@ struct TruthOrDareGameView: View {
 
                         Button("\(L.t("Keep Playing", lang)) →") {
                             Haptics.thump()
+                            // Hidden here at once; guests stay behind the break until the server
+                            // hears about it, so bring it back for another tap if nothing got through
                             dismissedRoundBreak = completedTurns
-                            Task { await viewModel.advanceTruthOrDareTurn() }
+                            Task {
+                                let reached = await viewModel.acknowledgeTruthOrDareRoundBreak(completedTurns: completedTurns)
+                                if !reached { dismissedRoundBreak = 0 }
+                            }
                         }
                         .buttonStyle(.chunky(EC.mint, size: .small))
                     }
@@ -231,6 +237,8 @@ struct TruthOrDareGameView: View {
         .onChange(of: game.currentTurn?.id) { _ in
             starRating = 0
             pickedChoice = nil
+            // A turn skipped while the host was drawing must not leave the cover to reopen on the next drawing prompt
+            showDrawing = false
         }
         .onChange(of: game.currentTurn?.status) { status in
             if status == .completed { Haptics.success() }
@@ -352,6 +360,7 @@ struct TruthOrDareGameView: View {
                     .font(.round(14, .black))
                     .foregroundStyle(EC.ink.opacity(0.6))
                     .multilineTextAlignment(.center)
+                hostSkipButton(turnId: game.currentTurn?.id)
             }
 
             HStack(spacing: 4) {
@@ -528,6 +537,10 @@ struct TruthOrDareGameView: View {
                         .font(.round(14, .black))
                         .foregroundStyle(EC.ink.opacity(0.6))
                 }
+            }
+
+            if !isMyTurn {
+                hostSkipButton(turnId: turn.id)
             }
         }
     }
@@ -818,6 +831,16 @@ struct TruthOrDareGameView: View {
         .buttonStyle(.chunky(EC.pink))
         .gkWiggle(angle: 1, duration: 0.45)
         .padding(.top, 4)
+    }
+
+    /// Lets the host move the game past a player who is not taking their turn
+    private func hostSkipButton(turnId: String?) -> some View {
+        Button(L.t("Skip", lang)) {
+            guard let turnId else { return }
+            Task { await viewModel.hostSkipTruthOrDareTurn(turnId: turnId) }
+        }
+        .buttonStyle(.chunky(.white, size: .mini, fullWidth: false))
+        .disabled(turnId == nil || viewModel.isTruthOrDareSubmitting)
     }
 
     // MARK: - Completed View

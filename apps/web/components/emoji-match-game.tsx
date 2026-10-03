@@ -336,7 +336,9 @@ function GameBoardView({
       const elapsed = Date.now() - game.turnStartedAt;
       const remaining = Math.max(0, game.turnTimeoutMs - elapsed);
       setTimeLeft(remaining);
-      if (remaining === 0 && !timeoutFiredRef.current) {
+      // The server ends the turn on its own clock; this only nudges it. Outside "active" (a mismatch
+      // reveal, the final board) the clock on screen is the finished turn's: there is nothing to end.
+      if (remaining === 0 && game.status === "active" && !timeoutFiredRef.current) {
         timeoutFiredRef.current = true;
         onTimeoutTurn();
       }
@@ -344,7 +346,7 @@ function GameBoardView({
     tick();
     const interval = setInterval(tick, 250);
     return () => clearInterval(interval);
-  }, [game.turnTimeoutMs, game.turnStartedAt, onTimeoutTurn]);
+  }, [game.turnTimeoutMs, game.turnStartedAt, game.status, onTimeoutTurn]);
 
   // "PAIR! +1" pop whenever a new pair is matched
   const [pairPop, setPairPop] = useState<number | null>(null);

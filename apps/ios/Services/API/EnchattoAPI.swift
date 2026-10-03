@@ -182,6 +182,12 @@ protocol EnchattoAPI {
     /// Skip current turn
     func skipTruthOrDareTurn(gameId: String, participantId: String) async throws
 
+    /// Host skips whoever holds the turn. `turnId` is the turn the host was looking at, so a repeat does nothing
+    func hostSkipTruthOrDareTurn(gameId: String, participantId: String, turnId: String) async throws
+
+    /// Host continues past the round break shown at `completedTurns`, which releases the guests
+    func acknowledgeTruthOrDareRoundBreak(gameId: String, participantId: String, completedTurns: Int) async throws
+
     /// End the game
     func endTruthOrDare(gameId: String, participantId: String) async throws
 

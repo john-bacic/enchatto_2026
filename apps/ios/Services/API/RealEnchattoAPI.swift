@@ -466,22 +466,24 @@ class RealEnchattoAPI: EnchattoAPI {
         return response.gameId
     }
 
+    // These routes answer {"ok": true}, which does not decode as [String: String]: postVoid, or
+    // every successful call throws and skips the poll that follows it.
     func joinEmojiMatchLobby(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/emoji-match/join", body: [
+        try await client.postVoid("/api/emoji-match/join", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
     }
 
     func leaveEmojiMatchLobby(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/emoji-match/leave", body: [
+        try await client.postVoid("/api/emoji-match/leave", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
     }
 
     func startEmojiMatch(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/emoji-match/start", body: [
+        try await client.postVoid("/api/emoji-match/start", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
@@ -496,7 +498,7 @@ class RealEnchattoAPI: EnchattoAPI {
     }
 
     func cancelEmojiMatch(gameId: String, participantId: String) async throws {
-        let _: [String: String] = try await client.post("/api/emoji-match/cancel", body: [
+        try await client.postVoid("/api/emoji-match/cancel", body: [
             "gameId": gameId,
             "participantId": participantId,
         ])
@@ -564,6 +566,22 @@ class RealEnchattoAPI: EnchattoAPI {
             "gameId": gameId,
             "participantId": participantId,
         ])
+    }
+
+    func hostSkipTruthOrDareTurn(gameId: String, participantId: String, turnId: String) async throws {
+        try await client.postVoid("/api/truth-or-dare/host-skip-turn", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "turnId": turnId,
+        ])
+    }
+
+    func acknowledgeTruthOrDareRoundBreak(gameId: String, participantId: String, completedTurns: Int) async throws {
+        try await client.postVoid("/api/truth-or-dare/ack-round-break", body: [
+            "gameId": gameId,
+            "participantId": participantId,
+            "completedTurns": completedTurns,
+        ] as [String : Any])
     }
 
     func endTruthOrDare(gameId: String, participantId: String) async throws {

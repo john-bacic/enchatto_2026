@@ -1,7 +1,8 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
+import { isAround, isPresent } from "./participants";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -240,6 +241,103 @@ function pickRandomPrompt(choice: "truth" | "dare", promptMode: "normal" | "deep
   return source[Math.floor(Math.random() * source.length)];
 }
 
+// ─── Turn helpers ───────────────────────────────────────────────────────────
+
+type Game = Doc<"truthOrDareGames">;
+type Turn = Doc<"truthOrDareTurns">;
+
+/** How often the server looks at whoever holds the open turn */
+const ABSENCE_CHECK_MS = 15_000;
+/** Looks in a row that must find the player away, so a glance at another tab or a page reload is forgiven */
+const ABSENCE_MISSES_TO_SKIP = 2;
+
+function isOpen(turn: Turn | null | undefined): turn is Turn {
+  return turn?.status === "waiting_for_choice" || turn?.status === "waiting_for_response";
+}
+
+/** A seat is dealt again by a skip and every time rotation comes round, so the newest turn at the seat is the live one */
+async function currentTurnOf(ctx: MutationCtx, game: Game): Promise<Turn | null> {
+  return await ctx.db
+    .query("truthOrDareTurns")
+    .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
+    .filter((q) => q.eq(q.field("turnIndex"), game.currentTurnIndex))
+    .order("desc")
+    .first();
+}
+
+/**
+ * The only place a turn is dealt, so each turn has exactly one absence check chain.
+ * `misses` is 1 when the player is already away as the turn is dealt, which counts as the first look.
+ */
+async function openTurn(
+  ctx: MutationCtx,
+  gameId: Id<"truthOrDareGames">,
+  turnIndex: number,
+  participantId: Id<"participants">,
+  misses: number,
+): Promise<void> {
+  const turnId = await ctx.db.insert("truthOrDareTurns", {
+    gameId,
+    turnIndex,
+    participantId,
+    status: "waiting_for_choice",
+    createdAt: Date.now(),
+  });
+  await ctx.scheduler.runAfter(ABSENCE_CHECK_MS, internal.truthOrDare.internalAbsenceCheck, { turnId, misses });
+}
+
+/**
+ * Deals the next seat whose participant still exists. Only a kick empties a seat: someone who is
+ * merely away keeps theirs, and the absence check moves past them when their turn comes.
+ */
+async function advanceToNextSeat(ctx: MutationCtx, game: Game, endedBy: Id<"participants">): Promise<void> {
+  const seats = game.playerOrder.length;
+  // The walk starts at the next seat and ends on the current one. Two players found means the
+  // game can go on, so it stops there instead of reading the whole room.
+  const found: { index: number; player: Doc<"participants"> }[] = [];
+  for (let step = 1; step <= seats && found.length < 2; step++) {
+    const index = (game.currentTurnIndex + step) % seats;
+    const player = await ctx.db.get(game.playerOrder[index]);
+    if (player) found.push({ index, player });
+  }
+  if (found.length < 2) {
+    await finishGame(ctx, game, endedBy);
+    return;
+  }
+  const next = found[0];
+  await ctx.db.patch(game._id, {
+    currentTurnIndex: next.index,
+    currentTurnParticipantId: next.player._id,
+  });
+  await openTurn(ctx, game._id, next.index, next.player._id, isPresent(next.player, Date.now()) ? 0 : 1);
+}
+
+/** Shared by the host's skip and the automatic one so the two cannot drift apart */
+async function skipOpenTurn(ctx: MutationCtx, game: Game, turn: Turn, endedBy: Id<"participants">): Promise<void> {
+  await ctx.db.patch(turn._id, {
+    status: "skipped",
+    completedAt: Date.now(),
+  });
+  await advanceToNextSeat(ctx, game, endedBy);
+}
+
+/** Must stay equal to the `completedTurns` that getActiveTruthOrDare returns: clients compare the two */
+async function countCompletedTurns(ctx: MutationCtx, gameId: Id<"truthOrDareGames">): Promise<number> {
+  const completed = await ctx.db
+    .query("truthOrDareTurns")
+    .withIndex("by_gameId_status", (q) => q.eq("gameId", gameId).eq("status", "completed"))
+    .collect();
+  return completed.length;
+}
+
+/** Records that the host continued past the round break at this count. Returns whether anything changed. */
+async function ackRoundBreak(ctx: MutationCtx, game: Game, completedTurns: number): Promise<boolean> {
+  if (completedTurns <= 0 || completedTurns % 10 !== 0) return false;
+  if (game.roundBreakAckedTurns === completedTurns) return false;
+  await ctx.db.patch(game._id, { roundBreakAckedTurns: completedTurns });
+  return true;
+}
+
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
 export const createGame = mutation({
@@ -260,22 +358,27 @@ export const createGame = mutation({
       .first();
     if (activeGame) return activeGame._id;
 
-    // Get online participants
+    const now = Date.now();
+
+    // Deal whoever has been here lately, plus the person starting the game. There is no way to join
+    // later, so a phone that just dimmed still gets a seat; the absence check moves past its turn.
     const participants = await ctx.db
       .query("participants")
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
-    const onlinePlayers = participants.filter((p) => p.online && !p.departed);
-    if (onlinePlayers.length < 2) throw new Error("Need at least 2 players");
+    const isStarter = (p: Doc<"participants">) => p._id === args.hostParticipantId;
+    let players = participants.filter((p) => isAround(p, now) || isStarter(p));
+    // The host app enables Start on two online people and shows nothing when this throws, so a
+    // guest who glanced away must not make Start do nothing. The absence check moves past them.
+    if (players.length < 2) players = participants.filter((p) => (p.online && !p.departed) || isStarter(p));
+    if (players.length < 2) throw new Error("Need at least 2 players");
 
     // Shuffle player order
-    const playerIds = onlinePlayers.map((p) => p._id);
+    const playerIds = players.map((p) => p._id);
     for (let i = playerIds.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
     }
-
-    const now = Date.now();
 
     // Post system message (only if no existing truth_or_dare system message in room)
     const existingMessages = await ctx.db
@@ -309,13 +412,8 @@ export const createGame = mutation({
     });
 
     // Create first turn
-    await ctx.db.insert("truthOrDareTurns", {
-      gameId,
-      turnIndex: 0,
-      participantId: playerIds[0],
-      status: "waiting_for_choice",
-      createdAt: now,
-    });
+    const first = players.find((p) => p._id === playerIds[0])!;
+    await openTurn(ctx, gameId, 0, first._id, isPresent(first, now) ? 0 : 1);
 
     return gameId;
   },
@@ -447,41 +545,64 @@ export const advanceTurn = mutation({
       throw new Error("Only the host can advance turns");
     }
 
-    // Guard: if current turn is already waiting_for_choice, this is a double-tap — skip
-    const latestTurn = await ctx.db
-      .query("truthOrDareTurns")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .filter((q) => q.eq(q.field("turnIndex"), game.currentTurnIndex))
-      .order("desc")
-      .first();
+    const latestTurn = await currentTurnOf(ctx, game);
+
+    // Older iOS builds have no other call to make for Keep Playing, so a host call that arrives
+    // while the next turn is already waiting records the round break acknowledgement when one is
+    // due. Otherwise it is the double tap it always was. No time guard: one that swallowed a quick
+    // Keep Playing would leave guests behind the break with no way for that build to retry.
     if (latestTurn?.status === "waiting_for_choice") {
-      await trace(ctx, args.gameId, "advanceTurn:duplicate", args.participantId.toString(), `turnIdx=${game.currentTurnIndex} already waiting`);
+      const acked = await ackRoundBreak(ctx, game, await countCompletedTurns(ctx, game._id));
+      await trace(ctx, args.gameId, acked ? "advanceTurn:roundBreakAck" : "advanceTurn:duplicate", args.participantId.toString(), `turnIdx=${game.currentTurnIndex} already waiting`);
+      return;
+    }
+
+    // No client offers Next Turn while a player is answering, so this is a late duplicate. Dealing
+    // the next seat here would orphan the open turn; hostSkipTurn is the way past it.
+    if (latestTurn?.status === "waiting_for_response") {
+      await trace(ctx, args.gameId, "advanceTurn:duplicate", args.participantId.toString(), `turnIdx=${game.currentTurnIndex} answering`);
       return;
     }
 
     await trace(ctx, args.gameId, "advanceTurn", args.participantId.toString(), `from=${game.currentTurnIndex}`);
 
-    // Advance to next player in rotation (no participants read to avoid write conflicts)
     if (!game.playerOrder || game.playerOrder.length === 0) {
       throw new Error("Invalid game state: no players in game");
     }
-    const nextIndex = (game.currentTurnIndex + 1) % game.playerOrder.length;
-    const nextPlayer = game.playerOrder[nextIndex];
-    if (!nextPlayer) {
-      throw new Error("Invalid game state: player not found at index " + nextIndex);
+    // Reads the next seat's participant so a kicked player is never dealt a turn
+    await advanceToNextSeat(ctx, game, args.participantId);
+  },
+});
+
+/** The host continued past the round break. `completedTurns` is the count the host was looking at. */
+export const acknowledgeRoundBreak = mutation({
+  args: {
+    gameId: v.id("truthOrDareGames"),
+    participantId: v.id("participants"),
+    completedTurns: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) throw new Error("Game not found");
+    if (game.status !== "active") return;
+
+    const caller = await ctx.db.get(args.participantId);
+    if (!caller) throw new Error("Participant not found");
+    if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
+      throw new Error("Only the host can continue the game");
     }
-    const now = Date.now();
-    await ctx.db.patch(args.gameId, {
-      currentTurnIndex: nextIndex,
-      currentTurnParticipantId: nextPlayer,
-    });
-    await ctx.db.insert("truthOrDareTurns", {
-      gameId: args.gameId,
-      turnIndex: nextIndex,
-      participantId: nextPlayer,
-      status: "waiting_for_choice",
-      createdAt: now,
-    });
+
+    const completed = await countCompletedTurns(ctx, args.gameId);
+    if (completed !== args.completedTurns) {
+      await trace(ctx, args.gameId, "roundBreakAck:stale", args.participantId.toString(), `saw=${args.completedTurns} now=${completed}`);
+      return;
+    }
+
+    // Not tied to the turn's status: recording this is harmless in any state, and a turn that has
+    // already moved on can still be skipped and dealt again, which would bring the break back
+    if (await ackRoundBreak(ctx, game, completed)) {
+      await trace(ctx, args.gameId, "roundBreakAck", args.participantId.toString(), `turns=${completed}`);
+    }
   },
 });
 
@@ -497,41 +618,58 @@ export const skipTurn = mutation({
 
     await trace(ctx, args.gameId, "skipTurn", args.participantId.toString(), `turnIdx=${game.currentTurnIndex}`);
 
-    // Allow the active player OR the host to skip
-    const isActivePlayer = game.currentTurnParticipantId === args.participantId;
-    if (!isActivePlayer) {
+    // This re-deals the caller's own turn. A host whose Skip arrives after the turn moved on must
+    // not be dealt a turn at someone else's seat; skipping another player is hostSkipTurn.
+    if (game.currentTurnParticipantId !== args.participantId) {
       const caller = await ctx.db.get(args.participantId);
       if (!caller) throw new Error("Participant not found");
       if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
         throw new Error("Not your turn");
       }
+      return;
     }
 
-    // Mark current turn as skipped
-    const turns = await ctx.db
-      .query("truthOrDareTurns")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect();
-    const currentTurn = turns.find(
-      (t) =>
-        t.turnIndex === game.currentTurnIndex &&
-        (t.status === "waiting_for_choice" || t.status === "waiting_for_response")
-    );
-    if (currentTurn) {
-      await ctx.db.patch(currentTurn._id, {
-        status: "skipped",
-        completedAt: Date.now(),
-      });
-    }
+    // A late or repeated tap after the turn completed must not deal a second turn at this seat
+    const turn = await currentTurnOf(ctx, game);
+    if (!isOpen(turn)) return;
+
+    await ctx.db.patch(turn._id, {
+      status: "skipped",
+      completedAt: Date.now(),
+    });
 
     // Create a new turn for the SAME player (not the next one)
-    await ctx.db.insert("truthOrDareTurns", {
-      gameId: args.gameId,
-      turnIndex: game.currentTurnIndex,
-      participantId: args.participantId,
-      status: "waiting_for_choice",
-      createdAt: Date.now(),
-    });
+    await openTurn(ctx, game._id, game.currentTurnIndex, args.participantId, 0);
+  },
+});
+
+/** The host moves the game past another player's turn. `turnId` is the turn the host was looking at. */
+export const hostSkipTurn = mutation({
+  args: {
+    gameId: v.id("truthOrDareGames"),
+    participantId: v.id("participants"),
+    turnId: v.id("truthOrDareTurns"),
+  },
+  handler: async (ctx, args) => {
+    const game = await ctx.db.get(args.gameId);
+    if (!game) throw new Error("Game not found");
+    if (game.status !== "active") return;
+
+    const caller = await ctx.db.get(args.participantId);
+    if (!caller) throw new Error("Participant not found");
+    if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
+      throw new Error("Only the host can skip another player's turn");
+    }
+
+    // A second tap or a client retry finds the next player's turn here and must not skip them too
+    const turn = await currentTurnOf(ctx, game);
+    if (!isOpen(turn) || turn._id !== args.turnId) {
+      await trace(ctx, args.gameId, "hostSkipTurn:stale", args.participantId.toString(), `turnIdx=${game.currentTurnIndex}`);
+      return;
+    }
+
+    await trace(ctx, args.gameId, "hostSkipTurn", args.participantId.toString(), `turnIdx=${game.currentTurnIndex} ${turn.status}`);
+    await skipOpenTurn(ctx, game, turn, args.participantId);
   },
 });
 
@@ -563,6 +701,67 @@ export const submitRating = mutation({
   },
 });
 
+/** Ends the game and posts its summary: the host's End Game, or rotation finding fewer than two players left */
+async function finishGame(ctx: MutationCtx, game: Game, senderId: Id<"participants">): Promise<void> {
+  // Mark as completed if still active
+  if (game.status === "active") {
+    await ctx.db.patch(game._id, {
+      status: "completed",
+      completedAt: Date.now(),
+    });
+  }
+
+  // Compute and post the summary
+  const turns = await ctx.db
+    .query("truthOrDareTurns")
+    .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
+    .collect();
+
+  const participants = await ctx.db
+    .query("participants")
+    .withIndex("by_roomId", (q) => q.eq("roomId", game.roomId))
+    .collect();
+
+  const playerScores: Record<string, { total: number; count: number }> = {};
+  let totalCompletedTurns = 0;
+  for (const t of turns) {
+    if (t.status === "completed") totalCompletedTurns++;
+    const ratings = t.ratings ?? [];
+    if (ratings.length === 0) continue;
+    const pid = t.participantId.toString();
+    const avg = ratings.reduce((s, r) => s + r.score, 0) / ratings.length;
+    if (!playerScores[pid]) playerScores[pid] = { total: 0, count: 0 };
+    playerScores[pid].total += avg;
+    playerScores[pid].count += 1;
+  }
+
+  const playerSummaries = game.playerOrder.map((pid) => {
+    const p = participants.find((pp) => pp._id === pid);
+    const scores = playerScores[pid.toString()];
+    return {
+      name: p?.nickname ?? "?",
+      avatar: p?.avatar?.value ?? "cat",
+      avgRating: scores ? Math.round((scores.total / scores.count) * 10) / 10 : null,
+      turnsRated: scores?.count ?? 0,
+    };
+  });
+
+  const summaryData = {
+    gameType: "Truth or Dare",
+    totalTurns: totalCompletedTurns,
+    players: playerSummaries,
+  };
+
+  await ctx.db.insert("messages", {
+    roomId: game.roomId,
+    senderId,
+    kind: "system",
+    status: "processed",
+    text: `truth_or_dare_summary:${JSON.stringify(summaryData)}`,
+    createdAt: Date.now(),
+  });
+}
+
 export const endGame = mutation({
   args: {
     gameId: v.id("truthOrDareGames"),
@@ -570,65 +769,10 @@ export const endGame = mutation({
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
-    if (!game) return;
-
-    // Mark as completed if still active
-    if (game.status === "active") {
-      await ctx.db.patch(args.gameId, {
-        status: "completed",
-        completedAt: Date.now(),
-      });
-    }
-
-    // Always compute and post summary
-    const turns = await ctx.db
-      .query("truthOrDareTurns")
-      .withIndex("by_gameId", (q) => q.eq("gameId", args.gameId))
-      .collect();
-
-    const participants = await ctx.db
-      .query("participants")
-      .withIndex("by_roomId", (q) => q.eq("roomId", game.roomId))
-      .collect();
-
-    const playerScores: Record<string, { total: number; count: number }> = {};
-    let totalCompletedTurns = 0;
-    for (const t of turns) {
-      if (t.status === "completed") totalCompletedTurns++;
-      const ratings = t.ratings ?? [];
-      if (ratings.length === 0) continue;
-      const pid = t.participantId.toString();
-      const avg = ratings.reduce((s, r) => s + r.score, 0) / ratings.length;
-      if (!playerScores[pid]) playerScores[pid] = { total: 0, count: 0 };
-      playerScores[pid].total += avg;
-      playerScores[pid].count += 1;
-    }
-
-    const playerSummaries = game.playerOrder.map((pid) => {
-      const p = participants.find((pp) => pp._id === pid);
-      const scores = playerScores[pid.toString()];
-      return {
-        name: p?.nickname ?? "?",
-        avatar: p?.avatar?.value ?? "cat",
-        avgRating: scores ? Math.round((scores.total / scores.count) * 10) / 10 : null,
-        turnsRated: scores?.count ?? 0,
-      };
-    });
-
-    const summaryData = {
-      gameType: "Truth or Dare",
-      totalTurns: totalCompletedTurns,
-      players: playerSummaries,
-    };
-
-    await ctx.db.insert("messages", {
-      roomId: game.roomId,
-      senderId: args.participantId,
-      kind: "system",
-      status: "processed",
-      text: `truth_or_dare_summary:${JSON.stringify(summaryData)}`,
-      createdAt: Date.now(),
-    });
+    // A second End Game, or one that lands after the server ended the game itself, must not post
+    // another summary
+    if (!game || game.status !== "active") return;
+    await finishGame(ctx, game, args.participantId);
   },
 });
 
@@ -706,6 +850,63 @@ export const postSummary = mutation({
         players: playerSummaries,
       })}`,
       createdAt: Date.now(),
+    });
+  },
+});
+
+// ─── Internal scheduled mutations ────────────────────────────────────────────
+
+/**
+ * Looks at whoever holds an open turn and moves the game on when they are not there to take it.
+ * The chain belongs to one turn: it re-arms itself until that turn is answered or skipped, so it
+ * covers a player who chose and then left as well as one who never chose. `misses` is how many
+ * looks in a row found the player away, counting this turn's deal.
+ */
+export const internalAbsenceCheck = internalMutation({
+  args: {
+    turnId: v.id("truthOrDareTurns"),
+    misses: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Every return above the re-arm ends the chain: the state this check was scheduled for is gone
+    const turn = await ctx.db.get(args.turnId);
+    if (!isOpen(turn)) return;
+    const game = await ctx.db.get(turn.gameId);
+    if (!game || game.status !== "active") return;
+    if ((await currentTurnOf(ctx, game))?._id !== turn._id) return;
+    // Closing a room does not end its game, so this is what stops the chain for an abandoned room
+    const room = await ctx.db.get(game.roomId);
+    if (!room || room.status === "closed") return;
+
+    const now = Date.now();
+    const player = await ctx.db.get(turn.participantId);
+    let misses = 0;
+    if (!isPresent(player, now)) {
+      misses = Math.min(args.misses + 1, ABSENCE_MISSES_TO_SKIP);
+      // A kicked player cannot come back, so there is nothing to wait a second look for
+      if (!player || misses >= ABSENCE_MISSES_TO_SKIP) {
+        // With nobody here to take the next turn, skipping would deal and skip turns forever in
+        // an empty room. Keep looking instead: the skip happens once someone is back.
+        let someoneWaiting = false;
+        for (const pid of game.playerOrder) {
+          if (pid === turn.participantId) continue;
+          if (isPresent(await ctx.db.get(pid), now)) {
+            someoneWaiting = true;
+            break;
+          }
+        }
+        if (someoneWaiting) {
+          await trace(ctx, game._id, "autoSkip", turn.participantId.toString(), `turnIdx=${turn.turnIndex} ${turn.status}`);
+          await skipOpenTurn(ctx, game, turn, game.hostParticipantId);
+          return;
+        }
+      }
+    }
+
+    // Not traced: todTrace would grow by a row every look
+    await ctx.scheduler.runAfter(ABSENCE_CHECK_MS, internal.truthOrDare.internalAbsenceCheck, {
+      turnId: turn._id,
+      misses,
     });
   },
 });

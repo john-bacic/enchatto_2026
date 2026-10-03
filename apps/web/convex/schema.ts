@@ -203,6 +203,8 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     endedAt: v.optional(v.number()),
     turnStartedAt: v.optional(v.number()),
+    /** Turns in a row that ran out with no card flipped; the game is ended when this gets too high */
+    idleTimeouts: v.optional(v.number()),
     resolveAt: v.optional(v.number()),
   })
     .index("by_roomId", ["roomId"])
@@ -222,6 +224,8 @@ export default defineSchema({
     currentTurnParticipantId: v.optional(v.id("participants")),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
+    /** completedTurns value whose 10-turn round break the host has continued past */
+    roundBreakAckedTurns: v.optional(v.number()),
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"]),
@@ -305,6 +309,9 @@ export default defineSchema({
     outputDrawingUrl: v.optional(v.string()),
     selectedOption: v.optional(v.string()),
     correct: v.optional(v.boolean()),
+    // Closed by the server with nobody answering. The status is still "submitted" because
+    // installed iOS builds cannot decode a new status literal.
+    timedOut: v.optional(v.boolean()),
     status: v.union(v.literal("waiting"), v.literal("active"), v.literal("submitted")),
     createdAt: v.number(),
     submittedAt: v.optional(v.number()),

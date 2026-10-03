@@ -13,7 +13,7 @@ struct WordRushVerdictView: View {
     private var performer: WordRushPerformer? { game.performer }
     private var performerPlayer: WordRushPlayer? { performer.flatMap { game.player($0.participantId) } }
     private var verdict: WordRushVerdict? { game.verdict }
-    private var isHost: Bool { game.hostParticipantId == me }
+    private var isHost: Bool { viewModel.canControlWordRush }
     private var amNative: Bool {
         guard let p = game.player(me), let performer, performer.participantId != me else { return false }
         return p.learning != performer.lang

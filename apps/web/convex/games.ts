@@ -1,7 +1,8 @@
 import { v } from "convex/values";
-import { action, mutation, query } from "./_generated/server";
-import { api } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { action, internalMutation, mutation, query, MutationCtx } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import { Doc, Id } from "./_generated/dataModel";
+import { isAround, isPresent } from "./participants";
 
 // Leveled prompts — level 1 has single words with hints, higher levels get progressively harder
 const LEVEL_PROMPTS: Record<number, Array<{ text: string; ja: string; hint?: string; hintJa?: string }>> = {
@@ -121,6 +122,173 @@ function generateDistractors(correctPrompt: string, allPrompts: Array<{ text: st
 
 const TOTAL_ROUNDS = 10;
 
+// How often the server looks at an open draw or guess phase, which is also how long the room
+// waits for a player who is not there
+const ROUND_CHECK_MS = 10_000;
+// The second look at players who all read as absent, before their steps are closed
+const ROUND_RECHECK_MS = 5_000;
+// Added to the session timer: the client countdown starts when the overlay appears, which for a
+// drawer who was away can be as late as the recheck, and the drawing still has to upload after it
+// reaches 0
+const DRAW_GRACE_MS = ROUND_CHECK_MS + ROUND_RECHECK_MS + 10_000;
+// Timer off means no countdown on screen, so this only stops a drawer who is present but idle
+const DRAW_UNTIMED_LIMIT_MS = 180_000;
+// A guess is one tap with no countdown on screen
+const GUESS_LIMIT_MS = 60_000;
+
+type RoundPhase = "draw" | "guess";
+
+/** Seconds of draw timer for a session: a number, or the legacy boolean (true/missing = 20, false = off) */
+function timerSecondsOf(session: Doc<"gameSessions">): number {
+  const t = session.timerEnabled;
+  return typeof t === "number" ? t : t !== false ? 20 : 0;
+}
+
+function phaseLimitMs(session: Doc<"gameSessions">, phase: RoundPhase): number {
+  if (phase === "guess") return GUESS_LIMIT_MS;
+  const secs = timerSecondsOf(session);
+  return secs > 0 ? secs * 1000 + DRAW_GRACE_MS : DRAW_UNTIMED_LIMIT_MS;
+}
+
+/** A guess someone actually answered. Steps closed by the server are "submitted" too, flagged timedOut. */
+function isAnsweredGuess(s: Doc<"gameSteps">): boolean {
+  return s.stepType === "guess" && s.status === "submitted" && !s.timedOut;
+}
+
+/** Schedule the next look at a chain's open draw or guess steps. Call once when those steps are created. */
+async function watchRound(
+  ctx: MutationCtx,
+  chainId: Id<"gameChains">,
+  phase: RoundPhase,
+  delayMs: number = ROUND_CHECK_MS,
+  misses: number = 0
+): Promise<void> {
+  await ctx.scheduler.runAfter(delayMs, internal.games.roundDeadline, { chainId, phase, misses });
+}
+
+/**
+ * The round is over: start the next one, or end the game and post its summary.
+ * Reached from the last guess and from the server deadline, so it only acts on a chain that is still active.
+ */
+async function finishRound(
+  ctx: MutationCtx,
+  session: Doc<"gameSessions">,
+  chain: Doc<"gameChains">
+): Promise<void> {
+  if (chain.status !== "active") return;
+  await ctx.db.patch(chain._id, { status: "complete" });
+
+  // Find the next chain (next round)
+  const allChains = await ctx.db
+    .query("gameChains")
+    .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
+    .collect();
+  allChains.sort((a, b) => a.chainIndex - b.chainIndex);
+
+  const nextChain = allChains.find(
+    (ch) => ch.chainIndex === chain.chainIndex + 1
+  );
+
+  console.log("[finishRound] chain", chain.chainIndex, "complete. nextChain:", nextChain ? nextChain.chainIndex : "NONE");
+
+  if (!nextChain) {
+    // No more rounds — game complete
+    const completedAt = Date.now();
+    await ctx.db.patch(session._id, {
+      status: "complete",
+      completedAt,
+    });
+
+    // Post game summary to chat
+    const allSteps = await ctx.db
+      .query("gameSteps")
+      .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
+      .collect();
+
+    // Build per-round, per-player results
+    const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
+    for (const ch of allChains) {
+      const guessStepsForChain = allSteps.filter((s) => s.chainId === ch._id && isAnsweredGuess(s));
+      if (guessStepsForChain.length === 0) continue;
+      const results: Record<string, boolean> = {};
+      for (const gs of guessStepsForChain) {
+        results[gs.assignedParticipantId] = !!gs.correct;
+      }
+      roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results });
+    }
+
+    if (roundResults.length === 0) {
+      // Every round timed out. Nobody played, so this is a cancelled game, not a finished level
+      await ctx.db.patch(session._id, { cancelled: true });
+      await ctx.db.insert("messages", {
+        roomId: session.roomId,
+        senderId: session.playerIds[0],
+        kind: "system",
+        status: "processed",
+        text: "game_cancelled:Lost in Translation",
+        createdAt: completedAt, // same as cancelGame, so the chat reads the same either way
+      });
+      return;
+    }
+
+    // Build totals
+    const totals: Record<string, { correct: number; total: number }> = {};
+    for (const pid of session.playerIds) {
+      totals[pid] = { correct: 0, total: 0 };
+    }
+    for (const s of allSteps) {
+      if (isAnsweredGuess(s)) {
+        if (!totals[s.assignedParticipantId]) totals[s.assignedParticipantId] = { correct: 0, total: 0 };
+        totals[s.assignedParticipantId].total += 1;
+        if (s.correct) totals[s.assignedParticipantId].correct += 1;
+      }
+    }
+
+    // Build player name map
+    const playerMap: Record<string, { name: string; avatar: string }> = {};
+    for (const pid of session.playerIds) {
+      const p = await ctx.db.get(pid);
+      if (p && "nickname" in p) {
+        playerMap[pid] = { name: (p as any).nickname, avatar: (p as any).avatar?.value ?? "default" };
+      }
+    }
+
+    const summaryData = {
+      gameType: "Lost in Translation",
+      level: session.level ?? 1,
+      players: playerMap,
+      rounds: roundResults,
+      totals,
+    };
+
+    await ctx.db.insert("messages", {
+      roomId: session.roomId,
+      senderId: session.playerIds[0],
+      kind: "system",
+      status: "processed",
+      text: `game_summary:${JSON.stringify(summaryData)}`,
+      createdAt: completedAt + 1,
+    });
+
+    return;
+  }
+
+  console.log("[finishRound] creating draw step for chain", nextChain.chainIndex, "drawer:", nextChain.drawerParticipantId);
+
+  await ctx.db.insert("gameSteps", {
+    gameSessionId: session._id,
+    chainId: nextChain._id,
+    stepIndex: 0,
+    stepType: "draw",
+    assignedParticipantId: nextChain.drawerParticipantId!,
+    inputText: nextChain.originalPrompt,
+    status: "active",
+    createdAt: Date.now(),
+  });
+  await watchRound(ctx, nextChain._id, "draw");
+  console.log("[finishRound] draw step created successfully for chain", nextChain.chainIndex);
+}
+
 export const startGame = mutation({
   args: {
     roomId: v.id("rooms"),
@@ -155,13 +323,25 @@ export const startGame = mutation({
       .collect();
     if (activeGames.length > 0) throw new Error("A game is already in progress");
 
-    // Get online, non-departed participants
+    // Deal in whoever has been here lately, plus the host who is pressing Start. There is no way to
+    // join later, so a phone that just dimmed still gets a seat; roundDeadline moves past anyone
+    // who does not come back.
     const allParticipants = await ctx.db
       .query("participants")
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
       .collect();
-    const players = allParticipants.filter((p) => p.online && !p.departed);
+    const now = Date.now();
+    let players = allParticipants.filter((p) => isAround(p, now) || p._id === args.participantId);
+    // The host app enables Start on its own online count, so Start must not fail where it used to work
+    if (players.length < 2) {
+      players = allParticipants.filter((p) => (p.online && !p.departed) || p._id === args.participantId);
+    }
     if (players.length < 2) throw new Error("Need at least 2 players");
+    // Pressing Start proves the host is here. Record it, or a stale presence write would let the
+    // first deadline check skip the host's own round-1 drawing.
+    if (!isPresent(participant, now)) {
+      await ctx.db.patch(participant._id, { online: true, departed: undefined, presence: "online", lastSeenAt: now });
+    }
 
     const playerIds = players.map((p) => p._id);
     const playerCount = playerIds.length;
@@ -250,6 +430,7 @@ export const startGame = mutation({
           status: "active",
           createdAt: Date.now(),
         });
+        await watchRound(ctx, chainId, "draw");
       }
     }
 
@@ -282,7 +463,9 @@ export const submitGameStep = mutation({
     const step = await ctx.db.get(args.stepId);
     if (!step) throw new Error("Step not found");
     if (step.assignedParticipantId !== args.participantId) throw new Error("Not your step");
-    if (step.status !== "active") throw new Error("Step is not active");
+    // Already answered, or closed by the server deadline. Not an error: clients show anything
+    // thrown here as an alert, and a late answer is simply dropped.
+    if (step.status !== "active") return;
 
     const chain = await ctx.db.get(step.chainId);
     if (!chain) throw new Error("Chain not found");
@@ -330,6 +513,7 @@ export const submitGameStep = mutation({
           createdAt: Date.now(),
         });
       }
+      await watchRound(ctx, step.chainId, "guess");
 
       await ctx.db.patch(step.chainId, { currentStepIndex: 1 });
       console.log("[submitGameStep] draw path complete for chain", chain.chainIndex);
@@ -371,102 +555,7 @@ export const submitGameStep = mutation({
     if (!allGuessesSubmitted) return; // Wait for other guessers
 
     // All guesses in — complete this chain/round
-    await ctx.db.patch(step.chainId, { status: "complete" });
-
-    // Find the next chain (next round)
-    const allChains = await ctx.db
-      .query("gameChains")
-      .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
-      .collect();
-    allChains.sort((a, b) => a.chainIndex - b.chainIndex);
-
-    const nextChain = allChains.find(
-      (ch) => ch.chainIndex === chain.chainIndex + 1
-    );
-
-    console.log("[submitGameStep] chain", chain.chainIndex, "complete. nextChain:", nextChain ? nextChain.chainIndex : "NONE");
-
-    if (!nextChain) {
-      // No more rounds — game complete
-      const completedAt = Date.now();
-      await ctx.db.patch(session._id, {
-        status: "complete",
-        completedAt,
-      });
-
-      // Post game summary to chat
-      const allSteps = await ctx.db
-        .query("gameSteps")
-        .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", session._id))
-        .collect();
-
-      // Build per-round, per-player results
-      const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
-      for (const ch of allChains) {
-        const guessStepsForChain = allSteps.filter((s) => s.chainId === ch._id && s.stepType === "guess" && s.status === "submitted");
-        if (guessStepsForChain.length === 0) continue;
-        const results: Record<string, boolean> = {};
-        for (const gs of guessStepsForChain) {
-          results[gs.assignedParticipantId] = !!gs.correct;
-        }
-        roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results });
-      }
-
-      // Build totals
-      const totals: Record<string, { correct: number; total: number }> = {};
-      for (const pid of session.playerIds) {
-        totals[pid] = { correct: 0, total: 0 };
-      }
-      for (const s of allSteps) {
-        if (s.stepType === "guess" && s.status === "submitted") {
-          if (!totals[s.assignedParticipantId]) totals[s.assignedParticipantId] = { correct: 0, total: 0 };
-          totals[s.assignedParticipantId].total += 1;
-          if (s.correct) totals[s.assignedParticipantId].correct += 1;
-        }
-      }
-
-      // Build player name map
-      const playerMap: Record<string, { name: string; avatar: string }> = {};
-      for (const pid of session.playerIds) {
-        const p = await ctx.db.get(pid);
-        if (p && "nickname" in p) {
-          playerMap[pid] = { name: (p as any).nickname, avatar: (p as any).avatar?.value ?? "default" };
-        }
-      }
-
-      const summaryData = {
-        gameType: "Lost in Translation",
-        level: session.level ?? 1,
-        players: playerMap,
-        rounds: roundResults,
-        totals,
-      };
-
-      await ctx.db.insert("messages", {
-        roomId: session.roomId,
-        senderId: session.playerIds[0],
-        kind: "system",
-        status: "processed",
-        text: `game_summary:${JSON.stringify(summaryData)}`,
-        createdAt: completedAt + 1,
-      });
-
-      return;
-    }
-
-    console.log("[submitGameStep] creating draw step for chain", nextChain.chainIndex, "drawer:", nextChain.drawerParticipantId);
-
-    await ctx.db.insert("gameSteps", {
-      gameSessionId: session._id,
-      chainId: nextChain._id,
-      stepIndex: 0,
-      stepType: "draw",
-      assignedParticipantId: nextChain.drawerParticipantId!,
-      inputText: nextChain.originalPrompt,
-      status: "active",
-      createdAt: Date.now(),
-    });
-    console.log("[submitGameStep] draw step created successfully for chain", nextChain.chainIndex);
+    await finishRound(ctx, session, chain);
     } catch (err: any) {
       console.error("[submitGameStep] ERROR:", err.message ?? err);
       throw err;
@@ -494,6 +583,71 @@ export const submitGameStepWithTranslation = action({
     if (args.selectedOption !== undefined) mutationArgs.selectedOption = args.selectedOption;
 
     await ctx.runMutation(api.games.submitGameStep, mutationArgs as any);
+  },
+});
+
+/**
+ * Keeps a round from waiting forever on someone who is not playing. Scheduled when a chain's
+ * draw step or guess steps are created, and re-schedules itself until that phase is over.
+ * A chain only moves draw → guess → complete, so (chainId, phase) identifies the state this
+ * was scheduled for: if that phase has no open step left, the call is stale and does nothing.
+ */
+export const roundDeadline = internalMutation({
+  args: {
+    chainId: v.id("gameChains"),
+    phase: v.union(v.literal("draw"), v.literal("guess")),
+    /** Looks in a row that found nobody we are waiting for present */
+    misses: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const chain = await ctx.db.get(args.chainId);
+    if (!chain || chain.status !== "active") return null;
+    const session = await ctx.db.get(chain.gameSessionId);
+    if (!session || session.status !== "active") return null;
+
+    const chainSteps = await ctx.db
+      .query("gameSteps")
+      .withIndex("by_chainId", (q) => q.eq("chainId", chain._id))
+      .collect();
+    const open = chainSteps.filter((s) => s.stepType === args.phase && s.status === "active");
+    if (open.length === 0) return null;
+
+    // A round's guess steps are created together, so any open step dates the phase
+    const now = Date.now();
+    const endsAt = open[0].createdAt + phaseLimitMs(session, args.phase);
+    if (now < endsAt) {
+      let someoneCanReturn = false;
+      for (const s of open) {
+        const player = await ctx.db.get(s.assignedParticipantId);
+        if (isPresent(player, now)) {
+          // Someone we are waiting for is here: give them until the limit. Nobody absent is
+          // closed out while the round is still open for someone else, so they can come back.
+          await watchRound(ctx, chain._id, args.phase, Math.min(ROUND_CHECK_MS, endsAt - now));
+          return null;
+        }
+        if (player) someoneCanReturn = true; // a kicked player cannot come back
+      }
+      // One look is not proof: a page reload reads as gone for a few seconds
+      if (someoneCanReturn && (args.misses ?? 0) < 1) {
+        await watchRound(ctx, chain._id, args.phase, Math.min(ROUND_RECHECK_MS, endsAt - now), 1);
+        return null;
+      }
+    }
+
+    // No `correct` and no `selectedOption`: a timeout is not a wrong answer
+    for (const s of open) {
+      await ctx.db.patch(s._id, { status: "submitted", timedOut: true, submittedAt: now });
+    }
+    if (args.phase === "draw") {
+      // The drawer's own client clears its "drawing" indicator when the step goes away; a locked phone never does
+      const drawer = await ctx.db.get(open[0].assignedParticipantId);
+      if (drawer?.typingAction === "drawing") {
+        await ctx.db.patch(drawer._id, { typingAction: undefined, drawingStartedAt: undefined });
+      }
+    }
+    await finishRound(ctx, session, chain);
+    return null;
   },
 });
 
@@ -537,7 +691,8 @@ export const cancelGame = mutation({
         .collect();
       for (const step of steps) {
         if (step.status !== "submitted") {
-          await ctx.db.patch(step._id, { status: "submitted", submittedAt: Date.now() });
+          // Flagged like a deadline close, so an unanswered step is not scored as a wrong answer
+          await ctx.db.patch(step._id, { status: "submitted", submittedAt: Date.now(), timedOut: true });
         }
       }
     }
@@ -555,7 +710,7 @@ export const cancelGame = mutation({
         .collect();
 
       // Only post summary if any guesses were made
-      const guessSteps = steps.filter((s) => s.stepType === "guess" && s.status === "submitted");
+      const guessSteps = steps.filter(isAnsweredGuess);
       if (guessSteps.length === 0) {
         // No rounds played — just post cancellation
         await ctx.db.insert("messages", {
@@ -572,7 +727,7 @@ export const cancelGame = mutation({
       // Build per-round results
       const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
       for (const ch of chains) {
-        const guessesForChain = steps.filter((s) => s.chainId === ch._id && s.stepType === "guess" && s.status === "submitted");
+        const guessesForChain = steps.filter((s) => s.chainId === ch._id && isAnsweredGuess(s));
         if (guessesForChain.length === 0) continue;
         const results: Record<string, boolean> = {};
         for (const gs of guessesForChain) {
@@ -799,7 +954,7 @@ export const getGameStatus = query({
       };
     }
     for (const step of allSteps) {
-      if (step.stepType === "guess" && step.status === "submitted" && playedChainIds.has(step.chainId)) {
+      if (isAnsweredGuess(step) && playedChainIds.has(step.chainId)) {
         const pid = step.assignedParticipantId;
         if (scores[pid]) {
           scores[pid].total += 1;
@@ -891,7 +1046,7 @@ export const getGameReplay = query({
       scores[pid] = { correct: 0, total: 0 };
     }
     for (const step of allSteps) {
-      if (step.stepType === "guess" && step.status === "submitted" && playedChainIds.has(step.chainId)) {
+      if (isAnsweredGuess(step) && playedChainIds.has(step.chainId)) {
         const pid = step.assignedParticipantId;
         if (!scores[pid]) scores[pid] = { correct: 0, total: 0 };
         scores[pid].total += 1;
@@ -901,8 +1056,9 @@ export const getGameReplay = query({
 
     const chainData = chains
       .map((chain) => {
+        // Steps the server closed unanswered are left out: both replay UIs would draw them as a wrong pick
         const steps = allSteps
-          .filter((s) => s.chainId === chain._id)
+          .filter((s) => s.chainId === chain._id && !s.timedOut)
           .sort((a, b) => a.stepIndex - b.stepIndex);
         return {
           ...chain,

@@ -28,6 +28,8 @@ export interface WordRushGameProps {
   participantId: Id<"participants">;
   /** UI language of the viewer ("ja" | "en") */
   lang: string;
+  /** The room host may start, skip and end any Word Rush game in the room */
+  isRoomHost?: boolean;
 }
 
 const DISMISSED_KEY = "enchatto:word-rush:dismissed";
@@ -128,7 +130,7 @@ function Header({
 }
 
 /** Self-contained Word Rush overlay: subscribes to api.wordRush.getState and renders lobby / play / results. */
-export function WordRushGame({ roomId, participantId, lang }: WordRushGameProps) {
+export function WordRushGame({ roomId, participantId, lang, isRoomHost = false }: WordRushGameProps) {
   const state = useQuery(api.wordRush.getState, { roomId });
   const s = stringsFor(lang);
 
@@ -188,7 +190,7 @@ export function WordRushGame({ roomId, participantId, lang }: WordRushGameProps)
   if (!state) return toastEl || null;
 
   const id = state._id;
-  const isHost = state.hostParticipantId === participantId;
+  const isHost = isRoomHost || state.hostParticipantId === participantId;
   const learning: WRLang = me?.learning ?? (lang === "ja" ? "en" : "ja");
   const cardKey = `${id}:${state.cardIndex}`;
 
@@ -208,7 +210,7 @@ export function WordRushGame({ roomId, participantId, lang }: WordRushGameProps)
     if (minimized) return pill;
     return (
       <>
-        <LobbySheet state={state} myId={participantId} s={s} toast={toast} onMinimize={() => setMinimizedId(id)} />
+        <LobbySheet state={state} myId={participantId} isHost={isHost} s={s} toast={toast} onMinimize={() => setMinimizedId(id)} />
         {toastEl}
       </>
     );

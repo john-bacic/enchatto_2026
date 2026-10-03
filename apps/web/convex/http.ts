@@ -789,6 +789,30 @@ http.route({
 });
 
 http.route({
+  path: "/api/truth-or-dare/host-skip-turn",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.hostSkipTurn, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      turnId: body.turnId,
+    });
+  }),
+});
+
+http.route({
+  path: "/api/truth-or-dare/ack-round-break",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.truthOrDare.acknowledgeRoundBreak, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      completedTurns: body.completedTurns,
+    });
+  }),
+});
+
+http.route({
   path: "/api/truth-or-dare/end",
   method: "POST",
   handler: jsonAction(async (ctx, body) => {

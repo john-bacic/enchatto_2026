@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { isPresent } from "./participants";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -651,7 +652,12 @@ export const playAgain = mutation({
 
     for (const player of game.players) {
       const p = await ctx.db.get(player.participantId);
-      if (p && p.online && !p.departed && p.roomId === game.roomId) {
+      // Deal in only the people who are here right now; anyone else can tap Join when they are back.
+      // The caller is always in. The room host keeps the old rule: the iOS app has no way to join a
+      // Bingo lobby, so a host who looked away for a moment would be shut out of the whole round.
+      const isCaller = player.participantId === args.participantId;
+      const isRoomHost = !!p && p.role === "host" && p.online && !p.departed;
+      if (p && p.roomId === game.roomId && (isCaller || isRoomHost || isPresent(p, now))) {
         newPlayers.push({
           participantId: player.participantId,
           nickname: p.nickname,

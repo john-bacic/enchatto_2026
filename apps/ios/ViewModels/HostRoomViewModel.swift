@@ -69,6 +69,8 @@ class HostRoomViewModel: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
+    /// The heartbeat outlives backgrounding by a few seconds; it must not report the host as back
+    private var sceneInBackground = false
     /// Track message IDs currently being processed to avoid duplicates
     private var processingMessageIds: Set<String> = []
 
@@ -169,7 +171,7 @@ class HostRoomViewModel: ObservableObject {
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 15_000_000_000)
                     guard self.networkMonitor.isConnected else { continue }
-                    try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: "online")
+                    try? await self.api.setParticipantOnline(participantId: self.hostId, online: true, presence: self.sceneInBackground ? "away" : "online")
                 }
             }
         }
@@ -202,15 +204,19 @@ class HostRoomViewModel: ObservableObject {
     func handleScenePhase(_ phase: ScenePhase) {
         switch phase {
         case .active:
+            sceneInBackground = false
             Task {
                 // Brief delay to let the network reconnect after backgrounding
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                // Left again within the delay: the "away" already sent must stand
+                guard !sceneInBackground else { return }
                 try? await api.setParticipantOnline(participantId: hostId, online: true, presence: "online")
             }
             if pollTask == nil {
                 startObserving()
             }
         case .background:
+            sceneInBackground = true
             Task {
                 try? await api.setParticipantOnline(participantId: hostId, online: true, presence: "away")
             }
@@ -581,6 +587,10 @@ class HostRoomViewModel: ObservableObject {
         let correct: Bool
         let points: Int
     }
+
+    /// This app only ever runs as the room host, and the server lets the room host start, skip and end
+    /// any Word Rush game in its room, whoever the game host is.
+    var canControlWordRush: Bool { true }
 
     /// Word Rush game the full-screen cover should show: a live game, or a finished one this
     /// device watched live, played in, and hasn't closed yet.
@@ -1501,6 +1511,30 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    /// Tells the server the host continued past the round break, which is what releases the guests.
+    /// Returns false when nothing reached the server, so the view can offer Keep Playing again.
+    @discardableResult
+    func acknowledgeTruthOrDareRoundBreak(completedTurns: Int) async -> Bool {
+        guard let game = activeTruthOrDareGame else { return false }
+        guard !isTruthOrDareSubmitting else { return false }
+        do {
+            try await withTruthOrDarePollPause {
+                do {
+                    try await api.acknowledgeTruthOrDareRoundBreak(gameId: game.id, participantId: hostId, completedTurns: completedTurns)
+                } catch is APIError {
+                    // The server answered with an error, e.g. a deployment without this route yet.
+                    // Advance-turn records the acknowledgement there. A transport error is not retried
+                    // this way: if the first request did land, advance-turn could deal the next turn.
+                    try await api.advanceTruthOrDareTurn(gameId: game.id, participantId: hostId)
+                }
+            }
+            return true
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:roundBreak:error", detail: error.localizedDescription, ok: false)
+            return false
+        }
+    }
+
     func skipTruthOrDareTurn() async {
         guard let game = activeTruthOrDareGame else { return }
         guard !isTruthOrDareSubmitting else { return }
@@ -1510,6 +1544,19 @@ class HostRoomViewModel: ObservableObject {
             }
         } catch {
             DebugConsole.shared.trace(source: .client, action: "truthOrDare:skip:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    /// Host moves the game past another player's turn. `turnId` is the turn on screen, so a second tap cannot skip the next player too.
+    func hostSkipTruthOrDareTurn(turnId: String) async {
+        guard let game = activeTruthOrDareGame else { return }
+        guard !isTruthOrDareSubmitting else { return }
+        do {
+            try await withTruthOrDarePollPause {
+                try await api.hostSkipTruthOrDareTurn(gameId: game.id, participantId: hostId, turnId: turnId)
+            }
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "truthOrDare:hostSkip:error", detail: error.localizedDescription, ok: false)
         }
     }
 

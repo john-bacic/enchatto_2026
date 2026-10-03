@@ -22,6 +22,7 @@ import {
   wordRushVote,
 } from "./wordRushShared";
 import { FALLBACK_DECK, RawCard } from "./wordRushDeck";
+import { isPresent } from "./participants";
 
 // ─── Tuning ──────────────────────────────────────────────────────────────────
 
@@ -310,7 +311,7 @@ async function createGame(
   }
 
   const players = [];
-  for (const id of [hostId, ...playerIds.filter((x) => x !== hostId)]) {
+  for (const id of [...new Set([hostId, ...playerIds])]) {
     players.push(await newPlayer(ctx, id, roomId));
   }
 
@@ -343,6 +344,30 @@ async function loadActive(ctx: MutationCtx, gameId: Id<"wordRushGames">) {
   return game;
 }
 
+/** The game host runs the game; the room's host (the iOS app) may always step in. */
+async function mayControl(ctx: MutationCtx, game: Game, participantId: Id<"participants">) {
+  if (game.hostParticipantId === participantId) return true;
+  const p = await ctx.db.get(participantId);
+  return !!p && p.role === "host" && p.roomId === game.roomId;
+}
+
+/**
+ * Hands a lobby whose game host has gone to the room host. Installed iOS builds only show Start and
+ * Cancel to the game host, so this is how the room host gets an abandoned lobby back. Only on the room
+ * host's own request, and never from a game host who is here.
+ */
+async function claimLobby(ctx: MutationCtx, lobby: Game, callerId: Id<"participants">) {
+  const caller = await ctx.db.get(callerId);
+  if (!caller || caller.role !== "host" || caller.roomId !== lobby.roomId) return false;
+  if (isPresent(await ctx.db.get(lobby.hostParticipantId), Date.now())) return false;
+  const joined = lobby.players.some((p) => p.participantId === callerId);
+  await ctx.db.patch(lobby._id, {
+    hostParticipantId: callerId,
+    players: joined ? lobby.players : [...lobby.players, await newPlayer(ctx, callerId, lobby.roomId)],
+  });
+  return true;
+}
+
 // ─── Lobby ───────────────────────────────────────────────────────────────────
 
 const packValidator = v.string();
@@ -356,6 +381,19 @@ export const createLobby = mutation({
   },
   returns: v.id("wordRushGames"),
   handler: async (ctx, args) => {
+    // A lobby is already open. If it is the caller's own, or its game host has gone and the caller is the
+    // room host (see claimLobby), carry on with that lobby instead of refusing.
+    const lobby = await ctx.db
+      .query("wordRushGames")
+      .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "lobby"))
+      .first();
+    if (
+      lobby &&
+      (lobby.hostParticipantId === args.hostParticipantId ||
+        (await claimLobby(ctx, lobby, args.hostParticipantId)))
+    ) {
+      return lobby._id;
+    }
     return await createGame(
       ctx,
       args.roomId,
@@ -374,6 +412,10 @@ export const joinLobby = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game already started");
+    // The room host joining a lobby whose game host has gone takes it over (see claimLobby)
+    if (game.hostParticipantId !== args.participantId && (await claimLobby(ctx, game, args.participantId))) {
+      return null;
+    }
     if (game.players.some((p) => p.participantId === args.participantId)) return null;
     if (game.players.length >= 30) throw new Error("Lobby is full (max 30 players)");
     const player = await newPlayer(ctx, args.participantId, game.roomId);
@@ -416,7 +458,7 @@ export const updateSettings = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game already started");
-    if (game.hostParticipantId !== args.participantId) throw new Error("Only the host can change settings");
+    if (!(await mayControl(ctx, game, args.participantId))) throw new Error("Only the host can change settings");
     if (args.sayIt !== undefined) await ctx.db.patch(args.gameId, { sayIt: args.sayIt });
     if (args.pack !== undefined && args.pack !== game.pack) {
       if (!(WORD_RUSH_PACKS as readonly string[]).includes(args.pack)) throw new Error("Unknown pack");
@@ -438,7 +480,7 @@ export const start = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game already started");
-    if (game.hostParticipantId !== args.participantId) throw new Error("Only the host can start the game");
+    if (!(await mayControl(ctx, game, args.participantId))) throw new Error("Only the host can start the game");
     if (game.cards.length === 0) throw new Error("No cards to play");
 
     const now = Date.now();
@@ -566,7 +608,7 @@ export const skipMic = mutation({
   handler: async (ctx, args) => {
     const game = await loadActive(ctx, args.gameId);
     if (game.phase !== "mic") return null;
-    if (game.performerId !== args.participantId && game.hostParticipantId !== args.participantId) {
+    if (game.performerId !== args.participantId && !(await mayControl(ctx, game, args.participantId))) {
       throw new Error("Only the performer or host can skip");
     }
     await nextCard(ctx, game);
@@ -672,7 +714,7 @@ export const skip = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const game = await loadActive(ctx, args.gameId);
-    if (game.hostParticipantId !== args.participantId) throw new Error("Only the host can skip");
+    if (!(await mayControl(ctx, game, args.participantId))) throw new Error("Only the host can skip");
     if (game.phaseSeq !== args.phaseSeq) return null;
     await advance(ctx, game);
     return null;
@@ -686,7 +728,7 @@ export const cancel = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby" && game.status !== "active") return null;
-    if (game.hostParticipantId !== args.participantId) throw new Error("Only the host can end the game");
+    if (!(await mayControl(ctx, game, args.participantId))) throw new Error("Only the host can end the game");
     await deleteClips(ctx, game);
     await ctx.db.patch(game._id, {
       status: "canceled",
@@ -716,14 +758,19 @@ export const playAgain = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "completed") throw new Error("Game is not finished");
-    return await createGame(
-      ctx,
-      game.roomId,
-      args.participantId,
-      game.pack,
-      game.sayIt,
-      game.players.map((p) => p.participantId)
-    );
+    const now = Date.now();
+    const here = async (id: Id<"participants">) => {
+      const p = await ctx.db.get(id);
+      return !!p && p.roomId === game.roomId && isPresent(p, now);
+    };
+    // Whoever asks for the rematch hosts it. If they then leave, the room host can still run the
+    // lobby (mayControl) or take it over (claimLobby), so it cannot be stranded.
+    // Deal in the caller and whoever is still here. Anyone skipped can join the lobby by hand.
+    const playerIds = [args.participantId];
+    for (const p of game.players) {
+      if (await here(p.participantId)) playerIds.push(p.participantId);
+    }
+    return await createGame(ctx, game.roomId, args.participantId, game.pack, game.sayIt, playerIds);
   },
 });
 

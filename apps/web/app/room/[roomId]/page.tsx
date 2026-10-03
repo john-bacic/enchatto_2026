@@ -1620,7 +1620,7 @@ function RoomContent() {
       )}
 
       {/* Word Rush (lobby, game and results manage their own visibility) */}
-      <WordRushGame roomId={roomId as Id<"rooms">} participantId={participantId as Id<"participants">} lang={lang} />
+      <WordRushGame roomId={roomId as Id<"rooms">} participantId={participantId as Id<"participants">} lang={lang} isRoomHost={me?.role === "host"} />
 
       {/* Emoji Match game overlay */}
       {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId !== emojiMatchGame._id && (
