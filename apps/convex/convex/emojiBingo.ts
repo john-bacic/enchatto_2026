@@ -419,6 +419,9 @@ export const rollEmoji = mutation({
     if (game.status !== "active" && game.status !== "won") {
       throw new Error("Game is not active");
     }
+    // After the first bingo the grace auto-roll owns drawing. A tap sent just before the client saw
+    // "won" would advance drawIndex without scheduling the next roll, leaving the game with no roller.
+    if (game.status === "won") return;
     if (game.currentTurnParticipantId !== args.participantId) {
       throw new Error("Not your turn to roll");
     }

@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
 import { EmojiArt } from "@/components/ui/icon";
+import { isQueuedMessageId } from "@/lib/types";
 
 interface ReactionBarProps {
   messageId: string;
@@ -16,9 +17,10 @@ export function ReactionBar({
   currentParticipantId,
   onToggle,
 }: ReactionBarProps) {
-  const summaryList = useQuery(api.reactions.getReactionSummary, {
-    messageId: messageId as Id<"messages">,
-  });
+  const summaryList = useQuery(
+    api.reactions.getReactionSummary,
+    isQueuedMessageId(messageId) ? "skip" : { messageId: messageId as Id<"messages"> }
+  );
 
   // Convert array format to a lookup map
   const reactionMap = new Map<string, { count: number; participantIds: string[] }>();

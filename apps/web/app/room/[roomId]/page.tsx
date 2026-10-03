@@ -24,7 +24,7 @@ import { Chatto } from "@/components/ui/chatto";
 import { Icon, LangBadge } from "@/components/ui/icon";
 import { Wordmark } from "@/components/ui/logo";
 import { Bunting, Confetti, CutIn, Rays, RoomBackground } from "@/components/ui/effects";
-import { avatarIconSrc, avatarTint, getAvatarById } from "@/lib/types";
+import { QUEUED_ID_PREFIX, avatarIconSrc, avatarTint, getAvatarById } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -248,7 +248,7 @@ function RoomContent() {
 
     // Fire-and-forget "away" on page close via sendBeacon + fetch keepalive
     const markLeftBeacon = () => {
-      const url = `https://helpful-bulldog-420.convex.cloud/api/mutation`;
+      const url = `${convexUrl}/api/mutation`;
       const body = JSON.stringify({
         path: "participants:leaveRoom",
         args: { participantId },
@@ -284,7 +284,7 @@ function RoomContent() {
       window.removeEventListener("pagehide", markLeftBeacon);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [participantId, setParticipantOnline]);
+  }, [participantId, setParticipantOnline, convexUrl]);
   const sendDrawingMessage = useMutation(api.messages.sendDrawingMessage);
   const addReaction = useMutation(api.reactions.addReaction);
   const removeReaction = useMutation(api.reactions.removeReaction);
@@ -388,7 +388,7 @@ function RoomContent() {
     (msg: Omit<QueuedMessage, "id" | "createdAt">) => {
       const queued: QueuedMessage = {
         ...msg,
-        id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: `${QUEUED_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         createdAt: Date.now(),
       };
       setOfflineQueue((q) => [...q, queued]);

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { t } from "@/lib/i18n";
+import { isImeComposing } from "@/lib/keyboard";
 import { DrawingCanvas, DrawingCanvasHandle } from "@/components/drawing-canvas";
 import { todTrace } from "@/components/tod-debug-panel";
 import { AvatarDisc } from "@/components/ui/avatar";
@@ -936,6 +937,7 @@ export function TruthOrDareGame({
                         }
                       }}
                       onKeyDown={(e) => {
+                        if (isImeComposing(e)) return;
                         const val = (e.target as HTMLInputElement).value.trim();
                         if (e.key === "Enter" && val && !submitting) {
                           setSubmitting("response");

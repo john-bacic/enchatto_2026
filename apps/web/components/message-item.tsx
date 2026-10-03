@@ -15,7 +15,7 @@ import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { EmojiArt, Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
-import { avatarTint } from "@/lib/types";
+import { avatarTint, isQueuedMessageId } from "@/lib/types";
 
 interface ProcessingState {
   translatedText?: string;
@@ -119,9 +119,10 @@ function InlineReactions({
   currentParticipantId: string;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
 }) {
-  const summaryList = useQuery(api.reactions.getReactionSummary, {
-    messageId: messageId as Id<"messages">,
-  });
+  const summaryList = useQuery(
+    api.reactions.getReactionSummary,
+    isQueuedMessageId(messageId) ? "skip" : { messageId: messageId as Id<"messages"> }
+  );
 
   const reactions = (summaryList ?? []).filter((r) => r.count > 0);
   if (reactions.length === 0) return null;

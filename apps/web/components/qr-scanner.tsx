@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Html5Qrcode } from "html5-qrcode";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
@@ -13,19 +14,27 @@ interface QrScannerProps {
 
 export function QrScanner({ onScan, onClose, lang }: QrScannerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scannerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    let scanner: Html5Qrcode | null = null;
+
+    // stop() throws synchronously while the scanner has not started (denied, or the prompt is still
+    // open). isScanning cannot guard it: that only turns true on the first video frame, after the
+    // camera is already held.
+    const stopScanner = () => {
+      try {
+        scanner?.stop().catch(() => {});
+      } catch {}
+    };
 
     async function startScanner() {
       const { Html5Qrcode } = await import("html5-qrcode");
 
       if (!mounted || !containerRef.current) return;
 
-      const scanner = new Html5Qrcode("qr-reader");
-      scannerRef.current = scanner;
+      scanner = new Html5Qrcode("qr-reader");
 
       try {
         await scanner.start(
@@ -36,6 +45,8 @@ export function QrScanner({ onScan, onClose, lang }: QrScannerProps) {
           },
           () => {}
         );
+        // Closed while the permission prompt was open: the camera only just started, so release it
+        if (!mounted) stopScanner();
       } catch (err) {
         if (mounted) {
           setError(
@@ -51,9 +62,7 @@ export function QrScanner({ onScan, onClose, lang }: QrScannerProps) {
 
     return () => {
       mounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-      }
+      stopScanner();
     };
   }, [onScan]);
 

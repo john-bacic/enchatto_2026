@@ -8,6 +8,7 @@ import { Chatto } from "@/components/ui/chatto";
 import { Icon } from "@/components/ui/icon";
 import { RoomBackground } from "@/components/ui/effects";
 import { t } from "@/lib/i18n";
+import { isImeComposing } from "@/lib/keyboard";
 import "./screens.css";
 
 const CODE_LENGTH = 6;
@@ -149,7 +150,7 @@ export default function HomePage() {
             aria-label={t("Room code", lang)}
             value={joinCode}
             onChange={(e) => setJoinCode(cleanCode(e.target.value))}
-            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+            onKeyDown={(e) => e.key === "Enter" && !isImeComposing(e) && handleJoin()}
           />
         </div>
 

@@ -54,7 +54,7 @@ npm install
 ### Convex backend
 
 ```bash
-cd apps/convex
+cd apps/web
 npx convex dev
 ```
 

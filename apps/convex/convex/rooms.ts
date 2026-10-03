@@ -1,5 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 10;
@@ -72,29 +74,91 @@ export const createRoom = mutation({
   },
 });
 
+async function closeRoomNow(ctx: MutationCtx, roomId: Id<"rooms">) {
+  await ctx.db.patch(roomId, {
+    status: "closed",
+    closedAt: Date.now(),
+  });
+
+  // Set all participants offline
+  const participants = await ctx.db
+    .query("participants")
+    .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+    .collect();
+
+  await Promise.all(
+    participants.map((p) =>
+      ctx.db.patch(p._id, { online: false, departed: true, lastSeenAt: Date.now() })
+    )
+  );
+
+  await ctx.scheduler.runAfter(0, internal.messages.purgeRoomAudio, { roomId });
+}
+
 export const closeRoom = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
     if (room.status === "closed") return; // already closed
+    await closeRoomNow(ctx, args.roomId);
+  },
+});
 
-    await ctx.db.patch(args.roomId, {
-      status: "closed",
-      closedAt: Date.now(),
-    });
+/**
+ * The iOS host sends a heartbeat every 15s while the app is open, and iOS gives no reliable signal
+ * when an app is killed. A room whose host has been silent this long is treated as abandoned.
+ * Long enough to survive a locked phone or a quick switch to another app mid-conversation.
+ */
+const HOST_GONE_MS = 15 * 60 * 1000;
+/** Keeps one run well inside mutation limits; a backlog drains over successive runs */
+const MAX_CLOSES_PER_RUN = 100;
 
-    // Set all participants offline
-    const participants = await ctx.db
-      .query("participants")
-      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
-      .collect();
+export const closeAbandonedRooms = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const cutoff = Date.now() - HOST_GONE_MS;
+    let closed = 0;
+    for (const status of ["waiting", "active"] as const) {
+      const rooms = await ctx.db
+        .query("rooms")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .collect();
+      for (const room of rooms) {
+        if (closed >= MAX_CLOSES_PER_RUN) return closed;
+        const hostId = ctx.db.normalizeId("participants", room.hostId);
+        const host = hostId ? await ctx.db.get(hostId) : null;
+        if (host && host.lastSeenAt >= cutoff) continue;
+        await closeRoomNow(ctx, room._id);
+        closed++;
+      }
+    }
+    return closed;
+  },
+});
 
-    await Promise.all(
-      participants.map((p) =>
-        ctx.db.patch(p._id, { online: false, departed: true, lastSeenAt: Date.now() })
-      )
-    );
+const TRACE_PURGE_BATCH = 500;
+
+/**
+ * Game trace rows hold full game and participant ids. Run once to empty the trace tables:
+ * `npx convex run rooms:purgeGameTraces`. It reschedules itself until nothing is left.
+ */
+export const purgeGameTraces = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx): Promise<number> => {
+    let deleted = 0;
+    for (const table of ["emTrace", "todTrace", "bingoTrace"] as const) {
+      const rows = await ctx.db.query(table).take(TRACE_PURGE_BATCH - deleted);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted += rows.length;
+      if (deleted >= TRACE_PURGE_BATCH) break;
+    }
+    if (deleted >= TRACE_PURGE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.rooms.purgeGameTraces, {});
+    }
+    return deleted;
   },
 });
 
@@ -140,58 +204,6 @@ export const updateRoomSettings = mutation({
     if (room.status === "closed") throw new Error("Cannot update a closed room");
 
     await ctx.db.patch(args.roomId, { settings: args.settings });
-  },
-});
-
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-export const cleanupExpiredRooms = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const cutoff = Date.now() - TWENTY_FOUR_HOURS_MS;
-
-    const expiredRooms = await ctx.db
-      .query("rooms")
-      .filter((q) => q.lt(q.field("createdAt"), cutoff))
-      .collect();
-
-    for (const room of expiredRooms) {
-      // Delete all messages and their reactions in this room
-      const messages = await ctx.db
-        .query("messages")
-        .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
-        .collect();
-
-      for (const message of messages) {
-        const reactions = await ctx.db
-          .query("reactions")
-          .withIndex("by_messageId", (q) => q.eq("messageId", message._id))
-          .collect();
-
-        for (const reaction of reactions) {
-          await ctx.db.delete(reaction._id);
-        }
-
-        await ctx.db.delete(message._id);
-      }
-
-      // Delete all participants in this room
-      const participants = await ctx.db
-        .query("participants")
-        .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
-        .collect();
-
-      for (const participant of participants) {
-        await ctx.db.delete(participant._id);
-      }
-
-      // Delete the room itself
-      await ctx.db.delete(room._id);
-    }
-
-    if (expiredRooms.length > 0) {
-      console.log(`Cleaned up ${expiredRooms.length} expired room(s)`);
-    }
   },
 });
 

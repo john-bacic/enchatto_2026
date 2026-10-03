@@ -13,6 +13,7 @@ import { RoomBackground } from "@/components/ui/effects";
 import { LANGUAGES, PRESET_AVATARS, PresetAvatarId, LanguageCode } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
+import { isImeComposing } from "@/lib/keyboard";
 import {
   LEGACY_PARAM,
   LEGACY_VALUE,
@@ -214,7 +215,7 @@ export default function JoinPage() {
           type="text"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+          onKeyDown={(e) => e.key === "Enter" && !isImeComposing(e) && handleJoin()}
           placeholder={t("Enter your name", language)}
           maxLength={20}
           style={{ fontSize: 18 }}

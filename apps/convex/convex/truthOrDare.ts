@@ -253,6 +253,13 @@ export const createGame = mutation({
     if (!room) throw new Error("Room not found");
     if (room.status === "closed") throw new Error("Room is closed");
 
+    // A double tap or a client retry must not start a second game alongside the first
+    const activeGame = await ctx.db
+      .query("truthOrDareGames")
+      .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
+      .first();
+    if (activeGame) return activeGame._id;
+
     // Get online participants
     const participants = await ctx.db
       .query("participants")
@@ -802,17 +809,7 @@ export const getTrace = query({
   },
 });
 
-export const getRecentTrace = query({
-  args: { limit: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    const entries = await ctx.db
-      .query("todTrace")
-      .withIndex("by_ts")
-      .order("desc")
-      .take(args.limit ?? 200);
-    return entries;
-  },
-});
+// Trace rows hold game and participant ids, so every trace query must be scoped to one game or room.
 
 export const getTraceByRoom = query({
   args: {

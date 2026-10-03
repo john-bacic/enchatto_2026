@@ -7,6 +7,7 @@ import { useSpeechRecognition, ensurePunctuation, isAndroid } from "@/hooks/use-
 import { useVoiceClip, type VoiceClip } from "@/hooks/use-voice-clip";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
+import { isImeComposing } from "@/lib/keyboard";
 
 function fitTextarea(el: HTMLTextAreaElement) {
   el.style.height = "auto";
@@ -612,6 +613,7 @@ export function MessageInput({
               onBlur={() => setIsFocused(false)}
               onChange={(e) => handleTextChange(e.target.value)}
               onKeyDown={(e) => {
+                if (isImeComposing(e)) return;
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit();

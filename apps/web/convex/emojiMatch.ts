@@ -810,17 +810,7 @@ export const getEmojiMatchById = query({
 });
 
 // ─── Trace queries ───────────────────────────────────────────────────────────
-
-export const getRecentEmTrace = query({
-  args: { limit: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("emTrace")
-      .withIndex("by_ts")
-      .order("desc")
-      .take(args.limit ?? 200);
-  },
-});
+// Trace rows hold game and participant ids, so every trace query must be scoped to one room.
 
 export const getEmTraceByRoom = query({
   args: {

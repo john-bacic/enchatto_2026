@@ -138,6 +138,30 @@ export const closeAbandonedRooms = internalMutation({
   },
 });
 
+const TRACE_PURGE_BATCH = 500;
+
+/**
+ * Game trace rows hold full game and participant ids. Run once to empty the trace tables:
+ * `npx convex run rooms:purgeGameTraces`. It reschedules itself until nothing is left.
+ */
+export const purgeGameTraces = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx): Promise<number> => {
+    let deleted = 0;
+    for (const table of ["emTrace", "todTrace", "bingoTrace"] as const) {
+      const rows = await ctx.db.query(table).take(TRACE_PURGE_BATCH - deleted);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted += rows.length;
+      if (deleted >= TRACE_PURGE_BATCH) break;
+    }
+    if (deleted >= TRACE_PURGE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.rooms.purgeGameTraces, {});
+    }
+    return deleted;
+  },
+});
+
 export const getRoomByJoinCode = query({
   args: { joinCode: v.string() },
   handler: async (ctx, args) => {

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalAction, internalMutation, internalQuery, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 export const sendTextMessage = mutation({
   args: {
@@ -367,6 +367,39 @@ export const sendDrawingMessage = mutation({
   },
 });
 
+/**
+ * The server action and the iOS host both process every message, so results arrive twice and in
+ * either order. The first translation wins; a later result only fills in a message that has none.
+ */
+async function applyProcessedResult(
+  ctx: MutationCtx,
+  messageId: Id<"messages">,
+  processing: NonNullable<Doc<"messages">["processing"]>
+) {
+  const message = await ctx.db.get(messageId);
+  if (!message) return;
+  if (message.status !== "pending") {
+    const alreadyTranslated = message.status === "processed" && !!message.processing?.translatedText;
+    if (alreadyTranslated || !processing.translatedText) return;
+  }
+  await ctx.db.patch(messageId, {
+    status: "processed",
+    processing,
+    processedAt: Date.now(),
+  });
+}
+
+/** A failure only counts while the message is still pending: it must never replace a finished result */
+async function applyProcessingFailure(ctx: MutationCtx, messageId: Id<"messages">, error: string) {
+  const message = await ctx.db.get(messageId);
+  if (!message || message.status !== "pending") return;
+  await ctx.db.patch(messageId, {
+    status: "failed",
+    processing: { error },
+    processedAt: Date.now(),
+  });
+}
+
 export const submitProcessedMessage = mutation({
   args: {
     messageId: v.id("messages"),
@@ -378,11 +411,7 @@ export const submitProcessedMessage = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.messageId, {
-      status: "processed",
-      processing: args.processing,
-      processedAt: Date.now(),
-    });
+    await applyProcessedResult(ctx, args.messageId, args.processing);
   },
 });
 
@@ -392,11 +421,7 @@ export const markMessageFailed = mutation({
     error: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.messageId, {
-      status: "failed",
-      processing: { error: args.error },
-      processedAt: Date.now(),
-    });
+    await applyProcessingFailure(ctx, args.messageId, args.error);
   },
 });
 
@@ -555,11 +580,7 @@ export const submitProcessedInternal = internalMutation({
     }),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.messageId, {
-      status: "processed",
-      processing: args.processing,
-      processedAt: Date.now(),
-    });
+    await applyProcessedResult(ctx, args.messageId, args.processing);
   },
 });
 
@@ -569,10 +590,6 @@ export const markMessageFailedInternal = internalMutation({
     error: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.messageId, {
-      status: "failed",
-      processing: { error: args.error },
-      processedAt: Date.now(),
-    });
+    await applyProcessingFailure(ctx, args.messageId, args.error);
   },
 });

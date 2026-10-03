@@ -62,6 +62,14 @@ export function avatarTint(id: string) {
   return `#${channel(0)}${channel(2)}${channel(4)}`;
 }
 
+/** Messages waiting in the local outbox get this id prefix until the server assigns a real one */
+export const QUEUED_ID_PREFIX = "queued-";
+
+/** Queued ids are not Convex ids: a query given one is rejected by its validator and throws in render */
+export function isQueuedMessageId(id: string) {
+  return id.startsWith(QUEUED_ID_PREFIX);
+}
+
 /** Public path of an avatar's icon-pack image */
 export function avatarIconSrc(id: string) {
   return `/icons/av-${getAvatarById(id).icon}.png`;

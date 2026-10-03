@@ -209,6 +209,9 @@ export const setParticipantOnline = mutation({
       online: args.online,
       lastSeenAt: now,
       presence: args.online ? (args.presence ?? "online") : undefined,
+      // The unload beacon and the stale sweep both set departed; someone who is back is not departed.
+      // "away" does not count as back: a closing tab sends it right after its leave beacon.
+      ...(args.online && args.presence !== "away" ? { departed: undefined } : {}),
     });
 
     if (participant) {
