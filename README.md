@@ -19,8 +19,9 @@ Enchatto lets a host create a conversation room on their iPhone. Participants jo
 enchatto/
   apps/
     web/          # Next.js participant web app
+      convex/     # Convex backend (schema, queries, mutations, HTTP actions): the deployed copy
     ios/          # SwiftUI host app
-    convex/       # Convex backend (schema, queries, mutations, HTTP actions)
+    convex/       # Backup copy of the Convex backend; never deployed
   packages/
     shared-types/ # Shared TypeScript type definitions
 ```
@@ -71,9 +72,18 @@ Set `NEXT_PUBLIC_CONVEX_URL` in `apps/web/.env.local` to your Convex deployment 
 
 ### iOS app
 
-Open `apps/ios/` in Xcode. Update the Convex deployment URL in `Services/API/AppConfig.swift`.
+Open `apps/ios/` in Xcode. `Services/API/AppConfig.swift` picks the Convex deployment: dev for Debug builds, production for Release builds.
 
-To use the mock backend (no Convex required), set `useMock = true` in `AppConfig.swift`.
+To use the mock backend (no Convex required), set `useMockAPI = true` in `AppConfig.swift`.
+
+## Deployments
+
+There are two Convex deployments, and the deployed web app talks to both:
+
+- **Production (`basic-ram-104`):** the web app on Vercel and Release (TestFlight / App Store) iOS builds.
+- **Dev (`helpful-bulldog-420`):** local development, Debug iOS builds, and rooms created by older iOS builds, which the web app reaches through `NEXT_PUBLIC_CONVEX_LEGACY_URL`.
+
+Convex functions have to be live on both before the web build that calls them, because open tabs reload onto a new web build within a minute. See the Deployment section of `CLAUDE.md` for the details.
 
 ## Key features
 

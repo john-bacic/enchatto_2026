@@ -11,7 +11,7 @@ Enchatto is a real-time multilingual conversation platform. A host creates a roo
 - **Monorepo** with npm workspaces: `apps/*` and `packages/*`
 - **Web app** (`apps/web/`): Next.js 14 + React 18 participant client. Uses Convex React hooks (`useQuery`/`useMutation`) for real-time subscriptions.
 - **iOS app** (`apps/ios/`): SwiftUI host app. Communicates with Convex via HTTP POST actions (polling, not subscriptions).
-- **Convex backend**: Schema, queries, mutations, and HTTP actions live in `apps/web/convex/` (the active deployment). A backup copy exists at `apps/convex/convex/` — keep both in sync.
+- **Convex backend**: Schema, queries, mutations, and HTTP actions live in `apps/web/convex/`, the only folder that is deployed. A backup copy exists at `apps/convex/convex/` — keep both in sync, and never deploy from it.
 - **Shared types** (`packages/shared-types/`): TypeScript type contracts (Room, Participant, Message, Reaction) used by web and as reference for iOS.
 
 ## Commands
@@ -34,9 +34,14 @@ npx convex dev --once           # One-time deploy Convex functions to dev deploy
 
 ## Deployment
 
-- **Convex dev deployment:** `helpful-bulldog-420` — this is what the web app uses via `NEXT_PUBLIC_CONVEX_URL` in `apps/web/.env.local`
-- **Deploy Convex:** Run `npx convex dev --once` from `apps/web/` (NOT `npx convex deploy`, which targets prod)
-- **Deploy web to Vercel:** Use `./deploy.sh` from monorepo root, which handles git push, Convex deploy, git SHA stamping, and Vercel deploy
+There are two Convex deployments, and the deployed web app talks to both:
+
+- **Production `basic-ram-104`:** the web app on Vercel (`NEXT_PUBLIC_CONVEX_URL`) and Release (TestFlight / App Store) iOS builds (`AppConfig.swift`)
+- **Dev `helpful-bulldog-420`:** local dev (`apps/web/.env.local`), Debug iOS builds, and rooms created by older iOS builds, which the web app reaches through `NEXT_PUBLIC_CONVEX_LEGACY_URL` (`?b=legacy`)
+- **Deploy everything:** `./deploy.sh` from the monorepo root, on a committed tree. It type-checks, pushes Convex functions to dev (`npx convex dev --once`), then to production (`npx convex deploy`, which asks before it pushes), then runs `git push`, deploys the web app with `npx vercel --prod --force`, and checks that https://enchatto.vercel.app/api/version reports the new SHA. It needs a terminal for the production prompt, so an agent asks the user to run it rather than running it
+- **Order matters:** Convex functions go to both deployments before the web build that calls them. Open tabs reload onto a new web build within a minute (`DeployRefresh`), so a web build that is ahead of its functions breaks for everyone at once. Keep function changes backward compatible: installed iOS builds do not update with a deploy
+- **Vercel:** project `web`, Root Directory `apps/web`, so the CLI must run from the monorepo root. The production branch is `main`; a push to any other branch only creates a preview build. A push to `main` is a production web deploy of `main`'s tree, so only push `main` when it is the commit `deploy.sh` just shipped
+- **Convex environment variables** (`ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`) are set per deployment. Add a new one to both, from `apps/web/`: `npx convex env set NAME value`, then again with `--prod`
 - **iOS:** Rebuild in Xcode after deploy to pick up new git SHA
 
 ## Data Flow
