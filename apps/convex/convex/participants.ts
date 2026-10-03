@@ -1,5 +1,61 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Doc } from "./_generated/dataModel";
+
+/** Push "X joined" to the iOS host when they're not looking at the room */
+async function notifyHostOfJoin(
+  ctx: MutationCtx,
+  room: Doc<"rooms">,
+  participants: Doc<"participants">[],
+  nickname: string
+) {
+  const host = participants.find((p) => p._id === room.hostId);
+  if (!host || (host.online && host.presence !== "away")) return;
+  const pushToken = await ctx.db
+    .query("hostPushTokens")
+    .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
+    .first();
+  if (!pushToken) return;
+  const ja = host.preferredLanguage.startsWith("ja");
+  await ctx.scheduler.runAfter(0, internal.push.sendToHost, {
+    roomId: room._id,
+    token: pushToken.token,
+    title: "Enchatto",
+    body: ja ? `${nickname}さんがルーム${room.joinCode}に参加しました` : `${nickname} joined room ${room.joinCode}`,
+  });
+}
+
+export const setHostPushToken = mutation({
+  args: { roomId: v.id("rooms"), hostId: v.string(), token: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.hostId !== args.hostId) throw new Error("Only the host can register for notifications");
+    if (!/^[0-9a-f]{64,200}$/i.test(args.token)) throw new Error("Invalid device token");
+    const existing = await ctx.db
+      .query("hostPushTokens")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .first();
+    if (existing) await ctx.db.patch(existing._id, { token: args.token });
+    else await ctx.db.insert("hostPushTokens", { roomId: args.roomId, token: args.token });
+    return null;
+  },
+});
+
+export const clearHostPushToken = internalMutation({
+  args: { roomId: v.id("rooms"), token: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("hostPushTokens")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .first();
+    if (existing?.token === args.token) await ctx.db.delete(existing._id);
+    return null;
+  },
+});
 
 export const joinRoom = mutation({
   args: {
@@ -69,6 +125,7 @@ export const joinRoom = mutation({
         await ctx.db.patch(args.roomId, { status: "active" });
       }
 
+      await notifyHostOfJoin(ctx, room, participants, nickname);
       return existing._id;
     }
 
@@ -108,6 +165,7 @@ export const joinRoom = mutation({
       await ctx.db.patch(args.roomId, { status: "active" });
     }
 
+    await notifyHostOfJoin(ctx, room, participants, nickname);
     return participantId;
   },
 });

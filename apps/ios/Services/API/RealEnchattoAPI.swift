@@ -47,6 +47,10 @@ class RealEnchattoAPI: EnchattoAPI {
         try await client.postVoid("/api/rooms/close", body: ["roomId": roomId])
     }
 
+    func setHostPushToken(roomId: String, hostId: String, token: String) async throws {
+        try await client.postVoid("/api/rooms/push-token", body: ["roomId": roomId, "hostId": hostId, "token": token])
+    }
+
     // MARK: - Messages
 
     func getRoomMessages(roomId: String) async throws -> [Message] {

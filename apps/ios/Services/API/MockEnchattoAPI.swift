@@ -194,6 +194,8 @@ class MockEnchattoAPI: EnchattoAPI {
         rooms[roomId]?.closedAt = Date()
     }
 
+    func setHostPushToken(roomId: String, hostId: String, token: String) async throws {}
+
     func kickParticipant(participantId: String, roomId: String) async throws {
         participants[roomId]?.removeAll { $0.id == participantId }
     }

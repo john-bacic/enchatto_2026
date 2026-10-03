@@ -50,6 +50,9 @@ protocol EnchattoAPI {
     /// Close a room
     func closeRoom(roomId: String) async throws
 
+    /// Register the host's APNs device token so guests joining while the host is away trigger a push
+    func setHostPushToken(roomId: String, hostId: String, token: String) async throws
+
     /// Kick a participant from the room
     func kickParticipant(participantId: String, roomId: String) async throws
 

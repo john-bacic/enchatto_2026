@@ -66,6 +66,18 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/api/rooms/push-token",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.participants.setHostPushToken, {
+      roomId: body.roomId,
+      hostId: body.hostId,
+      token: body.token,
+    });
+  }),
+});
+
 // --- Participants ---
 
 http.route({

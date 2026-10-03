@@ -133,7 +133,20 @@ class HostRoomViewModel: ObservableObject {
 
     // MARK: - Observation
 
+    private var pushRegistered = false
+
+    private func registerForPushIfNeeded() {
+        guard !pushRegistered else { return }
+        pushRegistered = true
+        Task {
+            guard let token = await PushManager.shared.requestToken() else { return }
+            try? await api.setHostPushToken(roomId: roomId, hostId: hostId, token: token)
+        }
+    }
+
     func startObserving() {
+        registerForPushIfNeeded()
+
         // Poll for room state and messages
         if pollTask == nil {
             pollTask = Task { [weak self] in

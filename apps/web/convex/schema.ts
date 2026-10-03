@@ -21,6 +21,12 @@ export default defineSchema({
     .index("by_joinCode", ["joinCode"])
     .index("by_status", ["status"]),
 
+  // APNs device token of the iOS host; kept off `rooms` because room docs are sent to guests
+  hostPushTokens: defineTable({
+    roomId: v.id("rooms"),
+    token: v.string(),
+  }).index("by_roomId", ["roomId"]),
+
   participants: defineTable({
     roomId: v.id("rooms"),
     nickname: v.string(),
