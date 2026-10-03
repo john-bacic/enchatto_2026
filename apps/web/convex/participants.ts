@@ -32,6 +32,13 @@ export function isAround(p: Doc<"participants"> | null | undefined, now: number)
   return !!p && p.online && !p.departed && now - p.lastSeenAt < AROUND_WITHIN_MS;
 }
 
+/** Languages the apps offer. preferredLanguage picks a player's Word Rush direction, the language of Lost in Translation prompts, the host's join push and the badge others see */
+export const SUPPORTED_LANGUAGES = ["en", "ja"] as const;
+
+export function isSupportedLanguage(value: unknown): value is (typeof SUPPORTED_LANGUAGES)[number] {
+  return typeof value === "string" && (SUPPORTED_LANGUAGES as readonly string[]).includes(value);
+}
+
 /** Push "X joined" to the iOS host when they're not looking at the room */
 async function notifyHostOfJoin(
   ctx: MutationCtx,
@@ -330,6 +337,24 @@ export const updateParticipantNickname = mutation({
       throw new Error("Nickname must be 1–30 characters");
     }
     await ctx.db.patch(args.participantId, { nickname });
+  },
+});
+
+export const updateParticipantLanguage = mutation({
+  args: {
+    participantId: v.id("participants"),
+    language: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (!isSupportedLanguage(args.language)) throw new Error("Unsupported language");
+    const participant = await ctx.db.get(args.participantId);
+    if (!participant) throw new Error("Participant not found");
+    // Word Rush keeps the direction a player joined a lobby with; everything else reads this field live
+    if (participant.preferredLanguage !== args.language) {
+      await ctx.db.patch(args.participantId, { preferredLanguage: args.language });
+    }
+    return null;
   },
 });
 

@@ -3,16 +3,41 @@ import { mutation, query, internalAction, internalMutation, internalQuery, Mutat
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 
+const CLIENT_ID_MAX = 64;
+
+/** A send that arrives again with the same clientId (the answer was lost and the client retried) returns the first message instead of adding a second */
+async function findByClientId(
+  ctx: MutationCtx,
+  roomId: Id<"rooms">,
+  senderId: Id<"participants">,
+  clientId: string | undefined
+): Promise<Id<"messages"> | null> {
+  if (!clientId) return null;
+  if (clientId.length > CLIENT_ID_MAX) throw new Error("Invalid clientId");
+  // The sender is matched in the query, not on the first row: another sender's message with the same clientId
+  // would otherwise hide this sender's and every repeat would be inserted again
+  const existing = await ctx.db
+    .query("messages")
+    .withIndex("by_roomId_clientId", (q) => q.eq("roomId", roomId).eq("clientId", clientId))
+    .filter((q) => q.eq(q.field("senderId"), senderId))
+    .first();
+  return existing ? existing._id : null;
+}
+
 export const sendTextMessage = mutation({
   args: {
     roomId: v.id("rooms"),
     senderId: v.id("participants"),
     text: v.string(),
     replyToId: v.optional(v.id("messages")),
+    clientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    // Before the closed check: a repeat of a message that got in before the room closed is still that message
+    const repeat = await findByClientId(ctx, args.roomId, args.senderId, args.clientId);
+    if (repeat) return repeat;
     if (room.status === "closed") throw new Error("Room is closed");
 
     const text = args.text.trim();
@@ -33,6 +58,7 @@ export const sendTextMessage = mutation({
       status: "pending",
       text,
       replyToId: args.replyToId,
+      clientId: args.clientId || undefined,
       createdAt: now,
     });
 
@@ -56,10 +82,13 @@ export const sendImageMessage = mutation({
     senderId: v.id("participants"),
     storageId: v.id("_storage"),
     replyToId: v.optional(v.id("messages")),
+    clientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    const repeat = await findByClientId(ctx, args.roomId, args.senderId, args.clientId);
+    if (repeat) return repeat;
     if (room.status === "closed") throw new Error("Room is closed");
 
     const mediaUrl = await ctx.storage.getUrl(args.storageId);
@@ -72,6 +101,7 @@ export const sendImageMessage = mutation({
       status: "processed",
       mediaUrl,
       replyToId: args.replyToId,
+      clientId: args.clientId || undefined,
       createdAt: Date.now(),
       processedAt: Date.now(),
     });
@@ -94,10 +124,13 @@ async function insertAudioMessage(
     text?: string;
     lang?: "en" | "ja";
     replyToId?: Id<"messages">;
+    clientId?: string;
   }
 ): Promise<Id<"messages">> {
   const room = await ctx.db.get(args.roomId);
   if (!room) throw new Error("Room not found");
+  const repeat = await findByClientId(ctx, args.roomId, args.senderId, args.clientId);
+  if (repeat) return repeat;
   if (room.status === "closed") throw new Error("Room is closed");
   const sender = await ctx.db.get(args.senderId);
   if (!sender || sender.roomId !== args.roomId) throw new Error("Not a member of this room");
@@ -132,6 +165,7 @@ async function insertAudioMessage(
     durationMs,
     waveform,
     replyToId: args.replyToId,
+    clientId: args.clientId || undefined,
     createdAt: now,
     processedAt: text ? undefined : now,
   });
@@ -164,6 +198,7 @@ export const sendAudioMessage = mutation({
     text: v.optional(v.string()),
     lang: v.optional(langValidator),
     replyToId: v.optional(v.id("messages")),
+    clientId: v.optional(v.string()),
   },
   returns: v.id("messages"),
   handler: async (ctx, args) => await insertAudioMessage(ctx, args),
@@ -348,10 +383,13 @@ export const sendDrawingMessage = mutation({
     senderId: v.id("participants"),
     mediaUrl: v.string(),
     replyToId: v.optional(v.id("messages")),
+    clientId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    const repeat = await findByClientId(ctx, args.roomId, args.senderId, args.clientId);
+    if (repeat) return repeat;
     if (room.status === "closed") throw new Error("Room is closed");
 
     return await ctx.db.insert("messages", {
@@ -361,6 +399,7 @@ export const sendDrawingMessage = mutation({
       status: "processed", // drawings don't need text processing
       mediaUrl: args.mediaUrl,
       replyToId: args.replyToId,
+      clientId: args.clientId || undefined,
       createdAt: Date.now(),
       processedAt: Date.now(),
     });

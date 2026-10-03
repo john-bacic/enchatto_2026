@@ -83,12 +83,15 @@ export default defineSchema({
       })
     ),
     replyToId: v.optional(v.id("messages")),
+    /** Made up by the sender per message; a send repeated with the same id returns the first message */
+    clientId: v.optional(v.string()),
     createdAt: v.number(),
     processedAt: v.optional(v.number()),
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"])
-    .index("by_roomId_createdAt", ["roomId", "createdAt"]),
+    .index("by_roomId_createdAt", ["roomId", "createdAt"])
+    .index("by_roomId_clientId", ["roomId", "clientId"]),
 
   reactions: defineTable({
     messageId: v.id("messages"),

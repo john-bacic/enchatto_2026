@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { isSupportedLanguage } from "./participants";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 10;
@@ -10,6 +11,7 @@ export const createRoom = mutation({
   args: {
     hostNickname: v.string(),
     hostAvatarId: v.optional(v.string()),
+    hostLanguage: v.optional(v.string()),
     settings: v.optional(
       v.object({
         sourceLanguage: v.string(),
@@ -61,7 +63,8 @@ export const createRoom = mutation({
       role: "host",
       platform: "ios",
       avatar: { type: "preset", value: args.hostAvatarId ?? "default" },
-      preferredLanguage: settings.sourceLanguage,
+      // The host's own language. Builds that do not send it keep the old value, the room's source language
+      preferredLanguage: isSupportedLanguage(args.hostLanguage) ? args.hostLanguage : settings.sourceLanguage,
       online: true,
       lastSeenAt: now,
       joinedAt: now,

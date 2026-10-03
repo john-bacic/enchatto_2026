@@ -6,7 +6,7 @@ class MockEnchattoAPI: EnchattoAPI {
     private var participants: [String: [Participant]] = [:]
     private var messages: [String: [Message]] = [:]
 
-    func createRoom(hostNickname: String, hostAvatarId: String, settings: RoomSettings) async throws -> CreateRoomResult {
+    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings) async throws -> CreateRoomResult {
         let roomId = UUID().uuidString
         let joinCode = String((0..<6).map { _ in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".randomElement()! })
         let hostId = UUID().uuidString
@@ -27,7 +27,7 @@ class MockEnchattoAPI: EnchattoAPI {
             role: .host,
             platform: .ios,
             avatar: AvatarConfig(type: .preset, value: hostAvatarId),
-            preferredLanguage: settings.sourceLanguage,
+            preferredLanguage: hostLanguage,
             online: true,
             lastSeenAt: Date(),
             joinedAt: Date()
@@ -107,7 +107,8 @@ class MockEnchattoAPI: EnchattoAPI {
         }
     }
 
-    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?) async throws -> String {
+    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?) async throws -> String {
+        if let clientId, let existing = messages[roomId]?.first(where: { $0.clientId == clientId }) { return existing.id }
         let messageId = UUID().uuidString
         let message = Message(
             id: messageId,
@@ -117,7 +118,8 @@ class MockEnchattoAPI: EnchattoAPI {
             status: .pending,
             text: text,
             replyToId: replyToId,
-            createdAt: Date()
+            createdAt: Date(),
+            clientId: clientId
         )
         messages[roomId, default: []].append(message)
         return messageId
@@ -131,7 +133,8 @@ class MockEnchattoAPI: EnchattoAPI {
         return "mock-storage-id-\(UUID().uuidString)"
     }
 
-    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?) async throws -> String {
+    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?, clientId: String?) async throws -> String {
+        if let clientId, let existing = messages[roomId]?.first(where: { $0.clientId == clientId }) { return existing.id }
         let messageId = UUID().uuidString
         let message = Message(
             id: messageId,
@@ -142,7 +145,8 @@ class MockEnchattoAPI: EnchattoAPI {
             mediaUrl: "https://mock-image-url.example.com/\(storageId)",
             replyToId: replyToId,
             createdAt: Date(),
-            processedAt: Date()
+            processedAt: Date(),
+            clientId: clientId
         )
         messages[roomId, default: []].append(message)
         return messageId
@@ -152,7 +156,8 @@ class MockEnchattoAPI: EnchattoAPI {
         "Mock dictation"
     }
 
-    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String {
+    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?, clientId: String?) async throws -> String {
+        if let clientId, let existing = messages[roomId]?.first(where: { $0.clientId == clientId }) { return existing.id }
         let messageId = UUID().uuidString
         let message = Message(
             id: messageId,
@@ -166,13 +171,15 @@ class MockEnchattoAPI: EnchattoAPI {
             createdAt: Date(),
             processedAt: Date(),
             durationMs: Double(durationMs),
-            waveform: waveform
+            waveform: waveform,
+            clientId: clientId
         )
         messages[roomId, default: []].append(message)
         return messageId
     }
 
-    func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
+    func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?, clientId: String?) async throws -> String {
+        if let clientId, let existing = messages[roomId]?.first(where: { $0.clientId == clientId }) { return existing.id }
         let messageId = UUID().uuidString
         let message = Message(
             id: messageId,
@@ -183,7 +190,8 @@ class MockEnchattoAPI: EnchattoAPI {
             mediaUrl: mediaUrl,
             replyToId: replyToId,
             createdAt: Date(),
-            processedAt: Date()
+            processedAt: Date(),
+            clientId: clientId
         )
         messages[roomId, default: []].append(message)
         return messageId
@@ -224,6 +232,15 @@ class MockEnchattoAPI: EnchattoAPI {
 
     func setTypingAction(participantId: String, action: String?, drawingStartedAt: Double? = nil) async throws {
         // Mock: no-op
+    }
+
+    func setParticipantLanguage(participantId: String, language: String) async throws {
+        for roomId in participants.keys {
+            if let index = participants[roomId]?.firstIndex(where: { $0.id == participantId }) {
+                participants[roomId]?[index].preferredLanguage = language
+                return
+            }
+        }
     }
 
     // MARK: - Games
@@ -382,12 +399,15 @@ enum APIError: LocalizedError {
     case roomNotFound
     case networkError
     case serverError(String)
+    /// The server answered with a status other than 200; `message` is its "error" text, or "HTTP <status>"
+    case http(status: Int, message: String)
 
     var errorDescription: String? {
         switch self {
         case .roomNotFound: return "Room not found"
         case .networkError: return "Network error"
         case .serverError(let msg): return msg
+        case .http(_, let message): return message
         }
     }
 }

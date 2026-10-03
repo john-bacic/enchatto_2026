@@ -119,7 +119,7 @@ struct HostConversationView: View {
 
             gameStatusBarSection
 
-            if viewModel.isOffline {
+            if viewModel.isOffline || viewModel.pollIssue != nil || viewModel.isSendDelayed {
                 offlineBanner
             }
 
@@ -138,8 +138,9 @@ struct HostConversationView: View {
                 messageListView
             }
 
+            // Resolved through the view model: the bar stays when the placeholder being replied to becomes the server's copy
             if let replyId = replyToId,
-               let replyMsg = viewModel.messages.first(where: { $0.id == replyId }) {
+               let replyMsg = viewModel.message(withId: replyId) {
                 replyIndicator(for: replyMsg)
             }
 
@@ -381,9 +382,10 @@ struct HostConversationView: View {
 
     @ViewBuilder
     private var contextMenuOverlay: some View {
+        // A menu opened on a placeholder carries on with the server's copy (and its row's frame) once that replaces it
         if let menuMessageId = contextMenuMessageId,
-           let message = viewModel.messages.first(where: { $0.id == menuMessageId }),
-           let frame = messageFrames.frames[menuMessageId] {
+           let message = viewModel.message(withId: menuMessageId),
+           let frame = messageFrames.frames[menuMessageId] ?? messageFrames.frames[message.id] {
             let sender = viewModel.participant(for: message.senderId)
             let replyTarget = viewModel.replyTarget(for: message)
             let replyTargetSender = replyTarget.flatMap { viewModel.participant(for: $0.senderId) }
@@ -504,9 +506,9 @@ struct HostConversationView: View {
                         hopTrigger: logoHop,
                         hot: vibeHot && viewModel.room?.status != .closed
                     )
-                    .onChange(of: viewModel.messages.last?.id) { _ in
+                    .onChange(of: latestDeliveredMessage?.id) { _ in
                         // Polls replace the whole list, so "new" means sent after this screen opened
-                        guard let last = viewModel.messages.last, last.kind != .system,
+                        guard let last = latestDeliveredMessage, last.kind != .system,
                               last.createdAt > screenOpenedAt else { return }
                         logoHop += 1
                     }
@@ -572,6 +574,12 @@ struct HostConversationView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 
+    /// Newest message the server has. The host's own placeholders are skipped, so a message hops the wordmark once,
+    /// when the server's copy arrives, and a guest's message still does while one of the host's waits below it
+    private var latestDeliveredMessage: Message? {
+        viewModel.messages.last { !$0.isQueuedPlaceholder }
+    }
+
     private var headerOthers: [Participant] {
         viewModel.participants.filter { $0.id != hostId && !hiddenOfflineIds.contains($0.id) }
     }
@@ -599,11 +607,18 @@ struct HostConversationView: View {
 
     // MARK: - Offline banner
 
+    /// What the banner says: the device is offline, or it is online and polls keep failing, or (polls fine) a send is being retried
+    private var connectionBannerKey: String {
+        if viewModel.isOffline { return "You're offline" }
+        guard let issue = viewModel.pollIssue else { return "Sending…" }
+        return issue == .failing ? "Can't update the room" : "Reconnecting..."
+    }
+
     private var offlineBanner: some View {
         HStack(spacing: 8) {
-            Image(systemName: "wifi.slash")
+            Image(systemName: viewModel.isOffline || viewModel.pollIssue != nil ? "wifi.slash" : "arrow.triangle.2.circlepath")
                 .font(.system(size: 14, weight: .black))
-            Text(L.t("You're offline", hostLanguage))
+            Text(L.t(connectionBannerKey, hostLanguage))
                 .font(.round(14, .black))
             if viewModel.pendingQueueCount > 0 {
                 Text("\(viewModel.pendingQueueCount) \(L.t("queued", hostLanguage))")
@@ -621,6 +636,8 @@ struct HostConversationView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(EC.ink).frame(height: 3) }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.3), value: viewModel.isOffline)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.pollIssue)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.isSendDelayed)
     }
 
     // MARK: - Offline translation bridge
@@ -735,7 +752,9 @@ struct HostConversationView: View {
                                 showEnglish: showEnglish,
                                 showJapanese: showJapanese,
                                 showRomaji: showRomaji,
-                                onImageTap: { url in fullScreenImage = (url: url, messageId: message.id) }
+                                onImageTap: { url in fullScreenImage = (url: url, messageId: message.id) },
+                                onRetrySend: { viewModel.retrySend(id: message.id) },
+                                onDeleteUnsent: { Task { await viewModel.deleteMessage(messageId: message.id) } }
                             )
                             .id(message.id)
                             .background(
@@ -1101,7 +1120,7 @@ struct HostConversationView: View {
                 await viewModel.sendVoice(clip, text: transcript, replyToId: reply)
             } else {
                 if let clip { try? FileManager.default.removeItem(at: clip.url) }
-                if !transcript.isEmpty { await viewModel.sendMessage(transcript, replyToId: reply) }
+                if !transcript.isEmpty { viewModel.sendMessage(transcript, replyToId: reply) }
             }
         }
     }
@@ -1356,7 +1375,9 @@ struct HostConversationView: View {
                     onSend: { image in
                         showDrawingComposer = false
                         viewModel.setTypingAction(nil)
-                        Task { await viewModel.sendDrawing(image, replyToId: replyToId); replyToId = nil }
+                        let reply = replyToId
+                        replyToId = nil
+                        viewModel.sendDrawing(image, replyToId: reply)
                     },
                     onCancel: {
                         showDrawingComposer = false
@@ -1368,7 +1389,9 @@ struct HostConversationView: View {
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPickerView(
                     onImageCaptured: { image in
-                        Task { await viewModel.sendImage(image, replyToId: replyToId); replyToId = nil }
+                        let reply = replyToId
+                        replyToId = nil
+                        viewModel.sendImage(image, replyToId: reply)
                     },
                     isPresented: $showCamera
                 )
@@ -1380,8 +1403,9 @@ struct HostConversationView: View {
                 Task {
                     if let data = try? await newItem.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        await viewModel.sendImage(image, replyToId: replyToId)
+                        let reply = replyToId
                         replyToId = nil
+                        viewModel.sendImage(image, replyToId: reply)
                     }
                     selectedPhotoItem = nil
                 }
@@ -1433,21 +1457,22 @@ struct HostConversationView: View {
                         step: step,
                         lang: hostLanguage,
                         onSubmitDrawing: { image in
-                            guard let data = image.pngData() else { return }
+                            guard let data = image.pngData() else {
+                                throw APIError.serverError("Drawing could not be encoded")
+                            }
                             let base64 = data.base64EncodedString()
                             let mediaUrl = "data:image/png;base64,\(base64)"
-                            Task {
-                                await viewModel.submitGameStep(stepId: step.id, outputText: nil, outputDrawingUrl: mediaUrl)
-                                // Don't set showGameTask = false here — .onChange handles it.
-                                // Setting it here would race with .onChange and override
-                                // showGameTask = true when the next step is immediately available.
-                            }
+                            try await viewModel.submitGameStep(stepId: step.id, outputText: nil, outputDrawingUrl: mediaUrl)
+                            // .onChange normally closes or swaps the overlay when the refresh inside
+                            // submitGameStep moves myActiveStep on. If that refresh failed, the step is
+                            // still here although the server has closed it: close the overlay for this
+                            // step only. An unconditional `showGameTask = false` would hide a next step
+                            // that is already up.
+                            if viewModel.myActiveStep?.id == step.id { showGameTask = false }
                         },
                         onSubmitGuess: { selectedOption in
-                            Task {
-                                await viewModel.submitGameStep(stepId: step.id, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
-                                // Don't set showGameTask = false here — .onChange handles it.
-                            }
+                            try await viewModel.submitGameStep(stepId: step.id, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
+                            if viewModel.myActiveStep?.id == step.id { showGameTask = false }
                         },
                         onQuit: {
                             showQuitGameConfirm = true
@@ -1869,6 +1894,7 @@ struct HostConversationView: View {
                     .listRowBackground(Color.white)
                     .onChange(of: hostLanguage) { newValue in
                         UserDefaults.standard.set(newValue, forKey: "enchatto_lastLanguage")
+                        viewModel.setHostLanguage(newValue)
                     }
 
                     if !viewModel.translationPacksInstalled {
@@ -1944,14 +1970,21 @@ struct HostConversationView: View {
         if wasRecording, let clip = audioOnlyDictation() {
             viewModel.setTypingAction(nil)
             let reply = replyToId
+            let typed = messageText
+            // Cleared now, not after the awaits: text typed while the clip is transcribed must survive
             replyToId = nil
+            speechRecognizer.transcript = ""
+            messageText = ""
             transcribingDictation = true
             Task {
                 let text = await viewModel.transcribeDictation(clip)
                 transcribingDictation = false
-                guard let text, !text.isEmpty else { return }
-                await viewModel.sendMessage(text, replyToId: reply)
-                messageText = ""
+                guard let text, !text.isEmpty else {
+                    // Nothing was sent: give back what was in the field unless something new was typed
+                    if messageText.isEmpty { messageText = typed }
+                    return
+                }
+                viewModel.sendMessage(text, replyToId: reply)
             }
             return
         }
@@ -1962,12 +1995,13 @@ struct HostConversationView: View {
         if wasRecording {
             text = SpeechRecognizer.ensurePunctuation(text)
         }
+        let reply = replyToId
+        // One synchronous step: a second tap finds an empty field, and the isRecording handler finds no transcript to copy back
+        speechRecognizer.transcript = ""
+        messageText = ""
+        replyToId = nil
         viewModel.setTypingAction(nil)
-        Task {
-            await viewModel.sendMessage(text, replyToId: replyToId)
-            messageText = ""
-            replyToId = nil
-        }
+        viewModel.sendMessage(text, replyToId: reply)
     }
 }
 

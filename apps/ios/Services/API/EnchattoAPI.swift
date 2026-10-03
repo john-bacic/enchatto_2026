@@ -9,8 +9,8 @@ struct CreateRoomResult {
 
 /// Protocol defining all backend operations the host app needs
 protocol EnchattoAPI {
-    /// Create a new room with the given settings
-    func createRoom(hostNickname: String, hostAvatarId: String, settings: RoomSettings) async throws -> CreateRoomResult
+    /// Create a new room with the given settings. hostLanguage ("en" / "ja") is the host's own language, separate from the room's translation direction
+    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings) async throws -> CreateRoomResult
 
     /// Fetch the current room state (room + participants)
     func getRoomState(roomId: String) async throws -> (room: Room, participants: [Participant])
@@ -27,8 +27,8 @@ protocol EnchattoAPI {
     /// Mark a message as failed
     func markMessageFailed(messageId: String, error: String) async throws
 
-    /// Send a text message from the host
-    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?) async throws -> String
+    /// Send a text message from the host. A send repeated with the same clientId (here and in the three sends below) returns the first message's id
+    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?) async throws -> String
 
     /// Generate a presigned upload URL for Convex storage
     func generateUploadUrl() async throws -> String
@@ -37,13 +37,13 @@ protocol EnchattoAPI {
     func uploadData(_ data: Data, to uploadUrl: String, contentType: String) async throws -> String
 
     /// Send an image message (requires a Convex storageId from prior upload)
-    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?) async throws -> String
+    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?, clientId: String?) async throws -> String
 
     /// Send a drawing message
-    func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String
+    func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?, clientId: String?) async throws -> String
 
     /// Send a voice message (uploaded clip); the transcript, if any, is translated like a text message
-    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String
+    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?, clientId: String?) async throws -> String
     /// Server-side transcript of a dictation recording, for when the device recognizer is unusable
     func transcribeDictation(roomId: String, senderId: String, storageId: String) async throws -> String?
 
@@ -73,6 +73,9 @@ protocol EnchattoAPI {
 
     /// Update typing action (typing, drawing, or nil to clear)
     func setTypingAction(participantId: String, action: String?, drawingStartedAt: Double?) async throws
+
+    /// Set a participant's language on the server (Word Rush direction, game prompt language, join push, the badge others see)
+    func setParticipantLanguage(participantId: String, language: String) async throws
 
     // MARK: - Games
 

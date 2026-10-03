@@ -33,10 +33,12 @@ struct MessageContextMenuOverlay: View {
                 .onTapGesture { dismiss() }
 
             VStack(spacing: 12) {
-                // Reaction emoji row above
-                reactionBar
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 10)
+                // Reaction emoji row above; a message that has not reached the server cannot be reacted to
+                if message.sendState == nil {
+                    reactionBar
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 10)
+                }
 
                 // Isolated message bubble
                 messageBubbleClone

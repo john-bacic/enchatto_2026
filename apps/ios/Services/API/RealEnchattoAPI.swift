@@ -10,7 +10,7 @@ class RealEnchattoAPI: EnchattoAPI {
 
     // MARK: - Rooms
 
-    func createRoom(hostNickname: String, hostAvatarId: String, settings: RoomSettings) async throws -> CreateRoomResult {
+    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings) async throws -> CreateRoomResult {
         struct Response: Decodable {
             let roomId: String
             let joinCode: String
@@ -20,6 +20,7 @@ class RealEnchattoAPI: EnchattoAPI {
         let body: [String: Any] = [
             "hostNickname": hostNickname,
             "hostAvatarId": hostAvatarId,
+            "hostLanguage": hostLanguage,
             "settings": [
                 "sourceLanguage": settings.sourceLanguage,
                 "targetLanguage": settings.targetLanguage,
@@ -44,11 +45,11 @@ class RealEnchattoAPI: EnchattoAPI {
     }
 
     func closeRoom(roomId: String) async throws {
-        try await client.postVoid("/api/rooms/close", body: ["roomId": roomId])
+        try await client.postVoid("/api/rooms/close", body: ["roomId": roomId], retriesOn5xx: 1)
     }
 
     func setHostPushToken(roomId: String, hostId: String, token: String) async throws {
-        try await client.postVoid("/api/rooms/push-token", body: ["roomId": roomId, "hostId": hostId, "token": token])
+        try await client.postVoid("/api/rooms/push-token", body: ["roomId": roomId, "hostId": hostId, "token": token], retriesOn5xx: 1)
     }
 
     // MARK: - Messages
@@ -63,7 +64,7 @@ class RealEnchattoAPI: EnchattoAPI {
         return messages
     }
 
-    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?) async throws -> String {
+    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?) async throws -> String {
         struct Response: Decodable {
             let messageId: String
         }
@@ -76,6 +77,7 @@ class RealEnchattoAPI: EnchattoAPI {
         if let replyToId {
             body["replyToId"] = replyToId
         }
+        if let clientId { body["clientId"] = clientId }
 
         let response: Response = try await client.post("/api/messages/send-text", body: body)
         return response.messageId
@@ -83,7 +85,7 @@ class RealEnchattoAPI: EnchattoAPI {
 
     func generateUploadUrl() async throws -> String {
         struct Response: Decodable { let uploadUrl: String }
-        let response: Response = try await client.post("/api/storage/generate-upload-url", body: [:])
+        let response: Response = try await client.post("/api/storage/generate-upload-url", body: [:], retriesOn5xx: 1)
         return response.uploadUrl
     }
 
@@ -93,12 +95,14 @@ class RealEnchattoAPI: EnchattoAPI {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = ConvexHTTPClient.longTimeout
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.httpBody = data
 
-        let (responseData, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw APIError.serverError("Upload failed")
+        let (responseData, response) = try await ConvexHTTPClient.session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.networkError }
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.http(status: httpResponse.statusCode, message: "Upload failed")
         }
         guard let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
               let storageId = json["storageId"] as? String else {
@@ -107,7 +111,7 @@ class RealEnchattoAPI: EnchattoAPI {
         return storageId
     }
 
-    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?) async throws -> String {
+    func sendImageMessage(roomId: String, senderId: String, storageId: String, replyToId: String?, clientId: String?) async throws -> String {
         struct Response: Decodable { let messageId: String }
         var body: [String: Any] = [
             "roomId": roomId,
@@ -115,11 +119,12 @@ class RealEnchattoAPI: EnchattoAPI {
             "storageId": storageId,
         ]
         if let replyToId { body["replyToId"] = replyToId }
+        if let clientId { body["clientId"] = clientId }
         let response: Response = try await client.post("/api/messages/send-image", body: body)
         return response.messageId
     }
 
-    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?) async throws -> String {
+    func sendAudioMessage(roomId: String, senderId: String, storageId: String, durationMs: Int, waveform: [Double], text: String?, replyToId: String?, clientId: String?) async throws -> String {
         struct Response: Decodable { let messageId: String }
         var body: [String: Any] = [
             "roomId": roomId,
@@ -130,7 +135,9 @@ class RealEnchattoAPI: EnchattoAPI {
         ]
         if let text, !text.isEmpty { body["text"] = text }
         if let replyToId { body["replyToId"] = replyToId }
-        let response: Response = try await client.post("/api/messages/send-audio", body: body)
+        if let clientId { body["clientId"] = clientId }
+        // Sent once, outside the send queue, so it gets the long wait and one repeat of a 5xx (clientId makes the repeat the same message)
+        let response: Response = try await client.post("/api/messages/send-audio", body: body, timeout: ConvexHTTPClient.longTimeout, retriesOn5xx: 1)
         return response.messageId
     }
 
@@ -140,11 +147,11 @@ class RealEnchattoAPI: EnchattoAPI {
             "roomId": roomId,
             "senderId": senderId,
             "storageId": storageId,
-        ])
+        ], timeout: ConvexHTTPClient.longTimeout)
         return response.text
     }
 
-    func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?) async throws -> String {
+    func sendDrawingMessage(roomId: String, senderId: String, mediaUrl: String, replyToId: String?, clientId: String?) async throws -> String {
         struct Response: Decodable { let messageId: String }
         var body: [String: Any] = [
             "roomId": roomId,
@@ -152,7 +159,8 @@ class RealEnchattoAPI: EnchattoAPI {
             "mediaUrl": mediaUrl,
         ]
         if let replyToId { body["replyToId"] = replyToId }
-        let response: Response = try await client.post("/api/messages/send-drawing", body: body)
+        if let clientId { body["clientId"] = clientId }
+        let response: Response = try await client.post("/api/messages/send-drawing", body: body, timeout: ConvexHTTPClient.longTimeout)
         return response.messageId
     }
 
@@ -193,6 +201,13 @@ class RealEnchattoAPI: EnchattoAPI {
         ])
     }
 
+    func setParticipantLanguage(participantId: String, language: String) async throws {
+        try await client.postVoid("/api/participants/set-language", body: [
+            "participantId": participantId,
+            "language": language,
+        ])
+    }
+
     // MARK: - Reactions
 
     func addReaction(messageId: String, participantId: String, emoji: String) async throws {
@@ -200,7 +215,7 @@ class RealEnchattoAPI: EnchattoAPI {
             "messageId": messageId,
             "participantId": participantId,
             "emoji": emoji,
-        ])
+        ], retriesOn5xx: 1)
     }
 
     func removeReaction(messageId: String, participantId: String, emoji: String) async throws {
@@ -208,7 +223,7 @@ class RealEnchattoAPI: EnchattoAPI {
             "messageId": messageId,
             "participantId": participantId,
             "emoji": emoji,
-        ])
+        ], retriesOn5xx: 1)
     }
 
     func deleteMessage(messageId: String) async throws {
@@ -279,7 +294,10 @@ class RealEnchattoAPI: EnchattoAPI {
         if let outputText { body["outputText"] = outputText }
         if let outputDrawingUrl { body["outputDrawingUrl"] = outputDrawingUrl }
         if let selectedOption { body["selectedOption"] = selectedOption }
-        try await client.postVoid("/api/games/submit-step", body: body)
+        // A guess is a few bytes; a drawing carries the PNG. A request that hangs must fail while the server still has
+        // the step open, so the overlay's retry can land. The timeout is an idle one: an upload that keeps moving is not cut off.
+        let timeout: TimeInterval = outputDrawingUrl == nil ? ConvexHTTPClient.defaultTimeout : 15
+        try await client.postVoid("/api/games/submit-step", body: body, timeout: timeout)
     }
 
     func getActiveGameSession(roomId: String) async throws -> GameSession? {
@@ -551,7 +569,7 @@ class RealEnchattoAPI: EnchattoAPI {
         ]
         if let responseText { body["responseText"] = responseText }
         if let responseMediaUrl { body["responseMediaUrl"] = responseMediaUrl }
-        try await client.postVoid("/api/truth-or-dare/submit-response", body: body)
+        try await client.postVoid("/api/truth-or-dare/submit-response", body: body, timeout: ConvexHTTPClient.longTimeout)
     }
 
     func advanceTruthOrDareTurn(gameId: String, participantId: String) async throws {

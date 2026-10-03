@@ -14,6 +14,8 @@ enum L {
         "English": ["ja": "英語"],
         "Japanese": ["ja": "日本語"],
         "Create Room": ["ja": "ルームを作成"],
+        "Rejoin room": ["ja": "ルームに戻る"],
+        "Couldn't reach the room. Try again.": ["ja": "ルームに接続できませんでした。もう一度お試しください。"],
 
         // Conversation
         "Loading...": ["ja": "読み込み中…"],
@@ -92,6 +94,8 @@ enum L {
         "Photo": ["ja": "写真"],
         "Drawing": ["ja": "お絵描き"],
         "Processing failed": ["ja": "処理に失敗しました"],
+        "Not sent": ["ja": "送信できませんでした"],
+        "Retry": ["ja": "再送信"],
 
         // Status
         "online": ["ja": "オンライン"],
@@ -199,6 +203,7 @@ enum L {
         "picked": ["ja": "を選んだ"],
         "10 rounds": ["ja": "10ラウンド"],
         "correct": ["ja": "正解"],
+        "Couldn't send. Try again.": ["ja": "送信できませんでした。もう一度お試しください。"],
 
         // Emojifyr leftovers (shared strings)
         "Random": ["ja": "ランダム"],
@@ -362,6 +367,8 @@ enum L {
         "React": ["ja": "リアクション"],
         "You're offline": ["ja": "オフラインです"],
         "queued": ["ja": "件待機中"],
+        "Reconnecting...": ["ja": "再接続中…"],
+        "Can't update the room": ["ja": "ルームを更新できません"],
         "Download Offline Translation": ["ja": "オフライン翻訳をダウンロード"],
         "Enables translation without internet": ["ja": "インターネットなしで翻訳できます"],
         "Offline translation ready": ["ja": "オフライン翻訳の準備完了"],

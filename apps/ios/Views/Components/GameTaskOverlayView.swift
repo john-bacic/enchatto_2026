@@ -3,8 +3,10 @@ import SwiftUI
 struct GameTaskOverlayView: View {
     let step: GameStep
     let lang: String
-    let onSubmitDrawing: (UIImage) -> Void
-    let onSubmitGuess: (String) -> Void
+    /// Both return once the server has answered the submit (it took the answer, or had already
+    /// closed the step) and throw when it did not get through.
+    let onSubmitDrawing: (UIImage) async throws -> Void
+    let onSubmitGuess: (String) async throws -> Void
     var onQuit: (() -> Void)?
 
     private var timerSeconds: Int { step.timerEnabled ?? 20 }
@@ -16,6 +18,24 @@ struct GameTaskOverlayView: View {
     @State private var countdownTimer: Timer?
     @State private var triggerAutoSubmit = false
     @State private var confetti = 0
+    /// What the player sent, kept so a failed submit is retried without asking again.
+    /// A new value (new id) restarts the submit task.
+    @State private var pendingSubmit: PendingSubmit?
+    @State private var submitNote: SubmitNote?
+
+    private struct PendingSubmit {
+        let id = UUID()
+        var image: UIImage?
+        var option: String?
+    }
+
+    private enum SubmitNote { case retrying, failed }
+
+    /// Waits before tries 2 to 5. When each try fails at once, the last one starts about 15 s after the
+    /// first, inside the 25 s the server keeps a timed draw step open after its timer (DRAW_GRACE_MS in
+    /// games.ts). A try that hangs runs to its timeout first (10 s for a guess, 15 s for a drawing, set in
+    /// RealEnchattoAPI.submitGameStep): short enough for one retry of a drawing to start inside those 25 s.
+    private static let submitRetryDelays: [UInt64] = [1_000_000_000, 2_000_000_000, 4_000_000_000, 8_000_000_000]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,6 +103,7 @@ struct GameTaskOverlayView: View {
         }
         .ecPaperBackground()
         .overlay { ConfettiBurst(trigger: confetti).ignoresSafeArea() }
+        .task(id: pendingSubmit?.id) { await runPendingSubmit() }
     }
 
     // MARK: - Draw mode
@@ -109,7 +130,8 @@ struct GameTaskOverlayView: View {
                 onSend: { image in
                     guard !submitting else { return }
                     submitting = true
-                    onSubmitDrawing(image)
+                    submitNote = nil
+                    pendingSubmit = PendingSubmit(image: image)
                 },
                 onCancel: {
                     onQuit?()
@@ -118,6 +140,8 @@ struct GameTaskOverlayView: View {
                 countdownSeconds: timerOn ? timeLeft : -1,
                 triggerAutoSubmit: $triggerAutoSubmit
             )
+            // An overlay, not a row: a row would shrink the canvas, and its strokes are in absolute points
+            .overlay(alignment: .top) { submitNoteView.offset(y: -13) }
         }
     }
 
@@ -220,6 +244,8 @@ struct GameTaskOverlayView: View {
                     }
                 }
             }
+
+            submitNoteView
         }
     }
 
@@ -229,6 +255,7 @@ struct GameTaskOverlayView: View {
         guard !submitting, !showFeedback else { return }
         selectedAnswer = option
         showFeedback = true
+        submitNote = nil
 
         // Haptic feedback
         let isCorrect = option == step.correctOption
@@ -236,10 +263,71 @@ struct GameTaskOverlayView: View {
         generator.notificationOccurred(isCorrect ? .success : .error)
         if isCorrect { confetti += 1 }
 
-        // Wait 1.5s then submit
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        // The submit task shows the stamp for 1.5s, then sends (and retries)
+        pendingSubmit = PendingSubmit(option: option)
+    }
+
+    /// Sends `pendingSubmit`, retrying when the network failed. Runs in `.task(id:)`, so it is
+    /// cancelled when the overlay goes away (the step changed or the cover closed). `submitting`
+    /// stays true for the whole run, so neither the send button nor the countdown starts a second one.
+    @MainActor
+    private func runPendingSubmit() async {
+        guard let pending = pendingSubmit else { return }
+
+        if pending.option != nil {
+            // Let the Correct!/Wrong! stamp show before the overlay can close
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled, pendingSubmit?.id == pending.id else { return }
             submitting = true
-            onSubmitGuess(option)
+        }
+
+        var retries = 0
+        var failure: Error?
+        while failure == nil {
+            do {
+                if let image = pending.image {
+                    try await onSubmitDrawing(image)
+                } else if let option = pending.option {
+                    try await onSubmitGuess(option)
+                }
+                // Answered by the server. Leave `submitting` set: the overlay closes when the step goes away.
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                if error.isRetryableNetworkFailure, retries < Self.submitRetryDelays.count {
+                    submitNote = .retrying
+                    try? await Task.sleep(nanoseconds: Self.submitRetryDelays[retries])
+                    guard !Task.isCancelled else { return }
+                    retries += 1
+                } else {
+                    failure = error
+                }
+            }
+        }
+
+        // Did not get through: give the control back so the player can send or answer again
+        guard pendingSubmit?.id == pending.id else { return }
+        submitting = false
+        showFeedback = false
+        selectedAnswer = nil
+        // A cancelled request is not a failure to show
+        let wasCancelled = failure?.isCancellation == true
+        submitNote = wasCancelled ? nil : .failed
+        if !wasCancelled { Haptics.error() }
+    }
+
+    /// "Sending…" while a failed submit is retried, then the failure once the overlay has given up
+    @ViewBuilder
+    private var submitNoteView: some View {
+        if let note = submitNote {
+            Text(L.t(note == .failed ? "Couldn't send. Try again." : "Sending…", lang))
+                .font(.round(13, .black))
+                .foregroundStyle(note == .failed ? EC.red : EC.inkSoft)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(.white))
+                .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
+                .allowsHitTesting(false)
         }
     }
 

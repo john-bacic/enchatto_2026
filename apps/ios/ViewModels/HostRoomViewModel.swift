@@ -79,12 +79,21 @@ class HostRoomViewModel: ObservableObject {
     @Published var isOffline: Bool = false
     private var offlineQueue: [QueuedMessage] = []
     private var isFlushing = false
+    /// The pass over the send queue that is running, kept so it can be cancelled
+    private var flushTask: Task<Void, Never>?
+    /// Id of the queued message that pass is sending right now
+    private var sendingId: String?
+    /// Local "queued-…" id → server id once delivered; a reply, reaction or delete that still holds the local id goes through this
+    private var sentIds: [String: String] = [:]
     private var cancellables = Set<AnyCancellable>()
 
-    var pendingQueueCount: Int { offlineQueue.count }
+    /// Messages waiting to go out. One the server refused is not waiting: it says so on its bubble
+    var pendingQueueCount: Int { offlineQueue.filter(\.isWaiting).count }
+    /// A waiting message has already failed once: sending is held up although the phone reports a connection
+    var isSendDelayed: Bool { offlineQueue.contains { $0.isWaiting && $0.attempts > 0 } }
 
-    /// Incremented each time a text message is enqueued, so the
-    /// OfflineTranslator view can call `invalidate()` on its configs.
+    /// Incremented when a text message is going to wait in the queue (offline, or a send failed
+    /// and will be retried), so the OfflineTranslator view can call `invalidate()` on its configs.
     @Published var offlineQueueVersion = 0
 
     /// Whether the on-device en↔ja translation packs are installed.
@@ -133,6 +142,63 @@ class HostRoomViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // MARK: - Poll health
+
+    enum PollIssue: Equatable {
+        case reconnecting   // server unreachable or busy; polling goes on, more slowly
+        case failing        // server answers with something a retry won't fix (4xx, unreadable reply)
+    }
+
+    /// Set when two polls in a row have failed, cleared by the next complete poll. Drives a banner, never the alert.
+    @Published private(set) var pollIssue: PollIssue?
+    private var consecutivePollFailures = 0
+    /// Last poll failure written to the debug console, so one that repeats is logged once
+    private var lastPollFailureLogged: String?
+
+    /// 2 s normally and after one failure, then 4, 8 and 10 s
+    private var pollDelayNanoseconds: UInt64 {
+        let doublings = min(max(consecutivePollFailures - 1, 0), 3)
+        return UInt64(min(2 << doublings, 10)) * 1_000_000_000
+    }
+
+    private func pollOnce() async -> UInt64 {
+        // Retries whatever waits in the send queue once its backoff has passed
+        kickFlush()
+        await refresh(fromPollLoop: true)
+        return pollDelayNanoseconds
+    }
+
+    private func clearPollFailures() {
+        consecutivePollFailures = 0
+        lastPollFailureLogged = nil
+        if pollIssue != nil { pollIssue = nil }
+    }
+
+    private func notePollFailure(_ error: Error) {
+        if error.isCancellation || Task.isCancelled { return }
+        consecutivePollFailures += 1
+        let description = error.localizedDescription
+        if description != lastPollFailureLogged {
+            lastPollFailureLogged = description
+            DebugConsole.shared.trace(source: .network, action: "poll:room:error", detail: description, ok: false)
+        }
+        guard consecutivePollFailures >= 2 else { return }
+        let issue: PollIssue = error.isRetryableNetworkFailure ? .reconnecting : .failing
+        if pollIssue != issue { pollIssue = issue }
+    }
+
+    /// One game poll inside refresh(). The closure assigns its own result, so nothing is assigned when the request throws.
+    /// Cancellation and network failures are rethrown (refresh stops the cycle instead of waiting out a timeout on each
+    /// remaining request); any other failure is logged and the caller carries on with the previous value.
+    private func pollGame(_ name: String, _ request: () async throws -> Void) async throws {
+        do {
+            try await request()
+        } catch {
+            if error.isCancellation || error.isRetryableNetworkFailure { throw error }
+            DebugConsole.shared.trace(source: .network, action: "poll:\(name):error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
     // MARK: - Observation
 
     private var pushRegistered = false
@@ -149,13 +215,12 @@ class HostRoomViewModel: ObservableObject {
     func startObserving() {
         registerForPushIfNeeded()
 
-        // Poll for room state and messages
+        // Poll for room state and messages. Self is held for one poll at a time, and the wait backs off while polls fail.
         if pollTask == nil {
             pollTask = Task { [weak self] in
-                guard let self else { return }
                 while !Task.isCancelled {
-                    await self.refresh()
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    guard let delay = await self?.pollOnce() else { return }
+                    try? await Task.sleep(nanoseconds: delay)
                 }
             }
         }
@@ -184,7 +249,8 @@ class HostRoomViewModel: ObservableObject {
                     if self.networkMonitor.isConnected {
                         await self.processPendingMessages()
                     }
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    // Follows the room poll's backoff while the server is in trouble
+                    try? await Task.sleep(nanoseconds: self.consecutivePollFailures < 2 ? 1_500_000_000 : self.pollDelayNanoseconds)
                 }
             }
         }
@@ -197,6 +263,10 @@ class HostRoomViewModel: ObservableObject {
         processingTask = nil
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        // Like the flush below, the task clears its own handle when it unwinds
+        hostLanguageTask?.cancel()
+        // The pass clears isFlushing itself when it unwinds
+        flushTask?.cancel()
         stopEmojiMatchFastPoll()
         stopWordRushFastPoll()
     }
@@ -231,15 +301,25 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
-    func refresh() async {
-        guard networkMonitor.isConnected else { return }
+    /// `fromPollLoop`: only the poll loop's own call counts a failure toward the banner and the backoff. The other
+    /// callers (after an action, one per processed message) can fail several at once in a single blip.
+    func refresh(fromPollLoop: Bool = false) async {
+        guard networkMonitor.isConnected else {
+            // The offline banner covers this state; counting starts afresh when the network returns
+            clearPollFailures()
+            return
+        }
         do {
             let state = try await api.getRoomState(roomId: roomId)
             let msgs = try await api.getRoomMessages(roomId: roomId)
             let rxSummaries = try await api.getRoomReactions(roomId: roomId)
+            try Task.checkCancellation()
 
             room = state.room
+            // Closed is final: this device has nothing to come back to
+            if state.room.status == .closed { SavedHostRoom.clear(roomId: roomId) }
             participants = state.participants
+            syncHostLanguage()
             messages = msgs.sorted { $0.createdAt < $1.createdAt }
 
             // Re-merge any remaining queued messages so they stay visible
@@ -253,15 +333,20 @@ class HostRoomViewModel: ObservableObject {
             }
             reactionSummaries = map
 
-            // Poll game state
-            activeGameSession = try? await api.getActiveGameSession(roomId: roomId)
-            gameStatus = activeGameSession != nil ? (try? await api.getGameStatus(roomId: roomId)) : nil
+            // Poll game state. nil means the server says there is no game, and the views close the drawing cover
+            // on it, so a value is assigned only when its request succeeded.
+            try await pollGame("activeSession") { activeGameSession = try await api.getActiveGameSession(roomId: roomId) }
+            if activeGameSession != nil {
+                try await pollGame("gameStatus") { gameStatus = try await api.getGameStatus(roomId: roomId) }
+            } else {
+                gameStatus = nil
+            }
             updateDrawCountdown()
             let previousStepType = myActiveStep?.stepType
-            myActiveStep = try? await api.getMyActiveStep(participantId: hostId)
-            latestGameSession = try? await api.getLatestGameSession(roomId: roomId)
+            try await pollGame("myActiveStep") { myActiveStep = try await api.getMyActiveStep(participantId: hostId) }
 
-            // Set typing action to "drawing" while on a draw step
+            // Set typing action to "drawing" while on a draw step. Nothing that can throw may sit between the poll above
+            // and this comparison: the change is seen by one refresh only, and one that left in between would lose it
             let currentStepType = myActiveStep?.stepType
             if currentStepType != previousStepType {
                 if currentStepType == .draw {
@@ -272,11 +357,18 @@ class HostRoomViewModel: ObservableObject {
                     try? await api.setTypingAction(participantId: hostId, action: nil, drawingStartedAt: nil)
                 }
             }
+            try await pollGame("latestSession") { latestGameSession = try await api.getLatestGameSession(roomId: roomId) }
             if let latest = latestGameSession, latest.status == .complete {
-                gameReplay = try? await api.getGameReplay(gameSessionId: latest.id)
+                try await pollGame("replay") {
+                    let replay = try await api.getGameReplay(gameSessionId: latest.id)
+                    if latestGameSession?.id == latest.id { gameReplay = replay }
+                }
             } else {
                 gameReplay = nil
             }
+
+            // The helpers below swallow their own errors, so a cancelled refresh must not start them
+            try Task.checkCancellation()
 
             // Word Rush (the fast poll covers it while a game is live)
             if wordRushPollTask == nil {
@@ -297,20 +389,10 @@ class HostRoomViewModel: ObservableObject {
             }
 
             isLoading = false
+            // A poll counts as healthy only when the whole cycle completed
+            clearPollFailures()
         } catch {
-            // Only show errors when online and not a transient network issue
-            if networkMonitor.isConnected && !isLoading {
-                let desc = error.localizedDescription
-                // Suppress transient connection errors (e.g. resuming from background)
-                let transient = desc.contains("cancelled")
-                    || desc.contains("canceled")
-                    || desc.contains("network connection was lost")
-                    || desc.contains("not connected to the internet")
-                    || desc.contains("timed out")
-                if !transient {
-                    self.error = desc
-                }
-            }
+            if fromPollLoop { notePollFailure(error) }
             isLoading = false
         }
     }
@@ -351,7 +433,12 @@ class HostRoomViewModel: ObservableObject {
 
         do {
             let result = try await processor.process(text: message.text ?? "", config: config)
-            try await api.submitProcessedMessage(messageId: message.id, processing: result)
+            do {
+                try await api.submitProcessedMessage(messageId: message.id, processing: result)
+            } catch let error where error.isRetryableNetworkFailure || error.isCancellation {
+                // The result could not be delivered, which is not the message's fault: it stays pending and the next pending poll processes it again
+                DebugConsole.shared.trace(source: .network, action: "submitProcessed:retryLater", detail: error.localizedDescription, ok: false)
+            }
         } catch {
             do {
                 try await api.markMessageFailed(messageId: message.id, error: error.localizedDescription)
@@ -372,35 +459,40 @@ class HostRoomViewModel: ObservableObject {
 
     // MARK: - Actions
 
-    func sendMessage(_ text: String, replyToId: String? = nil) async {
-        guard networkMonitor.isConnected else {
-            enqueueMessage(text: text, replyToId: replyToId)
-            return
-        }
-        do {
-            _ = try await api.sendTextMessage(
-                roomId: roomId,
-                senderId: hostId,
-                text: text,
-                replyToId: replyToId
-            )
-            await refresh()
-        } catch {
-            // Network may have dropped mid-request — enqueue instead of showing error
-            enqueueMessage(text: text, replyToId: replyToId)
-        }
+    /// Queues a text message and starts sending. The bubble is in `messages` when this returns
+    func sendMessage(_ text: String, replyToId: String? = nil, clientId: String = UUID().uuidString) {
+        // The server trims too; trimming here keeps a newline-only text from becoming a refused message
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        enqueue(QueuedMessage(text: text, replyToId: replyToId, clientId: clientId))
     }
 
     /// Uploads a recorded clip as a voice message. Audio can't wait in the offline queue,
-    /// so if it can't go out the transcript is sent as a text message instead.
+    /// so if it can't go out the transcript is sent as a text message instead; with no transcript the host is told.
     func sendVoice(_ clip: VoiceClipFile, text: String, replyToId: String? = nil) async {
         defer { try? FileManager.default.removeItem(at: clip.url) }
         let transcript = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // One id for the clip and for the text that replaces it: if the clip did arrive, the text is not a second message
+        let clientId = UUID().uuidString
+        // Set once send-audio is on its way: from then on a failure does not say whether the message was made
+        var audioRequestOut = false
         do {
             guard networkMonitor.isConnected else { throw APIError.serverError("Offline") }
             let data = try Data(contentsOf: clip.url)
-            let uploadUrl = try await api.generateUploadUrl()
-            let storageId = try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
+            func upload() async throws -> String {
+                let uploadUrl = try await api.generateUploadUrl()
+                return try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
+            }
+            let storageId: String
+            do {
+                storageId = try await upload()
+            } catch let error where error.isRetryableNetworkFailure {
+                // No message exists before send-audio, so the upload can be repeated whatever became of the first try.
+                // send-audio itself is not repeated here: its request may have arrived (the client repeats a 5xx answer once)
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                storageId = try await upload()
+            }
+            audioRequestOut = true
             _ = try await api.sendAudioMessage(
                 roomId: roomId,
                 senderId: hostId,
@@ -408,12 +500,23 @@ class HostRoomViewModel: ObservableObject {
                 durationMs: clip.durationMs,
                 waveform: clip.waveform,
                 text: transcript.isEmpty ? nil : transcript,
-                replyToId: replyToId
+                replyToId: serverMessageId(replyToId),
+                clientId: clientId
             )
             await refresh()
         } catch {
             DebugConsole.shared.trace(source: .network, action: "sendVoice:error", detail: error.localizedDescription, ok: false)
-            if !transcript.isEmpty { await sendMessage(transcript, replyToId: replyToId) }
+            if !transcript.isEmpty {
+                sendMessage(transcript, replyToId: replyToId, clientId: clientId)
+            } else if !Task.isCancelled, !error.isCancellation {
+                // The answer may be what was lost: look for the clip before telling the host to record it again
+                if audioRequestOut {
+                    await refresh()
+                    if messages.contains(where: { $0.clientId == clientId && $0.senderId == hostId }) { return }
+                }
+                // Nothing to send in its place and the recording is gone: say so instead of dropping it without a sign
+                self.error = L.t("Couldn't send. Try again.", hostLanguage)
+            }
         }
     }
 
@@ -442,6 +545,49 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Host language
+
+    /// Language picked on this device. The server's copy sets the host's Word Rush direction, the language of
+    /// Lost in Translation prompts and of the join push, and the badge guests see.
+    private var hostLanguage = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
+    private var hostLanguageTask: Task<Void, Never>?
+    /// Earliest next send: never again after a server that refused (one without the route), 30 s after any other failure
+    private var hostLanguageRetryAfter = Date.distantPast
+
+    /// Called when the host switches language in Settings; the switch has already applied on this device
+    func setHostLanguage(_ language: String) {
+        guard language != hostLanguage else { return }
+        hostLanguage = language
+        hostLanguageRetryAfter = .distantPast
+        syncHostLanguage()
+    }
+
+    /// Sends this device's language when the server's copy differs. Runs after every poll, so a room made on a server
+    /// that ignored the language at creation, or a switch made offline, catches up on its own.
+    private func syncHostLanguage() {
+        let wanted = hostLanguage
+        guard hostLanguageTask == nil, Date() >= hostLanguageRetryAfter,
+              networkMonitor.isConnected, !isClosed,
+              let host = participant(for: hostId), host.preferredLanguage != wanted else { return }
+        let api = self.api
+        let hostId = self.hostId
+        hostLanguageTask = Task { [weak self] in
+            var failure: Error?
+            do {
+                try await api.setParticipantLanguage(participantId: hostId, language: wanted)
+            } catch {
+                failure = error
+            }
+            guard let self else { return }
+            self.hostLanguageTask = nil
+            // Cancelled, or another language was picked meanwhile: the next poll starts over
+            guard let failure, !Task.isCancelled, !failure.isCancellation, self.hostLanguage == wanted else { return }
+            // Giving up for good takes the server's own refusal; an error that never reached it says nothing about the route
+            self.hostLanguageRetryAfter = failure.isServerRefusal ? .distantFuture : Date().addingTimeInterval(30)
+            DebugConsole.shared.trace(source: .network, action: "setLanguage:error", detail: failure.localizedDescription, ok: false)
+        }
+    }
+
     func kickParticipant(_ participantId: String) async {
         do {
             try await api.kickParticipant(participantId: participantId, roomId: roomId)
@@ -451,53 +597,26 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
-    func sendImage(_ image: UIImage, replyToId: String? = nil) async {
+    func sendImage(_ image: UIImage, replyToId: String? = nil) {
         guard let data = image.jpegData(compressionQuality: 0.7) else { return }
-
-        guard networkMonitor.isConnected else {
-            let base64 = data.base64EncodedString()
-            enqueueMedia(kind: .image, mediaUrl: "data:image/jpeg;base64,\(base64)", replyToId: replyToId)
-            return
-        }
-        do {
-            let uploadUrl = try await api.generateUploadUrl()
-            let storageId = try await api.uploadData(data, to: uploadUrl, contentType: "image/jpeg")
-            _ = try await api.sendImageMessage(
-                roomId: roomId,
-                senderId: hostId,
-                storageId: storageId,
-                replyToId: replyToId
-            )
-            await refresh()
-        } catch {
-            let base64 = data.base64EncodedString()
-            enqueueMedia(kind: .image, mediaUrl: "data:image/jpeg;base64,\(base64)", replyToId: replyToId)
-        }
+        let base64 = data.base64EncodedString()
+        let queued = QueuedMessage(kind: .image, mediaUrl: "data:image/jpeg;base64,\(base64)", replyToId: replyToId)
+        // The bubble draws from this, as a placeholder and as the server's copy, instead of loading the picture again
+        SentPictures.store(image, clientId: queued.clientId)
+        enqueue(queued)
     }
 
-    func sendDrawing(_ image: UIImage, replyToId: String? = nil) async {
+    func sendDrawing(_ image: UIImage, replyToId: String? = nil) {
         guard let data = image.pngData() else { return }
         let base64 = data.base64EncodedString()
-        let mediaUrl = "data:image/png;base64,\(base64)"
-
-        guard networkMonitor.isConnected else {
-            enqueueMedia(kind: .drawing, mediaUrl: mediaUrl, replyToId: replyToId)
-            return
-        }
-        do {
-            _ = try await api.sendDrawingMessage(
-                roomId: roomId,
-                senderId: hostId,
-                mediaUrl: mediaUrl,
-                replyToId: replyToId
-            )
-            await refresh()
-        } catch {
-            enqueueMedia(kind: .drawing, mediaUrl: mediaUrl, replyToId: replyToId)
-        }
+        let queued = QueuedMessage(kind: .drawing, mediaUrl: "data:image/png;base64,\(base64)", replyToId: replyToId)
+        SentPictures.store(image, clientId: queued.clientId)
+        enqueue(queued)
     }
 
     func addReaction(messageId: String, emoji: String) async {
+        // A message that has not reached the server cannot be reacted to
+        guard let messageId = serverMessageId(messageId) else { return }
         guard networkMonitor.isConnected else { return }
         do {
             try await api.addReaction(messageId: messageId, participantId: hostId, emoji: emoji)
@@ -510,6 +629,7 @@ class HostRoomViewModel: ObservableObject {
     }
 
     func removeReaction(messageId: String, emoji: String) async {
+        guard let messageId = serverMessageId(messageId) else { return }
         guard networkMonitor.isConnected else { return }
         do {
             try await api.removeReaction(messageId: messageId, participantId: hostId, emoji: emoji)
@@ -522,6 +642,19 @@ class HostRoomViewModel: ObservableObject {
     }
 
     func deleteMessage(messageId: String) async {
+        // A queued message is dropped here; the request is only needed once the server has it
+        if messageId.hasPrefix("queued-") {
+            // A photo still uploading keeps the pass, and every message behind it, waiting for that request to end.
+            // Only then: once send-image (or a text or drawing send) is out, the request may already have made the
+            // message, and the pass has to hear the answer to take it back
+            let uploading = sendingId == messageId
+                && offlineQueue.contains { $0.id == messageId && $0.kind == .image && $0.storageId == nil }
+            offlineQueue.removeAll { $0.id == messageId }
+            mergeQueueIntoMessages()
+            // The next poll starts a new pass for what is left
+            if uploading { flushTask?.cancel() }
+        }
+        guard let messageId = serverMessageId(messageId) else { return }
         guard networkMonitor.isConnected else { return }
         do {
             try await api.deleteMessage(messageId: messageId)
@@ -557,14 +690,22 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
-    func submitGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String? = nil) async {
-        guard networkMonitor.isConnected else { return }
+    /// Sends the host's drawing or guess. Returns once the server has answered 200: it took the
+    /// answer, or it had already closed the step (a late answer is dropped without an error).
+    /// Throws when the answer did not get through; the overlay retries or shows it, so `error`
+    /// is not set here.
+    func submitGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String? = nil) async throws {
+        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
         do {
             try await api.submitGameStep(stepId: stepId, participantId: hostId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
-            await refresh()
         } catch {
-            self.error = error.localizedDescription
+            DebugConsole.shared.trace(source: .network, action: "submitGameStep:error", detail: error.localizedDescription, ok: false)
+            throw error
         }
+        // In its own task: the caller is the overlay's task, which is cancelled as soon as this
+        // refresh makes the overlay go away, and a cancelled refresh would skip clearing the
+        // "drawing" indicator.
+        await Task { await self.refresh() }.value
     }
 
     func cancelGame() async {
@@ -655,8 +796,10 @@ class HostRoomViewModel: ObservableObject {
     /// Convex errors arrive as "[CONVEX M(...)] [Request ID: …] Server Error\nUncaught Error: Already answered\n at …"
     static func cleanConvexError(_ error: Error) -> String {
         var text = (error as? APIError).flatMap { err -> String? in
-            if case let .serverError(msg) = err { return msg }
-            return nil
+            switch err {
+            case .serverError(let msg), .http(_, let msg): return msg
+            default: return nil
+            }
         } ?? error.localizedDescription
         if let range = text.range(of: "Uncaught Error: ") {
             text = String(text[range.upperBound...])
@@ -834,29 +977,52 @@ class HostRoomViewModel: ObservableObject {
 
     // MARK: - Offline queue
 
-    private func enqueueMessage(text: String, replyToId: String?) {
-        let queued = QueuedMessage(text: text, replyToId: replyToId)
+    private func enqueue(_ queued: QueuedMessage) {
         offlineQueue.append(queued)
         mergeQueueIntoMessages()
-        // Signal OfflineTranslator to re-trigger .translationTask via invalidate()
-        offlineQueueVersion += 1
-    }
-
-    private func enqueueMedia(kind: MessageKind, mediaUrl: String, replyToId: String?) {
-        let queued = QueuedMessage(kind: kind, mediaUrl: mediaUrl, replyToId: replyToId)
-        offlineQueue.append(queued)
-        mergeQueueIntoMessages()
+        // On-device translation is for a message that has to wait (offline, or behind one being retried).
+        // One that goes straight out is translated by the server and the host pipeline, as before.
+        if queued.kind == .text, !networkMonitor.isConnected || isSendDelayed {
+            // Signal OfflineTranslator to re-trigger .translationTask via invalidate()
+            offlineQueueVersion += 1
+        }
+        kickFlush()
     }
 
     private func mergeQueueIntoMessages() {
         // Remove old placeholders
-        messages.removeAll { $0.id.hasPrefix("queued-") }
+        var merged = messages.filter { !$0.isQueuedPlaceholder }
+        // Drop queued messages the server's list now contains: from here on the server's copy is the row
+        if !offlineQueue.isEmpty {
+            let serverIds = Set(merged.map(\.id))
+            var realIdByClientId: [String: String] = [:]
+            for message in merged {
+                // Only the host's own: the server tells repeats apart by sender too, so another sender may carry the same clientId
+                if let clientId = message.clientId, message.senderId == hostId { realIdByClientId[clientId] = message.id }
+            }
+            var delivered = Set<String>()
+            for queued in offlineQueue {
+                if let sent = queued.sentMessageId, serverIds.contains(sent) {
+                    delivered.insert(queued.id)
+                } else if let real = realIdByClientId[queued.clientId] {
+                    // The send's answer was lost but the message is there
+                    sentIds[queued.id] = real
+                    delivered.insert(queued.id)
+                }
+            }
+            if !delivered.isEmpty { offlineQueue.removeAll { delivered.contains($0.id) } }
+        }
         // Append current queue as placeholder messages
         let placeholders = offlineQueue.map {
             $0.toPlaceholderMessage(roomId: roomId, senderId: hostId)
         }
-        messages.append(contentsOf: placeholders)
-        messages.sort { $0.createdAt < $1.createdAt }
+        // Every placeholder goes last, in the order it was sent. One still on its way will be stamped by the server later
+        // than everything listed, and sorting it by the phone's clock could put it above a message it follows. A refused
+        // one stays there too: moved to its place in time when it turns "Not sent", it would leave the screen unnoticed
+        merged.sort { $0.createdAt < $1.createdAt }
+        merged.append(contentsOf: placeholders)
+        // One assignment, so the list is published once per merge
+        messages = merged
     }
 
     /// Called by the view's `.translationTask` with the session for a given direction.
@@ -865,15 +1031,15 @@ class HostRoomViewModel: ObservableObject {
         var didTranslate = false
         let romajiService = MeCabRomajiService.shared
 
-        for i in 0..<offlineQueue.count {
-            guard !offlineQueue[i].processingAttempted else { continue }
-            guard offlineQueue[i].kind == .text,
-                  let text = offlineQueue[i].text, !text.isEmpty else {
-                offlineQueue[i].processingAttempted = true
-                continue
-            }
-            let detected = detectLanguage(text)
-            guard detected == fromLang else { continue }
+        // A snapshot of ids, not indices: the queue changes during the awaits below (a send finishes, a bubble is deleted)
+        let candidates: [(id: String, text: String)] = offlineQueue.compactMap { queued in
+            guard queued.kind == .text, queued.sentMessageId == nil, !queued.processingAttempted,
+                  let text = queued.text, !text.isEmpty else { return nil }
+            return (id: queued.id, text: text)
+        }
+        for candidate in candidates {
+            let text = candidate.text
+            guard detectLanguage(text) == fromLang else { continue }
 
             do {
                 let response = try await session.translate(text)
@@ -882,12 +1048,15 @@ class HostRoomViewModel: ObservableObject {
                 let romajiSource = isJapanese ? text : translatedText
                 let romaji = try? await romajiService.transliterateJapaneseToRomaji(text: romajiSource)
 
-                offlineQueue[i].processing = ProcessingState(
+                // Find the message again by id; skip it if it was sent or deleted meanwhile
+                guard let index = offlineQueue.firstIndex(where: { $0.id == candidate.id }),
+                      offlineQueue[index].sentMessageId == nil else { continue }
+                offlineQueue[index].processing = ProcessingState(
                     translatedText: translatedText,
                     romaji: romaji,
                     suggestions: nil
                 )
-                offlineQueue[i].processingAttempted = true
+                offlineQueue[index].processingAttempted = true
                 didTranslate = true
             } catch {
                 // Translation failed — leave processingAttempted false so it retries
@@ -906,64 +1075,162 @@ class HostRoomViewModel: ObservableObject {
     }
 
     private func handleReconnect() {
-        Task { [weak self] in
-            guard let self else { return }
-            await self.flushQueue()
-            await self.refresh()
+        // Back online: do not sit out a backoff earned while the connection was bad
+        for index in offlineQueue.indices { offlineQueue[index].nextAttemptAt = .distantPast }
+        kickFlush()
+        Task { [weak self] in await self?.refresh() }
+    }
+
+    private enum FlushStep { case sent, skipped, stop }
+
+    /// Blamed failures before a message is marked failed and the queue moves on. Blamed are the ones that can be about
+    /// this one message, which would otherwise hold up everything behind it: a retryable status the server answered
+    /// with, and a photo or drawing that does not get through while the room's own polls do. A text that fails in
+    /// transit is never blamed, so an outage does not mark it failed.
+    private static let maxServerAttempts = 5
+    /// Timed-out attempts at a photo or drawing before it is marked failed: each one has already held the
+    /// queue for up to a minute
+    private static let maxMediaTimeouts = 2
+
+    /// 2, 4, 8, 16, then 30 s; checked on the poll, so a retry lands up to one poll later
+    private static func retryDelay(afterAttempts attempts: Int) -> TimeInterval {
+        min(30, pow(2, Double(attempts)))
+    }
+
+    /// Starts a pass over the send queue unless one is running
+    private func kickFlush() {
+        guard !isFlushing, networkMonitor.isConnected,
+              let next = offlineQueue.first(where: { $0.isWaiting }), next.nextAttemptAt <= Date() else { return }
+        // Set here, synchronously, so two kicks in one turn cannot start two passes
+        isFlushing = true
+        flushTask = Task { [weak self] in
+            var delivered = false
+            while !Task.isCancelled, let step = await self?.sendNextQueued(), step != .stop {
+                if step == .sent { delivered = true }
+            }
+            self?.isFlushing = false
+            if delivered, !Task.isCancelled { await self?.refresh() }
         }
     }
 
-    private func flushQueue() async {
-        guard !isFlushing else { return }
-        isFlushing = true
-        defer { isFlushing = false }
-
-        while !offlineQueue.isEmpty {
-            let queued = offlineQueue[0]
-            do {
-                switch queued.kind {
-                case .text:
-                    let messageId = try await api.sendTextMessage(
-                        roomId: roomId,
-                        senderId: hostId,
-                        text: queued.text ?? "",
-                        replyToId: queued.replyToId
-                    )
-                    if let processing = queued.processing {
-                        try? await api.submitProcessedMessage(messageId: messageId, processing: processing)
-                    }
-                case .image:
-                    // Decode base64 data URL back to raw data for Convex storage upload
-                    let base64 = (queued.mediaUrl ?? "")
-                        .replacingOccurrences(of: "data:image/jpeg;base64,", with: "")
-                        .replacingOccurrences(of: "data:image/png;base64,", with: "")
-                    guard let imageData = Data(base64Encoded: base64) else { break }
-                    let contentType = queued.mediaUrl?.contains("image/png") == true ? "image/png" : "image/jpeg"
-                    let uploadUrl = try await api.generateUploadUrl()
-                    let storageId = try await api.uploadData(imageData, to: uploadUrl, contentType: contentType)
-                    _ = try await api.sendImageMessage(
-                        roomId: roomId,
-                        senderId: hostId,
-                        storageId: storageId,
-                        replyToId: queued.replyToId
-                    )
-                case .drawing:
-                    _ = try await api.sendDrawingMessage(
-                        roomId: roomId,
-                        senderId: hostId,
-                        mediaUrl: queued.mediaUrl ?? "",
-                        replyToId: queued.replyToId
-                    )
-                case .system, .audio, .unknown:
-                    break
-                }
-                offlineQueue.removeFirst()
-            } catch {
-                // Stop on first failure — will retry on next reconnect
-                break
+    /// Sends the oldest waiting message. `.stop` ends the pass: nothing is due, offline, cancelled, or a failure worth
+    /// retrying (nothing behind it may go first)
+    private func sendNextQueued() async -> FlushStep {
+        guard networkMonitor.isConnected,
+              let queued = offlineQueue.first(where: { $0.isWaiting }),
+              queued.nextAttemptAt <= Date() else { return .stop }
+        // Lets deleteMessage tell whether the bubble it removes is the one in flight
+        sendingId = queued.id
+        defer { if sendingId == queued.id { sendingId = nil } }
+        do {
+            let messageId = try await send(queued)
+            guard let index = offlineQueue.firstIndex(where: { $0.id == queued.id }) else {
+                // Gone during the request. If a poll already saw it on the server it is in sentIds;
+                // otherwise the host deleted it: take it back
+                if sentIds[queued.id] == nil { try? await api.deleteMessage(messageId: messageId) }
+                return .sent
             }
+            offlineQueue[index].sentMessageId = messageId
+            offlineQueue[index].attempts = 0
+            sentIds[queued.id] = messageId
+            let processing = offlineQueue[index].processing
+            mergeQueueIntoMessages()
+            if queued.kind == .text, let processing {
+                try? await api.submitProcessedMessage(messageId: messageId, processing: processing)
+            }
+            return .sent
+        } catch {
+            // Stopping the pass is not a failure of the message
+            if Task.isCancelled || error.isCancellation { return .stop }
+            DebugConsole.shared.trace(source: .network, action: "send:error", detail: error.localizedDescription, ok: false)
+            guard let index = offlineQueue.firstIndex(where: { $0.id == queued.id }) else { return .skipped }
+            var serverAnswered = false
+            if let apiError = error as? APIError, case .http = apiError { serverAnswered = true }
+            let attempts = offlineQueue[index].attempts + 1
+            // Counted apart from `attempts`: timeouts in a dead spot must not use up the allowance, or the first 5xx
+            // after them would mark the message failed
+            let roomReachable = networkMonitor.isConnected && consecutivePollFailures == 0
+            let mediaBlamed = queued.kind != .text && roomReachable
+            let blamed = offlineQueue[index].blamedFailures + ((serverAnswered || mediaBlamed) ? 1 : 0)
+            let slow = mediaBlamed && !serverAnswered && (error as? URLError)?.code == .timedOut
+            if error.isRetryableNetworkFailure, blamed < (slow ? Self.maxMediaTimeouts : Self.maxServerAttempts) {
+                offlineQueue[index].attempts = attempts
+                offlineQueue[index].blamedFailures = blamed
+                offlineQueue[index].nextAttemptAt = Date().addingTimeInterval(Self.retryDelay(afterAttempts: attempts))
+                // It is going to wait: translate it on the device meanwhile, as for a message queued offline
+                if attempts == 1 { offlineQueueVersion += 1 }
+                mergeQueueIntoMessages()
+                return .stop
+            }
+            offlineQueue[index].sendFailed = true
+            mergeQueueIntoMessages()
+            return .skipped
         }
+    }
+
+    /// One attempt at one queued message; returns the server's message id
+    private func send(_ queued: QueuedMessage) async throws -> String {
+        // A reply to a bubble that was itself queued: its server id by now, or no reply if it never went out
+        let replyToId = serverMessageId(queued.replyToId)
+        switch queued.kind {
+        case .text:
+            return try await api.sendTextMessage(
+                roomId: roomId,
+                senderId: hostId,
+                text: queued.text ?? "",
+                replyToId: replyToId,
+                clientId: queued.clientId
+            )
+        case .image:
+            let storageId: String
+            if let uploaded = queued.storageId {
+                storageId = uploaded
+            } else {
+                // Decode base64 data URL back to raw data for Convex storage upload
+                let mediaUrl = queued.mediaUrl ?? ""
+                guard let comma = mediaUrl.firstIndex(of: ","),
+                      let imageData = Data(base64Encoded: String(mediaUrl[mediaUrl.index(after: comma)...])) else {
+                    throw APIError.serverError("Invalid image data")
+                }
+                let contentType = mediaUrl.hasPrefix("data:image/png") ? "image/png" : "image/jpeg"
+                let uploadUrl = try await api.generateUploadUrl()
+                storageId = try await api.uploadData(imageData, to: uploadUrl, contentType: contentType)
+                // Deleted while it uploaded: do not post a photo only to take it back
+                guard let index = offlineQueue.firstIndex(where: { $0.id == queued.id }) else {
+                    throw APIError.serverError("Deleted before it was sent")
+                }
+                offlineQueue[index].storageId = storageId
+            }
+            return try await api.sendImageMessage(
+                roomId: roomId,
+                senderId: hostId,
+                storageId: storageId,
+                replyToId: replyToId,
+                clientId: queued.clientId
+            )
+        case .drawing:
+            return try await api.sendDrawingMessage(
+                roomId: roomId,
+                senderId: hostId,
+                mediaUrl: queued.mediaUrl ?? "",
+                replyToId: replyToId,
+                clientId: queued.clientId
+            )
+        case .system, .audio, .unknown:
+            throw APIError.serverError("Unsupported queued message")
+        }
+    }
+
+    /// Retry on a failed bubble: back in line, same clientId
+    func retrySend(id: String) {
+        guard let index = offlineQueue.firstIndex(where: { $0.id == id }), offlineQueue[index].sendFailed else { return }
+        offlineQueue[index].sendFailed = false
+        offlineQueue[index].attempts = 0
+        offlineQueue[index].blamedFailures = 0
+        offlineQueue[index].nextAttemptAt = .distantPast
+        offlineQueue[index].storageId = nil
         mergeQueueIntoMessages()
+        kickFlush()
     }
 
     // MARK: - Helpers
@@ -974,7 +1241,20 @@ class HostRoomViewModel: ObservableObject {
 
     func replyTarget(for message: Message) -> Message? {
         guard let replyToId = message.replyToId else { return nil }
-        return messages.first { $0.id == replyToId }
+        return self.message(withId: replyToId)
+    }
+
+    /// A message by id; a local "queued-…" id still resolves after the server's copy has replaced the placeholder
+    func message(withId id: String) -> Message? {
+        if let found = messages.first(where: { $0.id == id }) { return found }
+        guard let sent = sentIds[id] else { return nil }
+        return messages.first { $0.id == sent }
+    }
+
+    /// The id the server knows a message by; nil for one that has not been delivered. A local id is never sent to the server
+    private func serverMessageId(_ id: String?) -> String? {
+        guard let id, id.hasPrefix("queued-") else { return id }
+        return sentIds[id]
     }
 
     var onlineCount: Int {

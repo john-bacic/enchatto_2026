@@ -44,6 +44,23 @@ struct HostStartRoomView: View {
                             .multilineTextAlignment(.center)
                     }
 
+                    if let saved = viewModel.rejoinableRoom {
+                        Button {
+                            nameFocused = false
+                            Haptics.thump()
+                            Task { await viewModel.checkSavedRoom(enter: true) }
+                        } label: {
+                            if viewModel.isRejoining {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("\(L.t("Rejoin room", lang)) \(saved.joinCode)")
+                                    .textCase(.uppercase)
+                            }
+                        }
+                        .buttonStyle(.chunky(EC.pink))
+                        .disabled(viewModel.isRejoining || viewModel.isCreating)
+                    }
+
                     Button {
                         nameFocused = false
                         Haptics.thump()
@@ -81,6 +98,7 @@ struct HostStartRoomView: View {
                     HostConversationView(roomId: roomId, hostId: hostId)
                 }
             }
+            .task { await viewModel.checkSavedRoom(enter: false) }
         }
     }
 

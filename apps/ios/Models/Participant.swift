@@ -33,7 +33,7 @@ struct Participant: Identifiable, Codable, Equatable {
     let role: ParticipantRole
     let platform: ParticipantPlatform
     let avatar: AvatarConfig
-    let preferredLanguage: String
+    var preferredLanguage: String
     var online: Bool
     var presence: PresenceState?
     var typingAction: String?

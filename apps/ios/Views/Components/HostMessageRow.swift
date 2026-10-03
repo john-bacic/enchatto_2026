@@ -25,6 +25,9 @@ struct HostMessageRow: View {
     @State private var textOpen = false
 
     var onImageTap: ((String) -> Void)?
+    /// Retry and Delete under a bubble the server refused; shown only where both are given
+    var onRetrySend: (() -> Void)?
+    var onDeleteUnsent: (() -> Void)?
 
     private var isAudio: Bool { message.kind == .audio }
     /// A voice message's transcript (and its translation) stays collapsed until "Show text"
@@ -37,12 +40,34 @@ struct HostMessageRow: View {
             VStack(alignment: isOwn ? .trailing : .leading, spacing: 6) {
                 replyPreview
                 bubbleRow
+                unsentActions
                 suggestionsRow
             }
 
             if !isOwn { Spacer(minLength: 0) }
         }
-        .modifier(FreshMessagePop(isFresh: Date().timeIntervalSince(message.createdAt) < 8, fromTrailing: isOwn))
+        .modifier(FreshMessagePop(isFresh: isFresh, fromTrailing: isOwn))
+    }
+
+    /// The host's own text, photo or drawing is on screen as a placeholder before the server's copy (which carries
+    /// the clientId) arrives: only the placeholder pops in
+    private var isFresh: Bool {
+        guard Date().timeIntervalSince(message.createdAt) < 8 else { return false }
+        return !(isOwn && !isAudio && message.clientId != nil && !message.isQueuedPlaceholder)
+    }
+
+    // MARK: - Unsent actions
+
+    @ViewBuilder
+    private var unsentActions: some View {
+        if message.sendState == .failed, let onRetrySend, let onDeleteUnsent {
+            HStack(spacing: 8) {
+                Button(L.t("Delete", preferredLanguage)) { Haptics.tap(); onDeleteUnsent() }
+                    .buttonStyle(.chunky(.white, size: .mini, fullWidth: false))
+                Button(L.t("Retry", preferredLanguage)) { Haptics.tap(); onRetrySend() }
+                    .buttonStyle(.chunky(EC.yellow, size: .mini, fullWidth: false))
+            }
+        }
     }
 
     // MARK: - Bubble row (avatar + bubble + react button)
@@ -157,8 +182,9 @@ struct HostMessageRow: View {
 
     // MARK: - Bubble
 
-    /// A voice message counts as delivered right away; only its collapsed transcript is still translating
-    private var isPending: Bool { message.status == .pending && !isAudio }
+    /// A voice message counts as delivered right away; only its collapsed transcript is still translating.
+    /// A bubble that has not reached the server keeps the pending look even once its on-device translation is in
+    private var isPending: Bool { (message.status == .pending && !isAudio) || message.sendState != nil }
 
     private var textColor: Color { isOwn && !isPending ? .white : EC.ink }
 
@@ -188,7 +214,7 @@ struct HostMessageRow: View {
             .background(bubbleShape.fill(bubbleFill))
             .overlay(
                 bubbleShape.stroke(
-                    isPending ? EC.blue : EC.ink,
+                    message.sendState == .failed ? EC.red : (isPending ? EC.blue : EC.ink),
                     style: StrokeStyle(lineWidth: 3, dash: isPending ? [7, 5] : [])
                 )
             )
@@ -333,9 +359,12 @@ struct HostMessageRow: View {
                 if let url = message.mediaUrl {
                     let isDrawing = message.kind == .drawing
                     let thumbWidth: CGFloat = 200
+                    // A picture sent from this device is drawn from memory and loads nothing, so the bubble does not
+                    // fall back to the grey box when the server's copy (a new row, a CDN URL) replaces the placeholder
+                    let sent = SentPictures.thumbnail(clientId: message.clientId)
 
-                    AsyncImage(url: URL(string: url)) { phase in
-                        if let image = phase.image {
+                    AsyncImage(url: sent == nil ? URL(string: url) : nil) { phase in
+                        if let image = sent.map({ Image(uiImage: $0) }) ?? phase.image {
                             image.resizable()
                                 .scaledToFit()
                                 .frame(maxWidth: thumbWidth)
@@ -383,7 +412,7 @@ struct HostMessageRow: View {
 
                 if hasSecondary || hasRomajiBelow {
                     VStack(alignment: .leading, spacing: 4) {
-                        DashedRule(color: isOwn ? .white.opacity(0.45) : EC.lineSoft)
+                        DashedRule(color: isOwn && !isPending ? .white.opacity(0.45) : EC.lineSoft)
                             .padding(.bottom, 4)
                         if preferredLanguage == "ja" {
                             // Romaji below divider if Japanese wasn't shown as primary
@@ -408,11 +437,22 @@ struct HostMessageRow: View {
             }
 
             // Pending
-            if message.status == .pending {
+            if message.status == .pending && message.sendState == nil {
                 HStack(spacing: 6) {
                     Text(L.t("Processing...", preferredLanguage))
                         .font(.round(11, .black))
                         .foregroundStyle(isAudio && isOwn ? .white : EC.blue)
+                    PendingDots()
+                }
+                .padding(.top, 2)
+            }
+
+            // Not on the server yet
+            if message.sendState == .sending {
+                HStack(spacing: 6) {
+                    Text(L.t("Sending…", preferredLanguage))
+                        .font(.round(11, .black))
+                        .foregroundStyle(EC.blue)
                     PendingDots()
                 }
                 .padding(.top, 2)
@@ -427,6 +467,18 @@ struct HostMessageRow: View {
                         .font(.round(11, .black))
                 }
                 .foregroundStyle(isOwn ? EC.yellow : EC.red)
+                .padding(.top, 2)
+            }
+
+            // Refused by the server
+            if message.sendState == .failed {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(L.t("Not sent", preferredLanguage))
+                        .font(.round(11, .black))
+                }
+                .foregroundStyle(EC.red)
                 .padding(.top, 2)
             }
         }
@@ -526,6 +578,33 @@ private struct FreshMessagePop: ViewModifier {
                 guard isFresh, !shown else { return }
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { shown = true }
             }
+    }
+}
+
+/// Thumbnails of the photos and drawings the host sent from this device, by clientId (the placeholder and the server's
+/// copy both carry it). Kept in memory only, and dropped by the system when memory is short: the bubble then loads its URL.
+enum SentPictures {
+    private static let thumbnails: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 12
+        return cache
+    }()
+
+    static func store(_ image: UIImage, clientId: String) {
+        guard image.size.width > 0 else { return }
+        // Bubble pictures are 200 pt wide; the full-size picture is not kept
+        let size = CGSize(width: 200, height: (200 * image.size.height / image.size.width).rounded())
+        let format = UIGraphicsImageRendererFormat.default()
+        // Wide colour would double the memory of each thumbnail
+        format.preferredRange = .standard
+        let thumbnail = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        thumbnails.setObject(thumbnail, forKey: clientId as NSString)
+    }
+
+    static func thumbnail(clientId: String?) -> UIImage? {
+        clientId.flatMap { thumbnails.object(forKey: $0 as NSString) }
     }
 }
 

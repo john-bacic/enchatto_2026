@@ -46,6 +46,7 @@ http.route({
       hostNickname: body.hostNickname,
       hostAvatarId: body.hostAvatarId,
       settings: body.settings,
+      hostLanguage: typeof body.hostLanguage === "string" ? body.hostLanguage : undefined,
     });
   }),
 });
@@ -115,6 +116,17 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/api/participants/set-language",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    await ctx.runMutation(api.participants.updateParticipantLanguage, {
+      participantId: body.participantId,
+      language: body.language,
+    });
+  }),
+});
+
 // --- Storage ---
 
 http.route({
@@ -137,6 +149,7 @@ http.route({
       senderId: body.senderId,
       text: body.text,
       replyToId: body.replyToId,
+      clientId: body.clientId,
     });
     return { messageId };
   }),
@@ -151,6 +164,7 @@ http.route({
       senderId: body.senderId,
       storageId: body.storageId,
       replyToId: body.replyToId,
+      clientId: body.clientId,
     });
     return { messageId };
   }),
@@ -169,6 +183,7 @@ http.route({
       text: body.text,
       lang: body.lang,
       replyToId: body.replyToId,
+      clientId: body.clientId,
     });
     return { messageId };
   }),
@@ -226,6 +241,7 @@ http.route({
         senderId: body.senderId,
         mediaUrl: mediaUrl,
         replyToId: body.replyToId,
+        clientId: body.clientId,
       });
       return new Response(JSON.stringify({ messageId }), {
         status: 200,
