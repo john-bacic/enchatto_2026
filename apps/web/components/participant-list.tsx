@@ -64,16 +64,27 @@ export function ParticipantList({ participants, currentParticipantId, onLeave, l
             <span className="ec-pile-count">{visibleParticipants.length}</span>
           </>
         ) : (
-          visibleParticipants.map((p) => (
-            <AvatarDisc
-              key={p._id}
-              id={p.avatar.value}
-              size={30}
-              border={2.5}
-              shadow={false}
-              style={presenceOf(p) === "online" ? undefined : { filter: "grayscale(0.8)", opacity: 0.7 }}
-            />
-          ))
+          visibleParticipants.map((p) => {
+            const presence = presenceOf(p);
+            return (
+              <span key={p._id} className="ec-stack-av">
+                <AvatarDisc
+                  id={p.avatar.value}
+                  size={30}
+                  border={2.5}
+                  shadow={false}
+                  style={
+                    presence === "online"
+                      ? undefined
+                      : presence === "away"
+                        ? { opacity: 0.75 }
+                        : { filter: "grayscale(0.8)", opacity: 0.55 }
+                  }
+                />
+                <span className={`ec-presence-dot ${presence}`} />
+              </span>
+            );
+          })
         )}
       </button>
 
