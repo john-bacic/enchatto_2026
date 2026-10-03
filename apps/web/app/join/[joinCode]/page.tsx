@@ -17,8 +17,12 @@ import { isImeComposing } from "@/lib/keyboard";
 import {
   LEGACY_PARAM,
   LEGACY_VALUE,
+  TOKEN_PARAM,
   hasLegacyBackend,
   legacyConvex,
+  newToken,
+  saveToken,
+  tokenFor,
   useIsLegacyBackend,
 } from "@/lib/convex";
 import "../../screens.css";
@@ -102,6 +106,10 @@ export default function JoinPage() {
       return;
     }
 
+    // The token to present is chosen from this list. Without it a returning guest would send a new token
+    // and come back as a second participant
+    if (participants === undefined) return;
+
     setJoining(true);
     setError(null);
 
@@ -112,6 +120,20 @@ export default function JoinPage() {
         showJapanese: language === "ja",
         showRomaji: language === "ja",
       };
+      // The server hands an offline participant with this nickname and avatar back only to the browser that holds
+      // their token (participants.joinRoom), so the one this browser holds for such a participant is presented again.
+      // Otherwise a new one is made, for a new participant or for one from before tokens. The server hands that one
+      // over on name and avatar unless AUTH_MODE is enforce, where a caller with a token joins as a new participant.
+      // No token at all where storage is blocked: see newToken
+      const returning = (participants ?? []).find(
+        (p) =>
+          !p.online &&
+          p.role !== "host" &&
+          p.nickname.toLowerCase().trim() === nickname.trim().toLowerCase() &&
+          p.avatar.value === avatar &&
+          tokenFor(p._id) !== undefined
+      );
+      const token = (returning && tokenFor(returning._id)) || newToken();
       const participantId = await joinRoom({
         roomId: room._id,
         nickname: nickname.trim(),
@@ -119,14 +141,19 @@ export default function JoinPage() {
         avatar: { type: "preset", value: avatar },
         preferredLanguage: language,
         displaySettings,
+        token,
       });
 
+      // Whichever participant came back, the token just sent is the one the server holds for them
+      if (token) saveToken(participantId, token);
       localStorage.setItem("enchatto_lastNickname", nickname.trim());
       localStorage.setItem("enchatto_lastAvatarId", avatar);
       localStorage.setItem("enchatto_lastLanguage", language);
 
       const backend = isLegacy ? `&${LEGACY_PARAM}=${LEGACY_VALUE}` : "";
-      router.push(`/room/${room._id}?pid=${participantId}${backend}`);
+      // tk marks the link as made for a browser that holds this participant's token (see the room page)
+      const keyed = token ? `&${TOKEN_PARAM}=1` : "";
+      router.push(`/room/${room._id}?pid=${participantId}${keyed}${backend}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("Failed to join room", language));
       setJoining(false);
@@ -246,7 +273,7 @@ export default function JoinPage() {
         className={`ec-btn pink${nickname.trim() && !joining ? " wiggle" : ""}`}
         style={{ marginTop: "auto", minHeight: 64, fontSize: language === "ja" ? 19 : 21 }}
         onClick={handleJoin}
-        disabled={joining}
+        disabled={joining || participants === undefined}
       >
         <AvatarDisc id={avatar} size={42} border={2.5} shadow={false} />
         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{joinLabel}</span>

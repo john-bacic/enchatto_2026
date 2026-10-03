@@ -2,7 +2,15 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { isAround, isPresent } from "./participants";
+import {
+  authFail,
+  isAround,
+  isPresent,
+  requireCaller,
+  requireHost,
+  requireMember,
+  storedDrawingUrl,
+} from "./participants";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -345,11 +353,13 @@ export const createGame = mutation({
     roomId: v.id("rooms"),
     hostParticipantId: v.id("participants"),
     promptMode: v.optional(v.union(v.literal("normal"), v.literal("deep"), v.literal("spicy"))),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
     if (room.status === "closed") throw new Error("Room is closed");
+    await requireMember(ctx, args.roomId, args.hostParticipantId, args.token, "truthOrDare.createGame");
 
     // A double tap or a client retry must not start a second game alongside the first
     const activeGame = await ctx.db
@@ -424,11 +434,13 @@ export const submitChoice = mutation({
     gameId: v.id("truthOrDareGames"),
     participantId: v.id("participants"),
     choice: v.union(v.literal("truth"), v.literal("dare")),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") throw new Error("Game is not active");
+    await requireCaller(ctx, args.participantId, args.token, "truthOrDare.submitChoice");
     if (game.currentTurnParticipantId !== args.participantId) {
       throw new Error("Not your turn");
     }
@@ -473,14 +485,22 @@ export const submitResponse = mutation({
     responseText: v.optional(v.string()),
     responseMediaUrl: v.optional(v.string()),
     responseStorageId: v.optional(v.id("_storage")),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") throw new Error("Game is not active");
+    await requireCaller(ctx, args.participantId, args.token, "truthOrDare.submitResponse");
     if (game.currentTurnParticipantId !== args.participantId) {
       throw new Error("Not your turn");
     }
+    if (args.responseText !== undefined && args.responseText.length > 2000) {
+      throw new Error("Answer too long (max 2000 characters)");
+    }
+    // A drawing arrives as a file the submit-response route has checked and stored. A URL is not accepted:
+    // it would be shown to the whole room whatever it points at.
+    if (args.responseMediaUrl !== undefined) throw new Error("Unsupported drawing");
 
     // Find current turn (filter server-side instead of collecting all turns)
     const currentTurn = await ctx.db
@@ -493,23 +513,22 @@ export const submitResponse = mutation({
         )
       )
       .first();
-    if (!currentTurn) return; // Already submitted (double-click) — ignore silently
+    // Already submitted (double-click) — ignore silently. False tells the route its drawing was not taken
+    if (!currentTurn) return false;
 
     await trace(ctx, args.gameId, "submitResponse", args.participantId.toString(), args.responseText ? "text" : "media");
 
-    // Resolve storage URL if uploaded via file storage
-    let mediaUrl = args.responseMediaUrl;
-    if (args.responseStorageId) {
-      const url = await ctx.storage.getUrl(args.responseStorageId);
-      if (url) mediaUrl = url;
-    }
+    const mediaUrl = args.responseStorageId ? await storedDrawingUrl(ctx, args.responseStorageId) : undefined;
 
     await ctx.db.patch(currentTurn._id, {
       responseText: args.responseText,
       responseMediaUrl: mediaUrl,
+      // Kept next to the URL so the room purge can delete the file
+      responseStorageId: args.responseStorageId,
       status: "completed",
       completedAt: Date.now(),
     });
+    return true;
   },
 });
 
@@ -517,10 +536,19 @@ export const submitTranslation = mutation({
   args: {
     turnId: v.id("truthOrDareTurns"),
     translatedText: v.string(),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const turn = await ctx.db.get(args.turnId);
     if (!turn) return;
+    // Only the host app translates answers, and it names no caller here
+    const game = await ctx.db.get(turn.gameId);
+    if (game) await requireHost(ctx, game.roomId, args.callerId, args.token, "truthOrDare.submitTranslation");
+    // Only a finished text answer has a translation. The host app posts the same one from every poll until
+    // it sees it stored, so the first is kept and the rest are dropped without a write.
+    if (turn.status !== "completed" || !turn.responseText || turn.translatedResponseText) return;
+    if (args.translatedText.length > 8000) throw new Error("Translation too long (max 8000 characters)");
     await ctx.db.patch(args.turnId, {
       translatedResponseText: args.translatedText,
     });
@@ -531,6 +559,7 @@ export const advanceTurn = mutation({
   args: {
     gameId: v.id("truthOrDareGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -538,12 +567,14 @@ export const advanceTurn = mutation({
     if (game.status !== "active") return;
 
     // Only host can advance
-    const caller = await ctx.db.get(args.participantId);
+    const caller = await requireCaller(ctx, args.participantId, args.token, "truthOrDare.advanceTurn");
     if (!caller) throw new Error("Participant not found");
     // Allow room host or game host
     if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
       throw new Error("Only the host can advance turns");
     }
+    // "Room host" above is any room's host; it has to be this room's
+    if (caller.roomId !== game.roomId) authFail("truthOrDare.advanceTurn", "not in this room");
 
     const latestTurn = await currentTurnOf(ctx, game);
 
@@ -580,17 +611,20 @@ export const acknowledgeRoundBreak = mutation({
     gameId: v.id("truthOrDareGames"),
     participantId: v.id("participants"),
     completedTurns: v.number(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") return;
 
-    const caller = await ctx.db.get(args.participantId);
+    const caller = await requireCaller(ctx, args.participantId, args.token, "truthOrDare.acknowledgeRoundBreak");
     if (!caller) throw new Error("Participant not found");
     if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
       throw new Error("Only the host can continue the game");
     }
+    // "Room host" above is any room's host; it has to be this room's
+    if (caller.roomId !== game.roomId) authFail("truthOrDare.acknowledgeRoundBreak", "not in this room");
 
     const completed = await countCompletedTurns(ctx, args.gameId);
     if (completed !== args.completedTurns) {
@@ -610,11 +644,13 @@ export const skipTurn = mutation({
   args: {
     gameId: v.id("truthOrDareGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") return;
+    await requireCaller(ctx, args.participantId, args.token, "truthOrDare.skipTurn");
 
     await trace(ctx, args.gameId, "skipTurn", args.participantId.toString(), `turnIdx=${game.currentTurnIndex}`);
 
@@ -649,17 +685,20 @@ export const hostSkipTurn = mutation({
     gameId: v.id("truthOrDareGames"),
     participantId: v.id("participants"),
     turnId: v.id("truthOrDareTurns"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") return;
 
-    const caller = await ctx.db.get(args.participantId);
+    const caller = await requireCaller(ctx, args.participantId, args.token, "truthOrDare.hostSkipTurn");
     if (!caller) throw new Error("Participant not found");
     if (args.participantId !== game.hostParticipantId && caller.role !== "host") {
       throw new Error("Only the host can skip another player's turn");
     }
+    // "Room host" above is any room's host; it has to be this room's
+    if (caller.roomId !== game.roomId) authFail("truthOrDare.hostSkipTurn", "not in this room");
 
     // A second tap or a client retry finds the next player's turn here and must not skip them too
     const turn = await currentTurnOf(ctx, game);
@@ -678,14 +717,24 @@ export const submitRating = mutation({
     turnId: v.id("truthOrDareTurns"),
     participantId: v.id("participants"),
     score: v.number(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const score = Math.round(args.score * 2) / 2; // snap to nearest 0.5
-    if (score < 1 || score > 10) throw new Error("Score must be 1-10");
+    // Written this way round so that NaN, which fails every comparison, is refused too
+    if (!(score >= 1 && score <= 10)) throw new Error("Score must be 1-10");
 
     const turn = await ctx.db.get(args.turnId);
     if (!turn) throw new Error("Turn not found");
     if (turn.status !== "completed") throw new Error("Turn not completed yet");
+
+    // The room, not the game's player list: someone who joined after the game started sees the turn and may rate it
+    const rater = await requireCaller(ctx, args.participantId, args.token, "truthOrDare.submitRating");
+    const game = await ctx.db.get(turn.gameId);
+    if (rater && game && rater.roomId !== game.roomId) authFail("truthOrDare.submitRating", "not in this room");
+    // Each rater adds an entry, so the array has to be bounded by who is really in the room: any
+    // well-formed participant id would otherwise add one
+    if (!game || !rater || rater.roomId !== game.roomId) throw new Error("Not a member of this room");
 
     // Don't let the active player rate themselves
     if (turn.participantId === args.participantId) return;
@@ -766,12 +815,19 @@ export const endGame = mutation({
   args: {
     gameId: v.id("truthOrDareGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     // A second End Game, or one that lands after the server ended the game itself, must not post
     // another summary
     if (!game || game.status !== "active") return;
+    const caller = await requireCaller(ctx, args.participantId, args.token, "truthOrDare.endGame");
+    // Until tokens anyone could end the game. Both apps only offer End Game to the host.
+    const isRoomHost = caller?.role === "host" && caller.roomId === game.roomId;
+    if (caller && args.participantId !== game.hostParticipantId && !isRoomHost) {
+      authFail("truthOrDare.endGame", "not the host");
+    }
     await finishGame(ctx, game, args.participantId);
   },
 });
@@ -781,8 +837,10 @@ export const postSummary = mutation({
   args: {
     roomId: v.id("rooms"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireMember(ctx, args.roomId, args.participantId, args.token, "truthOrDare.postSummary");
     // Find the most recently completed game
     const allGames = await ctx.db
       .query("truthOrDareGames")
@@ -978,6 +1036,8 @@ export const getActiveTruthOrDare = query({
       responseMediaUrl: currentTurn.responseMediaUrl?.startsWith("data:")
         ? undefined
         : currentTurn.responseMediaUrl,
+      // The server's handle for deleting the file; clients only use the URL
+      responseStorageId: undefined,
     } : null;
 
     return {

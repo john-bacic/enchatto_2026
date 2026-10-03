@@ -46,6 +46,10 @@ struct SavedHostRoom: Codable, Equatable {
     let joinCode: String
     /// AppConfig.convexDeploymentURL the room was made on: a Debug build's room does not exist on production
     let deployment: String
+    /// What this device registered for the host when it created the room. nil for a room saved by a build that
+    /// registered none. In UserDefaults with the rest of the record: it is good for this one room only, and the
+    /// record is dropped when the room closes
+    let hostToken: String?
 
     private static let key = "enchatto_hostRoom"
 

@@ -17,10 +17,15 @@ class RealEnchattoAPI: EnchattoAPI {
             let hostId: String
         }
 
+        // Made here, kept by the server for the host it creates, and expected back with every request made as the
+        // host. A server that predates tokens ignores the field, and the host stays one it accepts by id alone
+        let hostToken = ConvexHTTPClient.makeToken()
+
         let body: [String: Any] = [
             "hostNickname": hostNickname,
             "hostAvatarId": hostAvatarId,
             "hostLanguage": hostLanguage,
+            "hostToken": hostToken,
             "settings": [
                 "sourceLanguage": settings.sourceLanguage,
                 "targetLanguage": settings.targetLanguage,
@@ -31,7 +36,11 @@ class RealEnchattoAPI: EnchattoAPI {
         ]
 
         let response: Response = try await client.post("/api/rooms/create", body: body)
-        return CreateRoomResult(roomId: response.roomId, joinCode: response.joinCode, hostId: response.hostId)
+        return CreateRoomResult(roomId: response.roomId, joinCode: response.joinCode, hostId: response.hostId, hostToken: hostToken)
+    }
+
+    func setCaller(hostId: String?, token: String?) {
+        ConvexHTTPClient.caller = hostId.map { (id: $0, token: token) }
     }
 
     func getRoomState(roomId: String) async throws -> (room: Room, participants: [Participant]) {
@@ -89,6 +98,7 @@ class RealEnchattoAPI: EnchattoAPI {
         return response.uploadUrl
     }
 
+    // Not through client.post: the upload URL is its own credential, and the caller's token must not be sent to it
     func uploadData(_ data: Data, to uploadUrl: String, contentType: String) async throws -> String {
         guard let url = URL(string: uploadUrl) else {
             throw APIError.serverError("Invalid upload URL")

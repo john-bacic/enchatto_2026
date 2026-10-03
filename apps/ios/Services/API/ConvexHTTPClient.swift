@@ -18,6 +18,40 @@ class ConvexHTTPClient {
         return URLSession(configuration: configuration)
     }()
 
+    /// Who this device acts as: the host's participant id and, for a room this build created, the token it registered
+    /// there. Static like the session, because the start screen's client learns it and the room's client sends it.
+    /// Requests read it off the main actor, hence the lock
+    private static let callerLock = NSLock()
+    private static var lockedCaller: (id: String, token: String?)?
+    static var caller: (id: String, token: String?)? {
+        get {
+            callerLock.lock()
+            defer { callerLock.unlock() }
+            return lockedCaller
+        }
+        set {
+            callerLock.lock()
+            defer { callerLock.unlock() }
+            lockedCaller = newValue
+        }
+    }
+
+    /// 32 random bytes as 64 hex characters, from the system's cryptographic generator (what UInt8.random draws on)
+    static func makeToken() -> String {
+        (0..<32).map { _ in String(format: "%02x", UInt8.random(in: .min ... .max)) }.joined()
+    }
+
+    /// `body` with the caller added. Every route reads only the fields it knows, so a server without tokens ignores
+    /// them. The token goes as "callerToken", never "token": /api/rooms/push-token already calls the APNs device
+    /// token that. A field the body already has is kept
+    private static func withCaller(_ body: [String: Any]) -> [String: Any] {
+        guard let caller = ConvexHTTPClient.caller else { return body }
+        var body = body
+        if body["callerId"] == nil { body["callerId"] = caller.id }
+        if let token = caller.token, body["callerToken"] == nil { body["callerToken"] = token }
+        return body
+    }
+
     init(deploymentURL: String) {
         // Convex HTTP actions are served at the deployment URL
         self.baseURL = URL(string: deploymentURL)!
@@ -30,7 +64,7 @@ class ConvexHTTPClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ConvexHTTPClient.withCaller(body))
         request.timeoutInterval = timeout
 
         // No retry unless the caller asked for one: polls come round again, sends are retried by the offline queue

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useAuthedMutation } from "@/lib/convex";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { streakMultiplier } from "./clues";
@@ -25,7 +25,7 @@ function Highlight({ text, word }: { text: string; word: string }) {
 }
 
 export function RevealView({ state, me, myId, learning, s, now, isHost, toast }: ViewProps) {
-  const skip = useMutation(api.wordRush.skip);
+  const skip = useAuthedMutation(api.wordRush.skip);
   const card = state.card;
   const reveal = card?.reveal;
   const elapsed = now - state.phaseStartedAt;

@@ -2,9 +2,10 @@
 
 import "./word-rush/word-rush.css";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthedMutation } from "@/lib/convex";
 import { Rays } from "@/components/ui/effects";
 import { CluesView } from "./word-rush/clues";
 import { LobbySheet } from "./word-rush/lobby";
@@ -70,8 +71,8 @@ function Header({
   onMinimize: () => void;
   toast: ViewProps["toast"];
 }) {
-  const skip = useMutation(api.wordRush.skip);
-  const cancel = useMutation(api.wordRush.cancel);
+  const skip = useAuthedMutation(api.wordRush.skip);
+  const cancel = useAuthedMutation(api.wordRush.cancel);
   const [menu, setMenu] = useState(false);
 
   const segClass = (i: number) => {

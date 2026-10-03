@@ -19,7 +19,9 @@ export default defineSchema({
     background: v.optional(v.number()),
   })
     .index("by_joinCode", ["joinCode"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    // Finds rooms closed before a given time without reading the open ones (rooms.purgeClosedRooms)
+    .index("by_status_closedAt", ["status", "closedAt"]),
 
   // APNs device token of the iOS host; kept off `rooms` because room docs are sent to guests
   hostPushTokens: defineTable({
@@ -53,6 +55,13 @@ export default defineSchema({
     .index("by_roomId", ["roomId"])
     .index("by_roomId_role", ["roomId", "role"]),
 
+  // The secret each client made up for its participant (participants.ts: requireCaller). A table of its
+  // own because participant documents are sent whole to everyone in the room.
+  participantSecrets: defineTable({
+    participantId: v.id("participants"),
+    token: v.string(),
+  }).index("by_participantId", ["participantId"]),
+
   messages: defineTable({
     roomId: v.id("rooms"),
     senderId: v.id("participants"),
@@ -71,6 +80,8 @@ export default defineSchema({
     text: v.optional(v.string()),
     mediaUrl: v.optional(v.string()),
     audioStorageId: v.optional(v.id("_storage")),
+    /** The stored file behind mediaUrl for an image or a chat drawing, kept so the file can be deleted with the message. Rows from before this field have only the URL. Never sent to clients. */
+    mediaStorageId: v.optional(v.id("_storage")),
     durationMs: v.optional(v.number()),
     /** Peak levels (0..1) sampled across the clip, drawn as the bubble's waveform */
     waveform: v.optional(v.array(v.number())),
@@ -91,7 +102,9 @@ export default defineSchema({
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"])
     .index("by_roomId_createdAt", ["roomId", "createdAt"])
-    .index("by_roomId_clientId", ["roomId", "clientId"]),
+    .index("by_roomId_clientId", ["roomId", "clientId"])
+    // Whether a stored file is already some voice message's clip (participants.ts: heldByVoiceMessage)
+    .index("by_audioStorageId", ["audioStorageId"]),
 
   reactions: defineTable({
     messageId: v.id("messages"),
@@ -248,6 +261,8 @@ export default defineSchema({
     responseText: v.optional(v.string()),
     translatedResponseText: v.optional(v.string()),
     responseMediaUrl: v.optional(v.string()),
+    /** The stored file behind responseMediaUrl, kept so the room purge can delete it. Never sent to clients. */
+    responseStorageId: v.optional(v.id("_storage")),
     ratings: v.optional(v.array(v.object({
       participantId: v.id("participants"),
       score: v.number(),
@@ -336,6 +351,10 @@ export default defineSchema({
     pack: v.string(),
     sayIt: v.boolean(),
     cardsReady: v.boolean(),
+    /** Bumped on every pack change; a generation that finds a newer value was superseded */
+    genSeq: v.optional(v.number()),
+    /** Card generations this game has paid for */
+    genCount: v.optional(v.number()),
     cards: v.array(wordRushCard),
     players: v.array(
       v.object({
@@ -449,4 +468,23 @@ export default defineSchema({
   })
     .index("by_gameId", ["gameId"])
     .index("by_ts", ["ts"]),
+
+  // One row per limited thing and subject (participants.ts: takeRateLimit)
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_windowStart", ["windowStart"]),
+
+  // The lease of the closed-room purge (rooms.purgeClosedRooms): one row, rewritten by every step.
+  // Not room data: nothing here is ever purged and no query returns it.
+  purgeRuns: defineTable({
+    /** When the run started. A step that carries another run's id stops */
+    runId: v.number(),
+    heartbeatAt: v.number(),
+    roomsPurged: v.number(),
+    finishedAt: v.optional(v.number()),
+  }),
 });

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useAuthedMutation } from "@/lib/convex";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Confetti } from "@/components/ui/effects";
 import { Icon } from "@/components/ui/icon";
@@ -30,7 +30,7 @@ export function ResultsView({
   words,
   onClose,
 }: Pick<ViewProps, "state" | "myId" | "learning" | "s" | "toast"> & { words: SeenWord[]; onClose: () => void }) {
-  const playAgain = useMutation(api.wordRush.playAgain);
+  const playAgain = useAuthedMutation(api.wordRush.playAgain);
   const [busy, setBusy] = useState(false);
   const ranked = [...state.players].sort((a, b) => b.score - a.score || b.correct - a.correct);
   const top = ranked.slice(0, 3);

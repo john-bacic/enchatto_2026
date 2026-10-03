@@ -1,6 +1,8 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
+import { DRAWING_MAX_BYTES } from "./participants";
 
 const http = httpRouter();
 
@@ -36,6 +38,46 @@ function jsonAction(handler: (ctx: any, body: any) => Promise<any>) {
   });
 }
 
+// Base64 inside JSON is a third larger than the image; the rest of the body is a few ids
+const DRAWING_BODY_MAX_BYTES = Math.ceil(DRAWING_MAX_BYTES / 3) * 4 + 16 * 1024;
+
+/** Refuses an oversized drawing on its declared length, before the body is read into memory */
+function checkDrawingBodySize(request: Request) {
+  if (Number(request.headers.get("content-length") ?? 0) > DRAWING_BODY_MAX_BYTES) {
+    throw new Error("Drawing too large (max 8 MB)");
+  }
+}
+
+/**
+ * The image inside a drawing's data URL. Type and size are checked here, before anything is stored: iOS
+ * sends PNG, the web canvas JPEG, and nothing else is a drawing. A link is refused: stored as a drawing,
+ * every viewer's device would fetch it.
+ */
+function decodeDrawing(dataUrl: unknown): Blob {
+  if (typeof dataUrl !== "string") throw new Error("Drawing is missing");
+  const comma = dataUrl.indexOf(",");
+  const header = dataUrl.slice(0, Math.max(comma, 0));
+  if (header !== "data:image/png;base64" && header !== "data:image/jpeg;base64") {
+    throw new Error("Drawing must be a PNG or JPEG image");
+  }
+  const base64 = dataUrl.slice(comma + 1);
+  if (base64.length > Math.ceil(DRAWING_MAX_BYTES / 3) * 4) throw new Error("Drawing too large (max 8 MB)");
+  let binary: string;
+  try {
+    binary = atob(base64);
+  } catch {
+    throw new Error("Drawing is not valid base64");
+  }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  // "data:image/png;base64" without its first five and last seven characters is the type
+  return new Blob([bytes], { type: header.slice(5, -7) });
+}
+
+// In every body the caller's token is `callerToken` and the caller's participant id is `callerId`
+// (participants.ts: requireCaller). Never `token`: /api/rooms/push-token already carries the APNs device
+// token under that name. Bodies from builds before tokens have neither field, and both are optional.
+
 // --- Rooms ---
 
 http.route({
@@ -47,6 +89,7 @@ http.route({
       hostAvatarId: body.hostAvatarId,
       settings: body.settings,
       hostLanguage: typeof body.hostLanguage === "string" ? body.hostLanguage : undefined,
+      hostToken: typeof body.hostToken === "string" ? body.hostToken : undefined,
     });
   }),
 });
@@ -55,7 +98,11 @@ http.route({
   path: "/api/rooms/close",
   method: "POST",
   handler: jsonAction(async (ctx, body) => {
-    await ctx.runMutation(api.rooms.closeRoom, { roomId: body.roomId });
+    await ctx.runMutation(api.rooms.closeRoom, {
+      roomId: body.roomId,
+      callerId: body.callerId,
+      token: body.callerToken,
+    });
   }),
 });
 
@@ -74,7 +121,8 @@ http.route({
     await ctx.runMutation(api.participants.setHostPushToken, {
       roomId: body.roomId,
       hostId: body.hostId,
-      token: body.token,
+      token: body.token, // the APNs device token
+      callerToken: body.callerToken,
     });
   }),
 });
@@ -89,6 +137,7 @@ http.route({
       participantId: body.participantId,
       online: body.online,
       presence: body.presence,
+      token: body.callerToken,
     });
   }),
 });
@@ -100,6 +149,8 @@ http.route({
     await ctx.runMutation(api.participants.kickParticipant, {
       participantId: body.participantId,
       roomId: body.roomId,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -112,6 +163,7 @@ http.route({
       participantId: body.participantId,
       action: body.action,
       drawingStartedAt: body.drawingStartedAt,
+      token: body.callerToken,
     });
   }),
 });
@@ -123,6 +175,7 @@ http.route({
     await ctx.runMutation(api.participants.updateParticipantLanguage, {
       participantId: body.participantId,
       language: body.language,
+      token: body.callerToken,
     });
   }),
 });
@@ -132,8 +185,11 @@ http.route({
 http.route({
   path: "/api/storage/generate-upload-url",
   method: "POST",
-  handler: jsonAction(async (ctx) => {
-    const uploadUrl = await ctx.runMutation(api.messages.generateUploadUrl);
+  handler: jsonAction(async (ctx, body) => {
+    const uploadUrl = await ctx.runMutation(api.messages.generateUploadUrl, {
+      callerId: body.callerId,
+      token: body.callerToken,
+    });
     return { uploadUrl };
   }),
 });
@@ -150,6 +206,7 @@ http.route({
       text: body.text,
       replyToId: body.replyToId,
       clientId: body.clientId,
+      token: body.callerToken,
     });
     return { messageId };
   }),
@@ -165,7 +222,10 @@ http.route({
       storageId: body.storageId,
       replyToId: body.replyToId,
       clientId: body.clientId,
+      token: body.callerToken,
     });
+    // The mutation deletes an upload it cannot use and returns null: a throw would have undone the delete
+    if (!messageId) throw new Error("Picture rejected: it must be an image of at most 50 MB");
     return { messageId };
   }),
 });
@@ -184,6 +244,7 @@ http.route({
       lang: body.lang,
       replyToId: body.replyToId,
       clientId: body.clientId,
+      token: body.callerToken,
     });
     return { messageId };
   }),
@@ -197,6 +258,7 @@ http.route({
       roomId: body.roomId,
       senderId: body.senderId,
       storageId: body.storageId,
+      token: body.callerToken,
     });
     return { text };
   }),
@@ -214,42 +276,44 @@ http.route({
   path: "/api/messages/send-drawing",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    // Set once the drawing is in file storage, so a send that then fails does not leave the file behind
+    let storageId: Id<"_storage"> | undefined;
     try {
+      checkDrawingBodySize(request);
       const body = await request.json();
-      let mediaUrl = body.mediaUrl;
-
-      // Convert base64 data URLs to Convex file storage so the messages
-      // subscription payload stays small (CDN URL instead of full base64).
-      if (mediaUrl && typeof mediaUrl === "string" && mediaUrl.startsWith("data:")) {
-        const match = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          const mimeType = match[1];
-          const base64 = match[2];
-          const binaryStr = atob(base64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: mimeType });
-          const storageId = await ctx.storage.store(blob);
-          mediaUrl = await ctx.storage.getUrl(storageId);
-        }
+      // A send repeated after a lost answer is answered here, before the drawing is stored a second time
+      const repeat: Id<"messages"> | null =
+        typeof body.clientId === "string" && body.clientId
+          ? await ctx.runQuery(internal.messages.findRepeat, {
+              roomId: body.roomId,
+              senderId: body.senderId,
+              clientId: body.clientId,
+            })
+          : null;
+      let messageId = repeat;
+      if (!messageId) {
+        // Stored as a file so the messages subscription carries a CDN URL, not the whole base64
+        storageId = await ctx.storage.store(decodeDrawing(body.mediaUrl));
+        messageId = await ctx.runMutation(api.messages.sendDrawingMessage, {
+          roomId: body.roomId,
+          senderId: body.senderId,
+          storageId,
+          replyToId: body.replyToId,
+          clientId: body.clientId,
+          token: body.callerToken,
+        });
       }
-
-      const messageId = await ctx.runMutation(api.messages.sendDrawingMessage, {
-        roomId: body.roomId,
-        senderId: body.senderId,
-        mediaUrl: mediaUrl,
-        replyToId: body.replyToId,
-        clientId: body.clientId,
-      });
       return new Response(JSON.stringify({ messageId }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
-        status: 400,
+      // No message was made, so nothing refers to the file just stored
+      if (storageId) await ctx.storage.delete(storageId).catch(() => undefined);
+      const message = e?.message ?? String(e);
+      return new Response(JSON.stringify({ error: message }), {
+        // As jsonAction: a throttled send is a 503, which the iOS send queue retries (see TOO_FAST in messages.ts)
+        status: message.includes("rate limit") ? 503 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -283,6 +347,8 @@ http.route({
     await ctx.runMutation(api.messages.submitProcessedMessage, {
       messageId: body.messageId,
       processing: body.processing,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -293,6 +359,8 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     await ctx.runMutation(api.messages.deleteMessage, {
       messageId: body.messageId,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -304,6 +372,8 @@ http.route({
     await ctx.runMutation(api.messages.markMessageFailed, {
       messageId: body.messageId,
       error: body.error,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -318,6 +388,7 @@ http.route({
       messageId: body.messageId,
       participantId: body.participantId,
       emoji: body.emoji,
+      token: body.callerToken,
     });
   }),
 });
@@ -330,6 +401,7 @@ http.route({
       messageId: body.messageId,
       participantId: body.participantId,
       emoji: body.emoji,
+      token: body.callerToken,
     });
   }),
 });
@@ -357,6 +429,7 @@ http.route({
       level: body.level,
       timerEnabled: body.timerEnabled,
       customPrompts: body.customPrompts,
+      token: body.callerToken,
     });
     return { sessionId };
   }),
@@ -373,6 +446,7 @@ http.route({
     if (body.outputText) args.outputText = body.outputText;
     if (body.outputDrawingUrl) args.outputDrawingUrl = body.outputDrawingUrl;
     if (body.selectedOption) args.selectedOption = body.selectedOption;
+    if (typeof body.callerToken === "string") args.token = body.callerToken;
     await ctx.runAction(api.games.submitGameStepWithTranslation, args as any);
   }),
 });
@@ -384,6 +458,7 @@ http.route({
     await ctx.runMutation(api.games.cancelGame, {
       roomId: body.roomId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -587,6 +662,7 @@ http.route({
     const gameId = await ctx.runMutation(api.emojiMatch.createLobby, {
       roomId: body.roomId,
       hostParticipantId: body.hostParticipantId,
+      token: body.callerToken,
     });
     return { gameId };
   }),
@@ -599,6 +675,7 @@ http.route({
     await ctx.runMutation(api.emojiMatch.joinLobby, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -610,6 +687,7 @@ http.route({
     await ctx.runMutation(api.emojiMatch.leaveLobby, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -621,6 +699,7 @@ http.route({
     await ctx.runMutation(api.emojiMatch.startGame, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -633,6 +712,7 @@ http.route({
       gameId: body.gameId,
       participantId: body.participantId,
       cardId: body.cardId,
+      token: body.callerToken,
     });
   }),
 });
@@ -643,6 +723,8 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     await ctx.runMutation(api.emojiMatch.resolveMismatch, {
       gameId: body.gameId,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -653,7 +735,10 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     await ctx.runMutation(api.emojiMatch.timeoutTurn, {
       gameId: body.gameId,
+      // Whose turn ran out. The caller is callerId, and the token is the caller's.
       participantId: body.participantId,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -665,6 +750,7 @@ http.route({
     await ctx.runMutation(api.emojiMatch.cancelGame, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -676,6 +762,7 @@ http.route({
     const gameId = await ctx.runMutation(api.emojiMatch.playAgain, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
     return { gameId };
   }),
@@ -711,6 +798,7 @@ http.route({
       roomId: body.roomId,
       hostParticipantId: body.hostParticipantId,
       promptMode: body.promptMode,
+      token: body.callerToken,
     });
     return { gameId };
   }),
@@ -724,6 +812,7 @@ http.route({
       gameId: body.gameId,
       participantId: body.participantId,
       choice: body.choice,
+      token: body.callerToken,
     });
   }),
 });
@@ -740,40 +829,31 @@ http.route({
   path: "/api/truth-or-dare/submit-response",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    // Set once the drawing is in file storage, so a submit that then fails does not leave the file behind
+    let storageId: Id<"_storage"> | undefined;
     try {
+      checkDrawingBodySize(request);
       const body = await request.json();
-      let mediaUrl = body.responseMediaUrl;
-
-      // Convert base64 data URLs to Convex file storage so the subscription
-      // payload stays small (a CDN URL instead of the full base64).
+      // Stored as a file so the subscription payload stays small (a CDN URL instead of the full base64).
       // Without this, large base64 strings crash the WebSocket on subscribers.
-      if (mediaUrl && typeof mediaUrl === "string" && mediaUrl.startsWith("data:")) {
-        const match = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          const mimeType = match[1];
-          const base64 = match[2];
-          const binaryStr = atob(base64);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: mimeType });
-          const storageId = await ctx.storage.store(blob);
-          mediaUrl = await ctx.storage.getUrl(storageId);
-        }
+      if (body.responseMediaUrl !== undefined && body.responseMediaUrl !== null) {
+        storageId = await ctx.storage.store(decodeDrawing(body.responseMediaUrl));
       }
-
-      await ctx.runMutation(api.truthOrDare.submitResponse, {
+      const taken: boolean = await ctx.runMutation(api.truthOrDare.submitResponse, {
         gameId: body.gameId,
         participantId: body.participantId,
         responseText: body.responseText,
-        responseMediaUrl: mediaUrl,
+        responseStorageId: storageId,
+        token: body.callerToken,
       });
+      // Not this player's open turn any more (a second tap, a skipped turn): nothing refers to the drawing
+      if (storageId && !taken) await ctx.storage.delete(storageId).catch(() => undefined);
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (e: any) {
+      if (storageId) await ctx.storage.delete(storageId).catch(() => undefined);
       return new Response(JSON.stringify({ error: e.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -789,6 +869,7 @@ http.route({
     await ctx.runMutation(api.truthOrDare.advanceTurn, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -800,6 +881,7 @@ http.route({
     await ctx.runMutation(api.truthOrDare.skipTurn, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -812,6 +894,7 @@ http.route({
       gameId: body.gameId,
       participantId: body.participantId,
       turnId: body.turnId,
+      token: body.callerToken,
     });
   }),
 });
@@ -824,6 +907,7 @@ http.route({
       gameId: body.gameId,
       participantId: body.participantId,
       completedTurns: body.completedTurns,
+      token: body.callerToken,
     });
   }),
 });
@@ -835,6 +919,7 @@ http.route({
     await ctx.runMutation(api.truthOrDare.endGame, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -847,6 +932,7 @@ http.route({
       turnId: body.turnId,
       participantId: body.participantId,
       score: body.score,
+      token: body.callerToken,
     });
   }),
 });
@@ -858,6 +944,8 @@ http.route({
     await ctx.runMutation(api.truthOrDare.submitTranslation, {
       turnId: body.turnId,
       translatedText: body.translatedText,
+      callerId: body.callerId,
+      token: body.callerToken,
     });
   }),
 });
@@ -882,7 +970,7 @@ http.route({
       roomId: body.roomId,
       hostParticipantId: body.hostParticipantId,
       winPattern: body.winPattern,
-      callIntervalMs: body.callIntervalMs,
+      token: body.callerToken,
     });
     return { gameId };
   }),
@@ -895,6 +983,7 @@ http.route({
     await ctx.runMutation(api.emojiBingo.joinLobby, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -906,6 +995,7 @@ http.route({
     await ctx.runMutation(api.emojiBingo.leaveLobby, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -917,6 +1007,7 @@ http.route({
     await ctx.runMutation(api.emojiBingo.startGame, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -928,6 +1019,7 @@ http.route({
     await ctx.runMutation(api.emojiBingo.rollEmoji, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -940,6 +1032,7 @@ http.route({
       gameId: body.gameId,
       participantId: body.participantId,
       cellIndex: body.cellIndex,
+      token: body.callerToken,
     });
   }),
 });
@@ -951,6 +1044,7 @@ http.route({
     return await ctx.runMutation(api.emojiBingo.claimBingo, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -962,6 +1056,7 @@ http.route({
     await ctx.runMutation(api.emojiBingo.cancelGame, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
   }),
 });
@@ -973,6 +1068,7 @@ http.route({
     const gameId = await ctx.runMutation(api.emojiBingo.playAgain, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     });
     return { gameId };
   }),
@@ -1007,31 +1103,47 @@ const wordRushRoutes: Record<string, (ctx: any, body: any) => Promise<any>> = {
       hostParticipantId: body.hostParticipantId,
       pack: body.pack,
       sayIt: body.sayIt,
+      token: body.callerToken,
     }),
   }),
   join: (ctx, body) =>
-    ctx.runMutation(api.wordRush.joinLobby, { gameId: body.gameId, participantId: body.participantId }),
+    ctx.runMutation(api.wordRush.joinLobby, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      token: body.callerToken,
+    }),
   leave: (ctx, body) =>
-    ctx.runMutation(api.wordRush.leaveLobby, { gameId: body.gameId, participantId: body.participantId }),
+    ctx.runMutation(api.wordRush.leaveLobby, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      token: body.callerToken,
+    }),
   "update-settings": (ctx, body) =>
     ctx.runMutation(api.wordRush.updateSettings, {
       gameId: body.gameId,
       participantId: body.participantId,
       pack: body.pack,
       sayIt: body.sayIt,
+      token: body.callerToken,
     }),
   start: (ctx, body) =>
-    ctx.runMutation(api.wordRush.start, { gameId: body.gameId, participantId: body.participantId }),
+    ctx.runMutation(api.wordRush.start, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      token: body.callerToken,
+    }),
   answer: (ctx, body) =>
     ctx.runMutation(api.wordRush.answer, {
       gameId: body.gameId,
       participantId: body.participantId,
       choiceIndex: body.choiceIndex,
+      token: body.callerToken,
     }),
   hint: async (ctx, body) => ({
     hint: await ctx.runMutation(api.wordRush.takeHint, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     }),
   }),
   "submit-clip": (ctx, body) =>
@@ -1039,33 +1151,46 @@ const wordRushRoutes: Record<string, (ctx: any, body: any) => Promise<any>> = {
       gameId: body.gameId,
       participantId: body.participantId,
       storageId: body.storageId,
+      token: body.callerToken,
     }),
   "skip-mic": (ctx, body) =>
-    ctx.runMutation(api.wordRush.skipMic, { gameId: body.gameId, participantId: body.participantId }),
+    ctx.runMutation(api.wordRush.skipMic, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      token: body.callerToken,
+    }),
   vote: (ctx, body) =>
     ctx.runMutation(api.wordRush.vote, {
       gameId: body.gameId,
       participantId: body.participantId,
       vote: body.vote,
+      token: body.callerToken,
     }),
   "submit-teach-clip": (ctx, body) =>
     ctx.runMutation(api.wordRush.submitTeachClip, {
       gameId: body.gameId,
       participantId: body.participantId,
       storageId: body.storageId,
+      token: body.callerToken,
     }),
   skip: (ctx, body) =>
     ctx.runMutation(api.wordRush.skip, {
       gameId: body.gameId,
       participantId: body.participantId,
       phaseSeq: body.phaseSeq,
+      token: body.callerToken,
     }),
   cancel: (ctx, body) =>
-    ctx.runMutation(api.wordRush.cancel, { gameId: body.gameId, participantId: body.participantId }),
+    ctx.runMutation(api.wordRush.cancel, {
+      gameId: body.gameId,
+      participantId: body.participantId,
+      token: body.callerToken,
+    }),
   "play-again": async (ctx, body) => ({
     gameId: await ctx.runMutation(api.wordRush.playAgain, {
       gameId: body.gameId,
       participantId: body.participantId,
+      token: body.callerToken,
     }),
   }),
   state: async (ctx, body) => ({

@@ -1,8 +1,9 @@
 import { v } from "convex/values";
+import { IndexNames, NamedIndex, NamedTableInfo } from "convex/server";
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
-import { isSupportedLanguage } from "./participants";
+import { DataModel, Doc, Id, TableNames } from "./_generated/dataModel";
+import { deleteStoredFile, isSupportedLanguage, registerToken, requireHost } from "./participants";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 10;
@@ -12,6 +13,8 @@ export const createRoom = mutation({
     hostNickname: v.string(),
     hostAvatarId: v.optional(v.string()),
     hostLanguage: v.optional(v.string()),
+    // The host app's caller token (participants.ts: registerToken). Builds that send none make a legacy host
+    hostToken: v.optional(v.string()),
     settings: v.optional(
       v.object({
         sourceLanguage: v.string(),
@@ -39,8 +42,14 @@ export const createRoom = mutation({
       maxParticipants: 10,
     };
 
-    if (settings.maxParticipants < 2 || settings.maxParticipants > 50) {
+    // Written this way round so that NaN, which fails every comparison, is refused too
+    if (!(settings.maxParticipants >= 2 && settings.maxParticipants <= 50)) {
       throw new Error("Max participants must be between 2 and 50");
+    }
+    // The app sends a preset's id and "en" or "ja". Length only, so a build that sends another code is not refused
+    if ((args.hostAvatarId?.length ?? 0) > 64) throw new Error("Invalid avatar");
+    if (settings.sourceLanguage.length > 16 || settings.targetLanguage.length > 16) {
+      throw new Error("Unsupported language");
     }
 
     const lastRoom = await ctx.db.query("rooms").order("desc").first();
@@ -69,6 +78,7 @@ export const createRoom = mutation({
       lastSeenAt: now,
       joinedAt: now,
     });
+    await registerToken(ctx, hostId, args.hostToken);
 
     // Update room with host ID
     await ctx.db.patch(roomId, { hostId: hostId });
@@ -99,10 +109,11 @@ async function closeRoomNow(ctx: MutationCtx, roomId: Id<"rooms">) {
 }
 
 export const closeRoom = mutation({
-  args: { roomId: v.id("rooms") },
+  args: { roomId: v.id("rooms"), callerId: v.optional(v.id("participants")), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    await requireHost(ctx, args.roomId, args.callerId, args.token, "rooms.closeRoom");
     if (room.status === "closed") return; // already closed
     await closeRoomNow(ctx, args.roomId);
   },
@@ -165,6 +176,167 @@ export const purgeGameTraces = internalMutation({
   },
 });
 
+// ─── Purge of closed rooms ───────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/**
+ * Rows one step may delete. Kept small: every row is found by reading its index range again from the
+ * start, past the rows the step has already deleted, so a step's work grows faster than this number.
+ */
+const PURGE_ROWS_PER_STEP = 50;
+/** Game drawings are stored inline, so a few rows can be megabytes: a step also stops on what it has read */
+const PURGE_CHARS_PER_STEP = 1_000_000;
+/** A run stops after this many rooms and the rest wait for the next day, so one run cannot empty a deployment */
+const PURGE_ROOMS_PER_RUN = 500;
+/** ...or after this long, whatever is left */
+const PURGE_RUN_MS = 60 * 60 * 1000;
+/** Steps follow each other within seconds. A lease this old belongs to a chain that died */
+const PURGE_LEASE_MS = 10 * 60 * 1000;
+
+type PurgeBudget = { rows: number; chars: number };
+
+/** Days a closed room is kept. Unset, or not a number of at least 1, means nothing is ever deleted */
+function purgeAfterDays(): number | null {
+  const raw = process.env.PURGE_CLOSED_ROOMS_AFTER_DAYS;
+  if (!raw) return null;
+  const days = Number(raw);
+  if (Number.isFinite(days) && days >= 1) return days;
+  console.warn("purge: PURGE_CLOSED_ROOMS_AFTER_DAYS is not a number of at least 1, so nothing is deleted");
+  return null;
+}
+
+/** Deletes what a room owns. Returns false when the step's budget ran out first. */
+async function purgeRoomRows(ctx: MutationCtx, roomId: Id<"rooms">, budget: PurgeBudget): Promise<boolean> {
+  /**
+   * Deletes the rows of `table` whose `field` is `value`, one at a time, until none is left (true) or the
+   * step's budget is spent (false). One row per read: a row can be close to the 1 MiB document limit, and
+   * reading rows in bulk would let a few of them fill a transaction. A row is charged after it is deleted,
+   * so every step deletes at least one row however large it is. `children` deletes what the row owns
+   * first; when that runs out of budget the row stays for the next step.
+   */
+  async function where<T extends TableNames, I extends IndexNames<NamedTableInfo<DataModel, T>>>(
+    table: T,
+    index: I,
+    field: NamedIndex<NamedTableInfo<DataModel, T>, I>[0],
+    value: string,
+    children?: (row: Doc<T>) => Promise<boolean>
+  ): Promise<boolean> {
+    while (budget.rows > 0 && budget.chars > 0) {
+      // Built loosely because the table is only known at each call. The signature above still has the
+      // compiler check table, index and field there: a wrong name would otherwise only show when a purge runs.
+      const row: Doc<T> | null = await (ctx.db.query(table) as any)
+        .withIndex(index, (q: any) => q.eq(field, value))
+        .first();
+      if (!row) return true;
+      if (children && !(await children(row))) return false;
+      await ctx.db.delete(row._id);
+      budget.rows -= 1;
+      budget.chars -= JSON.stringify(row).length;
+    }
+    return false;
+  }
+  const file = async (id: Id<"_storage"> | undefined) => {
+    if (id) await deleteStoredFile(ctx, id);
+    return true;
+  };
+
+  // Children before their parent: a child is only found through its parent's id, so a parent deleted
+  // first would strand them. Participants go last, normally in the step that also deletes the room, so
+  // no client is shown a room with people missing from it.
+  return (
+    // Lost in Translation and Emojifyr. Their drawings are inline in gameSteps, so there are no files
+    (await where("gameSessions", "by_roomId", "roomId", roomId, async (session) =>
+      (await where("emojifyrRounds", "by_gameSessionId", "gameSessionId", session._id, (round) =>
+        where("emojifyrGuesses", "by_roundId", "roundId", round._id)
+      )) &&
+      (await where("gameSteps", "by_gameSessionId", "gameSessionId", session._id)) &&
+      (await where("gameChains", "by_gameSessionId", "gameSessionId", session._id))
+    )) &&
+    (await where("emojiMatchGames", "by_roomId", "roomId", roomId, (game) =>
+      where("emTrace", "by_gameId", "gameId", game._id)
+    )) &&
+    (await where("emojiBingoGames", "by_roomId", "roomId", roomId, (game) =>
+      where("bingoTrace", "by_gameId", "gameId", game._id)
+    )) &&
+    (await where("truthOrDareGames", "by_roomId", "roomId", roomId, async (game) =>
+      (await where("todTrace", "by_gameId", "gameId", game._id)) &&
+      (await where("truthOrDareTurns", "by_gameId", "gameId", game._id, (turn) => file(turn.responseStorageId)))
+    )) &&
+    (await where("wordRushGames", "by_roomId", "roomId", roomId, async (game) => {
+      if (!(await where("wordRushAnswers", "by_game_card", "gameId", game._id))) return false;
+      if (!(await where("wordRushVotes", "by_game_card", "gameId", game._id))) return false;
+      // A game that ended has already deleted its clips; one still open when the room closed may not have
+      for (const id of [...game.storageIds, game.clipStorageId, game.teachClip?.storageId]) await file(id);
+      return true;
+    })) &&
+    (await where("messages", "by_roomId", "roomId", roomId, async (message) =>
+      (await where("reactions", "by_messageId", "messageId", message._id)) &&
+      (await file(message.audioStorageId)) &&
+      (await file(message.mediaStorageId))
+    )) &&
+    (await where("hostPushTokens", "by_roomId", "roomId", roomId)) &&
+    (await where("participants", "by_roomId", "roomId", roomId, (participant) =>
+      where("participantSecrets", "by_participantId", "participantId", participant._id)
+    ))
+  );
+}
+
+/**
+ * Deletes rooms that have been closed for PURGE_CLOSED_ROOMS_AFTER_DAYS days, with everything they own.
+ * Does nothing while that variable is unset. Started once a day by the cron, or by hand with
+ * `npx convex run rooms:purgeClosedRooms`. Each step deletes a bounded number of rows and schedules the
+ * next. Nothing is carried between steps except the run's id: every step looks up what is left, so a
+ * step that is lost or repeated costs nothing.
+ */
+export const purgeClosedRooms = internalMutation({
+  // Set by the chain itself. A call without it is a start
+  args: { runId: v.optional(v.number()) },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const days = purgeAfterDays();
+    if (days === null) return null;
+    const now = Date.now();
+
+    // One row is the lease. A start leaves a chain that is still moving alone, and a step whose run is
+    // no longer the lease's stops, so two chains never delete side by side.
+    const lease = await ctx.db.query("purgeRuns").first();
+    if (args.runId === undefined) {
+      if (lease && lease.finishedAt === undefined && now - lease.heartbeatAt < PURGE_LEASE_MS) return null;
+    } else if (!lease || lease.finishedAt !== undefined || lease.runId !== args.runId) {
+      return null;
+    }
+    const runId = args.runId ?? now;
+    let roomsPurged = args.runId !== undefined && lease ? lease.roomsPurged : 0;
+
+    // This range holds only closed rooms whose closing time is known and at least `days` old, oldest
+    // first. An open room is never read here, so it cannot be deleted here.
+    const room = await ctx.db
+      .query("rooms")
+      .withIndex("by_status_closedAt", (q) =>
+        q.eq("status", "closed").gt("closedAt", 0).lt("closedAt", now - days * DAY_MS)
+      )
+      .first();
+
+    let finished = !room || now - runId >= PURGE_RUN_MS;
+    if (room && !finished) {
+      // The room document goes last, in the transaction that found nothing else left. Until then the
+      // room still reads as closed to anything that asks, and it is what the next step finds it by.
+      if (await purgeRoomRows(ctx, room._id, { rows: PURGE_ROWS_PER_STEP, chars: PURGE_CHARS_PER_STEP })) {
+        await ctx.db.delete(room._id);
+        roomsPurged += 1;
+        finished = roomsPurged >= PURGE_ROOMS_PER_RUN;
+      }
+    }
+
+    const state = { runId, heartbeatAt: now, roomsPurged, finishedAt: finished ? now : undefined };
+    if (lease) await ctx.db.patch(lease._id, state);
+    else await ctx.db.insert("purgeRuns", state);
+    if (finished) console.log(`purge: run ${runId} deleted ${roomsPurged} rooms`);
+    else await ctx.scheduler.runAfter(0, internal.rooms.purgeClosedRooms, { runId });
+    return null;
+  },
+});
+
 export const getRoomByJoinCode = query({
   args: { joinCode: v.string() },
   handler: async (ctx, args) => {
@@ -200,11 +372,21 @@ export const updateRoomSettings = mutation({
       suggestionsEnabled: v.boolean(),
       maxParticipants: v.number(),
     }),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
     if (room.status === "closed") throw new Error("Cannot update a closed room");
+    await requireHost(ctx, args.roomId, args.callerId, args.token, "rooms.updateRoomSettings");
+    // The same bounds createRoom holds the settings to
+    if (!(args.settings.maxParticipants >= 2 && args.settings.maxParticipants <= 50)) {
+      throw new Error("Max participants must be between 2 and 50");
+    }
+    if (args.settings.sourceLanguage.length > 16 || args.settings.targetLanguage.length > 16) {
+      throw new Error("Unsupported language");
+    }
 
     await ctx.db.patch(args.roomId, { settings: args.settings });
   },

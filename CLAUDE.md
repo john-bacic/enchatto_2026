@@ -42,6 +42,10 @@ There are two Convex deployments, and the deployed web app talks to both:
 - **Order matters:** Convex functions go to both deployments before the web build that calls them. Open tabs reload onto a new web build within a minute (`DeployRefresh`), so a web build that is ahead of its functions breaks for everyone at once. Keep function changes backward compatible: installed iOS builds do not update with a deploy
 - **Vercel:** project `web`, Root Directory `apps/web`, so the CLI must run from the monorepo root. The production branch is `main`; a push to any other branch only creates a preview build. A push to `main` is a production web deploy of `main`'s tree, so only push `main` when it is the commit `deploy.sh` just shipped
 - **Convex environment variables** (`ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`) are set per deployment. Add a new one to both, from `apps/web/`: `npx convex env set NAME value`, then again with `--prod`
+- **Switches, also Convex environment variables, all off when unset:**
+  - `AUTH_MODE`: unset or `log` writes an `auth:` warning to the Convex log for a call with a missing or wrong caller token and lets it through; `enforce` refuses it. Set `enforce` only once the log shows no `auth:` lines from current clients
+  - `PURGE_CLOSED_ROOMS_AFTER_DAYS`: a number of at least 1 makes the daily `rooms.purgeClosedRooms` cron delete rooms closed for longer than that, with their messages, game rows and stored files. Unset, nothing is deleted. Take a snapshot export before first setting it on production
+  - `WORD_RUSH_GENERATIONS_PER_HOUR_MAX`: optional ceiling on Word Rush card generations across all rooms
 - **iOS:** Rebuild in Xcode after deploy to pick up new git SHA
 
 ## Data Flow
@@ -54,12 +58,13 @@ There are two Convex deployments, and the deployed web app talks to both:
 
 ## Key Patterns
 
-- **Web routing:** `/` (QR scanner + join code) → `/join/[joinCode]` (nickname/avatar/language) → `/room/[roomId]?pid=participantId`
+- **Web routing:** `/` (QR scanner + join code) → `/join/[joinCode]` (nickname/avatar/language) → `/room/[roomId]?pid=participantId&tk=1`. `tk=1` marks a link made for a browser that holds the participant's token; opened anywhere else, the room page sends the guest back to the join page
 - **Convex React provider:** `lib/convex.tsx` wraps the app with `ConvexProvider`
 - **i18n:** Simple `t(key, lang)` function in `lib/i18n.ts` with hardcoded English/Japanese translations
 - **iOS ↔ Convex:** `ConvexHTTPClient` POSTs to HTTP action routes defined in `convex/http.ts`
 - **Games:** Three game types (Lost in Translation, Emoji Match, Truth or Dare) with their own Convex modules and UI components
-- **No authentication** in MVP — room access by join code only, participant identity by nickname + avatar
+- **Caller tokens, no accounts:** room access is by join code. A client makes a random token when it joins (`participants.joinRoom {token}`) or creates a room (`rooms.createRoom {hostToken}`); the server keeps it in `participantSecrets` and never returns it. Every mutation that acts for a participant takes an optional `token` (`callerToken` on `participants.setHostPushToken`, where `token` is the APNs device token) and checks it with `requireCaller` / `requireMember` / `requireHost` in `participants.ts`; what a failed check does depends on `AUTH_MODE`. The one exception is Emojifyr (the `*Emojifyr*` functions in `games.ts` and the `/api/emojifyr/*` routes): no current build offers it, and it takes no token and makes no check in either mode, so that installed iOS builds keep working. In HTTP bodies the token is `callerToken` (`hostToken` on `/api/rooms/create`, which registers it) and the caller is `callerId`, never `token` (on `/api/rooms/push-token` that is the APNs device token). The web wraps mutations in `useAuthedMutation` (`lib/convex.tsx`); iOS adds both fields in `ConvexHTTPClient`. Participants from before tokens have none and are accepted in both modes. Queries are not gated
+- **Limits:** `takeRateLimit` in `participants.ts` (table `rateLimits`) throttles sends, pictures, dictation and model calls. A refusal's message contains "rate limit", which `http.ts` answers with 503 so the iOS send queue retries
 
 ## Schema
 

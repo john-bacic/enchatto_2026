@@ -16,7 +16,10 @@ class HostStartRoomViewModel: ObservableObject {
     @Published var error: String?
 
     // Set after room creation
-    @Published var createdRoomId: String?
+    @Published var createdRoomId: String? {
+        // Back on this screen (the room's navigation binding sets nil): nothing more is sent as that room's host
+        didSet { if createdRoomId == nil { api.setCaller(hostId: nil, token: nil) } }
+    }
     @Published var createdJoinCode: String?
     @Published var createdHostId: String?
 
@@ -51,7 +54,9 @@ class HostStartRoomViewModel: ObservableObject {
                 settings: settings
             )
             // Replaces any earlier record. That room is not closed from here: it closes itself once its host stays away
-            SavedHostRoom(roomId: result.roomId, hostId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL).save()
+            SavedHostRoom(roomId: result.roomId, hostId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, hostToken: result.hostToken).save()
+            // Before the room screen exists: its first requests already go out as the host
+            api.setCaller(hostId: result.hostId, token: result.hostToken)
             rejoinableRoom = nil
             createdRoomId = result.roomId
             createdJoinCode = result.joinCode
@@ -107,6 +112,8 @@ class HostStartRoomViewModel: ObservableObject {
 
         if open {
             if enter {
+                // The token saved at creation; nil for a room an earlier build made, whose host the server takes by id alone
+                api.setCaller(hostId: saved.hostId, token: saved.hostToken)
                 rejoinableRoom = nil
                 createdJoinCode = saved.joinCode
                 createdHostId = saved.hostId

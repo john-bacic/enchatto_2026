@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useAuthedMutation } from "@/lib/convex";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -43,8 +43,8 @@ export function CluesView({
   onAnswered: (a: MyAnswer) => void;
   onHint: (h: string) => void;
 }) {
-  const answer = useMutation(api.wordRush.answer);
-  const takeHint = useMutation(api.wordRush.takeHint);
+  const answer = useAuthedMutation(api.wordRush.answer);
+  const takeHint = useAuthedMutation(api.wordRush.takeHint);
   const [pending, setPending] = useState<number | null>(null);
   const [hintBusy, setHintBusy] = useState(false);
 

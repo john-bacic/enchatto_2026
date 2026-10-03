@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useAuthedMutation } from "@/lib/convex";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Confetti, CutIn } from "@/components/ui/effects";
 import { Icon } from "@/components/ui/icon";
@@ -150,9 +150,9 @@ function PerformerMic({ state, myId, s, now, toast }: ViewProps) {
   const perf = state.performer!;
   const me = state.players.find((p) => p.participantId === myId);
   const rec = useAudioRecorder({ maxMs: 4000 });
-  const generateUrl = useMutation(api.wordRush.generateClipUploadUrl);
-  const submitClip = useMutation(api.wordRush.submitClip);
-  const skipMic = useMutation(api.wordRush.skipMic);
+  const generateUrl = useAuthedMutation(api.wordRush.generateClipUploadUrl);
+  const submitClip = useAuthedMutation(api.wordRush.submitClip);
+  const skipMic = useAuthedMutation(api.wordRush.skipMic);
   const [sending, setSending] = useState(false);
   const [holding, setHolding] = useState(false);
 
@@ -165,7 +165,7 @@ function PerformerMic({ state, myId, s, now, toast }: ViewProps) {
     if (!rec.blob || sending) return;
     setSending(true);
     try {
-      const storageId = await uploadClip(rec.blob, () => generateUrl({}));
+      const storageId = await uploadClip(rec.blob, () => generateUrl({ callerId: myId }));
       await submitClip({ gameId: state._id, participantId: myId, storageId });
     } catch (e) {
       toast(errorText(e, s.error));
@@ -294,7 +294,7 @@ function WaitingMic({ state, me, myId, s, now }: ViewProps) {
 
 export function JudgingView({ state, me, myId, s, now, toast }: ViewProps) {
   const perf = state.performer;
-  const vote = useMutation(api.wordRush.vote);
+  const vote = useAuthedMutation(api.wordRush.vote);
   const [myVote, setMyVote] = useState<WRVote | null>(null);
   if (!perf) return null;
 
@@ -397,15 +397,15 @@ function TeachButton({
   name,
 }: Pick<ViewProps, "state" | "myId" | "s" | "toast"> & { name: string }) {
   const rec = useAudioRecorder({ maxMs: 4000 });
-  const generateUrl = useMutation(api.wordRush.generateClipUploadUrl);
-  const submitTeachClip = useMutation(api.wordRush.submitTeachClip);
+  const generateUrl = useAuthedMutation(api.wordRush.generateClipUploadUrl);
+  const submitTeachClip = useAuthedMutation(api.wordRush.submitTeachClip);
   const [phase, setPhase] = useState<"idle" | "sending" | "sent">("idle");
 
   const send = async () => {
     if (!rec.blob) return;
     setPhase("sending");
     try {
-      const storageId = await uploadClip(rec.blob, () => generateUrl({}));
+      const storageId = await uploadClip(rec.blob, () => generateUrl({ callerId: myId }));
       await submitTeachClip({ gameId: state._id, participantId: myId, storageId });
       setPhase("sent");
       haptic("correct");
@@ -469,7 +469,7 @@ function TeachButton({
 // ─── Verdict ─────────────────────────────────────────────────────────────────
 
 export function VerdictView({ state, myId, s, isHost, toast }: ViewProps) {
-  const skip = useMutation(api.wordRush.skip);
+  const skip = useAuthedMutation(api.wordRush.skip);
   const perf = state.performer;
   const verdict = state.verdict;
   const played = useRef(false);

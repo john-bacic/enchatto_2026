@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { isPresent } from "./participants";
+import { authFail, isPresent, requireCaller } from "./participants";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -248,10 +248,12 @@ export const createLobby = mutation({
   args: {
     roomId: v.id("rooms"),
     hostParticipantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    await requireCaller(ctx, args.hostParticipantId, args.token, "emojiMatch.createLobby");
 
     const participant = await ctx.db.get(args.hostParticipantId);
     if (!participant || participant.roomId !== args.roomId) {
@@ -309,11 +311,13 @@ export const joinLobby = mutation({
   args: {
     gameId: v.id("emojiMatchGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiMatch.joinLobby");
 
     if (game.hostParticipantId !== args.participantId && (await claimLobby(ctx, game, args.participantId))) {
       return;
@@ -351,11 +355,13 @@ export const leaveLobby = mutation({
   args: {
     gameId: v.id("emojiMatchGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiMatch.leaveLobby");
 
     const remainingPlayers = game.players.filter(
       (p) => p.participantId !== args.participantId
@@ -384,11 +390,13 @@ export const startGame = mutation({
   args: {
     gameId: v.id("emojiMatchGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiMatch.startGame");
     if (game.hostParticipantId !== args.participantId) {
       throw new Error("Only the host can start the game");
     }
@@ -482,11 +490,13 @@ export const flipCard = mutation({
     gameId: v.id("emojiMatchGames"),
     participantId: v.id("participants"),
     cardId: v.string(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "active") throw new Error("Game is not active");
+    await requireCaller(ctx, args.participantId, args.token, "emojiMatch.flipCard");
     if (game.currentTurnParticipantId !== args.participantId) {
       throw new Error("Not your turn");
     }
@@ -611,10 +621,17 @@ export const flipCard = mutation({
 });
 
 export const resolveMismatch = mutation({
-  args: { gameId: v.id("emojiMatchGames") },
+  // A twin of the server's own timer (internalResolveMismatch): it acts only once resolveAt has passed,
+  // so an unnamed caller can do nothing the server is not about to do. A named caller has to be that participant.
+  args: {
+    gameId: v.id("emojiMatchGames"),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
+    await requireCaller(ctx, args.callerId, args.token, "emojiMatch.resolveMismatch");
     if (game.status !== "resolving") return; // Already resolved — no error
     if (game.resolveAt && Date.now() < game.resolveAt) return; // Too early — wait
     await emTrace(ctx, args.gameId, "resolveMismatch", undefined, `turn=${game.currentTurnParticipantId?.toString().slice(-6)}`);
@@ -706,11 +723,15 @@ async function passTurn(ctx: MutationCtx, game: Game, timedOut: boolean = false)
 export const timeoutTurn = mutation({
   args: {
     gameId: v.id("emojiMatchGames"),
+    // participantId is whose turn ran out, not who is calling: every web tab in the game reports it
     participantId: v.id("participants"),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
+    await requireCaller(ctx, args.callerId, args.token, "emojiMatch.timeoutTurn");
     // The server ends turns itself (internalTimeoutTurn). Web clients still call this, racing that
     // timer and each other, so a call for a turn that already moved on, or one that is early because
     // the caller's clock runs fast, is expected: ignore it instead of rejecting it.
@@ -753,18 +774,21 @@ export const cancelGame = mutation({
   args: {
     gameId: v.id("emojiMatchGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
 
     // Allow both the game lobby host and the room host to cancel
-    const participant = await ctx.db.get(args.participantId);
+    const participant = await requireCaller(ctx, args.participantId, args.token, "emojiMatch.cancelGame");
     const isGameHost = game.hostParticipantId === args.participantId;
     const isRoomHost = participant?.role === "host";
     if (!isGameHost && !isRoomHost) {
       throw new Error("Only the host can cancel the game");
     }
+    // "Room host" above is any room's host; it has to be this room's
+    if (participant && participant.roomId !== game.roomId) authFail("emojiMatch.cancelGame", "not in this room");
     if (game.status === "completed" || game.status === "canceled") {
       throw new Error("Game is already finished");
     }
@@ -811,6 +835,7 @@ export const playAgain = mutation({
   args: {
     gameId: v.id("emojiMatchGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -818,6 +843,7 @@ export const playAgain = mutation({
     if (game.status !== "completed" && game.status !== "canceled") {
       throw new Error("Game is not finished");
     }
+    await requireCaller(ctx, args.participantId, args.token, "emojiMatch.playAgain");
 
     // Check no existing active game in room
     for (const status of ["lobby", "active", "resolving"] as const) {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useAuthedMutation } from "@/lib/convex";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Icon, LangBadge } from "@/components/ui/icon";
 import { PACKS, errorText, unlockAudio, type ViewProps } from "./shared";
@@ -15,11 +15,11 @@ export function LobbySheet({
   toast,
   onMinimize,
 }: Pick<ViewProps, "state" | "myId" | "isHost" | "s" | "toast"> & { onMinimize: () => void }) {
-  const joinLobby = useMutation(api.wordRush.joinLobby);
-  const leaveLobby = useMutation(api.wordRush.leaveLobby);
-  const updateSettings = useMutation(api.wordRush.updateSettings);
-  const start = useMutation(api.wordRush.start);
-  const cancel = useMutation(api.wordRush.cancel);
+  const joinLobby = useAuthedMutation(api.wordRush.joinLobby);
+  const leaveLobby = useAuthedMutation(api.wordRush.leaveLobby);
+  const updateSettings = useAuthedMutation(api.wordRush.updateSettings);
+  const start = useAuthedMutation(api.wordRush.start);
+  const cancel = useAuthedMutation(api.wordRush.cancel);
   const [busy, setBusy] = useState(false);
 
   const joined = state.players.some((p) => p.participantId === myId);

@@ -67,8 +67,10 @@ class MockEnchattoAPI: EnchattoAPI {
             self.messages[roomId]?.append(mockMessage)
         }
 
-        return CreateRoomResult(roomId: roomId, joinCode: joinCode, hostId: hostId)
+        return CreateRoomResult(roomId: roomId, joinCode: joinCode, hostId: hostId, hostToken: nil)
     }
+
+    func setCaller(hostId: String?, token: String?) {}
 
     func getRoomState(roomId: String) async throws -> (room: Room, participants: [Participant]) {
         guard let room = rooms[roomId] else {

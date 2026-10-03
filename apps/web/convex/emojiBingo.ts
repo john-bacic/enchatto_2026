@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { isPresent } from "./participants";
+import { authFail, isPresent, requireCaller } from "./participants";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -194,10 +194,12 @@ export const createLobby = mutation({
     roomId: v.id("rooms"),
     hostParticipantId: v.id("participants"),
     winPattern: v.optional(v.union(v.literal("line"), v.literal("four_corners"), v.literal("blackout"))),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    await requireCaller(ctx, args.hostParticipantId, args.token, "emojiBingo.createLobby");
 
     const participant = await ctx.db.get(args.hostParticipantId);
     if (!participant || participant.roomId !== args.roomId) {
@@ -248,11 +250,13 @@ export const joinLobby = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.joinLobby");
 
     if (game.players.some((p) => p.participantId === args.participantId)) {
       throw new Error("Already joined this lobby");
@@ -287,11 +291,13 @@ export const leaveLobby = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.leaveLobby");
 
     const remaining = game.players.filter(
       (p) => p.participantId !== args.participantId
@@ -321,11 +327,13 @@ export const updateSettings = mutation({
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
     winPattern: v.optional(v.union(v.literal("line"), v.literal("four_corners"), v.literal("blackout"))),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.updateSettings");
     if (game.hostParticipantId !== args.participantId) {
       throw new Error("Only the host can change settings");
     }
@@ -340,11 +348,13 @@ export const startGame = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (game.status !== "lobby") throw new Error("Game is not in lobby state");
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.startGame");
     if (game.hostParticipantId !== args.participantId) {
       throw new Error("Only the host can start the game");
     }
@@ -413,6 +423,7 @@ export const rollEmoji = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -420,6 +431,7 @@ export const rollEmoji = mutation({
     if (game.status !== "active" && game.status !== "won") {
       throw new Error("Game is not active");
     }
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.rollEmoji");
     // After the first bingo the grace auto-roll owns drawing. A tap sent just before the client saw
     // "won" would advance drawIndex without scheduling the next roll, leaving the game with no roller.
     if (game.status === "won") return;
@@ -464,6 +476,7 @@ export const markCell = mutation({
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
     cellIndex: v.number(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -471,6 +484,7 @@ export const markCell = mutation({
     if (game.status !== "active" && game.status !== "won") {
       throw new Error("Game is not active");
     }
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.markCell");
 
     const playerIndex = game.players.findIndex(
       (p) => p.participantId === args.participantId
@@ -504,6 +518,7 @@ export const claimBingo = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
@@ -511,6 +526,7 @@ export const claimBingo = mutation({
     if (game.status !== "active" && game.status !== "won") {
       throw new Error("Game is not active");
     }
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.claimBingo");
 
     const playerIndex = game.players.findIndex(
       (p) => p.participantId === args.participantId
@@ -592,12 +608,19 @@ export const cancelGame = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     if (!["lobby", "active", "won"].includes(game.status)) {
       throw new Error("Game cannot be canceled");
+    }
+    const caller = await requireCaller(ctx, args.participantId, args.token, "emojiBingo.cancelGame");
+    // Until tokens anyone could cancel. Both apps only offer it to the game host and to the room's host.
+    const isRoomHost = caller?.role === "host" && caller.roomId === game.roomId;
+    if (caller && game.hostParticipantId !== args.participantId && !isRoomHost) {
+      authFail("emojiBingo.cancelGame", "not the host");
     }
 
     const now = Date.now();
@@ -627,10 +650,12 @@ export const playAgain = mutation({
   args: {
     gameId: v.id("emojiBingoGames"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
+    await requireCaller(ctx, args.participantId, args.token, "emojiBingo.playAgain");
 
     for (const status of ["lobby", "active", "won"] as const) {
       const existing = await ctx.db

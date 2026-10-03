@@ -907,6 +907,7 @@ export function TruthOrDareGame({
                       className="ec-field"
                       type="text"
                       defaultValue=""
+                      maxLength={2000}
                       onFocus={() => {
                         // Only scroll on Android — iOS handles keyboard scroll natively
                         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);

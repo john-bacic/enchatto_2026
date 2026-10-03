@@ -1091,6 +1091,10 @@ class HostRoomViewModel: ObservableObject {
     /// Timed-out attempts at a photo or drawing before it is marked failed: each one has already held the
     /// queue for up to a minute
     private static let maxMediaTimeouts = 2
+    /// Refusals for sending too fast before a message is marked failed. The server's allowance is per minute and
+    /// the sixth attempt comes a minute after the first, so a throttled message goes out once the minute is over.
+    /// A ceiling all the same: a server that never stops refusing must not hold the queue for good
+    private static let maxThrottledAttempts = 7
 
     /// 2, 4, 8, 16, then 30 s; checked on the poll, so a retry lands up to one poll later
     private static func retryDelay(afterAttempts attempts: Int) -> TimeInterval {
@@ -1145,7 +1149,12 @@ class HostRoomViewModel: ObservableObject {
             DebugConsole.shared.trace(source: .network, action: "send:error", detail: error.localizedDescription, ok: false)
             guard let index = offlineQueue.firstIndex(where: { $0.id == queued.id }) else { return .skipped }
             var serverAnswered = false
-            if let apiError = error as? APIError, case .http = apiError { serverAnswered = true }
+            // The wording the server's limits use (messages.ts: TOO_FAST)
+            var throttled = false
+            if let apiError = error as? APIError, case .http(let status, let message) = apiError {
+                serverAnswered = true
+                throttled = status == 503 && message.contains("rate limit")
+            }
             let attempts = offlineQueue[index].attempts + 1
             // Counted apart from `attempts`: timeouts in a dead spot must not use up the allowance, or the first 5xx
             // after them would mark the message failed
@@ -1153,7 +1162,8 @@ class HostRoomViewModel: ObservableObject {
             let mediaBlamed = queued.kind != .text && roomReachable
             let blamed = offlineQueue[index].blamedFailures + ((serverAnswered || mediaBlamed) ? 1 : 0)
             let slow = mediaBlamed && !serverAnswered && (error as? URLError)?.code == .timedOut
-            if error.isRetryableNetworkFailure, blamed < (slow ? Self.maxMediaTimeouts : Self.maxServerAttempts) {
+            let allowed = slow ? Self.maxMediaTimeouts : (throttled ? Self.maxThrottledAttempts : Self.maxServerAttempts)
+            if error.isRetryableNetworkFailure, blamed < allowed {
                 offlineQueue[index].attempts = attempts
                 offlineQueue[index].blamedFailures = blamed
                 offlineQueue[index].nextAttemptAt = Date().addingTimeInterval(Self.retryDelay(afterAttempts: attempts))

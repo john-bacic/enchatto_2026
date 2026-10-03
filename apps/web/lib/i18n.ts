@@ -189,6 +189,9 @@ const translations: Record<string, Record<string, string>> = {
   "Photo": { ja: "写真" },
   "Drawing": { ja: "お絵描き" },
 
+  // Sending a picture
+  "That picture can't be sent (images up to 50 MB)": { ja: "この画像は送信できません（画像は50MBまで）" },
+
   // Offline mode
   "You're offline": { ja: "オフラインです" },
   "queued": { ja: "件待ち" },

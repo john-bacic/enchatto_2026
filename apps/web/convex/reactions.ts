@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { authFail, requireCaller } from "./participants";
 
 const SUPPORTED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
@@ -8,11 +9,18 @@ export const addReaction = mutation({
     messageId: v.id("messages"),
     participantId: v.id("participants"),
     emoji: v.string(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!SUPPORTED_REACTIONS.includes(args.emoji)) {
       throw new Error("Unsupported reaction emoji");
     }
+
+    const caller = await requireCaller(ctx, args.participantId, args.token, "reactions.addReaction");
+    const message = await ctx.db.get(args.messageId);
+    // Deleted while the tap was on its way. Not an error, and a reaction to nothing would outlive the room's purge
+    if (!message) return null;
+    if (caller && message.roomId !== caller.roomId) authFail("reactions.addReaction", "message not in this room");
 
     // Check for existing reaction with same emoji from same participant
     const existing = await ctx.db
@@ -39,8 +47,10 @@ export const removeReaction = mutation({
     messageId: v.id("messages"),
     participantId: v.id("participants"),
     emoji: v.string(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireCaller(ctx, args.participantId, args.token, "reactions.removeReaction");
     const existing = await ctx.db
       .query("reactions")
       .withIndex("by_messageId_participantId", (q) =>

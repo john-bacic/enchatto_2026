@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState, useCallback, useEffect, useRef, Component, type ReactNode } from "react";
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef, Component, type ReactNode } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { ParticipantList } from "@/components/participant-list";
@@ -28,7 +28,7 @@ import { QUEUED_ID_PREFIX, avatarIconSrc, avatarTint, getAvatarById } from "@/li
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { useNetworkStatus } from "@/hooks/use-network-status";
-import { useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
+import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
 interface QueuedMessage {
@@ -115,7 +115,16 @@ function RoomContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const roomId = params.roomId as string;
-  const participantId = searchParams.get("pid") ?? "";
+  const pidParam = searchParams.get("pid") ?? "";
+  // The join page adds tk=1 to a link whose participant it registered a token for. A browser that does not hold that
+  // token was handed the link, or lost its storage: acting as that participant would be impersonation, so the page
+  // treats the link as naming nobody and the visitor joins as themselves. A link without tk (a participant made
+  // before tokens, or where storage is blocked) works by id alone, as it always has
+  const tokenMissing = useMemo(
+    () => typeof window !== "undefined" && pidParam !== "" && searchParams.get(TOKEN_PARAM) === "1" && !tokenFor(pidParam),
+    [pidParam, searchParams]
+  );
+  const participantId = tokenMissing ? "" : pidParam;
   const convexSiteUrl = useConvexSiteUrl();
   const convexUrl = useConvexUrl();
 
@@ -223,13 +232,13 @@ function RoomContent() {
   }, [activeGameSession, latestGameSession?.status]);
 
   // Mutations
-  const sendTextMessage = useMutation(api.messages.sendTextMessage);
-  const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
-  const sendImageMessage = useMutation(api.messages.sendImageMessage);
-  const sendAudioMessage = useMutation(api.messages.sendAudioMessage);
-  const setParticipantOnline = useMutation(api.participants.setParticipantOnline);
-  const startGameMutation = useMutation(api.games.startGame);
-  const submitGameStepMutation = useMutation(api.games.submitGameStep);
+  const sendTextMessage = useAuthedMutation(api.messages.sendTextMessage);
+  const generateUploadUrl = useAuthedMutation(api.messages.generateUploadUrl);
+  const sendImageMessage = useAuthedMutation(api.messages.sendImageMessage);
+  const sendAudioMessage = useAuthedMutation(api.messages.sendAudioMessage);
+  const setParticipantOnline = useAuthedMutation(api.participants.setParticipantOnline);
+  const startGameMutation = useAuthedMutation(api.games.startGame);
+  const submitGameStepMutation = useAuthedMutation(api.games.submitGameStep);
 
   // Mark online on mount, heartbeat, offline on leave
   useEffect(() => {
@@ -251,7 +260,8 @@ function RoomContent() {
       const url = `${convexUrl}/api/mutation`;
       const body = JSON.stringify({
         path: "participants:leaveRoom",
-        args: { participantId },
+        // Read now, not when the effect ran. JSON drops the field when this browser holds no token
+        args: { participantId, token: tokenFor(participantId) },
       });
       const blob = new Blob([body], { type: "application/json" });
       navigator.sendBeacon(url, blob);
@@ -285,11 +295,11 @@ function RoomContent() {
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [participantId, setParticipantOnline, convexUrl]);
-  const sendDrawingMessage = useMutation(api.messages.sendDrawingMessage);
-  const addReaction = useMutation(api.reactions.addReaction);
-  const removeReaction = useMutation(api.reactions.removeReaction);
-  const setTypingAction = useMutation(api.participants.setTypingAction);
-  const updateDisplaySettings = useMutation(api.participants.updateDisplaySettings);
+  const sendDrawingMessage = useAuthedMutation(api.messages.sendDrawingMessage);
+  const addReaction = useAuthedMutation(api.reactions.addReaction);
+  const removeReaction = useAuthedMutation(api.reactions.removeReaction);
+  const setTypingAction = useAuthedMutation(api.participants.setTypingAction);
+  const updateDisplaySettings = useAuthedMutation(api.participants.updateDisplaySettings);
 
   // Set once saved prefs have been read, so the first render's defaults never reach Convex
   const initializedRef = useRef(false);
@@ -373,6 +383,13 @@ function RoomContent() {
     }
   }, [participantId, roomState, me, router]);
 
+  // A visitor without the token goes on to the join screen; until it loads, the "Join Required" screen below shows
+  useEffect(() => {
+    if (tokenMissing && roomState && roomState.room.status !== "closed") {
+      router.replace(`/join/${roomState.room.joinCode}`);
+    }
+  }, [tokenMissing, roomState, router]);
+
   // Redirect to home screen if room is closed
   useEffect(() => {
     if (roomState?.room.status === "closed") {
@@ -451,6 +468,14 @@ function RoomContent() {
   const handleSendImage = useCallback(
     async (file: File) => {
       if (!participantId) return;
+      // The server refuses these as well, and deletes the upload. Saying so here saves the upload.
+      // A file the browser cannot name has no type and is let through, as the server lets it through. A declared
+      // application/octet-stream is refused here on purpose (it is what a browser calls a .bin or .exe); the
+      // server takes it only for builds that queued an untyped file that way
+      if ((file.type && !file.type.startsWith("image/")) || file.size > 50 * 1024 * 1024) {
+        alert(t("That picture can't be sent (images up to 50 MB)", lang));
+        return;
+      }
       if (!isOnline) {
         // Convert to base64 data URL for offline queue
         const reader = new FileReader();
@@ -463,10 +488,10 @@ function RoomContent() {
       }
       try {
         // Upload to Convex file storage
-        const uploadUrl = await generateUploadUrl();
+        const uploadUrl = await generateUploadUrl({ callerId: participantId as Id<"participants"> });
         const result = await fetch(uploadUrl, {
           method: "POST",
-          headers: { "Content-Type": file.type },
+          headers: { "Content-Type": file.type || "application/octet-stream" },
           body: file,
         });
         const { storageId } = await result.json();
@@ -488,7 +513,7 @@ function RoomContent() {
         reader.readAsDataURL(file);
       }
     },
-    [generateUploadUrl, sendImageMessage, roomId, participantId, replyTo, isOnline, enqueueMessage]
+    [generateUploadUrl, sendImageMessage, roomId, participantId, replyTo, isOnline, enqueueMessage, lang]
   );
 
   const handleSendVoice = useCallback(
@@ -498,7 +523,7 @@ function RoomContent() {
       setReplyTo(null);
       try {
         if (!isOnline) throw new Error("offline");
-        const uploadUrl = await generateUploadUrl();
+        const uploadUrl = await generateUploadUrl({ callerId: participantId as Id<"participants"> });
         const result = await fetch(uploadUrl, {
           method: "POST",
           headers: { "Content-Type": clip.blob.type || "audio/mp4" },
@@ -542,6 +567,8 @@ function RoomContent() {
           body: JSON.stringify({
             roomId,
             senderId: participantId,
+            // In a route's body the caller's token is callerToken: `token` there can be something else
+            callerToken: tokenFor(participantId),
             mediaUrl: dataUrl,
             replyToId: replyTo ?? undefined,
           }),
@@ -602,33 +629,33 @@ function RoomContent() {
   };
 
   // Word Rush mutations
-  const createWordRushLobby = useMutation(api.wordRush.createLobby);
-  const cancelWordRush = useMutation(api.wordRush.cancel);
+  const createWordRushLobby = useAuthedMutation(api.wordRush.createLobby);
+  const cancelWordRush = useAuthedMutation(api.wordRush.cancel);
 
   // Emoji Match mutations
-  const createEmojiMatchLobby = useMutation(api.emojiMatch.createLobby);
-  const joinEmojiMatchLobby = useMutation(api.emojiMatch.joinLobby);
-  const leaveEmojiMatchLobby = useMutation(api.emojiMatch.leaveLobby);
-  const startEmojiMatch = useMutation(api.emojiMatch.startGame);
-  const flipEmojiMatchCard = useMutation(api.emojiMatch.flipCard);
-  const resolveEmojiMatchMismatch = useMutation(api.emojiMatch.resolveMismatch);
-  const cancelEmojiMatch = useMutation(api.emojiMatch.cancelGame);
-  const timeoutEmojiMatchTurn = useMutation(api.emojiMatch.timeoutTurn);
-  const playAgainEmojiMatch = useMutation(api.emojiMatch.playAgain);
+  const createEmojiMatchLobby = useAuthedMutation(api.emojiMatch.createLobby);
+  const joinEmojiMatchLobby = useAuthedMutation(api.emojiMatch.joinLobby);
+  const leaveEmojiMatchLobby = useAuthedMutation(api.emojiMatch.leaveLobby);
+  const startEmojiMatch = useAuthedMutation(api.emojiMatch.startGame);
+  const flipEmojiMatchCard = useAuthedMutation(api.emojiMatch.flipCard);
+  const resolveEmojiMatchMismatch = useAuthedMutation(api.emojiMatch.resolveMismatch);
+  const cancelEmojiMatch = useAuthedMutation(api.emojiMatch.cancelGame);
+  const timeoutEmojiMatchTurn = useAuthedMutation(api.emojiMatch.timeoutTurn);
+  const playAgainEmojiMatch = useAuthedMutation(api.emojiMatch.playAgain);
 
   // Emoji Bingo mutations
-  const createEmojiBingoLobby = useMutation(api.emojiBingo.createLobby);
-  const joinEmojiBingoLobby = useMutation(api.emojiBingo.joinLobby);
-  const leaveEmojiBingoLobby = useMutation(api.emojiBingo.leaveLobby);
-  const updateEmojiBingoSettings = useMutation(api.emojiBingo.updateSettings);
-  const startEmojiBingo = useMutation(api.emojiBingo.startGame);
-  const rollEmojiBingo = useMutation(api.emojiBingo.rollEmoji);
-  const markEmojiBingoCell = useMutation(api.emojiBingo.markCell);
-  const claimEmojiBingo = useMutation(api.emojiBingo.claimBingo);
-  const cancelEmojiBingo = useMutation(api.emojiBingo.cancelGame);
-  const playAgainEmojiBingo = useMutation(api.emojiBingo.playAgain);
+  const createEmojiBingoLobby = useAuthedMutation(api.emojiBingo.createLobby);
+  const joinEmojiBingoLobby = useAuthedMutation(api.emojiBingo.joinLobby);
+  const leaveEmojiBingoLobby = useAuthedMutation(api.emojiBingo.leaveLobby);
+  const updateEmojiBingoSettings = useAuthedMutation(api.emojiBingo.updateSettings);
+  const startEmojiBingo = useAuthedMutation(api.emojiBingo.startGame);
+  const rollEmojiBingo = useAuthedMutation(api.emojiBingo.rollEmoji);
+  const markEmojiBingoCell = useAuthedMutation(api.emojiBingo.markCell);
+  const claimEmojiBingo = useAuthedMutation(api.emojiBingo.claimBingo);
+  const cancelEmojiBingo = useAuthedMutation(api.emojiBingo.cancelGame);
+  const playAgainEmojiBingo = useAuthedMutation(api.emojiBingo.playAgain);
 
-  const cancelGameMutation = useMutation(api.games.cancelGame);
+  const cancelGameMutation = useAuthedMutation(api.games.cancelGame);
   const handleStartGame = useCallback(
     async (gameType: string, level: number = 1, timerSeconds: number = 20) => {
       if (!participantId) return;
@@ -767,13 +794,14 @@ function RoomContent() {
         await tracedMutation("em:resolveMismatch", "", () =>
           resolveEmojiMatchMismatch({
             gameId: gameId as Id<"emojiMatchGames">,
+            callerId: participantId as Id<"participants">,
           })
         );
       } catch (err) {
         console.error("Failed to resolve mismatch:", err);
       }
     },
-    [resolveEmojiMatchMismatch]
+    [resolveEmojiMatchMismatch, participantId]
   );
 
   const handleCancelEmojiMatch = useCallback(
@@ -798,14 +826,16 @@ function RoomContent() {
         await tracedMutation("em:timeoutTurn", `pid=${targetParticipantId.slice(-6)}`, () =>
           timeoutEmojiMatchTurn({
             gameId: gameId as Id<"emojiMatchGames">,
+            // Whose turn ran out; the caller, whose token the hook adds, is callerId
             participantId: targetParticipantId as Id<"participants">,
+            callerId: participantId as Id<"participants">,
           })
         );
       } catch (err) {
         console.error("Failed to timeout turn:", err);
       }
     },
-    [timeoutEmojiMatchTurn]
+    [timeoutEmojiMatchTurn, participantId]
   );
 
   const handlePlayAgainEmojiMatch = useCallback(
@@ -983,13 +1013,13 @@ function RoomContent() {
   );
 
   // Truth or Dare mutations
-  const createTruthOrDare = useMutation(api.truthOrDare.createGame);
-  const submitTruthOrDareChoice = useMutation(api.truthOrDare.submitChoice);
-  const submitTruthOrDareResponse = useMutation(api.truthOrDare.submitResponse);
-  const advanceTruthOrDareTurn = useMutation(api.truthOrDare.advanceTurn);
-  const skipTruthOrDareTurn = useMutation(api.truthOrDare.skipTurn);
-  const endTruthOrDare = useMutation(api.truthOrDare.endGame);
-  const submitTruthOrDareRating = useMutation(api.truthOrDare.submitRating);
+  const createTruthOrDare = useAuthedMutation(api.truthOrDare.createGame);
+  const submitTruthOrDareChoice = useAuthedMutation(api.truthOrDare.submitChoice);
+  const submitTruthOrDareResponse = useAuthedMutation(api.truthOrDare.submitResponse);
+  const advanceTruthOrDareTurn = useAuthedMutation(api.truthOrDare.advanceTurn);
+  const skipTruthOrDareTurn = useAuthedMutation(api.truthOrDare.skipTurn);
+  const endTruthOrDare = useAuthedMutation(api.truthOrDare.endGame);
+  const submitTruthOrDareRating = useAuthedMutation(api.truthOrDare.submitRating);
 
   const handleCreateTruthOrDare = useCallback(
     async (mode: "normal" | "deep" = "normal") => {
@@ -1038,7 +1068,7 @@ function RoomContent() {
                 const res = await fetch(`${convexSiteUrl}/api/truth-or-dare/submit-response`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ gameId, participantId, responseText, responseMediaUrl }),
+              body: JSON.stringify({ gameId, participantId, callerToken: tokenFor(participantId), responseText, responseMediaUrl }),
             });
             if (!res.ok) {
               const err = await res.json().catch(() => ({}));
@@ -1171,7 +1201,7 @@ function RoomContent() {
           // Convert data URL back to blob for upload
           const res = await fetch(item.mediaUrl);
           const blob = await res.blob();
-          const uploadUrl = await generateUploadUrl();
+          const uploadUrl = await generateUploadUrl({ callerId: participantId as Id<"participants"> });
           const uploadResult = await fetch(uploadUrl, {
             method: "POST",
             headers: { "Content-Type": blob.type || "image/png" },

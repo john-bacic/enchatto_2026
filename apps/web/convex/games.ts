@@ -1,8 +1,8 @@
 import { v } from "convex/values";
-import { action, internalMutation, mutation, query, MutationCtx } from "./_generated/server";
+import { action, internalMutation, mutation, query, ActionCtx, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { isAround, isPresent } from "./participants";
+import { isAround, isInlineDrawing, isPresent, requireCaller, requireHost, takeRateLimit } from "./participants";
 
 // Leveled prompts — level 1 has single words with hints, higher levels get progressively harder
 const LEVEL_PROMPTS: Record<number, Array<{ text: string; ja: string; hint?: string; hintJa?: string }>> = {
@@ -302,9 +302,21 @@ export const startGame = mutation({
       hint: v.optional(v.string()),
       hintJa: v.optional(v.string()),
     }))),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const level = args.level ?? 1;
+
+    if (args.gameType.length > 40) throw new Error("Unknown game type");
+    // The host app sends 40 prompts of a few words each. They are stored on the session and sent to every player
+    if (args.customPrompts) {
+      if (args.customPrompts.length > 200) throw new Error("Too many prompts (max 200)");
+      for (const p of args.customPrompts) {
+        if ([p.text, p.ja, p.hint, p.hintJa].some((s) => s !== undefined && s.length > 200)) {
+          throw new Error("Prompt too long (max 200 characters)");
+        }
+      }
+    }
 
     // Verify room exists and is active
     const room = await ctx.db.get(args.roomId);
@@ -315,6 +327,8 @@ export const startGame = mutation({
     const participant = await ctx.db.get(args.participantId);
     if (!participant) throw new Error("Participant not found");
     if (participant.role !== "host") throw new Error("Only the host can start a game");
+    // "Host" above is any room's host; it has to be this room's, and has to prove it
+    await requireHost(ctx, args.roomId, args.participantId, args.token, "games.startGame");
 
     // Check no active game
     const activeGames = await ctx.db
@@ -456,13 +470,18 @@ export const submitGameStep = mutation({
     translatedOutputText: v.optional(v.string()),
     outputDrawingUrl: v.optional(v.string()),
     selectedOption: v.optional(v.string()),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     console.log("[submitGameStep] called with stepId:", args.stepId);
     try {
+    await requireCaller(ctx, args.participantId, args.token, "games.submitGameStep");
     const step = await ctx.db.get(args.stepId);
     if (!step) throw new Error("Step not found");
     if (step.assignedParticipantId !== args.participantId) throw new Error("Not your step");
+    // Kept in the step and in a chat message as a data URL: both iOS game views decode nothing else. Never a link.
+    if (args.outputDrawingUrl && !isInlineDrawing(args.outputDrawingUrl)) throw new Error("Unsupported drawing");
+    if ((args.selectedOption ?? args.outputText ?? "").length > 500) throw new Error("Answer too long");
     // Already answered, or closed by the server deadline. Not an error: clients show anything
     // thrown here as an alert, and a late answer is simply dropped.
     if (step.status !== "active") return;
@@ -571,6 +590,7 @@ export const submitGameStepWithTranslation = action({
     outputText: v.optional(v.string()),
     outputDrawingUrl: v.optional(v.string()),
     selectedOption: v.optional(v.string()),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Build args object, omitting undefined values (Convex requires absent, not undefined)
@@ -581,6 +601,7 @@ export const submitGameStepWithTranslation = action({
     if (args.outputText !== undefined) mutationArgs.outputText = args.outputText;
     if (args.outputDrawingUrl !== undefined) mutationArgs.outputDrawingUrl = args.outputDrawingUrl;
     if (args.selectedOption !== undefined) mutationArgs.selectedOption = args.selectedOption;
+    if (args.token !== undefined) mutationArgs.token = args.token;
 
     await ctx.runMutation(api.games.submitGameStep, mutationArgs as any);
   },
@@ -655,11 +676,14 @@ export const cancelGame = mutation({
   args: {
     roomId: v.id("rooms"),
     participantId: v.id("participants"),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const participant = await ctx.db.get(args.participantId);
     if (!participant) throw new Error("Participant not found");
     if (participant.role !== "host") throw new Error("Only the host can cancel a game");
+    // "Host" above is any room's host; it has to be this room's, and has to prove it
+    await requireHost(ctx, args.roomId, args.participantId, args.token, "games.cancelGame");
 
     const activeSessions = await ctx.db
       .query("gameSessions")
@@ -1100,6 +1124,37 @@ export const getGameReplay = query({
 // Emojifyr — sentence-to-emoji guessing game
 // ============================================================
 
+// No current build offers Emojifyr, but installed iOS builds from before 2026-10-01 still call these
+// functions and their routes, so all of them stay as they are. What is bounded is what they can ask
+// of the model.
+
+// The longest text the game's own screens send towards the model, in UTF-16 units. The sentence field
+// stops at 80 characters, which the iOS field counts whole: an emoji is one there and two to four here.
+// A clue is never typed: it is the model's own 3-6 emoji, and the generator below stops at 64 tokens.
+// The guess field has no limit of its own, but a guess is one line typed at a handful of emoji.
+const EMOJIFYR_SENTENCE_MAX = 320;
+const EMOJIFYR_CLUE_MAX = 500;
+const EMOJIFYR_GUESS_MAX = 300;
+
+// One hourly ceiling for every Emojifyr model call, under a single key. Elsewhere a row that every
+// caller writes is avoided (participants.ts: takeRateLimit), but here the only real callers are the
+// few old builds that still have the game, so they are all that can contend for it. A round costs
+// about four calls plus one per guess: six players finishing a round every two minutes use about 270
+// an hour, so this leaves room for five such rooms.
+const EMOJIFYR_MODEL_CALLS_PER_HOUR = 1500;
+
+export const takeEmojifyrModelCall = internalMutation({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx): Promise<boolean> =>
+    await takeRateLimit(ctx, "emojifyr:all", EMOJIFYR_MODEL_CALLS_PER_HOUR, 60 * 60_000),
+});
+
+/** Counts one model call against the ceiling. False once the hour's allowance is used up */
+async function emojifyrModelCallAllowed(ctx: ActionCtx): Promise<boolean> {
+  return await ctx.runMutation(internal.games.takeEmojifyrModelCall, {});
+}
+
 export const startEmojifyr = mutation({
   args: {
     roomId: v.id("rooms"),
@@ -1291,6 +1346,10 @@ export const submitEmojifyrEmojiClueWithTranslation = action({
     emojiClue: v.string(),
   },
   handler: async (ctx, args) => {
+    // The clue goes into the hint prompt. The sentence translated below was capped at 80 when it was stored.
+    if (args.emojiClue.length > EMOJIFYR_CLUE_MAX) {
+      throw new Error(`Emoji clue too long (max ${EMOJIFYR_CLUE_MAX} characters)`);
+    }
     // Submit the emoji clue FIRST so guessing begins immediately
     await ctx.runMutation(api.games.submitEmojifyrEmojiClue, {
       roundId: args.roundId,
@@ -1301,8 +1360,9 @@ export const submitEmojifyrEmojiClueWithTranslation = action({
     try {
       const round: any = await ctx.runQuery(api.games.getEmojifyrRoundById, { roundId: args.roundId });
 
-      // Generate bilingual hint for the emoji clue
-      const hints = await generateEmojiHint(args.emojiClue);
+      // Generate bilingual hint for the emoji clue. Over the ceiling the round goes on without a hint
+      // or a translated sentence, which is also what happens when either call fails.
+      const hints = (await emojifyrModelCallAllowed(ctx)) ? await generateEmojiHint(args.emojiClue) : null;
       if (hints) {
         await ctx.runMutation(api.games.patchEmojifyrRoundHints, {
           roundId: args.roundId,
@@ -1316,7 +1376,9 @@ export const submitEmojifyrEmojiClueWithTranslation = action({
         const sentence = round.originalSentence;
         const detectedLang = detectLanguage(sentence);
         const targetLang = detectedLang === "ja" ? "en" : "ja";
-        const translated = await translateWithClaude(sentence, detectedLang, targetLang);
+        const translated = (await emojifyrModelCallAllowed(ctx))
+          ? await translateWithClaude(sentence, detectedLang, targetLang)
+          : null;
         if (translated) {
           await ctx.runMutation(api.games.patchEmojifyrRoundTranslation, {
             roundId: args.roundId,
@@ -1337,9 +1399,15 @@ export const submitEmojifyrGuessWithTranslation = action({
     guessText: v.string(),
   },
   handler: async (ctx, args) => {
+    if (args.guessText.length > EMOJIFYR_GUESS_MAX) {
+      throw new Error(`Guess too long (max ${EMOJIFYR_GUESS_MAX} characters)`);
+    }
     const detectedLang = detectLanguage(args.guessText);
     const targetLang = detectedLang === "ja" ? "en" : "ja";
-    const translated = await translateWithClaude(args.guessText, detectedLang, targetLang);
+    // Over the ceiling the guess is still recorded, untranslated, as when the translation fails
+    const translated = (await emojifyrModelCallAllowed(ctx))
+      ? await translateWithClaude(args.guessText, detectedLang, targetLang)
+      : null;
 
     await ctx.runMutation(api.games.submitEmojifyrGuess, {
       roundId: args.roundId,
@@ -1609,10 +1677,18 @@ function detectLanguage(text: string): string {
 
 export const generateEmojiClue = action({
   args: { sentence: v.string() },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    if (args.sentence.length > EMOJIFYR_SENTENCE_MAX) {
+      throw new Error(`Sentence too long (max ${EMOJIFYR_SENTENCE_MAX} characters)`);
+    }
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+    }
+    // "rate limit" makes the route answer 503. The old host app then makes a clue on the device
+    // and the old web screen offers Regenerate.
+    if (!(await emojifyrModelCallAllowed(ctx))) {
+      throw new Error("Emojifyr is busy (rate limit). Try again later.");
     }
 
     const prompt = `Convert this sentence into 3–6 emojis.
