@@ -448,7 +448,8 @@ http.route({
     if (body.outputDrawingUrl) args.outputDrawingUrl = body.outputDrawingUrl;
     if (body.selectedOption) args.selectedOption = body.selectedOption;
     if (typeof body.callerToken === "string") args.token = body.callerToken;
-    await ctx.runAction(api.games.submitGameStepWithTranslation, args as any);
+    // A guess is answered with its result; anything else with nothing, which goes out as {"ok":true}
+    return await ctx.runAction(api.games.submitGameStepWithTranslation, args as any);
   }),
 });
 
@@ -480,6 +481,8 @@ http.route({
   handler: jsonAction(async (ctx, body) => {
     return await ctx.runQuery(api.games.getMyActiveStep, {
       participantId: body.participantId,
+      // The app sends callerToken with every request. Anything that is not a string counts as none: a poll is never refused
+      token: typeof body.callerToken === "string" ? body.callerToken : undefined,
     });
   }),
 });

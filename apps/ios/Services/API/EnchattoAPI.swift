@@ -92,8 +92,9 @@ protocol EnchattoAPI {
     /// Start a game in a room (host only)
     func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int, customPrompts: [[String: Any]]?) async throws -> String
 
-    /// Submit a game step result
-    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws
+    /// Submit a game step result. Returns what the reply says about a guess; nil when it says nothing
+    /// (a drawing, a guess on a step the server had already closed)
+    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer?
 
     /// Get the active game session for a room
     func getActiveGameSession(roomId: String) async throws -> GameSession?

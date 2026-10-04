@@ -279,6 +279,7 @@ class HostRoomViewModel: ObservableObject {
         flushTask?.cancel()
         stopEmojiMatchFastPoll()
         stopWordRushFastPoll()
+        dropGuessHold()
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
@@ -354,6 +355,11 @@ class HostRoomViewModel: ObservableObject {
             updateDrawCountdown()
             let previousStepType = myActiveStep?.stepType
             try await pollGame("myActiveStep") { myActiveStep = try await api.getMyActiveStep(participantId: hostId) }
+            // The server has moved on from a guess whose reply is still out. The reply, or a retry's, gets 3 s more to
+            // bring the answer, and no longer: a lost reply costs the stamp, not the host's next round
+            if guessHoldAwaitsReply, let held = heldGuessStep, myActiveStep?.id != held.id {
+                holdGuessStep(held, for: 3, awaitingReply: false)
+            }
 
             // Set typing action to "drawing" while on a draw step. Nothing that can throw may sit between the poll above
             // and this comparison: the change is seen by one refresh only, and one that left in between would lose it
@@ -705,20 +711,41 @@ class HostRoomViewModel: ObservableObject {
     /// Throws when the answer did not get through; the overlay retries or shows it, so `error`
     /// is not set here.
     func submitGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String? = nil) async throws {
-        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
-        do {
-            try await api.submitGameStep(stepId: stepId, participantId: hostId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
-        } catch {
-            DebugConsole.shared.trace(source: .network, action: "submitGameStep:error", detail: error.localizedDescription, ok: false)
-            throw error
-        }
+        try await sendGameStep(stepId: stepId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
         // In its own task: the caller is the overlay's task, which is cancelled as soon as this
         // refresh makes the overlay go away, and a cancelled refresh would skip clearing the
         // "drawing" indicator.
         await Task { await self.refresh() }.value
     }
 
+    /// Sends the host's guess on a step that does not say which option is right, and returns what the
+    /// reply says about the guess: nil when it says nothing. Returns and throws as `submitGameStep` does,
+    /// but does not wait for the refresh: the overlay stamps the answer at once, and the step is held on
+    /// screen meanwhile (see "Guess hold").
+    func commitGuess(stepId: String, selectedOption: String) async throws -> GameGuessAnswer? {
+        let answer = try await sendGameStep(stepId: stepId, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
+        guessRefresh = Task { await self.refresh() }
+        return answer
+    }
+
+    /// The refresh the last `commitGuess` started: the one that moves `myActiveStep` on from that guess
+    private(set) var guessRefresh: Task<Void, Never>?
+
+    /// The request behind both. A guess returns what the reply says about it
+    @discardableResult
+    private func sendGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {
+        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
+        do {
+            return try await api.submitGameStep(stepId: stepId, participantId: hostId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
+        } catch {
+            DebugConsole.shared.trace(source: .network, action: "submitGameStep:error", detail: error.localizedDescription, ok: false)
+            throw error
+        }
+    }
+
     func cancelGame() async {
+        // The game is being ended from this device: a held guess has nothing left to wait for
+        dropGuessHold()
         guard networkMonitor.isConnected else { return }
         do {
             try await api.cancelGame(roomId: roomId, participantId: hostId)
@@ -728,8 +755,55 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    /// Not while a guess is held: the replay waits until the game cover has let the last guess of the game go
     var isGameComplete: Bool {
-        latestGameSession?.status == .complete && activeGameSession == nil
+        latestGameSession?.status == .complete && activeGameSession == nil && heldGuessStep == nil
+    }
+
+    // MARK: - Guess hold
+
+    /// A guess the host has sent whose Correct! / Wrong! has yet to be seen. The server closes a guess step as it
+    /// takes the guess, so the next poll finds no step, or the host's next drawing; the game cover goes on showing
+    /// this one. Presentation only: `myActiveStep` and the polls are what they are without it
+    @Published private(set) var heldGuessStep: GameStep?
+    /// Ends the hold when nothing else has: every hold has a deadline
+    private var guessHoldTimer: Task<Void, Never>?
+    /// The guess is on its way and its reply is not in yet
+    private var guessHoldAwaitsReply = false
+
+    /// The step the game cover shows
+    var presentedStep: GameStep? { heldGuessStep ?? myActiveStep }
+
+    /// Keeps `step` on the game cover for `seconds` from now, whatever the polls say. A hold already on gets this
+    /// deadline in place of its own, except that a try of the guess (`awaitingReply`) does not extend a hold once a
+    /// poll has shown the server moved on from the step. Only the step the cover is showing can be held: one it has
+    /// left is not brought back.
+    func holdGuessStep(_ step: GameStep, for seconds: TimeInterval, awaitingReply: Bool) {
+        guard presentedStep?.id == step.id else { return }
+        // Once a poll has shown the server moved on from this guess, a retry does not buy the hold more time
+        if awaitingReply, heldGuessStep?.id == step.id, myActiveStep?.id != step.id { return }
+        if heldGuessStep?.id != step.id { heldGuessStep = step }
+        guessHoldAwaitsReply = awaitingReply
+        guessHoldTimer?.cancel()
+        let stepId = step.id
+        guessHoldTimer = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.releaseGuessHold(stepId: stepId)
+        }
+    }
+
+    /// Lets the game cover show `myActiveStep` again. Does nothing unless `stepId` is the step that is held
+    func releaseGuessHold(stepId: String) {
+        guard heldGuessStep?.id == stepId else { return }
+        dropGuessHold()
+    }
+
+    private func dropGuessHold() {
+        guessHoldTimer?.cancel()
+        guessHoldTimer = nil
+        guessHoldAwaitsReply = false
+        if heldGuessStep != nil { heldGuessStep = nil }
     }
 
     // MARK: - Word Rush

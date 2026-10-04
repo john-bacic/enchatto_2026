@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { action, internalMutation, mutation, query, ActionCtx, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { isAround, isInlineDrawing, isPresent, requireCaller, requireHost, takeRateLimit } from "./participants";
+import { callerProof, isAround, isInlineDrawing, isPresent, requireCaller, requireHost, takeRateLimit } from "./participants";
 
 // Leveled prompts — level 1 has single words with hints, higher levels get progressively harder
 const LEVEL_PROMPTS: Record<number, Array<{ text: string; ja: string; hint?: string; hintJa?: string }>> = {
@@ -179,6 +179,40 @@ function phaseLimitMs(session: Doc<"gameSessions">, phase: RoundPhase): number {
 /** A guess someone actually answered. Steps closed by the server are "submitted" too, flagged timedOut. */
 function isAnsweredGuess(s: Doc<"gameSteps">): boolean {
   return s.stepType === "guess" && s.status === "submitted" && !s.timedOut;
+}
+
+/**
+ * With LOST_IN_TRANSLATION_HIDE_ANSWER set to "on", a client cannot read which option is right before its guess
+ * is in: getMyActiveStep sends a step only to a caller who proves to be its player (a drawing step carries the
+ * prompt), and leaves `correctOption` out of every step. The answer comes in the reply to the guess instead
+ * (GuessResult), which is the same in both modes.
+ *
+ * Off unless set, like AUTH_MODE and EMOJI_MATCH_HIDE_CARDS: every iOS build up to e2c060f reads `correctOption`
+ * off the step to mark the pick, and without it stamps every pick "Wrong!" (the guess is scored correctly either
+ * way). Set it once those builds are no longer in use. Mutations read the stored game either way.
+ */
+function hidesAnswer(): boolean {
+  return process.env.LOST_IN_TRANSLATION_HIDE_ANSWER === "on";
+}
+
+/** What submitting a guess is answered with: whether the pick was right, which option was, and the pick on record */
+type GuessResult = { correct: boolean; correctOption: string; selectedOption?: string };
+
+/**
+ * The result of a player's guess. `correctOption` is the round's prompt in the words getMyActiveStep offered
+ * that player, so it is one of the options on their screen: the translation for a Japanese-speaking player.
+ */
+function guessResult(
+  session: Doc<"gameSessions">,
+  chain: Doc<"gameChains">,
+  player: Doc<"participants">,
+  guess: { correct?: boolean; selectedOption?: string }
+): GuessResult {
+  const correctOption =
+    player.preferredLanguage === "ja"
+      ? (translationsFor(session)[chain.originalPrompt]?.ja ?? chain.originalPrompt)
+      : chain.originalPrompt;
+  return { correct: !!guess.correct, correctOption, selectedOption: guess.selectedOption };
 }
 
 /** Schedule the next look at a chain's open draw or guess steps. Call once when those steps are created. */
@@ -511,10 +545,14 @@ export const submitGameStep = mutation({
     selectedOption: v.optional(v.string()),
     token: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<GuessResult | null> => {
     console.log("[submitGameStep] called with stepId:", args.stepId);
     try {
-    await requireCaller(ctx, args.participantId, args.token, "games.submitGameStep");
+    const caller = await requireCaller(ctx, args.participantId, args.token, "games.submitGameStep");
+    // requireCaller lets a missing or wrong token through unless AUTH_MODE is "enforce", so it decides whether
+    // the guess is taken. Whether the call is told how the guess came out goes by this proof in both modes:
+    // otherwise anyone could read a round's prompt by sending, or sending again, another player's guess
+    const proof = caller ? await callerProof(ctx, caller._id, args.token) : "none";
     const step = await ctx.db.get(args.stepId);
     if (!step) throw new Error("Step not found");
     if (step.assignedParticipantId !== args.participantId) throw new Error("Not your step");
@@ -523,7 +561,17 @@ export const submitGameStep = mutation({
     if ((args.selectedOption ?? args.outputText ?? "").length > 500) throw new Error("Answer too long");
     // Already answered, or closed by the server deadline. Not an error: clients show anything
     // thrown here as an alert, and a late answer is simply dropped.
-    if (step.status !== "active") return;
+    if (step.status !== "active") {
+      // The reply to a guess can be lost, so its player may send the guess again and is told how the first one
+      // came out: the pick on record stands, whatever this call carries. A repeat changes nothing, which would
+      // make it a free read for anyone who knows the ids, so it is answered only for a matching token. A player
+      // with none on record is answered once, when the guess is taken.
+      if (!caller || proof !== "token" || !isAnsweredGuess(step)) return null;
+      const answeredChain = await ctx.db.get(step.chainId);
+      const answeredSession = answeredChain && (await ctx.db.get(answeredChain.gameSessionId));
+      if (!answeredChain || !answeredSession) return null;
+      return guessResult(answeredSession, answeredChain, caller, step);
+    }
 
     const chain = await ctx.db.get(step.chainId);
     if (!chain) throw new Error("Chain not found");
@@ -579,7 +627,7 @@ export const submitGameStep = mutation({
 
       await ctx.db.patch(step.chainId, { currentStepIndex: 1 });
       console.log("[submitGameStep] draw path complete for chain", chain.chainIndex);
-      return;
+      return null;
     }
 
     // === GUESS STEP SUBMITTED ===
@@ -588,7 +636,8 @@ export const submitGameStep = mutation({
     // getMyActiveStep showed, which is the session's own word bank first, then the built-in one
     const jaTranslation = translationsFor(session)[chain.originalPrompt]?.ja;
     const isCorrect = selectedOption === chain.originalPrompt || (!!jaTranslation && selectedOption === jaTranslation);
-    console.log("[submitGameStep] guess:", selectedOption, "correct:", isCorrect, "expected:", chain.originalPrompt, "ja:", jaTranslation);
+    // Neither the pick nor the prompt: a dev deployment sends a function's log lines back to its caller
+    console.log("[submitGameStep] guess taken for chain", chain.chainIndex);
 
     await ctx.db.patch(args.stepId, {
       outputText: selectedOption,
@@ -610,10 +659,13 @@ export const submitGameStep = mutation({
 
     console.log("[submitGameStep] guessSteps:", guessSteps.length, "allSubmitted:", allGuessesSubmitted);
 
-    if (!allGuessesSubmitted) return; // Wait for other guessers
+    const result =
+      caller && proof !== "none" ? guessResult(session, chain, caller, { correct: isCorrect, selectedOption }) : null;
+    if (!allGuessesSubmitted) return result; // Wait for other guessers
 
     // All guesses in — complete this chain/round
     await finishRound(ctx, session, chain);
+    return result;
     } catch (err: any) {
       console.error("[submitGameStep] ERROR:", err.message ?? err);
       throw err;
@@ -631,7 +683,8 @@ export const submitGameStepWithTranslation = action({
     selectedOption: v.optional(v.string()),
     token: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  // The return type is written out: inferred, it would depend on `api`, which depends on this module
+  handler: async (ctx, args): Promise<GuessResult | null> => {
     // Build args object, omitting undefined values (Convex requires absent, not undefined)
     const mutationArgs: Record<string, unknown> = {
       stepId: args.stepId,
@@ -642,7 +695,7 @@ export const submitGameStepWithTranslation = action({
     if (args.selectedOption !== undefined) mutationArgs.selectedOption = args.selectedOption;
     if (args.token !== undefined) mutationArgs.token = args.token;
 
-    await ctx.runMutation(api.games.submitGameStep, mutationArgs as any);
+    return await ctx.runMutation(api.games.submitGameStep, mutationArgs as any);
   },
 });
 
@@ -854,7 +907,8 @@ export const getActiveGameSession = query({
 });
 
 export const getMyActiveStep = query({
-  args: { participantId: v.id("participants") },
+  // `token` is read only with LOST_IN_TRANSLATION_HIDE_ANSWER on
+  args: { participantId: v.id("participants"), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
     // Look up the participant to get their roomId
     const participant = await ctx.db.get(args.participantId);
@@ -882,6 +936,13 @@ export const getMyActiveStep = query({
       (s) => s.assignedParticipantId === args.participantId && s.status === "active"
     );
     if (!step) return null;
+
+    // See hidesAnswer. A participant id is on every guest's screen, so anyone can ask for anyone's step, and a
+    // step is for its player alone: a drawing step carries the prompt, and every step the id its answer is
+    // sent with. A caller without proof is told there is no step, never refused: an error from this query
+    // takes the web room page down.
+    const hide = hidesAnswer();
+    if (hide && (await callerProof(ctx, args.participantId, args.token)) === "none") return null;
 
     const chain = await ctx.db.get(step.chainId);
     const round = (chain?.chainIndex ?? 0) + 1;
@@ -916,7 +977,7 @@ export const getMyActiveStep = query({
       round,
       totalRounds,
       options,
-      correctOption,
+      correctOption: hide ? undefined : correctOption,
       timerEnabled: typeof session.timerEnabled === "number"
         ? session.timerEnabled
         : (session.timerEnabled !== false ? 20 : 0),

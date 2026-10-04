@@ -183,6 +183,20 @@ enum GameStepStatus: String, Codable {
     case submitted
 }
 
+// MARK: - Guess answer
+
+/// What the reply to a guess says about it. An open step may not say which option is right; the reply does,
+/// once the server has taken the guess
+struct GameGuessAnswer: Equatable {
+    /// Whether the pick the server holds for the step is right
+    let correct: Bool
+    /// The right option, worded as this player's options are
+    let correctOption: String
+    /// The pick the server holds for the step. Not always the one just sent: an earlier send can have landed
+    /// although its reply was lost
+    let selectedOption: String?
+}
+
 // MARK: - Game Replay
 
 struct GameReplay: Codable {

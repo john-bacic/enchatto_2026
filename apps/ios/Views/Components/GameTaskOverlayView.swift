@@ -7,6 +7,14 @@ struct GameTaskOverlayView: View {
     /// closed the step) and throw when it did not get through.
     let onSubmitDrawing: (UIImage) async throws -> Void
     let onSubmitGuess: (String) async throws -> Void
+    /// A guess on a step that does not say which option is right goes through these three instead of
+    /// `onSubmitGuess`. `onCommitGuess` returns and throws like it, with what the reply said about the
+    /// guess: nil when it said nothing. The server closes the step as it takes the guess, so the step has
+    /// to be kept on screen: `onHoldGuess` asks for so many seconds from now (`true` while the reply is
+    /// still out), and `onReleaseGuess` gives the step back (`true` once the server has answered the guess).
+    let onCommitGuess: (String) async throws -> GameGuessAnswer?
+    let onHoldGuess: (TimeInterval, Bool) -> Void
+    let onReleaseGuess: (Bool) -> Void
     var onQuit: (() -> Void)?
 
     private var timerSeconds: Int { step.timerEnabled ?? 20 }
@@ -14,6 +22,8 @@ struct GameTaskOverlayView: View {
     @State private var submitting = false
     @State private var selectedAnswer: String?
     @State private var showFeedback = false
+    /// What the reply to the guess said, on a step that does not say which option is right
+    @State private var guessAnswer: GameGuessAnswer?
     @State private var timeLeft: Int = 10
     @State private var countdownTimer: Timer?
     @State private var triggerAutoSubmit = false
@@ -27,6 +37,8 @@ struct GameTaskOverlayView: View {
         let id = UUID()
         var image: UIImage?
         var option: String?
+        /// The guess goes out before its answer is known: the step did not say which option is right
+        var commitsFirst = false
     }
 
     private enum SubmitNote { case retrying, failed }
@@ -36,6 +48,27 @@ struct GameTaskOverlayView: View {
     /// games.ts). A try that hangs runs to its timeout first (10 s for a guess, 15 s for a drawing, set in
     /// RealEnchattoAPI.submitGameStep): short enough for one retry of a drawing to start inside those 25 s.
     private static let submitRetryDelays: [UInt64] = [1_000_000_000, 2_000_000_000, 4_000_000_000, 8_000_000_000]
+
+    /// How long a try of a guess keeps its step on screen: the request's timeout, and 2 s more for its reply
+    private static let guessSendHoldSeconds: TimeInterval = ConvexHTTPClient.defaultTimeout + 2
+    /// How long Correct! / Wrong! stays up when it comes with the reply to the guess
+    private static let replyStampSeconds: TimeInterval = 1.5
+
+    /// Whether the pick is right, once `showFeedback` is set. The step says so when it carries the right
+    /// option; when it does not, the reply to the guess does
+    private var pickIsCorrect: Bool {
+        if let correctOption = step.correctOption { return selectedAnswer == correctOption }
+        return guessAnswer?.correct == true
+    }
+
+    /// The option shown as the right one, once `showFeedback` is set
+    private var rightOption: String? {
+        if let correctOption = step.correctOption { return correctOption }
+        guard let answer = guessAnswer else { return nil }
+        // A right pick is shown as right even when the reply words the answer like none of the options
+        if answer.correct, step.options?.contains(answer.correctOption) != true { return selectedAnswer }
+        return answer.correctOption
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -192,7 +225,7 @@ struct GameTaskOverlayView: View {
                 .ecCard(radius: 20, border: 3, shadow: 6)
                 .overlay(alignment: .topTrailing) {
                     if showFeedback {
-                        let isCorrect = selectedAnswer == step.correctOption
+                        let isCorrect = pickIsCorrect
                         OutlinedText(isCorrect ? L.t("Correct!", lang) : L.t("Wrong!", lang), size: 30, fill: isCorrect ? EC.mint : EC.red, outline: 3)
                             .rotationEffect(.degrees(10))
                             .stampIn()
@@ -203,7 +236,7 @@ struct GameTaskOverlayView: View {
 
             // Feedback text (when there's no drawing to stamp over)
             if showFeedback, step.inputDrawingUrl == nil {
-                let isCorrect = selectedAnswer == step.correctOption
+                let isCorrect = pickIsCorrect
                 OutlinedText(isCorrect ? L.t("Correct!", lang) : L.t("Wrong!", lang), size: 28, fill: isCorrect ? EC.mint : EC.red)
                     .stampIn()
             }
@@ -236,7 +269,7 @@ struct GameTaskOverlayView: View {
                                         .offset(x: -5, y: -8)
                                 }
                                 .opacity(optionDimmed(option) ? 0.5 : 1)
-                                .scaleEffect(showFeedback && option == step.correctOption ? 1.05 : 1)
+                                .scaleEffect(showFeedback && option == rightOption ? 1.05 : 1)
                                 .animation(.spring(response: 0.35, dampingFraction: 0.5), value: showFeedback)
                         }
                         .buttonStyle(.pressable)
@@ -254,8 +287,18 @@ struct GameTaskOverlayView: View {
     private func handleOptionSelect(_ option: String) {
         guard !submitting, !showFeedback else { return }
         selectedAnswer = option
-        showFeedback = true
         submitNote = nil
+
+        guard step.correctOption != nil else {
+            // The step does not say which option is right, so there is nothing to stamp yet: the pick stands
+            // out, the guess goes out at once and its reply brings the answer. The hold starts here, before
+            // the request: a poll already on its way can report the step closed before the reply arrives
+            submitting = true
+            onHoldGuess(Self.guessSendHoldSeconds, true)
+            pendingSubmit = PendingSubmit(option: option, commitsFirst: true)
+            return
+        }
+        showFeedback = true
 
         // Haptic feedback
         let isCorrect = option == step.correctOption
@@ -274,7 +317,12 @@ struct GameTaskOverlayView: View {
     private func runPendingSubmit() async {
         guard let pending = pendingSubmit else { return }
 
-        if pending.option != nil {
+        // A guess sent before its answer is known has its step held on screen. The step is given back on
+        // every way out of here, a cancelled task included; `answered` once the server has replied
+        var answered = false
+        defer { if pending.commitsFirst { onReleaseGuess(answered) } }
+
+        if pending.option != nil, !pending.commitsFirst {
             // Let the Correct!/Wrong! stamp show before the overlay can close
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard !Task.isCancelled, pendingSubmit?.id == pending.id else { return }
@@ -287,6 +335,16 @@ struct GameTaskOverlayView: View {
             do {
                 if let image = pending.image {
                     try await onSubmitDrawing(image)
+                } else if let option = pending.option, pending.commitsFirst {
+                    // Each try holds the step for as long as its own reply can take, unless a poll has already said
+                    // the server moved on from it: then the 3 s that poll set stand
+                    onHoldGuess(Self.guessSendHoldSeconds, true)
+                    let answer = try await onCommitGuess(option)
+                    answered = true
+                    // The overlay has gone (quit, or the hold ran out): no stamp and no haptic
+                    guard !Task.isCancelled else { return }
+                    submitNote = nil
+                    if let answer { await stampGuessAnswer(answer) }
                 } else if let option = pending.option {
                     try await onSubmitGuess(option)
                 }
@@ -316,6 +374,24 @@ struct GameTaskOverlayView: View {
         if !wasCancelled { Haptics.error() }
     }
 
+    /// Stamps what the reply said about the guess, and returns when the stamp has had its time
+    @MainActor
+    private func stampGuessAnswer(_ answer: GameGuessAnswer) async {
+        // The pick the server holds is the one it judged. After a send whose reply was lost, that can be
+        // an earlier pick than the one on screen
+        if let held = answer.selectedOption, step.options?.contains(held) == true { selectedAnswer = held }
+        guessAnswer = answer
+        showFeedback = true
+        if answer.correct {
+            Haptics.success()
+            confetti += 1
+        } else {
+            Haptics.error()
+        }
+        onHoldGuess(Self.replyStampSeconds, false)
+        try? await Task.sleep(nanoseconds: UInt64(Self.replyStampSeconds * 1_000_000_000))
+    }
+
     /// "Sending…" while a failed submit is retried, then the failure once the overlay has given up
     @ViewBuilder
     private var submitNoteView: some View {
@@ -337,17 +413,20 @@ struct GameTaskOverlayView: View {
     private func optionBackground(_ option: String, index: Int) -> Color {
         let tint = Self.tints[index % Self.tints.count]
         guard showFeedback else { return tint }
-        if option == step.correctOption {
+        if option == rightOption {
             return EC.mint
         }
-        if option == selectedAnswer && selectedAnswer != step.correctOption {
+        if option == selectedAnswer && !pickIsCorrect {
             return EC.red
         }
         return tint
     }
 
+    /// A pick whose answer is still out stands out alone; once the answer shows, the right option stands
+    /// out with it
     private func optionDimmed(_ option: String) -> Bool {
-        showFeedback && option != step.correctOption && option != selectedAnswer
+        guard selectedAnswer != nil, option != selectedAnswer else { return false }
+        return !showFeedback || option != rightOption
     }
 
     private func decodeBase64Image(_ dataUrl: String) -> UIImage? {

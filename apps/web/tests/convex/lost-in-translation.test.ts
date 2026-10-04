@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { callerProof } from "../../convex/participants";
 import schema from "../../convex/schema";
 import { Backend, joinGuest, modules, newBackend, tokenFor } from "./setup";
 
@@ -1622,22 +1623,6 @@ describe("the queries clients poll", () => {
     expect(step!.inputText).toBeUndefined();
   });
 
-  // DEFECT: getMyActiveStep returns `correctOption` (the round's prompt) with a guess step that is still open
-  // (games.ts:906-919), so a guesser's client holds the answer before the guess is made. The review's security
-  // table lists it ("the correct Lost in Translation option before the guess") and the five fix commits left it.
-  // Both clients read the field to colour the options on tap (game-task-overlay.tsx:99, GameTaskOverlayView.swift:195),
-  // so a fix has to return correctness from the submit instead, and a client from before the fix would stamp every
-  // pick "Wrong!".
-  test.fails("a guesser's open step does not say which option is right", async () => {
-    const t = newBackend();
-    const { roomId, hostId, guestIds: [ann] } = await room(t);
-    await start(t, roomId, hostId);
-    await draw(t, hostId);
-
-    const step = await openStep(t, ann, "guess");
-    expect(step.correctOption).toBeUndefined();
-  });
-
   // Both clients ask for the replay only once the session is complete, but the query answers for a running one too
   test("the replay of a running game leaves out the round still being guessed", async () => {
     const t = newBackend();
@@ -1825,6 +1810,671 @@ describe("the queries clients poll", () => {
     for (const option of chain.options!) {
       expect(replay!.promptTranslations[option]).toBe(prompts.find((p) => p.text === option)!.ja);
     }
+  });
+});
+
+// ─── Hiding the answer ───────────────────────────────────────────────────────
+// LOST_IN_TRANSLATION_HIDE_ANSWER is off unless it is "on": installed host apps read `correctOption` off the open
+// step to mark the pick. The answer to a guess comes back from the submit in both modes.
+
+describe("hiding the answer", () => {
+  const HOST_TOKEN = tokenFor(1);
+  const ANN_TOKEN = tokenFor(2);
+  const BEN_TOKEN = tokenFor(3);
+  const SWITCH = "LOST_IN_TRANSLATION_HIDE_ANSWER";
+  const NO_STEP = { status: 200, body: { ok: true } };
+
+  /** A room whose host, Ann and Ben all registered a token, as current builds do. The host draws round 1 */
+  async function tokenGame(t: Backend, extra: StartExtras = {}) {
+    const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+    const ann = await joinGuest(t, roomId, "Ann", { token: ANN_TOKEN });
+    const ben = await joinGuest(t, roomId, "Ben", { token: BEN_TOKEN, avatar: "cat" });
+    const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, ...extra });
+    const [chain] = await chainsOf(t, sessionId);
+    const right = chain.originalPrompt;
+    const wrong = chain.options!.find((o) => o !== right)!;
+    return { roomId, hostId, ann, ben, sessionId, chain, right, wrong };
+  }
+
+  /** The same, with the host's drawing in: Ann and Ben each hold an open guess */
+  async function guessing(t: Backend, extra: StartExtras = {}) {
+    const game = await tokenGame(t, extra);
+    await sendDrawing(t, game.hostId, HOST_TOKEN);
+    return game;
+  }
+
+  /** The player's open step as their own client is sent it: asked for with their token, which works in both modes */
+  async function stepFor(t: Backend, participantId: PID, token: string | undefined, type: "draw" | "guess") {
+    const step = await t.query(api.games.getMyActiveStep, { participantId, token });
+    if (!step || step.stepType !== type) throw new Error(`Expected an open ${type} step, found ${step?.stepType ?? "none"}`);
+    return step;
+  }
+
+  async function sendDrawing(t: Backend, participantId: PID, token?: string) {
+    const step = await stepFor(t, participantId, token, "draw");
+    await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId, outputDrawingUrl: PNG, token });
+  }
+
+  /** Sends the player's pick for their open guess, and returns what the submit answers */
+  async function answer(t: Backend, participantId: PID, selectedOption: string, token?: string) {
+    const step = await stepFor(t, participantId, token, "guess");
+    return await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId, selectedOption, token });
+  }
+
+  /** A player's open step as the database holds it: what someone who is not that player has to go by with the switch on */
+  async function storedStep(t: Backend, sessionId: SessionId, participantId: PID) {
+    const step = (await stepsOf(t, sessionId)).find((s) => s.assignedParticipantId === participantId && s.status === "active");
+    if (!step) throw new Error("No open step");
+    return step;
+  }
+
+  // ── What the step says ──
+
+  test.each([undefined, "", "off", "true"])(
+    "with the switch %j, a step is sent to anyone who asks, and names the option that is right",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv(SWITCH, value);
+      const t = newBackend();
+      const { hostId, ann, sessionId, chain, right } = await tokenGame(t, { level: 2, timerEnabled: 45 });
+      const settings = { chainMaxSteps: 3, level: 2, round: 1, totalRounds: 10, timerEnabled: 45 };
+
+      // The drawer's step, asked for with no token, with somebody else's and with the drawer's: the token is not looked at
+      const drawStep = await storedStep(t, sessionId, hostId);
+      const expectedDraw = { ...drawStep, ...settings, inputText: right, options: chain.options, correctOption: right };
+      for (const token of [undefined, ANN_TOKEN, HOST_TOKEN, "x"]) {
+        expect(await t.query(api.games.getMyActiveStep, { participantId: hostId, token })).toStrictEqual(expectedDraw);
+        expect(await post(t, "/api/games/my-active-step", { participantId: hostId, callerToken: token })).toStrictEqual({
+          status: 200,
+          body: expectedDraw,
+        });
+      }
+
+      await sendDrawing(t, hostId, HOST_TOKEN);
+      const guessStep = await storedStep(t, sessionId, ann);
+      const expectedGuess = { ...guessStep, ...settings, options: chain.options, correctOption: right };
+      for (const token of [undefined, HOST_TOKEN, ANN_TOKEN]) {
+        expect(await t.query(api.games.getMyActiveStep, { participantId: ann, token })).toStrictEqual(expectedGuess);
+        expect((await post(t, "/api/games/my-active-step", { participantId: ann, callerToken: token })).body).toStrictEqual(expectedGuess);
+      }
+    }
+  );
+
+  // Installed clients compare the tapped option with correctOption, and a Japanese-speaking player's options are Japanese
+  test("with the switch unset, a Japanese-speaking player's step names the right option in Japanese", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+    const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja", token: ANN_TOKEN });
+    const prompts = bank(40);
+    const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, customPrompts: prompts });
+    const [chain] = await chainsOf(t, sessionId);
+    const ja = prompts.find((p) => p.text === chain.originalPrompt)!.ja;
+    await sendDrawing(t, hostId, HOST_TOKEN);
+
+    const step = await openStep(t, yuki, "guess");
+    expect(step.options).toContain(ja);
+    expect(step.correctOption).toBe(ja);
+  });
+
+  // A participant id is on every guest's screen, so "my" step can be asked for by anyone. A drawing step carries
+  // the prompt, and any step the id its answer is sent with
+  test("with the switch on, a step is sent only to a caller with its player's token: anyone else is told there is none", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { hostId, ann, ben } = await tokenGame(t);
+    consoleWarn.mockClear();
+
+    expect(await t.query(api.games.getMyActiveStep, { participantId: hostId, token: HOST_TOKEN })).toMatchObject({ stepType: "draw" });
+    // No token, another player's, and one that is not a token at all
+    for (const token of [undefined, ANN_TOKEN, "x"]) {
+      expect(await t.query(api.games.getMyActiveStep, { participantId: hostId, token })).toBeNull();
+      expect(await post(t, "/api/games/my-active-step", { participantId: hostId, callerToken: token })).toEqual(NO_STEP);
+    }
+
+    await sendDrawing(t, hostId, HOST_TOKEN);
+    expect(await t.query(api.games.getMyActiveStep, { participantId: ann, token: ANN_TOKEN })).toMatchObject({ stepType: "guess" });
+    for (const token of [undefined, HOST_TOKEN, BEN_TOKEN, "x"]) {
+      expect(await t.query(api.games.getMyActiveStep, { participantId: ann, token })).toBeNull();
+      expect(await post(t, "/api/games/my-active-step", { participantId: ann, callerToken: token })).toEqual(NO_STEP);
+    }
+    // Ben's own token gets Ben's step, and no other
+    expect(await t.query(api.games.getMyActiveStep, { participantId: ben, token: BEN_TOKEN })).toMatchObject({
+      stepType: "guess",
+      assignedParticipantId: ben,
+    });
+    // Held back in silence: the query is polled, and each of these would be a log line every 1.5 s
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
+
+  test("with the switch on, the step its player is sent does not say which option is right, and is otherwise whole", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { hostId, ann, sessionId, chain, right } = await tokenGame(t, { level: 2, timerEnabled: 45 });
+    const settings = { chainMaxSteps: 3, level: 2, round: 1, totalRounds: 10, timerEnabled: 45 };
+
+    // The drawer is still given the prompt, as the text to draw
+    const expectedDraw = { ...(await storedStep(t, sessionId, hostId)), ...settings, inputText: right, options: chain.options };
+    const drawStep = await t.query(api.games.getMyActiveStep, { participantId: hostId, token: HOST_TOKEN });
+    expect(drawStep).not.toHaveProperty("correctOption");
+    expect(drawStep).toStrictEqual(expectedDraw);
+    expect(await post(t, "/api/games/my-active-step", { participantId: hostId, callerToken: HOST_TOKEN })).toStrictEqual({
+      status: 200,
+      body: expectedDraw,
+    });
+
+    await sendDrawing(t, hostId, HOST_TOKEN);
+    const expectedGuess = { ...(await storedStep(t, sessionId, ann)), ...settings, options: chain.options };
+    const guessStep = await t.query(api.games.getMyActiveStep, { participantId: ann, token: ANN_TOKEN });
+    expect(guessStep).not.toHaveProperty("correctOption");
+    expect(guessStep).not.toHaveProperty("inputText");
+    expect(guessStep).toStrictEqual(expectedGuess);
+    const overRoute = await post(t, "/api/games/my-active-step", { participantId: ann, callerId: ann, callerToken: ANN_TOKEN });
+    expect(overRoute.body).not.toHaveProperty("correctOption");
+    expect(overRoute).toStrictEqual({ status: 200, body: expectedGuess });
+  });
+
+  test("with the switch on, a Japanese-speaking player's steps are still in Japanese", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+    const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja", token: ANN_TOKEN });
+    const prompts = bank(40);
+    const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, customPrompts: prompts });
+    const chains = await chainsOf(t, sessionId);
+    const jaOf = (text: string) => prompts.find((p) => p.text === text)!.ja;
+    await sendDrawing(t, hostId, HOST_TOKEN);
+
+    const guessStep = await stepFor(t, yuki, ANN_TOKEN, "guess");
+    expect(guessStep.options).toEqual(chains[0].options!.map(jaOf));
+    expect(guessStep).not.toHaveProperty("correctOption");
+    await answer(t, yuki, jaOf(chains[0].originalPrompt), ANN_TOKEN);
+
+    const prompt = prompts.find((p) => p.text === chains[1].originalPrompt)!;
+    const drawStep = await stepFor(t, yuki, ANN_TOKEN, "draw");
+    expect(drawStep).toMatchObject({ inputText: prompt.ja, hintText: prompt.hintJa });
+    expect(drawStep).not.toHaveProperty("correctOption");
+    expect(await myStep(t, yuki)).toBeNull();
+  });
+
+  // A participant made by a build from before tokens, or by a browser that blocks storage, has no token to show
+  test("with the switch on, a player from before tokens is still sent their step without one", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [ann] } = await room(t);
+    const sessionId = await start(t, roomId, hostId);
+    const [chain] = await chainsOf(t, sessionId);
+
+    const drawStep = await myStep(t, hostId);
+    expect(drawStep).toMatchObject({ stepType: "draw", inputText: chain.originalPrompt });
+    expect(drawStep).not.toHaveProperty("correctOption");
+    expect((await post(t, "/api/games/my-active-step", { participantId: hostId })).body).toStrictEqual(drawStep);
+    // A token sent for a participant with none on record changes nothing
+    expect(await t.query(api.games.getMyActiveStep, { participantId: hostId, token: ANN_TOKEN })).toStrictEqual(drawStep);
+
+    await draw(t, hostId);
+    const guessStep = await myStep(t, ann);
+    expect(guessStep).toMatchObject({ stepType: "guess", options: chain.options });
+    expect(guessStep).not.toHaveProperty("correctOption");
+    expect((await post(t, "/api/games/my-active-step", { participantId: ann })).body).toStrictEqual(guessStep);
+  });
+
+  test.each([undefined, "enforce"])(
+    "with the switch on and AUTH_MODE %j, the step route reads the token from callerToken and never refuses the poll",
+    async (mode) => {
+      vi.stubEnv(SWITCH, "on");
+      const t = newBackend();
+      const { hostId, right } = await tokenGame(t);
+      if (mode) vi.stubEnv("AUTH_MODE", mode);
+
+      const proved = await post(t, "/api/games/my-active-step", { participantId: hostId, callerId: hostId, callerToken: HOST_TOKEN });
+      expect(proved.status).toBe(200);
+      expect(proved.body).toMatchObject({ stepType: "draw", inputText: right });
+
+      // None, another player's, and values that are not a string: each is a 200 whose body is no step
+      for (const callerToken of [undefined, ANN_TOKEN, "", 7, null, { $ne: "" }]) {
+        expect(await post(t, "/api/games/my-active-step", { participantId: hostId, callerToken })).toEqual(NO_STEP);
+      }
+      // The token is not read from `token`, which on the routes is never the caller's
+      expect(await post(t, "/api/games/my-active-step", { participantId: hostId, token: HOST_TOKEN })).toEqual(NO_STEP);
+    }
+  );
+
+  // Every read a client can make without the token of the player it asks about, for every participant id in the
+  // room. If any of it depended on which of the round's four options is the prompt, it would differ when the
+  // prompt is swapped for another option.
+  test("with the switch on, nothing a guesser can read before answering depends on which option is the prompt", async () => {
+    const t = newBackend();
+    const { roomId, hostId, ann, ben, sessionId, chain } = await tokenGame(t, { customPrompts: bank(40) });
+    vi.stubEnv(SWITCH, "on");
+
+    async function everythingReadable(): Promise<string> {
+      const seen: unknown[] = [];
+      for (const participantId of [hostId, ann, ben]) {
+        seen.push(await t.query(api.games.getMyActiveStep, { participantId }));
+        seen.push((await post(t, "/api/games/my-active-step", { participantId })).body);
+        // A guesser's own token is no help either: it gets her own open guess, and nobody else's step
+        seen.push(await t.query(api.games.getMyActiveStep, { participantId, token: ANN_TOKEN }));
+        seen.push((await post(t, "/api/games/my-active-step", { participantId, callerToken: ANN_TOKEN })).body);
+      }
+      seen.push(await t.query(api.games.getActiveGameSession, { roomId }));
+      seen.push(await t.query(api.games.getLatestGameSession, { roomId }));
+      seen.push(await t.query(api.games.getGameStatus, { roomId }));
+      seen.push(await t.query(api.games.getGameReplay, { gameSessionId: sessionId }));
+      seen.push((await chatOf(t, roomId)).map((m) => [m.kind, m.text, m.mediaUrl]));
+      return JSON.stringify(seen);
+    }
+
+    /** Makes another of the round's options its prompt, as if the deal had gone that way */
+    async function dealAsPrompt(option: string) {
+      await t.run(async (ctx) => {
+        await ctx.db.patch(chain._id, { originalPrompt: option });
+        const drawStep = (await ctx.db.query("gameSteps").withIndex("by_chainId", (q) => q.eq("chainId", chain._id)).collect())
+          .find((s) => s.stepType === "draw")!;
+        await ctx.db.patch(drawStep._id, { inputText: option });
+      });
+    }
+
+    for (const phase of ["drawing", "guessing"] as const) {
+      if (phase === "guessing") await sendDrawing(t, hostId, HOST_TOKEN);
+      const views = new Set<string>();
+      for (const option of chain.options!) {
+        await dealAsPrompt(option);
+        views.add(await everythingReadable());
+      }
+      expect(views.size, phase).toBe(1);
+      await dealAsPrompt(chain.originalPrompt);
+    }
+    // The guessing phase's reads are not empty: Ann's own open guess is among them
+    expect(await everythingReadable()).toContain('"stepType":"guess"');
+    // The check has teeth: with the switch off the same reads do tell the prompt apart
+    vi.stubEnv(SWITCH, "off");
+    const told = new Set<string>();
+    for (const option of chain.options!) {
+      await dealAsPrompt(option);
+      told.add(await everythingReadable());
+    }
+    expect(told.size).toBe(4);
+  });
+
+  // ── What the submit answers ──
+
+  test.each([undefined, "on"])(
+    "with the switch %j, a guess is answered with whether it was right, which option was, and the pick on record",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv(SWITCH, value);
+      const t = newBackend();
+      const { ann, ben, sessionId, right, wrong } = await guessing(t);
+
+      expect(await answer(t, ann, right, ANN_TOKEN)).toStrictEqual({ correct: true, correctOption: right, selectedOption: right });
+      // The last guess of the round, which also starts the next one
+      expect(await answer(t, ben, wrong, BEN_TOKEN)).toStrictEqual({ correct: false, correctOption: right, selectedOption: wrong });
+      expect(await storedStep(t, sessionId, ann)).toMatchObject({ stepType: "draw", stepIndex: 0 });
+    }
+  );
+
+  // The host app sends its pick as outputText too, and the pick the server keeps is what the answer carries
+  test("the pick in the answer is the one the step holds: sent as outputText alone, or not at all", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { ann, ben, right } = await guessing(t);
+    const annStep = await stepFor(t, ann, ANN_TOKEN, "guess");
+    const benStep = await stepFor(t, ben, BEN_TOKEN, "guess");
+
+    expect(
+      await t.mutation(api.games.submitGameStep, { stepId: annStep._id, participantId: ann, outputText: right, token: ANN_TOKEN })
+    ).toStrictEqual({ correct: true, correctOption: right, selectedOption: right });
+    expect(await t.mutation(api.games.submitGameStep, { stepId: benStep._id, participantId: ben, token: BEN_TOKEN })).toStrictEqual({
+      correct: false,
+      correctOption: right,
+    });
+    expect((await stepDoc(t, benStep._id)).selectedOption).toBeUndefined();
+  });
+
+  test("the answer names the option in the language the player was shown: Japanese from the word bank, English beside it", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+    const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja", token: ANN_TOKEN });
+    const aki = await joinGuest(t, roomId, "Aki", { language: "ja", token: BEN_TOKEN, avatar: "cat" });
+    const eve = await joinGuest(t, roomId, "Eve", { token: tokenFor(4), avatar: "owl" });
+    const prompts = bank(40);
+    const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, customPrompts: prompts });
+    const [chain] = await chainsOf(t, sessionId);
+    const ja = prompts.find((p) => p.text === chain.originalPrompt)!.ja;
+    await sendDrawing(t, hostId, HOST_TOKEN);
+
+    const shown = (await stepFor(t, yuki, ANN_TOKEN, "guess")).options!;
+    expect(shown).toContain(ja);
+    expect(await answer(t, yuki, ja, ANN_TOKEN)).toEqual({ correct: true, correctOption: ja, selectedOption: ja });
+    const wrongJa = shown.find((o) => o !== ja)!;
+    expect(await answer(t, aki, wrongJa, BEN_TOKEN)).toEqual({ correct: false, correctOption: ja, selectedOption: wrongJa });
+    expect(await answer(t, eve, chain.originalPrompt, tokenFor(4))).toEqual({
+      correct: true,
+      correctOption: chain.originalPrompt,
+      selectedOption: chain.originalPrompt,
+    });
+    // A repeat is worded for its player too
+    const akiStep = (await stepsOf(t, sessionId)).find((s) => s.assignedParticipantId === aki)!;
+    expect(
+      await t.mutation(api.games.submitGameStep, { stepId: akiStep._id, participantId: aki, selectedOption: ja, token: BEN_TOKEN })
+    ).toEqual({ correct: false, correctOption: ja, selectedOption: wrongJa });
+  });
+
+  test.each([undefined, "on"])(
+    "with the switch %j and no word bank, the answer names the option in the built-in translation a Japanese-speaking player was shown",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv(SWITCH, value);
+      const t = newBackend();
+      const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+      const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja", token: ANN_TOKEN });
+      const ben = await joinGuest(t, roomId, "Ben", { token: BEN_TOKEN, avatar: "cat" });
+      const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN });
+      const [chain] = await chainsOf(t, sessionId);
+      await sendDrawing(t, hostId, HOST_TOKEN);
+
+      const shown = (await stepFor(t, yuki, ANN_TOKEN, "guess")).options!;
+      const right = shown[chain.options!.indexOf(chain.originalPrompt)];
+      expect(right).not.toBe(chain.originalPrompt);
+      const wrong = shown.find((o) => o !== right)!;
+      expect(await answer(t, yuki, wrong, ANN_TOKEN)).toEqual({ correct: false, correctOption: right, selectedOption: wrong });
+      expect(await answer(t, ben, chain.originalPrompt, BEN_TOKEN)).toEqual({
+        correct: true,
+        correctOption: chain.originalPrompt,
+        selectedOption: chain.originalPrompt,
+      });
+    }
+  );
+
+  // The reply to the first send can be lost. The host app sends again, and must be told the same thing. The web does
+  // not resend (the Convex client carries a lost reply itself); there the repeat is a second tab of the same player
+  test("sending an answered guess again with its player's token returns the first answer and the first pick, and changes nothing", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { ann, ben, sessionId, right, wrong } = await guessing(t);
+    const step = await stepFor(t, ann, ANN_TOKEN, "guess");
+    const first = await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: ann, selectedOption: wrong, token: ANN_TOKEN });
+    expect(first).toStrictEqual({ correct: false, correctOption: right, selectedOption: wrong });
+    const stored = await stepDoc(t, step._id);
+
+    // Again with the same pick, and with the right one: the pick on record stands
+    for (const selectedOption of [wrong, right]) {
+      const again = { stepId: step._id, participantId: ann, selectedOption, token: ANN_TOKEN };
+      expect(await t.mutation(api.games.submitGameStep, again)).toStrictEqual(first);
+      expect(await t.action(api.games.submitGameStepWithTranslation, again)).toStrictEqual(first);
+    }
+    expect(await stepDoc(t, step._id)).toStrictEqual(stored);
+
+    // Also once the round is over and the next one is being drawn
+    await answer(t, ben, right, BEN_TOKEN);
+    expect((await chainsOf(t, sessionId))[0].status).toBe("complete");
+    expect(
+      await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: ann, selectedOption: right, token: ANN_TOKEN })
+    ).toStrictEqual(first);
+    expect(await stepDoc(t, step._id)).toStrictEqual(stored);
+    expect((await stepsOf(t, sessionId)).filter((s) => s.stepType === "draw")).toHaveLength(2);
+  });
+
+  test("a drawing, a guess the deadline closed and a guess a cancel closed are answered with nothing", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { roomId, hostId, ann, ben, right } = await tokenGame(t);
+    const drawStep = await stepFor(t, hostId, HOST_TOKEN, "draw");
+    const drawArgs = { stepId: drawStep._id, participantId: hostId, outputDrawingUrl: PNG, token: HOST_TOKEN };
+    expect(await t.mutation(api.games.submitGameStep, drawArgs)).toBeNull();
+    // And sent again, once it is in
+    expect(await t.mutation(api.games.submitGameStep, drawArgs)).toBeNull();
+    expect(await t.action(api.games.submitGameStepWithTranslation, drawArgs)).toBeNull();
+
+    const annStep = await stepFor(t, ann, ANN_TOKEN, "guess");
+    await goAway(t, ann, ben);
+    await pass(t, ABSENT_MS, [hostId]);
+    expect(await stepDoc(t, annStep._id)).toMatchObject({ status: "submitted", timedOut: true });
+    const late = { stepId: annStep._id, participantId: ann, selectedOption: right, token: ANN_TOKEN };
+    expect(await t.mutation(api.games.submitGameStep, late)).toBeNull();
+    expect(await t.action(api.games.submitGameStepWithTranslation, late)).toBeNull();
+    expect(
+      await post(t, "/api/games/submit-step", { stepId: annStep._id, participantId: ann, selectedOption: right, callerToken: ANN_TOKEN })
+    ).toEqual({ status: 200, body: { ok: true } });
+    expect(await stepDoc(t, annStep._id)).not.toHaveProperty("correct");
+
+    // Round 2: Ann draws, the host's and Ben's guesses are open when the game is cancelled
+    await beat(t, ann, ben);
+    await sendDrawing(t, ann, ANN_TOKEN);
+    const hostStep = await stepFor(t, hostId, HOST_TOKEN, "guess");
+    const benStep = await stepFor(t, ben, BEN_TOKEN, "guess");
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId, token: HOST_TOKEN });
+    for (const [stepId, participantId, token] of [[hostStep._id, hostId, HOST_TOKEN], [benStep._id, ben, BEN_TOKEN]] as const) {
+      expect(await t.mutation(api.games.submitGameStep, { stepId, participantId, selectedOption: right, token })).toBeNull();
+      expect(await stepDoc(t, stepId)).toMatchObject({ status: "submitted", timedOut: true });
+    }
+  });
+
+  // A dev deployment sends a function's log lines back to whoever called it, with or without the player's token
+  test("taking a guess logs neither the pick, nor whether it was right, nor the prompt", async () => {
+    /** What the same forged guess logs in a fresh game, sent with the prompt or with another option */
+    async function loggedFor(pick: "right" | "wrong"): Promise<string> {
+      const t = newBackend();
+      const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+      const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja", token: ANN_TOKEN });
+      const prompts = bank(40);
+      const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, customPrompts: prompts });
+      const [chain] = await chainsOf(t, sessionId);
+      const ja = prompts.find((p) => p.text === chain.originalPrompt)!.ja;
+      // The deal is random: the prompt goes first in one game and last in the other, so a line that gives its place differs too
+      const others = chain.options!.filter((o) => o !== chain.originalPrompt);
+      const options = pick === "right" ? [chain.originalPrompt, ...others] : [...others, chain.originalPrompt];
+      await t.run(async (ctx) => await ctx.db.patch(chain._id, { options }));
+      await sendDrawing(t, hostId, HOST_TOKEN);
+      const step = await storedStep(t, sessionId, yuki);
+      const wrongJa = prompts.find((p) => p.text === others[0])!.ja;
+      const consoleLog = vi.mocked(console.log);
+      consoleLog.mockClear();
+      consoleWarn.mockClear();
+
+      // Sent without her token, as someone who only knows her ids would
+      const selectedOption = pick === "right" ? ja : wrongJa;
+      expect(await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: yuki, selectedOption })).toBeNull();
+      expect(await stepDoc(t, step._id)).toMatchObject({ status: "submitted", correct: pick === "right" });
+      const logged = JSON.stringify([...consoleLog.mock.calls, ...consoleWarn.mock.calls]);
+      expect(logged).toContain("[submitGameStep]");
+      for (const told of [chain.originalPrompt, ja, wrongJa]) expect(logged).not.toContain(told);
+      return logged;
+    }
+    // A right pick and a wrong one log the same lines, whatever the lines are called
+    expect(await loggedFor("right")).toBe(await loggedFor("wrong"));
+  });
+
+  test("a whole game with the switch on and tokens enforced: every drawer gets the prompt, every guess its answer, and the summary agrees", async () => {
+    const t = newBackend();
+    const { roomId, hostId, ann, ben, sessionId } = await tokenGame(t, { customPrompts: bank(40) });
+    vi.stubEnv(SWITCH, "on");
+    vi.stubEnv("AUTH_MODE", "enforce");
+    const players: Array<[PID, string]> = [[hostId, HOST_TOKEN], [ann, ANN_TOKEN], [ben, BEN_TOKEN]];
+    const chains = await chainsOf(t, sessionId);
+    const rightAnswers = new Map<PID, number>(players.map(([id]) => [id, 0]));
+
+    for (const [round, chain] of chains.entries()) {
+      const [drawer, drawerToken] = players[round % 3];
+      const drawStep = await t.query(api.games.getMyActiveStep, { participantId: drawer, token: drawerToken });
+      expect(drawStep).toMatchObject({ stepType: "draw", round: round + 1, inputText: chain.originalPrompt });
+      expect(drawStep).not.toHaveProperty("correctOption");
+      await t.mutation(api.games.submitGameStep, { stepId: drawStep!._id, participantId: drawer, outputDrawingUrl: PNG, token: drawerToken });
+
+      for (const [i, [guesser, token]] of players.filter(([id]) => id !== drawer).entries()) {
+        const step = await t.query(api.games.getMyActiveStep, { participantId: guesser, token });
+        expect(step).toMatchObject({ stepType: "guess", round: round + 1 });
+        expect(step).not.toHaveProperty("correctOption");
+        const correct = (round + i) % 2 === 0;
+        const selectedOption = correct ? chain.originalPrompt : step!.options!.find((o) => o !== chain.originalPrompt)!;
+        const sent = { stepId: step!._id, participantId: guesser, selectedOption, token };
+        const expected = { correct, correctOption: chain.originalPrompt, selectedOption };
+        expect(await t.mutation(api.games.submitGameStep, sent)).toEqual(expected);
+        if (correct) rightAnswers.set(guesser, rightAnswers.get(guesser)! + 1);
+        // The reply can be lost on any guess, the one that ends the game included
+        expect(await t.mutation(api.games.submitGameStep, sent)).toEqual(expected);
+      }
+    }
+
+    expect((await sessionDoc(t, sessionId)).status).toBe("complete");
+    const [summary] = await summariesIn(t, roomId);
+    expect(summary.rounds).toHaveLength(10);
+    for (const [id] of players) expect(summary.totals[id].correct).toBe(rightAnswers.get(id));
+  });
+
+  // ── Who is answered ──
+
+  // The rule the step query and the submit's answer both go by. It is not AUTH_MODE's: that decides what a call may do
+  test.each([undefined, "enforce"])(
+    "with AUTH_MODE %j, a caller's proof is the participant's token, or that none is on record, and a kicked player has neither",
+    async (mode) => {
+      const t = newBackend();
+      const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+      const old = await joinGuest(t, roomId, "Old");
+      const ben = await joinGuest(t, roomId, "Ben", { token: BEN_TOKEN, avatar: "cat" });
+      if (mode) vi.stubEnv("AUTH_MODE", mode);
+      const proof = async (participantId: PID, token?: string) => await t.run(async (ctx) => await callerProof(ctx, participantId, token));
+      consoleWarn.mockClear();
+
+      expect(await proof(hostId, HOST_TOKEN)).toBe("token");
+      for (const token of [undefined, BEN_TOKEN, "", "x"]) expect(await proof(hostId, token)).toBe("none");
+      for (const token of [undefined, HOST_TOKEN, "x"]) expect(await proof(old, token)).toBe("legacy");
+      // Never a refusal and never a log line: it is asked on every poll
+      expect(consoleWarn).not.toHaveBeenCalled();
+
+      // A kick deletes the secret with the participant. That is not a participant with none on record
+      for (const participantId of [ben, old]) {
+        await t.mutation(api.participants.kickParticipant, { roomId, participantId, callerId: hostId, token: HOST_TOKEN });
+        for (const token of [undefined, BEN_TOKEN]) expect(await proof(participantId, token)).toBe("none");
+      }
+    }
+  );
+
+  // requireCaller lets these calls through unless AUTH_MODE is enforce. The answer is held back in both modes
+  test.each([undefined, "on"])(
+    "with the switch %j and AUTH_MODE unset, a guess sent in someone else's name is taken, but answered with nothing",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv(SWITCH, value);
+      const t = newBackend();
+      const { ann, ben, sessionId, right, wrong } = await guessing(t);
+      const annStep = await storedStep(t, sessionId, ann);
+      const benStep = await storedStep(t, sessionId, ben);
+
+      // Ben knows Ann's participant id and step id, but not her token
+      expect(await t.mutation(api.games.submitGameStep, { stepId: annStep._id, participantId: ann, selectedOption: wrong })).toBeNull();
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringMatching(/^auth: games\.submitGameStep no token/));
+      expect(await stepDoc(t, annStep._id)).toMatchObject({ status: "submitted", correct: false, selectedOption: wrong });
+
+      // Sending her answered guess again is no way in either: with no token, with his own, over the action or the route
+      const resend = { stepId: annStep._id, participantId: ann, selectedOption: right };
+      expect(await t.mutation(api.games.submitGameStep, resend)).toBeNull();
+      expect(await t.mutation(api.games.submitGameStep, { ...resend, token: BEN_TOKEN })).toBeNull();
+      expect(await t.action(api.games.submitGameStepWithTranslation, { ...resend, token: BEN_TOKEN })).toBeNull();
+      expect(await post(t, "/api/games/submit-step", { ...resend, callerId: ben, callerToken: BEN_TOKEN })).toEqual({ status: 200, body: { ok: true } });
+      expect(await post(t, "/api/games/submit-step", resend)).toEqual({ status: 200, body: { ok: true } });
+
+      // Ann herself is told what the guess on record came to, and which pick it was
+      expect(await t.mutation(api.games.submitGameStep, { ...resend, token: ANN_TOKEN })).toEqual({
+        correct: false,
+        correctOption: right,
+        selectedOption: wrong,
+      });
+      // A first answer sent with the wrong token is taken and not answered either
+      expect(
+        await t.mutation(api.games.submitGameStep, { stepId: benStep._id, participantId: ben, selectedOption: right, token: ANN_TOKEN })
+      ).toBeNull();
+      expect(await stepDoc(t, benStep._id)).toMatchObject({ status: "submitted", correct: true });
+    }
+  );
+
+  test("when enforced, a guess without its player's token is refused, and with it is answered", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { ann, right, wrong } = await guessing(t);
+    vi.stubEnv("AUTH_MODE", "enforce");
+    const step = await stepFor(t, ann, ANN_TOKEN, "guess");
+    const args = { stepId: step._id, participantId: ann, selectedOption: wrong };
+
+    await expect(t.mutation(api.games.submitGameStep, args)).rejects.toThrow(/Not authorised/);
+    await expect(t.mutation(api.games.submitGameStep, { ...args, token: BEN_TOKEN })).rejects.toThrow(/Not authorised/);
+    expect((await stepDoc(t, step._id)).status).toBe("active");
+
+    const first = { correct: false, correctOption: right, selectedOption: wrong };
+    expect(await t.mutation(api.games.submitGameStep, { ...args, token: ANN_TOKEN })).toEqual(first);
+    // Her answered guess cannot be read back by anyone else
+    await expect(t.mutation(api.games.submitGameStep, args)).rejects.toThrow(/Not authorised/);
+    await expect(t.mutation(api.games.submitGameStep, { ...args, token: BEN_TOKEN })).rejects.toThrow(/Not authorised/);
+    expect(await t.mutation(api.games.submitGameStep, { ...args, token: ANN_TOKEN })).toEqual(first);
+  });
+
+  // With no token on record there is nothing to tell the player from anyone who knows their ids. The first call
+  // takes the guess, so only one caller is ever answered; a repeat takes nothing and could be asked by everyone
+  test.each([[undefined, undefined], [undefined, "on"], ["enforce", undefined], ["enforce", "on"]])(
+    "with AUTH_MODE %j and the switch %j, a player from before tokens is answered when the guess is taken, and with nothing when it is sent again",
+    async (mode, value) => {
+      if (value !== undefined) vi.stubEnv(SWITCH, value);
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [ann] } = await room(t);
+      const sessionId = await start(t, roomId, hostId);
+      const [chain] = await chainsOf(t, sessionId);
+      const right = chain.originalPrompt;
+      await draw(t, hostId);
+      if (mode) vi.stubEnv("AUTH_MODE", mode);
+      const step = await openStep(t, ann, "guess");
+      const args = { stepId: step._id, participantId: ann, selectedOption: right };
+
+      expect(await t.mutation(api.games.submitGameStep, args)).toStrictEqual({ correct: true, correctOption: right, selectedOption: right });
+      expect(await t.mutation(api.games.submitGameStep, args)).toBeNull();
+      expect(await t.mutation(api.games.submitGameStep, { ...args, token: ANN_TOKEN })).toBeNull();
+      expect(await t.action(api.games.submitGameStepWithTranslation, args)).toBeNull();
+      expect(await post(t, "/api/games/submit-step", args)).toEqual({ status: 200, body: { ok: true } });
+    }
+  );
+
+  // A kick deletes the participant and their secret, and leaves their open step behind
+  test("a guess sent in the name of a kicked player is not answered, with or without the token they had", async () => {
+    vi.stubEnv(SWITCH, "on");
+    const t = newBackend();
+    const { roomId, hostId, ben, sessionId, right } = await guessing(t);
+    const step = await storedStep(t, sessionId, ben);
+    await t.mutation(api.participants.kickParticipant, { roomId, participantId: ben, callerId: hostId, token: HOST_TOKEN });
+
+    expect(await t.query(api.games.getMyActiveStep, { participantId: ben, token: BEN_TOKEN })).toBeNull();
+    const args = { stepId: step._id, participantId: ben, selectedOption: right };
+    expect(await t.mutation(api.games.submitGameStep, args)).toBeNull();
+    expect(await stepDoc(t, step._id)).toMatchObject({ status: "submitted", correct: true });
+    expect(await t.mutation(api.games.submitGameStep, args)).toBeNull();
+    expect(await t.mutation(api.games.submitGameStep, { ...args, token: BEN_TOKEN })).toBeNull();
+  });
+
+  // ── Over the route the host app calls ──
+
+  test.each([undefined, "on"])("with the switch %j, the submit route answers a guess with the result as its body", async (value) => {
+    if (value !== undefined) vi.stubEnv(SWITCH, value);
+    const t = newBackend();
+    const { hostId, ann, ben, sessionId } = await guessing(t);
+    const chains = await chainsOf(t, sessionId);
+    await answer(t, ann, chains[0].originalPrompt, ANN_TOKEN);
+    await answer(t, ben, chains[0].originalPrompt, BEN_TOKEN);
+
+    // A drawing is answered with nothing, which the route sends as {"ok":true}
+    const drawStep = await stepFor(t, ann, ANN_TOKEN, "draw");
+    expect(
+      await post(t, "/api/games/submit-step", { stepId: drawStep._id, participantId: ann, outputDrawingUrl: PNG, callerId: ann, callerToken: ANN_TOKEN })
+    ).toStrictEqual({ status: 200, body: { ok: true } });
+
+    const step = await stepFor(t, hostId, HOST_TOKEN, "guess");
+    const wrong = chains[1].options!.find((o) => o !== chains[1].originalPrompt)!;
+    // The app sends its pick in both fields, and its token as callerToken
+    const body = { stepId: step._id, participantId: hostId, outputText: wrong, selectedOption: wrong, callerId: hostId, callerToken: HOST_TOKEN };
+    const expected = { status: 200, body: { correct: false, correctOption: chains[1].originalPrompt, selectedOption: wrong } };
+    expect(await post(t, "/api/games/submit-step", body)).toStrictEqual(expected);
+    // A retry after a lost reply
+    expect(await post(t, "/api/games/submit-step", body)).toStrictEqual(expected);
+    // Without the token the route has nothing to say, as for any answer that came too late
+    expect(await post(t, "/api/games/submit-step", { ...body, callerToken: undefined })).toStrictEqual({ status: 200, body: { ok: true } });
+    // And the action the route calls answers like the mutation
+    expect(
+      await t.action(api.games.submitGameStepWithTranslation, { stepId: step._id, participantId: hostId, selectedOption: wrong, token: HOST_TOKEN })
+    ).toStrictEqual(expected.body);
   });
 });
 

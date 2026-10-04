@@ -120,6 +120,25 @@ export async function requireCaller(
   return participant;
 }
 
+/**
+ * How far the caller has shown to be this participant, whatever AUTH_MODE says. requireCaller decides whether
+ * a call may act, and in "log" mode lets everyone through; this decides whether a call may be told what only
+ * that participant should learn. It neither throws nor logs.
+ * "token": the token given is the one on record. "legacy": the participant has none on record, so there is
+ * nothing to check against. "none": a missing or wrong token, or a participant that does not exist (a kick
+ * deletes the secret with the participant, which must not read as legacy).
+ */
+export async function callerProof(
+  ctx: QueryCtx | MutationCtx,
+  participantId: Id<"participants">,
+  token: string | undefined
+): Promise<"token" | "legacy" | "none"> {
+  if (!(await ctx.db.get(participantId))) return "none";
+  const secret = await secretFor(ctx, participantId);
+  if (!secret) return "legacy";
+  return token !== undefined && sameToken(token, secret.token) ? "token" : "none";
+}
+
 /** The caller must be this participant and a member of this room */
 export async function requireMember(
   ctx: QueryCtx | MutationCtx,

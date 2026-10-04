@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { DrawingCanvas, type DrawingCanvasHandle } from "@/components/drawing-canvas";
 import { Icon } from "@/components/ui/icon";
 import { Confetti } from "@/components/ui/effects";
@@ -22,12 +22,54 @@ interface GameStep {
   timerEnabled?: number | boolean;
 }
 
+/** Resolves with what games.submitGameStep answered once the server has taken the step; rejects when it refused */
+type SubmitStep = (stepId: string, outputText?: string, outputDrawingUrl?: string, selectedOption?: string) => Promise<unknown>;
+
 interface GameTaskOverlayProps {
+  /** The caller's open step as games.getMyActiveStep gives it, or nothing when there is none to show */
+  step: GameStep | null | undefined;
+  onSubmit: SubmitStep;
+  /** Told which step was on screen: while a guess is held that is not the step the query holds */
+  onQuit?: (stepId: string) => void;
+  lang?: string;
+}
+
+interface GameTaskViewProps {
   step: GameStep;
-  onSubmit: (stepId: string, outputText?: string, outputDrawingUrl?: string, selectedOption?: string) => void;
+  /** The step is on screen because it is held, whatever the query says */
+  held: boolean;
+  onSubmit: SubmitStep;
+  onHold: (step: GameStep, ms: number) => void;
+  onRelease: (stepId: string) => void;
   onQuit?: () => void;
   lang?: string;
 }
+
+/** A sent guess that stays on screen whatever the query says, and when it stops doing so at the latest */
+interface Hold {
+  step: GameStep;
+  until: number;
+}
+
+/** How a guess came out: whether the pick was right, which option was, and the pick the server has on record */
+interface GuessResult {
+  correct: boolean;
+  correctOption: string;
+  selectedOption?: string;
+}
+
+/** The result in what games.submitGameStep answered, or null when it answered without one */
+function readGuessResult(value: unknown): GuessResult | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { correct, correctOption, selectedOption } = value as Record<string, unknown>;
+  if (typeof correct !== "boolean" || typeof correctOption !== "string") return null;
+  return { correct, correctOption, selectedOption: typeof selectedOption === "string" ? selectedOption : undefined };
+}
+
+/** How long "Correct!" / "Wrong!" stays up */
+const FEEDBACK_MS = 1500;
+/** How long a sent guess is held for the server's answer. After that the screen follows the query again */
+const REPLY_WAIT_MS = 5000;
 
 const COPY = {
   en: { title: "LOST IN TRANSLATION", yourTurn: "YOUR TURN TO DRAW!", lv: "LV" },
@@ -36,11 +78,67 @@ const COPY = {
 
 const ANSWER_COLORS = ["var(--pink-soft)", "var(--yellow-soft)", "var(--mint-soft)", "var(--blue-soft)"];
 
+/**
+ * Shows the caller's open step. A step that does not say which option is right (LOST_IN_TRANSLATION_HIDE_ANSWER) has
+ * its guess sent at the tap, and the server's answer says how it came out. The server drops the step from
+ * getMyActiveStep the moment it takes the guess, and can hand this player the next round's draw step in the same
+ * update, so the guess is held on screen from the tap until its result has shown. The next step is mounted when the
+ * hold ends, so a draw countdown starts when the canvas is on screen.
+ */
 export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverlayProps) {
+  const [hold, setHold] = useState<Hold | null>(null);
+  const holdStep = useCallback((guess: GameStep, ms: number) => setHold({ step: guess, until: Date.now() + ms }), []);
+  const release = useCallback((stepId: string) => setHold((now) => (now?.step._id === stepId ? null : now)), []);
+
+  // Every hold ends at its own deadline, whatever became of the guess: the answer can be lost with the connection,
+  // and the step underneath may be this player's next drawing. Counted from the clock, so a timer the browser
+  // delays in a hidden tab only ends it late
+  useEffect(() => {
+    if (!hold) return;
+    const timer = setTimeout(() => setHold((now) => (now === hold ? null : now)), Math.max(0, hold.until - Date.now()));
+    return () => clearTimeout(timer);
+  }, [hold]);
+
+  const shown = hold?.step ?? step;
+  if (!shown) return null;
+  return (
+    <GameTaskView
+      key={shown._id}
+      step={shown}
+      held={hold !== null}
+      onSubmit={onSubmit}
+      onHold={holdStep}
+      onRelease={release}
+      onQuit={
+        onQuit &&
+        (() => {
+          setHold(null);
+          onQuit(shown._id);
+        })
+      }
+      lang={lang}
+    />
+  );
+}
+
+function GameTaskView({ step, held, onSubmit, onHold, onRelease, onQuit, lang }: GameTaskViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [showFeedback, setShowFeedback] = useState(false);
+  // How the pick came out, once that is known: read off the step at the tap, or the server's answer to the guess
+  const [result, setResult] = useState<GuessResult | null>(null);
+  // Set at the tap, before any render: a second tap finds it
+  const pickedRef = useRef(false);
+  // False once unmounted: a submit can be answered after the overlay has gone. A layout effect, because its
+  // cleanup runs in the commit that removes the view; a passive one runs in a later task, and a reply landing
+  // in between would hold this step again
+  const aliveRef = useRef(true);
+  useLayoutEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
   // timerEnabled: number (0=off, 10/20/30=seconds) or legacy boolean
   const timerSeconds = typeof step.timerEnabled === "number"
     ? step.timerEnabled
@@ -54,7 +152,12 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
   const handleDrawingSave = useCallback(async (dataUrl: string) => {
     if (submitting) return;
     setSubmitting(true);
-    await onSubmit(step._id, undefined, dataUrl);
+    try {
+      await onSubmit(step._id, undefined, dataUrl);
+    } catch {
+      // The room page has said why. The drawing is still on the canvas, and Done sends it again
+      if (aliveRef.current) setSubmitting(false);
+    }
   }, [submitting, onSubmit, step._id]);
 
   // Countdown timer for draw mode (only if timer enabled)
@@ -84,19 +187,63 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
     }
   }, [timeLeft, step.stepType, submitting, handleDrawingSave]);
 
-  const handleOptionSelect = (option: string) => {
-    if (submitting || showFeedback) return;
-    setSelectedAnswer(option);
-    setShowFeedback(true);
-
-    // Wait 1.5s then submit
-    setTimeout(async () => {
-      setSubmitting(true);
-      await onSubmit(step._id, option, undefined, option);
-    }, 1500);
+  // The server refused the guess, and the room page has said why. Nothing was recorded, so the pick can be made again
+  const undoPick = () => {
+    if (!aliveRef.current) return;
+    pickedRef.current = false;
+    setSelectedAnswer(null);
+    setResult(null);
   };
 
-  const isCorrect = selectedAnswer === step.correctOption;
+  const handleOptionSelect = async (option: string) => {
+    if (pickedRef.current) return;
+    pickedRef.current = true;
+    setSelectedAnswer(option);
+
+    const answer = step.correctOption;
+    if (typeof answer === "string") {
+      // The step says which option is right: the pick is marked at once
+      setResult({ correct: option === answer, correctOption: answer });
+
+      // Wait 1.5s then submit
+      setTimeout(async () => {
+        try {
+          await onSubmit(step._id, option, undefined, option);
+        } catch {
+          undoPick();
+        }
+      }, FEEDBACK_MS);
+      return;
+    }
+
+    // The step does not say: the guess goes to the server now and its answer marks the pick. The server drops the
+    // step once it has the guess, so the step is held on screen from here
+    onHold(step, REPLY_WAIT_MS);
+    let answered: unknown;
+    try {
+      answered = await onSubmit(step._id, option, undefined, option);
+    } catch {
+      undoPick();
+      if (aliveRef.current) onRelease(step._id);
+      return;
+    }
+    if (!aliveRef.current) return;
+    const outcome = readGuessResult(answered);
+    if (!outcome) {
+      // The guess was closed before it arrived, or the server does not tell this caller how it came out
+      onRelease(step._id);
+      return;
+    }
+    // The pick on record is the one marked: a guess that was already in is not replaced by this one
+    if (outcome.selectedOption !== undefined && step.options?.includes(outcome.selectedOption)) {
+      setSelectedAnswer(outcome.selectedOption);
+    }
+    setResult(outcome);
+    onHold(step, FEEDBACK_MS);
+  };
+
+  const showFeedback = result !== null;
+  const isCorrect = result?.correct === true;
   const round = step.round ?? 1;
   const totalRounds = step.totalRounds ?? 10;
   const level = step.level ?? 1;
@@ -106,7 +253,9 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 60,
+        // A held guess stays above the sheets (z-index 100): the last guess of a game ends it, and the replay sheet
+        // opens underneath, to be seen when the hold ends
+        zIndex: held ? 110 : 60,
         display: "flex",
         flexDirection: "column",
         maxWidth: "600px",
@@ -359,7 +508,8 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: "auto", paddingTop: 6 }}>
                 {step.options.map((option, i) => {
                   const picked = option === selectedAnswer;
-                  const isAnswer = option === step.correctOption;
+                  // A pick that was right is the answer, whatever words the server names it in
+                  const isAnswer = showFeedback && (option === result.correctOption || (picked && isCorrect));
                   let bg = ANSWER_COLORS[i % ANSWER_COLORS.length];
                   let color = "var(--ink)";
                   let pressed = false;
@@ -385,7 +535,7 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
                     <button
                       key={option}
                       onClick={() => handleOptionSelect(option)}
-                      disabled={showFeedback || submitting}
+                      disabled={selectedAnswer !== null}
                       style={{
                         position: "relative",
                         display: "flex",
@@ -406,7 +556,7 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
                         lineHeight: 1.15,
                         textAlign: "center",
                         wordBreak: "break-word",
-                        cursor: showFeedback || submitting ? "default" : "pointer",
+                        cursor: selectedAnswer !== null ? "default" : "pointer",
                         transition: "transform 0.08s, box-shadow 0.08s, background 0.15s",
                         animation: anim,
                       }}

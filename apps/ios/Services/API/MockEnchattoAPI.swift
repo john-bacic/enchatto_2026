@@ -255,8 +255,9 @@ class MockEnchattoAPI: EnchattoAPI {
         return UUID().uuidString
     }
 
-    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws {
+    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {
         // Mock: no-op
+        return nil
     }
 
     func getActiveGameSession(roomId: String) async throws -> GameSession? {

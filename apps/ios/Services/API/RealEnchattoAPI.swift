@@ -296,7 +296,7 @@ class RealEnchattoAPI: EnchattoAPI {
         return response.sessionId
     }
 
-    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws {
+    func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {
         var body: [String: Any] = [
             "stepId": stepId,
             "participantId": participantId,
@@ -307,7 +307,24 @@ class RealEnchattoAPI: EnchattoAPI {
         // A guess is a few bytes; a drawing carries the PNG. A request that hangs must fail while the server still has
         // the step open, so the overlay's retry can land. The timeout is an idle one: an upload that keeps moving is not cut off.
         let timeout: TimeInterval = outputDrawingUrl == nil ? ConvexHTTPClient.defaultTimeout : 15
-        try await client.postVoid("/api/games/submit-step", body: body, timeout: timeout)
+        // {"ok":true} when the server has nothing to say about a guess. Any 200 means it has dealt with the step, so
+        // a field that is missing or of another type is no answer, never a failed send. A body that is not JSON
+        // still throws
+        struct Reply: Decodable {
+            var correct: Bool?
+            var correctOption: String?
+            var selectedOption: String?
+            enum CodingKeys: String, CodingKey { case correct, correctOption, selectedOption }
+            init(from decoder: Decoder) throws {
+                guard let fields = try? decoder.container(keyedBy: CodingKeys.self) else { return }
+                correct = try? fields.decodeIfPresent(Bool.self, forKey: .correct)
+                correctOption = try? fields.decodeIfPresent(String.self, forKey: .correctOption)
+                selectedOption = try? fields.decodeIfPresent(String.self, forKey: .selectedOption)
+            }
+        }
+        let reply: Reply = try await client.post("/api/games/submit-step", body: body, timeout: timeout)
+        guard let correct = reply.correct, let correctOption = reply.correctOption else { return nil }
+        return GameGuessAnswer(correct: correct, correctOption: correctOption, selectedOption: reply.selectedOption)
     }
 
     func getActiveGameSession(roomId: String) async throws -> GameSession? {

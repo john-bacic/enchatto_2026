@@ -159,7 +159,7 @@ function RoomContent() {
   });
   const myActiveStep = useQuery(
     api.games.getMyActiveStep,
-    participantId ? { participantId: participantId as Id<"participants"> } : "skip"
+    participantId ? { participantId: participantId as Id<"participants">, token: tokenFor(participantId) } : "skip"
   );
   // Debug: trace game step changes
   useEffect(() => {
@@ -1173,10 +1173,13 @@ function RoomContent() {
         if (outputText !== undefined) args.outputText = outputText;
         if (outputDrawingUrl !== undefined) args.outputDrawingUrl = outputDrawingUrl;
         if (selectedOption !== undefined) args.selectedOption = selectedOption;
-        await submitGameStepMutation(args);
+        // A guess is answered with how it came out, which the overlay shows
+        return await submitGameStepMutation(args);
       } catch (err: any) {
         console.error("Failed to submit game step:", err);
         alert("Game step error: " + (err?.message ?? err?.data ?? String(err)));
+        // The overlay undoes the pick, or lets Done send the drawing again
+        throw err;
       }
     },
     [submitGameStepMutation, participantId]
@@ -1769,28 +1772,25 @@ function RoomContent() {
         )}
       </div>
 
-      {/* Game task overlay */}
-      {myActiveStep && myActiveStep._id !== dismissedGameStepId && (
-        <GameTaskOverlay
-          key={myActiveStep._id}
-          step={myActiveStep}
-          onSubmit={handleSubmitGameStep}
-          onQuit={async () => {
-            setDismissedGameStepId(myActiveStep._id);
-            if (me?.role === "host") {
-              try {
-                await cancelGameMutation({
-                  roomId: roomId as Id<"rooms">,
-                  participantId: participantId as Id<"participants">,
-                });
-              } catch (err) {
-                console.error("Failed to cancel game:", err);
-              }
+      {/* Game task overlay. Always rendered: it keeps a sent guess on screen until its result has shown */}
+      <GameTaskOverlay
+        step={myActiveStep && myActiveStep._id !== dismissedGameStepId ? myActiveStep : null}
+        onSubmit={handleSubmitGameStep}
+        onQuit={async (stepId) => {
+          setDismissedGameStepId(stepId);
+          if (me?.role === "host") {
+            try {
+              await cancelGameMutation({
+                roomId: roomId as Id<"rooms">,
+                participantId: participantId as Id<"participants">,
+              });
+            } catch (err) {
+              console.error("Failed to cancel game:", err);
             }
-          }}
-          lang={lang}
-        />
-      )}
+          }
+        }}
+        lang={lang}
+      />
 
       {/* Game picker modal */}
       <GamePickerModal

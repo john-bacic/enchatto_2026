@@ -90,6 +90,9 @@ struct HostConversationView: View {
     @State private var showGameReplay = false
     @State private var showGameTask = false
     @State private var showQuitGameConfirm = false
+    /// The live step when the host quit. Letting go of a held guess uncovers it, and that must not bring
+    /// the game cover back
+    @State private var quitOnStepId: String?
     @State private var showEndGameConfirm = false
     @State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline
     @State private var showWordRushGame = false
@@ -1469,7 +1472,7 @@ struct HostConversationView: View {
                 .presentationDragIndicator(.visible)
             }
             .fullScreenCover(isPresented: $showGameTask) {
-                if let step = viewModel.myActiveStep {
+                if let step = viewModel.presentedStep {
                     GameTaskOverlayView(
                         step: step,
                         lang: hostLanguage,
@@ -1491,6 +1494,23 @@ struct HostConversationView: View {
                             try await viewModel.submitGameStep(stepId: step.id, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
                             if viewModel.myActiveStep?.id == step.id { showGameTask = false }
                         },
+                        onCommitGuess: { selectedOption in
+                            try await viewModel.commitGuess(stepId: step.id, selectedOption: selectedOption)
+                        },
+                        onHoldGuess: { seconds, awaitingReply in
+                            viewModel.holdGuessStep(step, for: seconds, awaitingReply: awaitingReply)
+                        },
+                        onReleaseGuess: { answered in
+                            viewModel.releaseGuessHold(stepId: step.id)
+                            guard answered else { return }
+                            // As for a drawing: .onChange closes or swaps the overlay when the refresh
+                            // commitGuess started moves myActiveStep on, and if that refresh failed the
+                            // overlay is closed for this step only.
+                            Task {
+                                await viewModel.guessRefresh?.value
+                                if viewModel.presentedStep?.id == step.id { showGameTask = false }
+                            }
+                        },
                         onQuit: {
                             showQuitGameConfirm = true
                         }
@@ -1500,6 +1520,7 @@ struct HostConversationView: View {
                         Button(L.t("Cancel", hostLanguage), role: .cancel) {}
                         Button(L.t("Quit", hostLanguage), role: .destructive) {
                             showGameTask = false
+                            quitOnStepId = viewModel.myActiveStep?.id
                             Task {
                                 await viewModel.cancelGame()
                             }
@@ -1523,8 +1544,10 @@ struct HostConversationView: View {
                     )
                 }
             }
-            .onChange(of: viewModel.myActiveStep?.id) { newStepId in
-                showGameTask = newStepId != nil
+            .onChange(of: viewModel.presentedStep?.id) { newStepId in
+                let uncoveredByQuit = newStepId != nil && newStepId == quitOnStepId
+                if !uncoveredByQuit { quitOnStepId = nil }
+                showGameTask = newStepId != nil && !uncoveredByQuit
             }
             .onChange(of: viewModel.isGameComplete) { complete in
                 if complete {
