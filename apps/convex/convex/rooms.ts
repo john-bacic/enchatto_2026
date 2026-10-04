@@ -6,7 +6,10 @@ import { DataModel, Doc, Id, TableNames } from "./_generated/dataModel";
 import { deleteStoredFile, isSupportedLanguage, registerToken, requireHost } from "./participants";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
-const BACKGROUND_COUNT = 10;
+const BACKGROUND_COUNT = 36;
+// The textures createRoom picks among when the app names none: the first ten. An iPhone build that sends no
+// background has the tiles of those ten only: given any other, its host would not see the room as the guests do.
+const PICKED_BACKGROUND_COUNT = 10;
 
 export const createRoom = mutation({
   args: {
@@ -54,12 +57,18 @@ export const createRoom = mutation({
 
     // The app names the texture, so that a room can look like the start screen it was made from. A value that
     // is not one of the textures is no reason to refuse the room: the pick is then made here, as for a build
-    // that sends none, at random and different from the last room's
+    // that sends none, at random among the textures every build draws and different from the last room's
     let background = args.background;
     if (!isBackground(background)) {
       const lastRoom = await ctx.db.query("rooms").order("desc").first();
-      background = Math.floor(Math.random() * (BACKGROUND_COUNT - 1));
-      if (lastRoom?.background !== undefined && background >= lastRoom.background) background++;
+      const last = lastRoom?.background;
+      if (last !== undefined && last < PICKED_BACKGROUND_COUNT) {
+        background = Math.floor(Math.random() * (PICKED_BACKGROUND_COUNT - 1));
+        if (background >= last) background++;
+      } else {
+        // No room before this one, or one whose texture the pick cannot land on: there is none to avoid
+        background = Math.floor(Math.random() * PICKED_BACKGROUND_COUNT);
+      }
     }
 
     // After every check above, so a room that is refused has not looked anything up

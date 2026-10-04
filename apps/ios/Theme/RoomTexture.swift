@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The 10 room backgrounds. Order must match apps/web/lib/textures.ts TEXTURES — rooms store an index.
+/// The 36 room backgrounds. Order must match apps/web/lib/textures.ts TEXTURES — rooms store an index.
 /// Tiles are @3x PNG renders of the web SVGs (Assets.xcassets/Textures).
 struct RoomTexture {
     let key: String
@@ -24,7 +24,37 @@ struct RoomTexture {
         RoomTexture(key: "bubbles", blobA: mint, blobB: blue),
         RoomTexture(key: "plaid", blobA: pink, blobB: mint),
         RoomTexture(key: "alphabet", blobA: yellow, blobB: violet),
+        RoomTexture(key: "sakura", blobA: pink, blobB: violet),
+        RoomTexture(key: "seigaiha", blobA: blue, blobB: mint),
+        RoomTexture(key: "onigiri", blobA: mint, blobB: violet),
+        RoomTexture(key: "honeycomb", blobA: yellow, blobB: pink),
+        RoomTexture(key: "argyle", blobA: pink, blobB: blue),
+        RoomTexture(key: "clouds", blobA: blue, blobB: violet),
+        RoomTexture(key: "asanoha", blobA: mint, blobB: blue),
+        RoomTexture(key: "cherries", blobA: mint, blobB: pink),
+        RoomTexture(key: "shippo", blobA: blue, blobB: yellow),
+        RoomTexture(key: "terrazzo", blobA: yellow, blobB: blue),
+        RoomTexture(key: "crossstitch", blobA: yellow, blobB: violet),
+        RoomTexture(key: "paws", blobA: violet, blobB: yellow),
+        RoomTexture(key: "waves", blobA: violet, blobB: pink),
+        RoomTexture(key: "hearts", blobA: pink, blobB: yellow),
+        RoomTexture(key: "brush", blobA: pink, blobB: blue),
+        RoomTexture(key: "pencil", blobA: violet, blobB: mint),
+        RoomTexture(key: "candylines", blobA: yellow, blobB: pink),
+        RoomTexture(key: "jimmies", blobA: yellow, blobB: violet),
+        RoomTexture(key: "minihearts", blobA: blue, blobB: pink),
+        RoomTexture(key: "dabs", blobA: pink, blobB: blue),
+        RoomTexture(key: "softcheck", blobA: pink, blobB: mint),
+        RoomTexture(key: "rainbowgrid", blobA: blue, blobB: yellow),
+        RoomTexture(key: "swatches", blobA: mint, blobB: yellow),
+        RoomTexture(key: "squiggles", blobA: yellow, blobB: pink),
+        RoomTexture(key: "memphis", blobA: blue, blobB: pink),
+        RoomTexture(key: "shapes", blobA: mint, blobB: violet),
     ]
+
+    /// How many textures the join code picks among: the first ten, however long the list is. Every build of the app
+    /// and of the web page has those ten, so they all draw a room with no stored index alike, and it keeps its texture.
+    private static let joinCodeCount = 10
 
     /// Older rooms have no stored index: FNV-1a of the join code, identical to the web client.
     static func index(background: Int?, joinCode: String?) -> Int {
@@ -34,7 +64,7 @@ struct RoomTexture {
         for unit in joinCode.utf16 {
             h = (h ^ UInt32(unit)) &* 0x0100_0193
         }
-        return Int(h % UInt32(all.count))
+        return Int(h % UInt32(joinCodeCount))
     }
 
     /// Any of the textures, or with `not` any but that one

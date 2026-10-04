@@ -107,6 +107,20 @@ async function post(t: Backend, path: string, body: unknown) {
   return { status: res.status, headers: res.headers, body: await res.json() };
 }
 
+/**
+ * Replaces Math.random with a fixed sequence (mulberry32), so that a test of many random picks gives the same
+ * result on every run. Undone by mockRestore or restoreAllMocks.
+ */
+function seedRandom(seed: number) {
+  let state = seed >>> 0;
+  return vi.spyOn(Math, "random").mockImplementation(() => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let x = Math.imul(state ^ (state >>> 15), state | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  });
+}
+
 /** A device token in the shape APNs gives out: 64 hex characters */
 const DEVICE_TOKEN = "9e8d7c6b".repeat(8);
 
@@ -277,15 +291,15 @@ describe("createRoom", () => {
       backgrounds.push(state?.room.background ?? -1);
     }
     for (const [i, background] of backgrounds.entries()) {
-      // One of the ten textures both apps ship
+      // One of the first ten textures, the ones every build of both apps ships
       expect(Number.isInteger(background) && background >= 0 && background <= 9).toBe(true);
       if (i > 0) expect(background).not.toBe(backgrounds[i - 1]);
     }
   });
 
-  test("the server's pick can be any of the ten textures, and createRoom answers with the one the room got", async () => {
+  test("the server's pick can be any of the first ten textures and no other, and createRoom answers with the one the room got", async () => {
     const t = newBackend();
-    // These draws step through the whole range, so the picks reach both ends of the texture list
+    // These draws step through the whole range, so the picks reach both ends of those ten
     let draws = 0;
     vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
     const picked = new Set<number>();
@@ -302,10 +316,9 @@ describe("createRoom", () => {
   });
 
   // The host app chooses the texture, so that a room can look like the start screen it was made from
-  test("the room gets the background the app asks for, and createRoom answers with it", async () => {
+  test("the room gets the background the app asks for, any of the 36 textures, and createRoom answers with it", async () => {
     const t = newBackend();
-    // The two ends of the texture list and one inside it
-    for (const background of [0, 9, 4]) {
+    for (let background = 0; background <= 35; background++) {
       const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background });
       expect(created.background).toBe(background);
       expect((await roomRow(t, created.roomId)).background).toBe(background);
@@ -337,10 +350,43 @@ describe("createRoom", () => {
     expect((await roomRow(t, next.roomId)).background).toBe(next.background);
   });
 
-  // -1 and 10 are one past each end of the list, and NaN is neither below the list nor above it. The iOS host
+  // A build that names no background has the tiles of the first ten textures only, so the server picks among
+  // those whatever the room before was given. A room before with one of the other 26 is in the way of none of the ten
+  test("the server's pick stays among the first ten textures after a room with any of the 36, and is never that room's", async () => {
+    seedRandom(36);
+    const t = newBackend();
+    // What leaves the pick to the server: no background, and a number that is not a texture
+    const unnamed = [undefined, 36, -1, 1.5, NaN];
+    const afterNewer = new Set<number>();
+    // Each texture is the room before 10 times, twice with each of the five above
+    for (let n = 0; n < 360; n++) {
+      const before = n % 36;
+      await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: before });
+      const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: unnamed[n % unnamed.length] });
+      const picked = created.background;
+      expect(Number.isInteger(picked) && picked >= 0 && picked <= 9, `${picked} after ${before}`).toBe(true);
+      expect(picked, `after ${before}`).not.toBe(before);
+      expect((await roomRow(t, created.roomId)).background).toBe(picked);
+      if (before > 9) afterNewer.add(picked);
+    }
+    expect([...afterNewer].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  // Texture 10 is the first one the pick cannot land on, so a room before with it is in the way of none of the ten:
+  // a draw in the top tenth of the range then picks texture 9. With one of the ten left out it would pick 8
+  test("the server's pick after a room with texture 10 is made among all of the first ten", async () => {
+    const t = newBackend();
+    await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 10 });
+    vi.spyOn(Math, "random").mockImplementation(() => 0.95);
+    const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika" });
+    expect(created.background).toBe(9);
+    expect((await roomRow(t, created.roomId)).background).toBe(9);
+  });
+
+  // -1 and 36 are one past each end of the list, and NaN is neither below the list nor above it. The iOS host
   // decodes the room's background as Int, so a fraction that was stored would fail every poll of the room
-  test("a background that is not one of the ten textures is not a refusal: the room gets the server's pick, as if none was sent", async () => {
-    const notTextures = [-1, 10, 1.5, NaN, Infinity];
+  test("a background that is not one of the textures is not a refusal: the room gets the server's pick, as if none was sent", async () => {
+    const notTextures = [-1, 36, 1.5, NaN, Infinity];
     // The same draws for both backends, so the server picks the same textures in both
     let draws = 0;
     vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
@@ -359,6 +405,7 @@ describe("createRoom", () => {
     // Read once every room is made: looking into the backend takes a draw of its own
     for (const [i, created] of made.entries()) {
       const stored = (await roomRow(t, created.roomId)).background ?? -1;
+      // The pick is made among the first ten
       expect(Number.isInteger(stored) && stored >= 0 && stored <= 9).toBe(true);
       expect(created.background).toBe(stored);
       expect(stored).toBe(picks[i]);
@@ -1274,11 +1321,11 @@ describe("setRoomBackground", () => {
     expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(8);
   });
 
-  test("each of the ten textures is taken", async () => {
+  test("each of the 36 textures is taken", async () => {
     const t = newBackend();
-    // From the last texture, so that every one of the ten below is a change
-    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 9 });
-    for (let background = 0; background <= 9; background++) {
+    // From the last texture, so that every one of the 36 below is a change
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 35 });
+    for (let background = 0; background <= 35; background++) {
       expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background })).toEqual({ background });
       expect((await roomRow(t, roomId)).background).toBe(background);
     }
@@ -1295,13 +1342,13 @@ describe("setRoomBackground", () => {
     }
   });
 
-  // -1 and 10 are one past each end of the texture list. The iOS host decodes the room's background as Int, so
+  // -1 and 36 are one past each end of the texture list. The iOS host decodes the room's background as Int, so
   // a fraction that was stored would fail every poll of the room
-  test("a number that is not one of the ten textures is refused, and the room keeps the background it has", async () => {
+  test("a number that is not one of the 36 textures is refused, and the room keeps the background it has", async () => {
     const t = newBackend();
     const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
     const before = await roomRow(t, roomId);
-    for (const background of [-1, 10, 1.5, NaN, Infinity, -Infinity, 0.5, 8.999]) {
+    for (const background of [-1, 36, 99, 1.5, NaN, Infinity, -Infinity, 0.5, 8.999, 35.5]) {
       await expect(
         t.mutation(api.rooms.setRoomBackground, { roomId, background }),
         String(background)
@@ -2196,14 +2243,14 @@ describe("/api/rooms/* and /api/participants/*", () => {
 
   test("rooms/create gives the room the background in the body when it is a number, and answers with the one the room got", async () => {
     const t = newBackend();
-    for (const background of [7, 0, 9]) {
+    for (const background of [7, 0, 9, 10, 35]) {
       const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
       expect(res.status).toBe(200);
       expect(res.body.background).toBe(background);
       expect((await roomRow(t, res.body.roomId)).background).toBe(background);
     }
-    // A number that is not a texture is still a room, with the server's pick
-    for (const background of [-1, 10, 1.5]) {
+    // A number that is not a texture is still a room, with the server's pick, one of the first ten
+    for (const background of [-1, 36, 1.5]) {
       const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
       expect(res.status).toBe(200);
       const stored = (await roomRow(t, res.body.roomId)).background ?? -1;
@@ -2383,7 +2430,7 @@ describe("/api/rooms/* and /api/participants/*", () => {
   test("rooms/background answers 400 with the reason when the change is refused, and the room keeps its background", async () => {
     const t = newBackend();
     const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
-    for (const background of [-1, 10, 1.5]) {
+    for (const background of [-1, 36, 1.5]) {
       const res = await post(t, "/api/rooms/background", { roomId, background });
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: expect.stringMatching(/Unknown background/) });

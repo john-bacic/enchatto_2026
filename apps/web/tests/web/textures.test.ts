@@ -1,14 +1,17 @@
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { RoomBackground } from "../../components/ui/effects";
-import { TEXTURES, ambientTexture, ambientTextureIndex, keepAmbientTexture } from "../../lib/textures";
+import { TEXTURES, ambientTexture, ambientTextureIndex, keepAmbientTexture, textureForRoom } from "../../lib/textures";
 
-// lib/textures.ts: the "ambient" texture, the one a screen outside a room shows. The rule runs here over a stand-in
-// for the tab's sessionStorage and a source of random numbers that gives what the test asks for. One call of
+// lib/textures.ts. First the "ambient" texture, the one a screen outside a room shows. The rule runs here over a
+// stand-in for the tab's sessionStorage and a source of random numbers that gives what the test asks for. One call of
 // ambientTextureIndex is one page load; the same storage handed to a second call is a reload of the tab.
 // RoomBackground puts the ambient texture on in an effect, and no effect runs here (see CLAUDE.md): what is tested of
 // it is the server's half, the markup the browser's first render has to match.
+// Then the list itself, the texture a room is drawn with, and the iPhone app's copy of the list, read from its files.
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -25,7 +28,7 @@ function tabStorage(kept?: string) {
   };
 }
 
-/** Random numbers that land on these indexes in turn, each in the middle of its tenth */
+/** Random numbers that land on these indexes in turn, each in the middle of its texture's share of the range */
 function landingOn(...indexes: number[]) {
   let calls = 0;
   return vi.fn(() => (indexes[calls++ % indexes.length] + 0.5) / TEXTURES.length);
@@ -65,16 +68,17 @@ describe("a tab that has shown no room", () => {
     expect(ambientTextureIndex(storage, landingOn(8)).get()).toBe(8);
   });
 
-  test("the pick covers all ten textures and nothing else", () => {
-    expect(TEXTURES).toHaveLength(10);
+  test("the pick covers all 36 textures and nothing else", () => {
+    expect(TEXTURES).toHaveLength(36);
+    const all = Array.from({ length: 36 }, (_, index) => index);
     const pick = (value: number) => ambientTextureIndex(tabStorage(), () => value).get();
-    expect(TEXTURES.map((_, index) => pick((index + 0.5) / TEXTURES.length))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(all.map((index) => pick((index + 0.5) / 36))).toEqual(all);
     // Math.random gives from 0 up to, never, 1
     expect(pick(0)).toBe(0);
-    expect(pick(1 - Number.EPSILON)).toBe(9);
+    expect(pick(1 - Number.EPSILON)).toBe(35);
     const seen = new Set<number>();
     for (let n = 0; n < 1000; n++) seen.add(pick(n / 1000));
-    expect([...seen].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect([...seen].sort((a, b) => a - b)).toEqual(all);
   });
 });
 
@@ -102,7 +106,7 @@ describe("a screen that is waiting for its room", () => {
   });
 
   test("a kept value that is no texture's index counts as none, and unusable storage as none", () => {
-    expect(ambientTextureIndex(tabStorage("12"), landingOn(4)).peek()).toBeUndefined();
+    expect(ambientTextureIndex(tabStorage("36"), landingOn(4)).peek()).toBeUndefined();
     expect(ambientTextureIndex({ getItem: blocked, setItem: blocked }, landingOn(4)).peek()).toBeUndefined();
     expect(ambientTextureIndex(undefined, landingOn(4)).peek()).toBeUndefined();
   });
@@ -118,7 +122,7 @@ describe("a screen that is waiting for its room", () => {
 });
 
 describe("a kept value that is not a texture's index", () => {
-  test.each(["", " ", "abc", "2.5", "3.0", "-1", "-0", "10", "99", "1e0", "0x3", " 3", "3 ", "NaN", "Infinity", "null", "[3]"])(
+  test.each(["", " ", "abc", "2.5", "3.0", "-1", "-0", "36", "99", "1e0", "0x3", " 3", "3 ", "NaN", "Infinity", "null", "[3]"])(
     "%j is ignored, and the random pick shows",
     (kept) => {
       const ambient = ambientTextureIndex(tabStorage(kept), landingOn(4, 6));
@@ -207,7 +211,7 @@ describe("keeping a room's texture", () => {
     expect(ambientTextureIndex(storage, landingOn(3)).get()).toBe(0);
   });
 
-  test.each([-1, 10, 2.5, NaN, Infinity])("%s is no texture's index, and changes nothing", (index) => {
+  test.each([-1, 36, 2.5, NaN, Infinity])("%s is no texture's index, and changes nothing", (index) => {
     const storage = tabStorage("7");
     const ambient = ambientTextureIndex(storage, landingOn(3));
     ambient.keep(index);
@@ -241,4 +245,137 @@ describe("the background as the server renders it", () => {
     expect(html).toContain(`--blob-a:${texture.blobs[0]};`);
     expect(html).toContain(`--blob-b:${texture.blobs[1]}`);
   });
+});
+
+// The textures in the order rooms store them. An index a room holds goes on meaning the same texture, on the web and
+// in the iPhone app, only while none of these moves: a new texture goes at the end
+const KEYS = (
+  "grid dots gingham sprinkles doodles stripes zigzag bubbles plaid alphabet " +
+  "sakura seigaiha onigiri honeycomb argyle clouds asanoha cherries shippo terrazzo crossstitch paws waves " +
+  "hearts brush pencil candylines jimmies minihearts dabs softcheck rainbowgrid swatches " +
+  "squiggles memphis shapes"
+).split(" ");
+
+/** The five blob tints, each under the name RoomTexture.swift gives it */
+const TINTS: Record<string, string> = {
+  "rgba(255, 122, 182, .18)": "pink",
+  "rgba(59, 107, 255, .13)": "blue",
+  "rgba(63, 220, 176, .2)": "mint",
+  "rgba(167, 123, 255, .17)": "violet",
+  "rgba(255, 210, 63, .26)": "yellow",
+};
+
+/** The width and height the texture's svg tag declares, in px */
+function tileSize(svg: string) {
+  const tag = /^<svg xmlns='http:\/\/www\.w3\.org\/2000\/svg' width='(\d+)' height='(\d+)'>/.exec(svg);
+  if (!tag) throw new Error(`Not a tile: ${svg.slice(0, 80)}`);
+  return { width: Number(tag[1]), height: Number(tag[2]) };
+}
+
+describe("the list of textures", () => {
+  test("holds the 36 textures in the order rooms store them, each under its own key", () => {
+    expect(KEYS).toHaveLength(36);
+    expect(new Set(KEYS).size).toBe(36);
+    expect(TEXTURES.map((texture) => texture.key)).toEqual(KEYS);
+  });
+
+  test("every texture has a name, and no two share one", () => {
+    const names = TEXTURES.map((texture) => texture.name);
+    for (const name of names) expect(name).toMatch(/^\S.*\S$/);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  test.each(TEXTURES.map((texture) => [texture.key, texture] as const))(
+    "%s tiles at the size its svg is drawn at, between two blobs of different tints",
+    (_, texture) => {
+      const { width, height } = tileSize(texture.svg);
+      expect(texture.size).toBe(width === height ? `${width}px` : `${width}px ${height}px`);
+      expect(texture.svg.endsWith("</svg>")).toBe(true);
+      // Single quotes throughout, as in the svg tag itself
+      expect(texture.svg).not.toContain('"');
+
+      expect(texture.blobs).toHaveLength(2);
+      expect(Object.keys(TINTS)).toEqual(expect.arrayContaining(texture.blobs));
+      expect(texture.blobs[0]).not.toBe(texture.blobs[1]);
+    }
+  );
+});
+
+describe("the texture a room is drawn with", () => {
+  test.each(KEYS.map((key, index) => [index, key] as const))("a room that stores %i is drawn with %s, whatever its join code", (index, key) => {
+    expect(TEXTURES[index].key).toBe(key);
+    expect(textureForRoom({ background: index })).toBe(TEXTURES[index]);
+    for (const joinCode of ["ABC234", "HJKL67", ""]) {
+      expect(textureForRoom({ background: index, joinCode })).toBe(TEXTURES[index]);
+    }
+  });
+
+  // A room with no stored index is drawn by the FNV-1a hash of its join code, modulo ten: the first ten textures are
+  // the ones every build of the web page and the iPhone app has, so they all draw such a room alike. Taken modulo 36,
+  // the hash of every code here but 222222 lands on another texture than the one beside it
+  const BY_JOIN_CODE: Array<[joinCode: string, index: number, key: string]> = [
+    ["ABC234", 0, "grid"],
+    ["ZZZZZZ", 1, "dots"],
+    ["PQRS56", 2, "gingham"],
+    ["W5X6Y7", 3, "sprinkles"],
+    ["4W4B2H", 4, "doodles"],
+    ["K7MNPQ", 5, "stripes"],
+    ["GHJKLM", 6, "zigzag"],
+    ["R3T5V8", 7, "bubbles"],
+    ["2A3B4C", 8, "plaid"],
+    ["HJKL67", 9, "alphabet"],
+    ["QRSTUV", 6, "zigzag"],
+    ["222222", 1, "dots"],
+    ["EC5XF4", 4, "doodles"],
+  ];
+
+  test.each(BY_JOIN_CODE)("a room with no stored background and the join code %s is drawn with texture %i, %s", (joinCode, index, key) => {
+    expect(textureForRoom({ joinCode })).toBe(TEXTURES[index]);
+    expect(textureForRoom({ joinCode }).key).toBe(key);
+  });
+
+  // What a build is handed when the host's app has a texture it does not: every build that does not know the index
+  // then draws the room by its join code
+  test.each([36, 37, 99, -1, 1.5, NaN, Infinity])("a stored %s is no texture here, and the room is drawn by its join code", (background) => {
+    for (const [joinCode, index] of BY_JOIN_CODE) {
+      expect(textureForRoom({ background, joinCode }), joinCode).toBe(TEXTURES[index]);
+    }
+  });
+
+  test("with no join code either, and with no room at all, it is the grid", () => {
+    for (const room of [{}, { joinCode: "" }, { background: 36 }, { background: 36, joinCode: "" }, null, undefined]) {
+      expect(textureForRoom(room)).toBe(TEXTURES[0]);
+    }
+  });
+});
+
+// The iPhone app keeps its own list (RoomTexture.all in apps/ios/Theme/RoomTexture.swift) and draws each texture from
+// a PNG of the tile at three pixels to the px (Assets.xcassets/Textures). Both are read here as files
+describe("the iPhone app's textures", () => {
+  const ios = fileURLToPath(new URL("../../../ios/", import.meta.url));
+
+  test("are the web's: the same keys in the same order, each with the same two blobs", () => {
+    const swift = readFileSync(`${ios}Theme/RoomTexture.swift`, "utf8");
+    // From the list's opening bracket to the line that closes it
+    const list = /static let all: \[RoomTexture\] = \[\n([\s\S]*?)\n {4}\]/.exec(swift)?.[1] ?? "";
+    const entries = [...list.matchAll(/RoomTexture\(\s*key:\s*"([^"]*)",\s*blobA:\s*(\w+),\s*blobB:\s*(\w+)\s*\)/g)];
+    expect(entries.map(([, key, blobA, blobB]) => ({ key, blobs: [blobA, blobB] }))).toEqual(
+      TEXTURES.map((texture) => ({ key: texture.key, blobs: texture.blobs.map((tint) => TINTS[tint]) }))
+    );
+  });
+
+  test.each(TEXTURES.map((texture) => [texture.key, texture] as const))(
+    "%s has its tile in the asset catalog, at three times the size of the svg",
+    (key, texture) => {
+      const imageset = `${ios}Assets.xcassets/Textures/tex-${key}.imageset/`;
+      expect(existsSync(`${imageset}tex-${key}.png`)).toBe(true);
+      expect(JSON.parse(readFileSync(`${imageset}Contents.json`, "utf8")).images).toContainEqual(
+        expect.objectContaining({ filename: `tex-${key}.png`, scale: "3x" })
+      );
+      // A PNG's header holds its width and height as two 32-bit numbers, from byte 16
+      const png = readFileSync(`${imageset}tex-${key}.png`);
+      const { width, height } = tileSize(texture.svg);
+      expect({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) }).toEqual({ width: width * 3, height: height * 3 });
+    }
+  );
 });
