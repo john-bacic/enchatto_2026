@@ -224,7 +224,7 @@ const BingoCell = memo(function BingoCell({
       }}
     >
       {isFree ? (
-        <Chatto size={40} bob={false} wave={false} />
+        <Chatto size={38} bob={false} wave={false} />
       ) : (
         <EmojiArt emoji={emoji} size="78%" />
       )}
@@ -557,7 +557,8 @@ function GamePlayView({
           )}
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "2px 14px 0" }}>
+        {/* The bottom padding holds the card's 6px shadow, which a scrolling area cuts at its edge */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "2px 14px 8px" }}>
           {/* BINGO progress banner */}
           {game.status === "won" && (
             <div
@@ -702,12 +703,16 @@ function GamePlayView({
               })}
           </div>
 
-          {/* 5x5 Bingo Card */}
-          <div style={{ flex: 1, display: "flex", alignItems: "flex-start", justifyContent: "center", minHeight: 0 }}>
+          {/* 5x5 Bingo Card. Never shorter than the card, so that a screen too short for it scrolls to the card's end */}
+          <div style={{ flex: "1 0 auto", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
             <div
               className="ec-card"
               style={{
-                width: "min(100%, 440px, calc(100dvh - 330px))",
+                // As wide as leaves the whole card and its shadow in view: 362px is the rest of the screen (about
+                // 323px), the 33px the card is taller than wide, and a little slack. Not under 270px, where the
+                // cells stop shrinking (the mascot in the free cell has a fixed size) and would stick out of the
+                // card: a screen too short for that scrolls instead
+                width: "min(100%, 440px, max(270px, calc(100dvh - 362px - env(safe-area-inset-bottom))))",
                 padding: 8,
                 borderRadius: 22,
                 background: "var(--blue)",

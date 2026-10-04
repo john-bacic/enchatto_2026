@@ -410,8 +410,11 @@ function GameBoardView({
           </span>
         </div>
 
-        {/* Score chips — sorted by score */}
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "4px 14px 8px", flexShrink: 0 }}>
+        {/* Score chips — sorted by score. A row that scrolls sideways also cuts what is drawn above it, so its top
+            padding holds the leader's crown and the ring of the current player's chip, which is lifted and tilted.
+            The margin takes half of that room from the empty padding under the header. The bottom padding holds
+            the shadow under the tilted chip's lower end */}
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "16px 14px 10px", marginTop: -8, flexShrink: 0 }}>
           {ranked.map((p: any) => {
             const isCurrent = p.participantId === game.currentTurnParticipantId;
             const rank = ranked.findIndex((r: any) => r.score === p.score);
@@ -457,7 +460,7 @@ function GameBoardView({
         </div>
 
         {/* Turn indicator + timer */}
-        <div style={{ padding: "2px 14px 10px", flexShrink: 0 }}>
+        <div style={{ padding: "0 14px 4px", flexShrink: 0 }}>
           <div
             key={game.currentTurnParticipantId}
             className="ec-chunky"
@@ -509,8 +512,9 @@ function GameBoardView({
           )}
         </div>
 
-        {/* Board */}
-        <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "0 14px 16px", overflow: "hidden" }}>
+        {/* Board. The top padding is room for the ring around a matched or mismatched card in the first row,
+            which is drawn 4px outside the card: the board cuts whatever passes its edge */}
+        <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6px 14px 16px", overflow: "hidden" }}>
           <div
             style={{
               display: "grid",
@@ -539,7 +543,8 @@ function GameBoardView({
                 position: "absolute",
                 zIndex: 9,
                 left: "50%",
-                top: "42%",
+                // 42% of the way down the board, not counting its 6px of top padding
+                top: "calc(6px + (100% - 6px) * 0.42)",
                 padding: "6px 18px",
                 border: "3.5px solid var(--ink)",
                 borderRadius: 16,

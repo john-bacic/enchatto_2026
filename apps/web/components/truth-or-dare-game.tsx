@@ -1300,13 +1300,15 @@ export function TruthOrDareGame({
         )}
       </div>
 
-      {/* Turn order */}
+      {/* Turn order. A strip that scrolls sideways also cuts what is drawn above it: 8px of its top padding lies
+          over the empty padding at the foot of the main area, as room for the active avatar's bounce */}
       {keyboardHeight === 0 && (
         <div
           style={{
             display: "flex",
             gap: 10,
-            padding: "6px 16px max(12px, env(safe-area-inset-bottom))",
+            padding: "14px 16px max(12px, env(safe-area-inset-bottom))",
+            marginTop: -8,
             overflowX: "auto",
             width: "100%",
             maxWidth: 520,

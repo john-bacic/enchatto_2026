@@ -2516,9 +2516,14 @@ private struct GameSummaryBanner: View {
                 .padding(.vertical, 4)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: spacing) { content() }
-                    .padding(.vertical, 4)
+                    // 10 pt above the cards for the winner's, which is tilted 3 degrees and lifted 4 pt:
+                    // a horizontal scroll view also cuts at its top edge
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
                     .padding(.horizontal, 4)
             }
+            // 6 of those 10 pt overlap the 12 pt gap above the row: it is as tall as the row that fits
+            .padding(.top, -6)
         }
     }
 

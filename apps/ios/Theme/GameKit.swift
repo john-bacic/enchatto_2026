@@ -157,7 +157,8 @@ struct GKPlayerTile: View {
     }
 }
 
-/// Full lobby screen: hero art with rays, title, tagline, extras, player grid, footer buttons
+/// Full lobby screen: hero art with rays, title, tagline, extras, player grid, footer buttons.
+/// The rays reach 57 pt above the lobby's top: a header placed above it needs `.zIndex(1)` to stay in front of them
 struct GKLobby<Extra: View, Footer: View>: View {
     let icon: String
     let title: String
@@ -191,20 +192,15 @@ struct GKLobby<Extra: View, Footer: View>: View {
         VStack(spacing: 14) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 14) {
-                    ZStack {
-                        if !reduceMotion {
-                            RaysView(color: accent.opacity(0.35)).frame(width: 300, height: 300)
-                        }
-                        PackIcon(icon, size: 84)
-                            .padding(18)
-                            .background(Circle().fill(accent))
-                            .overlay(Circle().strokeBorder(EC.ink, lineWidth: 4))
-                            .background(Circle().fill(EC.ink).offset(y: 6))
-                            .gkBob(delay: 0)
-                            .popIn()
-                    }
-                    .frame(height: 170)
-                    .padding(.top, 8)
+                    PackIcon(icon, size: 84)
+                        .padding(18)
+                        .background(Circle().fill(accent))
+                        .overlay(Circle().strokeBorder(EC.ink, lineWidth: 4))
+                        .background(Circle().fill(EC.ink).offset(y: 6))
+                        .gkBob(delay: 0)
+                        .popIn()
+                        .frame(height: 170)
+                        .padding(.top, 8)
 
                     OutlinedText(title.uppercased(), size: 32, fill: .white)
                         .rotationEffect(.degrees(-3))
@@ -235,6 +231,15 @@ struct GKLobby<Extra: View, Footer: View>: View {
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 8)
+            }
+            // The rays are behind the scroll view, not in it: a ScrollView cuts whatever reaches past its top edge.
+            // Centred on the icon: 8 of top padding + half of the icon's 170 pt frame - the rays' radius
+            .background(alignment: .top) {
+                if !reduceMotion {
+                    RaysView(color: accent.opacity(0.35))
+                        .frame(width: 300, height: 300)
+                        .offset(y: 8 + 85 - 150)
+                }
             }
 
             VStack(spacing: 8) { footer }

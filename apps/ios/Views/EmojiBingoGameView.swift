@@ -133,7 +133,8 @@ struct EmojiBingoGameView: View {
         }
 
         return VStack(spacing: 0) {
-            header(game: game)
+            // In front of the lobby's rays, which reach up behind the header
+            header(game: game).zIndex(1)
             GKLobby(
                 icon: "g-clover",
                 title: L.t("Emoji Bingo", lang),

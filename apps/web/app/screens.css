@@ -207,10 +207,11 @@
   line-height: 1.05;
   text-shadow: 0 3px 0 var(--yellow);
 }
-/* Pages carry the room the selected tile's ring, lift and "IN ROOM" tag need; the scroller clips to them */
+/* Pages carry the room the selected tile's ring, lift, sparkle and "IN ROOM" tag need; the scroller clips to them.
+   Above the first row that is 22px, of which the pager's margin gives back 14: the other 8 keep the ring off the label */
 .ec-av-pager {
   display: flex;
-  margin: -12px -10px -14px;
+  margin: -14px -10px -14px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
@@ -223,7 +224,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 9px;
-  padding: 12px 10px 14px;
+  padding: 22px 10px 14px;
   scroll-snap-align: start;
 }
 .ec-av-dots {
@@ -1113,6 +1114,10 @@
   background: var(--paper);
 }
 .ec-media.drawing { max-width: 220px; background: #fff; transform: rotate(-1.5deg); }
+/* With the picture in, the frame stops clipping, so that the tape lies over its top edge, and the picture takes
+   the frame's inner radius instead */
+.ec-media.drawing.loaded { overflow: visible; }
+.ec-media.drawing.loaded img { border-radius: 15px; }
 .ec-media.drawing::before {
   content: "";
   position: absolute;

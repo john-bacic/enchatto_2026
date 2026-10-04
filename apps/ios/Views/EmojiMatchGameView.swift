@@ -139,7 +139,8 @@ struct EmojiMatchGameView: View {
         }
 
         return VStack(spacing: 0) {
-            header(game: game)
+            // In front of the lobby's rays, which reach up behind the header
+            header(game: game).zIndex(1)
             GKLobby(
                 icon: "o-cherry",
                 title: L.t("Emoji Match", lang),
@@ -295,8 +296,13 @@ struct EmojiMatchGameView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            // 14 pt above the chips for the turn chip's ring (4 pt out), its 2 degree tilt and its 3 pt lift:
+            // a horizontal scroll view also cuts at its top edge
+            .padding(.top, 14)
+            .padding(.bottom, 8)
         }
+        // 6 of those 14 pt overlap the 10 pt gap under the header: the strip is laid out with 8 pt above its chips
+        .padding(.top, -6)
     }
 
     // MARK: - Completed

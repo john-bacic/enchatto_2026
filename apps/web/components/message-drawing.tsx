@@ -10,11 +10,21 @@ interface MessageDrawingProps {
 
 export function MessageDrawing({ src, onLoad }: MessageDrawingProps) {
   const [fullscreen, setFullscreen] = useState(false);
+  // The frame lets its tape lie over its top edge only once the picture is in: until then the frame is a few
+  // pixels tall, and the tape would hang in mid-air
+  const [loaded, setLoaded] = useState(false);
 
   return (
     <>
-      <div className="ec-media drawing" onClick={() => setFullscreen(true)}>
-        <img src={src} alt="Drawing" onLoad={onLoad} />
+      <div className={`ec-media drawing${loaded ? " loaded" : ""}`} onClick={() => setFullscreen(true)}>
+        <img
+          src={src}
+          alt="Drawing"
+          onLoad={() => {
+            setLoaded(true);
+            onLoad?.();
+          }}
+        />
       </div>
 
       {fullscreen &&

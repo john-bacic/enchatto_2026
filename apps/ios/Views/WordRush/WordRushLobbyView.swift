@@ -25,6 +25,8 @@ struct WordRushLobbyView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 6)
+            // In front of the rays, which reach up behind this row
+            .zIndex(1)
 
             ScrollView {
                 VStack(spacing: 18) {
@@ -35,6 +37,13 @@ struct WordRushLobbyView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
                 .padding(.bottom, 24)
+            }
+            // The rays are behind the scroll view, not in it: a ScrollView cuts whatever reaches past its top edge.
+            // Centred on the hero's emoji: 8 of top padding + half of the emoji's 120 pt frame - the rays' radius
+            .background(alignment: .top) {
+                RaysView()
+                    .frame(width: 260, height: 260)
+                    .offset(y: 8 + 60 - 130)
             }
 
             actions
@@ -47,15 +56,12 @@ struct WordRushLobbyView: View {
 
     private var hero: some View {
         VStack(spacing: 10) {
-            ZStack {
-                RaysView().frame(width: 260, height: 260)
-                HStack(spacing: -10) {
-                    EmojiArt(emoji: "🌸", size: 62).rotationEffect(.degrees(-12))
-                    EmojiArt(emoji: "⚡", size: 74).offset(y: -12)
-                    EmojiArt(emoji: "💬", size: 62).rotationEffect(.degrees(12))
-                }
-                .popIn()
+            HStack(spacing: -10) {
+                EmojiArt(emoji: "🌸", size: 62).rotationEffect(.degrees(-12))
+                EmojiArt(emoji: "⚡", size: 74).offset(y: -12)
+                EmojiArt(emoji: "💬", size: 62).rotationEffect(.degrees(12))
             }
+            .popIn()
             .frame(height: 120)
 
             OutlinedText(L.t("Word Rush", lang), size: 40, fill: EC.yellow)
