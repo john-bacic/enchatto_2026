@@ -6,10 +6,12 @@ class MockEnchattoAPI: EnchattoAPI {
     private var participants: [String: [Participant]] = [:]
     private var messages: [String: [Message]] = [:]
 
-    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings) async throws -> CreateRoomResult {
+    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings, background: Int?) async throws -> CreateRoomResult {
         let roomId = UUID().uuidString
         let joinCode = String((0..<6).map { _ in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".randomElement()! })
         let hostId = UUID().uuidString
+        // As the server does: the background asked for when it is one, else its own pick
+        let background = background.flatMap { RoomTexture.all.indices.contains($0) ? $0 : nil } ?? RoomTexture.randomIndex()
 
         let room = Room(
             id: roomId,
@@ -17,7 +19,8 @@ class MockEnchattoAPI: EnchattoAPI {
             status: .waiting,
             settings: settings,
             hostId: hostId,
-            createdAt: Date()
+            createdAt: Date(),
+            background: background
         )
 
         let host = Participant(
@@ -67,7 +70,7 @@ class MockEnchattoAPI: EnchattoAPI {
             self.messages[roomId]?.append(mockMessage)
         }
 
-        return CreateRoomResult(roomId: roomId, joinCode: joinCode, hostId: hostId, hostToken: nil)
+        return CreateRoomResult(roomId: roomId, joinCode: joinCode, hostId: hostId, hostToken: nil, background: background)
     }
 
     func setCaller(hostId: String?, token: String?) {}

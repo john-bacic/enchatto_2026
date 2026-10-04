@@ -10,18 +10,29 @@ class RealEnchattoAPI: EnchattoAPI {
 
     // MARK: - Rooms
 
-    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings) async throws -> CreateRoomResult {
+    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings, background: Int?) async throws -> CreateRoomResult {
         struct Response: Decodable {
             let roomId: String
             let joinCode: String
             let hostId: String
+            let background: Background?
+
+            /// Decodes from any value, to nil unless it is a whole number: the room exists whatever the reply says
+            /// of its background, so that field never fails the reply
+            struct Background: Decodable {
+                let index: Int?
+
+                init(from decoder: Decoder) throws {
+                    index = try? decoder.singleValueContainer().decode(Int.self)
+                }
+            }
         }
 
         // Made here, kept by the server for the host it creates, and expected back with every request made as the
         // host. A server that predates tokens ignores the field, and the host stays one it accepts by id alone
         let hostToken = ConvexHTTPClient.makeToken()
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "hostNickname": hostNickname,
             "hostAvatarId": hostAvatarId,
             "hostLanguage": hostLanguage,
@@ -34,9 +45,11 @@ class RealEnchattoAPI: EnchattoAPI {
                 "maxParticipants": settings.maxParticipants,
             ] as [String: Any],
         ]
+        // A server that takes no request for a background ignores the field and makes its own pick
+        if let background { body["background"] = background }
 
         let response: Response = try await client.post("/api/rooms/create", body: body)
-        return CreateRoomResult(roomId: response.roomId, joinCode: response.joinCode, hostId: response.hostId, hostToken: hostToken)
+        return CreateRoomResult(roomId: response.roomId, joinCode: response.joinCode, hostId: response.hostId, hostToken: hostToken, background: response.background?.index)
     }
 
     func setCaller(hostId: String?, token: String?) {

@@ -50,6 +50,9 @@ struct SavedHostRoom: Codable, Equatable {
     /// registered none. In UserDefaults with the rest of the record: it is good for this one room only, and the
     /// record is dropped when the room closes
     let hostToken: String?
+    /// Index into RoomTexture.all the room was created with, which the start screen shows for it. nil for a room
+    /// saved by a build that stored none: the index is then worked out from the join code
+    let background: Int?
 
     private static let key = "enchatto_hostRoom"
 

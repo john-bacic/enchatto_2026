@@ -61,6 +61,8 @@ private struct ScrollDragKeyboardDismisser: UIViewRepresentable {
 struct HostConversationView: View {
     let roomId: String
     let hostId: String
+    /// Index into RoomTexture.all drawn until the room's own state arrives: the start screen's, which is the room's
+    let textureIndex: Int
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -110,9 +112,10 @@ struct HostConversationView: View {
     @State private var modeNudge = false
     @State private var micLongPressed = false
 
-    init(roomId: String, hostId: String) {
+    init(roomId: String, hostId: String, textureIndex: Int = 0) {
         self.roomId = roomId
         self.hostId = hostId
+        self.textureIndex = textureIndex
         _viewModel = StateObject(wrappedValue: HostRoomViewModel(roomId: roomId, hostId: hostId))
     }
 
@@ -153,7 +156,7 @@ struct HostConversationView: View {
                 closedBanner
             }
         }
-        .background { RoomBackground(room: viewModel.room).ignoresSafeArea() }
+        .background { RoomBackground(index: viewModel.room.map { RoomTexture.index(background: $0.background, joinCode: $0.joinCode) } ?? textureIndex).ignoresSafeArea() }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .background { offlineTranslatorBridge }

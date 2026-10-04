@@ -37,6 +37,13 @@ struct RoomTexture {
         return Int(h % UInt32(all.count))
     }
 
+    /// Any of the textures, or with `not` any but that one
+    static func randomIndex(not current: Int? = nil) -> Int {
+        guard let current, all.indices.contains(current) else { return Int.random(in: all.indices) }
+        let index = Int.random(in: 0..<all.count - 1)
+        return index < current ? index : index + 1
+    }
+
     static func forRoom(_ room: Room?) -> RoomTexture {
         all[index(background: room?.background, joinCode: room?.joinCode)]
     }

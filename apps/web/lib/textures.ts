@@ -182,3 +182,85 @@ export function textureStyle(t: RoomTexture): CSSProperties {
     "--blob-b": t.blobs[1],
   } as CSSProperties;
 }
+
+// A screen outside a room (the home page, a join link whose room is not known yet) shows the "ambient" texture:
+// that of the last room shown in this tab, so a guest put out of a chat keeps its background until the next chat
+// brings its own. With no room yet it is a random one, picked once per page load: moving between such screens
+// keeps it, and a reload picks again. A screen that is only waiting for its room picks nothing: it shows the
+// ambient texture if the page load has one, and otherwise bare paper until the room's own arrives.
+
+const AMBIENT_KEY = "enchatto_background";
+
+/** Where the last room's index is kept, as text: sessionStorage in the browser, a stand-in in a test */
+type TextureStorage = Pick<Storage, "getItem" | "setItem">;
+
+const isTextureIndex = (index: number) => Number.isInteger(index) && index >= 0 && index < TEXTURES.length;
+
+/**
+ * The rule for the ambient texture, over a given storage and source of random numbers. Storage that is missing or
+ * blocked never throws here: what is kept or picked is held in memory too, which lasts as long as the page load.
+ */
+export function ambientTextureIndex(storage: TextureStorage | null | undefined, random: () => number) {
+  // Read first: a room's texture kept by this page load is the last one shown, whatever storage took or still holds
+  let kept: number | undefined;
+  let picked: number | undefined;
+  /** What this page load already has: a room's texture, or a pick made earlier. Picks nothing */
+  const peek = (): number | undefined => {
+    if (kept !== undefined) return kept;
+    try {
+      const stored = storage?.getItem(AMBIENT_KEY);
+      // Digits only: Number() alone reads "" as 0 and "1e0" as 1
+      if (stored && /^\d+$/.test(stored) && isTextureIndex(Number(stored))) return Number(stored);
+    } catch {
+      // storage blocked
+    }
+    return picked;
+  };
+  return {
+    peek,
+    get(): number {
+      const known = peek();
+      if (known !== undefined) return known;
+      picked = Math.floor(random() * TEXTURES.length);
+      return picked;
+    },
+    keep(index: number) {
+      if (!isTextureIndex(index)) return;
+      kept = index;
+      try {
+        storage?.setItem(AMBIENT_KEY, String(index));
+      } catch {
+        // The copy in memory serves this page load
+      }
+    },
+  };
+}
+
+// sessionStorage is looked up at each call, inside the rule's try: the server has none, and a browser that blocks
+// storage throws on the lookup itself
+const ambient = ambientTextureIndex(
+  {
+    getItem: (key) => sessionStorage.getItem(key),
+    setItem: (key, value) => sessionStorage.setItem(key, value),
+  },
+  Math.random
+);
+
+/** The texture of a screen outside a room. For the browser only: the server cannot know what a tab last showed */
+export function ambientTexture(): RoomTexture {
+  return TEXTURES[ambient.get()];
+}
+
+/**
+ * The ambient texture if this page load already has one, and nothing otherwise. For a screen whose room is on its
+ * way: a join link opened in a fresh tab then goes from bare paper to the room's texture, not through a random one
+ */
+export function ambientTextureIfAny(): RoomTexture | undefined {
+  const index = ambient.peek();
+  return index === undefined ? undefined : TEXTURES[index];
+}
+
+/** Makes a room's texture the ambient one, so the screens that follow the room look like it */
+export function keepAmbientTexture(texture: RoomTexture) {
+  ambient.keep(TEXTURES.indexOf(texture));
+}

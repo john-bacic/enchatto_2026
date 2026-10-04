@@ -8,12 +8,16 @@ struct CreateRoomResult {
     /// What the API registered for the host at creation, to be sent back with every request made as the host.
     /// nil when it registered nothing (the mock)
     let hostToken: String?
+    /// Index into RoomTexture.all the room was given. nil when the server names none, or names something that is
+    /// not a whole number
+    let background: Int?
 }
 
 /// Protocol defining all backend operations the host app needs
 protocol EnchattoAPI {
-    /// Create a new room with the given settings. hostLanguage ("en" / "ja") is the host's own language, separate from the room's translation direction
-    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings) async throws -> CreateRoomResult
+    /// Create a new room with the given settings. hostLanguage ("en" / "ja") is the host's own language, separate from the room's translation direction.
+    /// `background` asks for that index into RoomTexture.all; nil leaves the pick to the server
+    func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings, background: Int?) async throws -> CreateRoomResult
 
     /// Who this device acts as from now on: the host's participant id, and the token registered when this device
     /// created the room (nil for a room made by a build that sent none). Sent with every request. nil hostId: no room is open

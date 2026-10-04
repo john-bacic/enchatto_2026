@@ -1,11 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { RoomTexture, TEXTURES, textureStyle } from "@/lib/textures";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { RoomTexture, ambientTexture, ambientTextureIfAny, keepAmbientTexture, textureStyle } from "@/lib/textures";
 
-/** Fixed full-page paper + texture behind everything. */
-export function RoomBackground({ texture = TEXTURES[0] }: { texture?: RoomTexture }) {
-  return <div className="ec-paper" style={textureStyle(texture)} aria-hidden />;
+/**
+ * Fixed full-page paper + texture behind everything. A room's screens pass the room's texture, which the screens
+ * outside a room then keep showing; without one this is such a screen and shows the ambient texture (lib/textures.ts).
+ * `waiting` says the room's texture is on its way: until it comes no random texture is picked, since the room's
+ * would replace it a moment later.
+ */
+export function RoomBackground({ texture, waiting = false }: { texture?: RoomTexture; waiting?: boolean }) {
+  // The ambient texture is only known in the browser. The server and the first client render draw the paper bare,
+  // so they match, and the layout effect puts the texture on before that render is painted
+  const [ambient, setAmbient] = useState<RoomTexture>();
+  useLayoutEffect(() => {
+    if (texture) keepAmbientTexture(texture);
+    else setAmbient(waiting ? ambientTextureIfAny() : ambientTexture());
+  }, [texture, waiting]);
+  const shown = texture ?? ambient;
+  return <div className="ec-paper" style={shown && textureStyle(shown)} aria-hidden />;
 }
 
 const CONFETTI_COLORS = ["#ff7ab6", "#3b6bff", "#ffd23f", "#3fdcb0", "#a77bff", "#ff4f6d"];

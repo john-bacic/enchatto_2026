@@ -15,6 +15,8 @@ export const createRoom = mutation({
     hostLanguage: v.optional(v.string()),
     // The host app's caller token (participants.ts: registerToken). Builds that send none make a legacy host
     hostToken: v.optional(v.string()),
+    // The texture the host app chose for the room, as its index in the texture lists. Builds that send none get the server's pick
+    background: v.optional(v.number()),
     settings: v.optional(
       v.object({
         sourceLanguage: v.string(),
@@ -50,9 +52,15 @@ export const createRoom = mutation({
       throw new Error("Unsupported language");
     }
 
-    const lastRoom = await ctx.db.query("rooms").order("desc").first();
-    let background = Math.floor(Math.random() * (BACKGROUND_COUNT - 1));
-    if (lastRoom?.background !== undefined && background >= lastRoom.background) background++;
+    // The app names the texture, so that a room can look like the start screen it was made from. A value that
+    // is not one of the textures is no reason to refuse the room: the pick is then made here, as for a build
+    // that sends none, at random and different from the last room's
+    let background = args.background;
+    if (!isBackground(background)) {
+      const lastRoom = await ctx.db.query("rooms").order("desc").first();
+      background = Math.floor(Math.random() * (BACKGROUND_COUNT - 1));
+      if (lastRoom?.background !== undefined && background >= lastRoom.background) background++;
+    }
 
     // After every check above, so a room that is refused has not looked anything up
     const joinCode = await freeJoinCode(ctx);
@@ -84,7 +92,7 @@ export const createRoom = mutation({
     // Update room with host ID
     await ctx.db.patch(roomId, { hostId: hostId });
 
-    return { roomId, joinCode, hostId };
+    return { roomId, joinCode, hostId, background };
   },
 });
 
@@ -400,6 +408,15 @@ export const updateRoomSettings = mutation({
  */
 function isSeatCount(value: number): boolean {
   return Number.isInteger(value) && value >= 2 && value <= 50;
+}
+
+/**
+ * A background a room may be given: the index of one of the textures, a whole number from 0 to
+ * BACKGROUND_COUNT - 1. Whole for the reason a seat count is: the iOS app decodes the room's background as
+ * an Int. NaN and Infinity are not whole numbers either.
+ */
+function isBackground(value: number | undefined): value is number {
+  return value !== undefined && Number.isInteger(value) && value >= 0 && value < BACKGROUND_COUNT;
 }
 
 function generateJoinCode(): string {

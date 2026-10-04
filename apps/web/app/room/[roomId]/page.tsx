@@ -1888,7 +1888,7 @@ function RoomContent() {
 function LoadingState({ lang }: { lang: string }) {
   return (
     <>
-      <RoomBackground />
+      <RoomBackground waiting />
       <div className="ec-center-state">
         <Chatto size={110} shadow />
         <div className="ec-chunky" style={{ fontSize: 18 }}>{t("Loading room...", lang)}</div>

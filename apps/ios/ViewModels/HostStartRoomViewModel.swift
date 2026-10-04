@@ -27,6 +27,13 @@ class HostStartRoomViewModel: ObservableObject {
     @Published private(set) var rejoinableRoom: SavedHostRoom?
     @Published private(set) var isRejoining = false
 
+    /// Index into RoomTexture.all of the background this screen is drawn on: that of the room this device was last
+    /// in, or with no such room one picked at random at launch
+    @Published private(set) var textureIndex: Int
+    /// Whether `textureIndex` is a room's. One that no room has had goes to the next room created, so the room looks
+    /// like the screen it was created from; a room's is not handed on, so the next room gets another
+    private(set) var textureIsFromRoom: Bool
+
     private let api: EnchattoAPI
 
     init(api: EnchattoAPI = AppConfig.makeAPI()) {
@@ -34,6 +41,13 @@ class HostStartRoomViewModel: ObservableObject {
         self.hostNickname = UserDefaults.standard.string(forKey: "enchatto_lastNickname") ?? ""
         self.hostAvatarId = UserDefaults.standard.string(forKey: "enchatto_lastAvatarId") ?? "fox"
         self.hostLanguage = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
+        if let saved = SavedHostRoom.load() {
+            self.textureIndex = RoomTexture.index(background: saved.background, joinCode: saved.joinCode)
+            self.textureIsFromRoom = true
+        } else {
+            self.textureIndex = RoomTexture.randomIndex()
+            self.textureIsFromRoom = false
+        }
     }
 
     var canCreate: Bool {
@@ -46,18 +60,27 @@ class HostStartRoomViewModel: ObservableObject {
         isCreating = true
         error = nil
 
+        // A new chat brings a new background: this screen's own while no room has had it, otherwise any other
+        let background = textureIsFromRoom ? RoomTexture.randomIndex(not: textureIndex) : textureIndex
+
         do {
             let result = try await api.createRoom(
                 hostNickname: hostNickname.trimmingCharacters(in: .whitespaces),
                 hostAvatarId: hostAvatarId,
                 hostLanguage: hostLanguage,
-                settings: settings
+                settings: settings,
+                background: background
             )
+            // What the room screen will draw. A server that names no background is taken to have given the one asked for
+            let texture = RoomTexture.index(background: result.background ?? background, joinCode: result.joinCode)
             // Replaces any earlier record. That room is not closed from here: it closes itself once its host stays away
-            SavedHostRoom(roomId: result.roomId, hostId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, hostToken: result.hostToken).save()
+            SavedHostRoom(roomId: result.roomId, hostId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, hostToken: result.hostToken, background: texture).save()
             // Before the room screen exists: its first requests already go out as the host
             api.setCaller(hostId: result.hostId, token: result.hostToken)
             rejoinableRoom = nil
+            // Coming back out of the room, this screen is drawn on the room's background
+            textureIndex = texture
+            textureIsFromRoom = true
             createdRoomId = result.roomId
             createdJoinCode = result.joinCode
             createdHostId = result.hostId
@@ -84,11 +107,13 @@ class HostStartRoomViewModel: ObservableObject {
 
         var open = false
         var unreachable = false
+        var texture: Int?
         do {
             let state = try await api.getRoomState(roomId: saved.roomId)
             open = state.room.status != .closed
                 && state.room.hostId == saved.hostId
                 && state.participants.contains { $0.id == saved.hostId }
+            texture = RoomTexture.index(background: state.room.background, joinCode: state.room.joinCode)
         } catch {
             // A cancelled check says nothing about the room
             if Task.isCancelled || error.isCancellation { return }
@@ -109,6 +134,13 @@ class HostStartRoomViewModel: ObservableObject {
 
         // A room created while the request was out replaces the record: this answer is about the old one
         guard createdRoomId == nil, SavedHostRoom.load() == saved else { return }
+
+        // The room's own word on its background, which a record saved by a build that stored none could only work
+        // out from the join code. A room that is gone says nothing, and the background on screen stays
+        if let texture {
+            textureIndex = texture
+            textureIsFromRoom = true
+        }
 
         if open {
             if enter {

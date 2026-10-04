@@ -269,6 +269,89 @@ describe("createRoom", () => {
       if (i > 0) expect(background).not.toBe(backgrounds[i - 1]);
     }
   });
+
+  test("the server's pick can be any of the ten textures, and createRoom answers with the one the room got", async () => {
+    const t = newBackend();
+    // These draws step through the whole range, so the picks reach both ends of the texture list
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
+    const picked = new Set<number>();
+    let last = -1;
+    for (let i = 0; i < 50; i++) {
+      const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika" });
+      expect((await roomRow(t, created.roomId)).background).toBe(created.background);
+      expect(Number.isInteger(created.background) && created.background >= 0 && created.background <= 9).toBe(true);
+      expect(created.background).not.toBe(last);
+      last = created.background;
+      picked.add(created.background);
+    }
+    expect([...picked].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  // The host app chooses the texture, so that a room can look like the start screen it was made from
+  test("the room gets the background the app asks for, and createRoom answers with it", async () => {
+    const t = newBackend();
+    // The two ends of the texture list and one inside it
+    for (const background of [0, 9, 4]) {
+      const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background });
+      expect(created.background).toBe(background);
+      expect((await roomRow(t, created.roomId)).background).toBe(background);
+    }
+  });
+
+  test("the background the app asks for is kept when the room before has the same one: only the server's pick avoids it", async () => {
+    const t = newBackend();
+    for (let i = 0; i < 3; i++) {
+      const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 6 });
+      expect(created.background).toBe(6);
+      expect((await roomRow(t, created.roomId)).background).toBe(6);
+    }
+  });
+
+  test("the server's pick differs from the room before when the app chose that room's background", async () => {
+    // Every one of these draws picks the same texture, as in the test of two rooms made one after the other
+    const sameTexture = [0.45, 0.48, 0.51, 0.54];
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => sameTexture[draws++ % sameTexture.length]);
+    // The texture those draws pick when no room is in the way
+    const alone = (await newBackend().mutation(api.rooms.createRoom, { hostNickname: "Mika" })).background;
+
+    const t = newBackend();
+    await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: alone });
+    const next = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika" });
+    expect(next.background).not.toBe(alone);
+    expect(Number.isInteger(next.background) && next.background >= 0 && next.background <= 9).toBe(true);
+    expect((await roomRow(t, next.roomId)).background).toBe(next.background);
+  });
+
+  // -1 and 10 are one past each end of the list, and NaN is neither below the list nor above it. The iOS host
+  // decodes the room's background as Int, so a fraction that was stored would fail every poll of the room
+  test("a background that is not one of the ten textures is not a refusal: the room gets the server's pick, as if none was sent", async () => {
+    const notTextures = [-1, 10, 1.5, NaN, Infinity];
+    // The same draws for both backends, so the server picks the same textures in both
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
+    const unasked = newBackend();
+    const picks: number[] = [];
+    for (let i = 0; i < notTextures.length; i++) {
+      picks.push((await unasked.mutation(api.rooms.createRoom, { hostNickname: "Mika" })).background);
+    }
+
+    draws = 0;
+    const t = newBackend();
+    const made = [];
+    for (const background of notTextures) {
+      made.push(await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background }));
+    }
+    // Read once every room is made: looking into the backend takes a draw of its own
+    for (const [i, created] of made.entries()) {
+      const stored = (await roomRow(t, created.roomId)).background ?? -1;
+      expect(Number.isInteger(stored) && stored >= 0 && stored <= 9).toBe(true);
+      expect(created.background).toBe(stored);
+      expect(stored).toBe(picks[i]);
+    }
+    expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(notTextures.length);
+  });
 });
 
 // ─── joinRoom ────────────────────────────────────────────────────────────────
@@ -1785,7 +1868,7 @@ describe("purgeGameTraces", () => {
 // ─── HTTP routes the iOS host calls ──────────────────────────────────────────
 
 describe("/api/rooms/* and /api/participants/*", () => {
-  test("rooms/create answers 200 with exactly roomId, joinCode and hostId, as JSON", async () => {
+  test("rooms/create answers 200 with exactly roomId, joinCode, hostId and background, as JSON", async () => {
     const t = newBackend();
     const res = await post(t, "/api/rooms/create", { hostNickname: "Mika" });
     expect(res.status).toBe(200);
@@ -1794,13 +1877,17 @@ describe("/api/rooms/* and /api/participants/*", () => {
       roomId: expect.any(String),
       hostId: expect.any(String),
       joinCode: expect.stringMatching(/^[A-HJ-NP-Z2-9]{6}$/),
+      background: expect.any(Number),
     });
     const room = await roomRow(t, res.body.roomId);
     expect(room).toMatchObject({ hostId: res.body.hostId, joinCode: res.body.joinCode, status: "waiting" });
+    // The texture the room got, which the body did not ask for
+    expect(Number.isInteger(room.background)).toBe(true);
+    expect(res.body.background).toBe(room.background);
   });
 
   // Review bug 19, through the body the iOS app sends (RealEnchattoAPI.createRoom)
-  test("rooms/create takes the app's whole body: avatar, host language, host token and settings", async () => {
+  test("rooms/create takes the app's whole body: avatar, host language, host token, background and settings", async () => {
     const t = newBackend();
     const hostToken = "a1b2c3d4".repeat(8);
     const sent = settings({ sourceLanguage: "en", targetLanguage: "ja", maxParticipants: 12 });
@@ -1809,16 +1896,55 @@ describe("/api/rooms/* and /api/participants/*", () => {
       hostAvatarId: "rabbit",
       hostLanguage: "ja",
       hostToken,
+      background: 7,
       settings: sent,
     });
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body).sort()).toEqual(["hostId", "joinCode", "roomId"]);
+    expect(Object.keys(res.body).sort()).toEqual(["background", "hostId", "joinCode", "roomId"]);
+    expect(res.body.background).toBe(7);
+    expect((await roomRow(t, res.body.roomId)).background).toBe(7);
     expect((await roomRow(t, res.body.roomId)).settings).toEqual(sent);
     expect(await person(t, res.body.hostId)).toMatchObject({
       nickname: "Mika",
       preferredLanguage: "ja",
       avatar: { type: "preset", value: "rabbit" },
     });
+  });
+
+  test("rooms/create gives the room the background in the body when it is a number, and answers with the one the room got", async () => {
+    const t = newBackend();
+    for (const background of [7, 0, 9]) {
+      const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
+      expect(res.status).toBe(200);
+      expect(res.body.background).toBe(background);
+      expect((await roomRow(t, res.body.roomId)).background).toBe(background);
+    }
+    // A number that is not a texture is still a room, with the server's pick
+    for (const background of [-1, 10, 1.5]) {
+      const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
+      expect(res.status).toBe(200);
+      const stored = (await roomRow(t, res.body.roomId)).background ?? -1;
+      expect(Number.isInteger(stored) && stored >= 0 && stored <= 9).toBe(true);
+      expect(res.body.background).toBe(stored);
+    }
+  });
+
+  // createRoom declares background a number, and Convex refuses a call whose argument is of another type
+  test("rooms/create leaves out a background that is not a number: the room is made, with the server's pick", async () => {
+    // Every room below is the first of its backend and gets the same draws, so the server's pick is the same for each
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const unasked = await post(newBackend(), "/api/rooms/create", { hostNickname: "Mika" });
+    expect(unasked.status).toBe(200);
+    // Not the 7 the bodies below ask for, and not what null or a boolean reads as when turned into a number
+    expect([0, 1, 7]).not.toContain(unasked.body.background);
+
+    for (const background of ["7", "", null, { index: 7 }, [7], true, false]) {
+      const t = newBackend();
+      const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
+      expect(res.status).toBe(200);
+      expect(res.body.background).toBe(unasked.body.background);
+      expect((await roomRow(t, res.body.roomId)).background).toBe(unasked.body.background);
+    }
   });
 
   test("rooms/create answers 400 with the reason when the room is refused", async () => {

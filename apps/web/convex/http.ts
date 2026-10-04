@@ -91,6 +91,7 @@ http.route({
       settings: body.settings,
       hostLanguage: typeof body.hostLanguage === "string" ? body.hostLanguage : undefined,
       hostToken: typeof body.hostToken === "string" ? body.hostToken : undefined,
+      background: typeof body.background === "number" ? body.background : undefined,
     });
   }),
 });

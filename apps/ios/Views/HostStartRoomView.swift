@@ -88,14 +88,24 @@ struct HostStartRoomView: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
-            .ecPaperBackground()
+            .background {
+                // Bare paper underneath, so a change of texture fades over paper and not over the window
+                ZStack {
+                    EC.paper
+                    RoomBackground(index: viewModel.textureIndex)
+                        .id(viewModel.textureIndex)
+                        .transition(.opacity)
+                }
+                .ignoresSafeArea()
+                .animation(.easeInOut(duration: 0.35), value: viewModel.textureIndex)
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: Binding(
                 get: { viewModel.createdRoomId != nil },
                 set: { if !$0 { viewModel.createdRoomId = nil } }
             )) {
                 if let roomId = viewModel.createdRoomId, let hostId = viewModel.createdHostId {
-                    HostConversationView(roomId: roomId, hostId: hostId)
+                    HostConversationView(roomId: roomId, hostId: hostId, textureIndex: viewModel.textureIndex)
                 }
             }
             .task { await viewModel.checkSavedRoom(enter: false) }

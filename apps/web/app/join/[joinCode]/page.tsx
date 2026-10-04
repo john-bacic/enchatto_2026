@@ -170,9 +170,11 @@ export default function JoinPage() {
     }
   };
 
-  const background = <RoomBackground texture={textureForRoom(room)} />;
-
   const awaitingLegacy = room === null && !isLegacy && hasLegacyBackend && !legacyChecked;
+
+  const background = (
+    <RoomBackground texture={room ? textureForRoom(room) : undefined} waiting={room === undefined || awaitingLegacy} />
+  );
 
   // Loading state
   if (room === undefined || awaitingLegacy) {
