@@ -315,8 +315,12 @@ function RoomContent() {
   }, [showEnglish, showJapanese, showRomaji, participantId, updateDisplaySettings]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(CHAT_SIZE_KEY);
-    if (CHAT_SIZES.some((s) => s.key === saved)) setChatSize(saved as ChatSize);
+    try {
+      const saved = localStorage.getItem(CHAT_SIZE_KEY);
+      if (CHAT_SIZES.some((s) => s.key === saved)) setChatSize(saved as ChatSize);
+    } catch {
+      // storage blocked
+    }
     const prefs = readDisplayPrefs();
     initializedRef.current = true;
     if (prefs) {
@@ -332,13 +336,21 @@ function RoomContent() {
       setShowEnglish(next.showEnglish);
       setShowJapanese(next.showJapanese);
       setShowRomaji(next.showRomaji);
-      localStorage.setItem(DISPLAY_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(DISPLAY_KEY, JSON.stringify(next));
+      } catch {
+        // storage blocked
+      }
     },
     [showEnglish, showJapanese, showRomaji],
   );
   const pickChatSize = useCallback((size: ChatSize) => {
     setChatSize(size);
-    localStorage.setItem(CHAT_SIZE_KEY, size);
+    try {
+      localStorage.setItem(CHAT_SIZE_KEY, size);
+    } catch {
+      // storage blocked
+    }
   }, []);
 
   // Set typing action to "drawing" while on a draw step so other players see pencil indicator

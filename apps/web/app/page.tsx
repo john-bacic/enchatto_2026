@@ -36,7 +36,11 @@ export default function HomePage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setLang(localStorage.getItem("enchatto_lastLanguage") ?? "ja");
+    try {
+      setLang(localStorage.getItem("enchatto_lastLanguage") ?? "ja");
+    } catch {
+      // storage blocked
+    }
   }, []);
 
   // Chatto alternates greetings in time with the bubble's wobble.
@@ -48,7 +52,11 @@ export default function HomePage() {
   const toggleLang = () => {
     const next = lang === "ja" ? "en" : "ja";
     setLang(next);
-    localStorage.setItem("enchatto_lastLanguage", next);
+    try {
+      localStorage.setItem("enchatto_lastLanguage", next);
+    } catch {
+      // storage blocked
+    }
   };
 
   const handleJoin = () => {

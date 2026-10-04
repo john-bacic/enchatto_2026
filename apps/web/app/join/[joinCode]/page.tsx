@@ -37,9 +37,13 @@ export default function JoinPage() {
   const [language, setLanguage] = useState<LanguageCode>("ja");
 
   useEffect(() => {
-    setNickname(localStorage.getItem("enchatto_lastNickname") ?? "");
-    setAvatar((localStorage.getItem("enchatto_lastAvatarId") as PresetAvatarId) ?? "cat");
-    setLanguage((localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "ja");
+    try {
+      setNickname(localStorage.getItem("enchatto_lastNickname") ?? "");
+      setAvatar((localStorage.getItem("enchatto_lastAvatarId") as PresetAvatarId) ?? "cat");
+      setLanguage((localStorage.getItem("enchatto_lastLanguage") as LanguageCode) ?? "ja");
+    } catch {
+      // storage blocked
+    }
   }, []);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,9 +150,15 @@ export default function JoinPage() {
 
       // Whichever participant came back, the token just sent is the one the server holds for them
       if (token) saveToken(participantId, token);
-      localStorage.setItem("enchatto_lastNickname", nickname.trim());
-      localStorage.setItem("enchatto_lastAvatarId", avatar);
-      localStorage.setItem("enchatto_lastLanguage", language);
+      // Its own try: the participant exists by now, so a failed write must not land in the catch below and keep
+      // the guest on this page, where each retry would add another participant
+      try {
+        localStorage.setItem("enchatto_lastNickname", nickname.trim());
+        localStorage.setItem("enchatto_lastAvatarId", avatar);
+        localStorage.setItem("enchatto_lastLanguage", language);
+      } catch {
+        // storage blocked
+      }
 
       const backend = isLegacy ? `&${LEGACY_PARAM}=${LEGACY_VALUE}` : "";
       // tk marks the link as made for a browser that holds this participant's token (see the room page)
