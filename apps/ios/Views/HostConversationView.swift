@@ -2710,45 +2710,54 @@ private struct GameSummaryBanner: View {
     }
 
     /// The rounds that scored, a column each, under a row a team. A round that gave neither team points has
-    /// no column. The points are in ink: the team's name, on its colour, leads the row
+    /// no column. The points are in ink: the team's name, on its colour, leads the row. The columns share what
+    /// width the card has, so every round is on screen without scrolling
     private func litTeamRounds(_ rounds: [(round: Int, points: [Int])]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 5) {
-                GridRow {
-                    Text(L.t("Round", lang))
-                        .font(.round(10, .black))
-                        .tracking(1)
-                        .textCase(.uppercase)
-                        .foregroundStyle(EC.inkSoft)
-                        .gridColumnAlignment(.leading)
-                    ForEach(Array(rounds.enumerated()), id: \.offset) { _, round in
-                        Text("\(round.round)")
-                            .font(.round(10, .black))
-                            .foregroundStyle(EC.inkSoft)
-                    }
+        Grid(alignment: .trailing, horizontalSpacing: 2, verticalSpacing: 5) {
+            GridRow {
+                Text(L.t("Round", lang))
+                    .font(.round(10, .black))
+                    .tracking(1)
+                    .textCase(.uppercase)
+                    .foregroundStyle(EC.inkSoft)
+                    .fixedSize()
+                    .gridColumnAlignment(.leading)
+                ForEach(Array(rounds.enumerated()), id: \.offset) { _, round in
+                    litTeamRoundCell("\(round.round)", font: .round(10, .black), color: EC.inkSoft)
                 }
+            }
 
-                ForEach(LITTeam.allCases) { team in
-                    GridRow {
-                        LITTeamChip(team: team, lang: lang, size: 10)
-                        ForEach(Array(rounds.enumerated()), id: \.offset) { _, round in
-                            Text("\(round.points[team.rawValue])")
-                                .font(.chunky(12))
-                                .foregroundStyle(EC.ink)
-                        }
+            ForEach(LITTeam.allCases) { team in
+                GridRow {
+                    // The name keeps its width: the numbers share what is left
+                    LITTeamChip(team: team, lang: lang, size: 10)
+                        .fixedSize()
+                    ForEach(Array(rounds.enumerated()), id: \.offset) { _, round in
+                        litTeamRoundCell("\(round.points[team.rawValue])", font: .chunky(12), color: EC.ink)
                     }
                 }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(rounds.map { round in
-                let points = LITTeam.allCases.map { "\($0.name(lang)) \(round.points[$0.rawValue])" }
-                return "\(L.t("Round", lang)) \(round.round): \(points.joined(separator: ", "))"
-            }.joined(separator: ". "))
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rounds.map { round in
+            let points = LITTeam.allCases.map { "\($0.name(lang)) \(round.points[$0.rawValue])" }
+            return "\(L.t("Round", lang)) \(round.round): \(points.joined(separator: ", "))"
+        }.joined(separator: ". "))
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .ecOutline(fill: .white.opacity(0.85), radius: 14, border: 2)
+    }
+
+    /// One number of the rounds grid. Up to 32 points wide, and narrower, with smaller digits if it must be, when
+    /// the card cannot give every round that much
+    private func litTeamRoundCell(_ text: String, font: Font, color: Color) -> some View {
+        Text(text)
+            .font(font)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .frame(maxWidth: 32, alignment: .trailing)
     }
 
     // MARK: - Truth or Dare body
