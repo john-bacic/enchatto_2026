@@ -395,27 +395,10 @@ describe("createGame", () => {
     return room;
   }
 
-  // DEFECT: createGame (truthOrDare.ts:394) reads every message of the room with one collect(), only to
-  // see whether "game:Truth or Dare" was posted before. Every Lost in Translation draw step posts its
-  // drawing into the chat inline (games.ts:510, up to 1 MiB each), so a room that has played for a while
-  // holds more than the 16 MiB one transaction may read. createGame then throws "Read too much data in a
-  // single function execution": the route answers 400, neither app shows anything, and Start does nothing
-  // for as long as the room lives. Today that room has a bigger fault first: messages.getRoomMessages,
-  // which both apps load the chat with, reads the history the same way and fails with it, so this is what
-  // stays broken once the chat is fixed. The review doc has this read under Performance for Emoji Bingo
-  // and Emoji Match ("Game start and summary mutations read the room's whole message history to find one
-  // system message"), not for Truth or Dare. postSummary (truthOrDare.ts:855), which no client calls,
-  // reads the same way. Correct: whether a game was started here before is answered without the chat,
-  // for instance from the room's truthOrDareGames rows.
-  test.fails("a game can be started in a room whose chat holds more than 16 MiB", async () => {
+  // Starting a game never reads the room's chat, which can hold more than the 16 MiB one function may read
+  test("a game can be started in a room whose chat holds more than 16 MiB", async () => {
     const t = limitedBackend();
-    // A test.fails test passes when anything in it throws. A set-up that broke must not pass for the
-    // defect: it is logged, the test returns without failing, and vitest reports a defect test that did not fail
-    const room = await roomWithDrawingsInItsChat(t, 18).catch((error) => {
-      console.error("The set-up of a defect test failed, so the test proves nothing:", error);
-      return undefined;
-    });
-    if (!room) return;
+    const room = await roomWithDrawingsInItsChat(t, 18);
 
     const res = await post(t, "/api/truth-or-dare/create", { roomId: room.roomId, hostParticipantId: room.hostId });
 
@@ -424,8 +407,51 @@ describe("createGame", () => {
     expect((await view(t, room.roomId)).status).toBe("active");
   });
 
-  // The control for the defect above: three drawings fewer and the same room starts a game, and nothing
-  // else a game does comes near the limit
+  /** The texts of what was posted to the chat after `since`: the whole chat is more than one function may read */
+  async function postedSince(t: Backend, roomId: RoomId, since: number) {
+    return await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("messages")
+        .withIndex("by_roomId_createdAt", (q) => q.eq("roomId", roomId).gt("createdAt", since))
+        .collect();
+      return rows.map((m) => m.text ?? "");
+    });
+  }
+
+  test("in such a room the start message is still posted with the first game, and only with the first", async () => {
+    const t = limitedBackend();
+    const room = await roomWithDrawingsInItsChat(t, 18);
+    const drawnAt = Date.now();
+    tick();
+
+    const first = await t.mutation(tod.createGame, { roomId: room.roomId, hostParticipantId: room.hostId });
+    expect(await postedSince(t, room.roomId, drawnAt)).toEqual(["game:Truth or Dare"]);
+    await t.mutation(tod.endGame, { gameId: first, participantId: room.hostId });
+    tick();
+    const second = await t.mutation(tod.createGame, { roomId: room.roomId, hostParticipantId: room.hostId });
+
+    expect(second).not.toBe(first);
+    expect((await view(t, room.roomId))._id).toBe(second);
+    const posted = await postedSince(t, room.roomId, drawnAt);
+    expect(posted.filter((text) => text === "game:Truth or Dare")).toHaveLength(1);
+  });
+
+  test("in such a room postSummary reads only the chat since the game began, and posts no second summary", async () => {
+    const t = limitedBackend();
+    const room = await roomWithDrawingsInItsChat(t, 18);
+    const drawnAt = Date.now();
+    tick();
+    const gameId = await t.mutation(tod.createGame, { roomId: room.roomId, hostParticipantId: room.hostId });
+    await t.mutation(tod.endGame, { gameId, participantId: room.hostId });
+    tick();
+
+    await t.mutation(tod.postSummary, { roomId: room.roomId, participantId: room.guests[0] });
+
+    const posted = await postedSince(t, room.roomId, drawnAt);
+    expect(posted.filter((text) => text.startsWith("truth_or_dare_summary:"))).toHaveLength(1);
+  });
+
+  // Three drawings fewer, and nothing else a game does comes near the limit either
   test("with a deployment's limits on, a game is started, played and ended in a room whose chat holds 15 MB", async () => {
     const t = limitedBackend();
     const room = await roomWithDrawingsInItsChat(t, 15);
@@ -997,31 +1023,20 @@ describe("submitRating", () => {
     await expect(t.mutation(tod.submitRating, { turnId, participantId: hostId, score: 5 })).rejects.toThrow(/not completed/i);
   });
 
-  test("a score that does not snap into 1 to 10, or is not a number at all, is refused", async () => {
+  test("a score that does not snap into 1 to 5, or is not a number at all, is refused", async () => {
     const t = newBackend();
     const { roomId, hostId, turnId } = await answeredTurn(t);
 
-    for (const score of [0, 0.7, 10.3, 11, NaN]) {
+    for (const score of [0, 0.7, 5.3, 6, 10, 10.3, 11, NaN]) {
       await expect(t.mutation(tod.submitRating, { turnId, participantId: hostId, score }), String(score)).rejects.toThrow(/Score must be/);
     }
     expect((await view(t, roomId)).currentTurn?.ratings ?? []).toEqual([]);
   });
 
-  // DEFECT: submitRating (truthOrDare.ts:725) still takes the 1 to 10 of the slider both apps had for a
-  // week. Since 3e58a33 (1 April 2026) both apps offer five stars and show the result out of five
-  // (truth-or-dare-game.tsx:1164 "/5", TruthOrDareGameView.swift:367 "Everyone rates your answer 1–5"), and
-  // the server was not changed with them. Any room member who calls the mutation themselves can give 10:
-  // everyone then sees an average such as "7.5/5", and the round-break ranking and the chat summary put
-  // that player on top. Correct: the server takes what the apps offer, 1 to 5, whether it refuses the
-  // rest or caps it.
-  test.fails("no rating above the five stars both apps offer is recorded", async () => {
+  // Both apps rate with five stars and show the average out of five: the server takes no more
+  test("no rating above the five stars both apps offer is recorded", async () => {
     const t = newBackend();
-    // As in the defect test under createGame: a broken set-up must not pass for the defect
-    const g = await answeredTurn(t).catch((error) => {
-      console.error("The set-up of a defect test failed, so the test proves nothing:", error);
-      return undefined;
-    });
-    if (!g) return;
+    const g = await answeredTurn(t);
 
     const recorded: number[] = [];
     for (const score of [5.5, 6, 10]) {
@@ -1030,6 +1045,37 @@ describe("submitRating", () => {
     }
 
     expect(recorded.filter((score) => score > 5)).toEqual([]);
+  });
+
+  test("one star and five stars are kept, and so is a score that snaps onto either", async () => {
+    const t = newBackend();
+    const { roomId, hostId, turnId } = await answeredTurn(t);
+
+    for (const [score, kept] of [[1, 1], [5, 5], [0.8, 1], [5.2, 5]]) {
+      await t.mutation(tod.submitRating, { turnId, participantId: hostId, score });
+      expect((await view(t, roomId)).currentTurn?.ratings, String(score)).toEqual([{ participantId: hostId, score: kept }]);
+    }
+  });
+
+  test("the rating route refuses more than five stars with a 400, and the five-star average stands", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId, guests, turnId } = await answeredTurn(t, { guests: 2 });
+    const rate = async (participantId: PlayerId, score: number) =>
+      await post(t, "/api/truth-or-dare/submit-rating", { turnId, participantId, score });
+
+    expect(await rate(hostId, 5)).toMatchObject({ status: 200, json: { ok: true } });
+    expect(await rate(guests[1], 4)).toMatchObject({ status: 200, json: { ok: true } });
+    const refused = await rate(guests[1], 10);
+    expect(refused.status).toBe(400);
+    expect(refused.json.error).toMatch(/Score must be 1-5/);
+
+    // The refused rating did not replace the rater's earlier one
+    expect((await view(t, roomId)).currentTurn?.ratings).toEqual([
+      { participantId: hostId, score: 5 },
+      { participantId: guests[1], score: 4 },
+    ]);
+    await t.mutation(tod.endGame, { gameId, participantId: hostId });
+    expect((await summaries(t, roomId))[0].players[0]).toMatchObject({ name: "Aiko", avgRating: 4.5, turnsRated: 1 });
   });
 });
 

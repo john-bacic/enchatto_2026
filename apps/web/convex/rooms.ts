@@ -31,7 +31,6 @@ export const createRoom = mutation({
       throw new Error("Nickname must be 1–30 characters");
     }
 
-    const joinCode = generateJoinCode();
     const now = Date.now();
 
     const settings = args.settings ?? {
@@ -42,8 +41,7 @@ export const createRoom = mutation({
       maxParticipants: 10,
     };
 
-    // Written this way round so that NaN, which fails every comparison, is refused too
-    if (!(settings.maxParticipants >= 2 && settings.maxParticipants <= 50)) {
+    if (!isSeatCount(settings.maxParticipants)) {
       throw new Error("Max participants must be between 2 and 50");
     }
     // The app sends a preset's id and "en" or "ja". Length only, so a build that sends another code is not refused
@@ -55,6 +53,9 @@ export const createRoom = mutation({
     const lastRoom = await ctx.db.query("rooms").order("desc").first();
     let background = Math.floor(Math.random() * (BACKGROUND_COUNT - 1));
     if (lastRoom?.background !== undefined && background >= lastRoom.background) background++;
+
+    // After every check above, so a room that is refused has not looked anything up
+    const joinCode = await freeJoinCode(ctx);
 
     const roomId = await ctx.db.insert("rooms", {
       joinCode,
@@ -381,7 +382,7 @@ export const updateRoomSettings = mutation({
     if (room.status === "closed") throw new Error("Cannot update a closed room");
     await requireHost(ctx, args.roomId, args.callerId, args.token, "rooms.updateRoomSettings");
     // The same bounds createRoom holds the settings to
-    if (!(args.settings.maxParticipants >= 2 && args.settings.maxParticipants <= 50)) {
+    if (!isSeatCount(args.settings.maxParticipants)) {
       throw new Error("Max participants must be between 2 and 50");
     }
     if (args.settings.sourceLanguage.length > 16 || args.settings.targetLanguage.length > 16) {
@@ -392,6 +393,15 @@ export const updateRoomSettings = mutation({
   },
 });
 
+/**
+ * A maxParticipants a room may have: a whole number from 2 to 50. Whole, because the room document goes to
+ * the iOS host as it is and the app decodes this field as an Int: one fraction fails every poll of the room.
+ * NaN and Infinity are not whole numbers either.
+ */
+function isSeatCount(value: number): boolean {
+  return Number.isInteger(value) && value >= 2 && value <= 50;
+}
+
 function generateJoinCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -399,4 +409,26 @@ function generateJoinCode(): string {
     code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
+}
+
+/** Codes createRoom draws before it gives up. A draw meets a taken code about once in a billion for each room there is, so even a second draw is rare */
+const JOIN_CODE_DRAWS = 10;
+
+/**
+ * A join code that no room holds, open or closed. getRoomByJoinCode answers the oldest room with a code,
+ * and a closed room keeps its code until the purge deletes it, so a new room that shared a code with any
+ * earlier room could not be joined by code or QR. The lookup is part of this transaction: two rooms made
+ * at the same moment cannot both find the same code free.
+ */
+async function freeJoinCode(ctx: MutationCtx): Promise<string> {
+  for (let draw = 0; draw < JOIN_CODE_DRAWS; draw++) {
+    const joinCode = generateJoinCode();
+    const holder = await ctx.db
+      .query("rooms")
+      .withIndex("by_joinCode", (q) => q.eq("joinCode", joinCode))
+      .first();
+    if (!holder) return joinCode;
+  }
+  // That many taken codes in a row is not chance. A refusal the host can repeat, rather than a loop that may never end
+  throw new Error("Could not make a join code. Please try again");
 }

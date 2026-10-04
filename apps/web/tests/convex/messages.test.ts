@@ -62,9 +62,19 @@ async function enforcedRoom() {
   return { t, roomId, hostId, guestId };
 }
 
-/** Runs everything scheduled, and whatever that schedules. Nothing in this area reschedules itself forever */
+/**
+ * Runs everything scheduled, and whatever that schedules. Nothing in this area reschedules itself forever.
+ * A translation that fails while the host is in the room sets a timer for the end of the host's turn; this
+ * runs it out too, and the clock moves on with it.
+ */
 async function settle(t: Backend) {
   await t.finishAllScheduledFunctions(vi.runAllTimers);
+}
+
+/** Runs only what is due now: the translation a send schedules, not the end of the host's turn */
+async function runDue(t: Backend) {
+  vi.advanceTimersByTime(0);
+  await t.finishInProgressScheduledFunctions();
 }
 
 /** The row as the database holds it, with the fields the queries leave out */
@@ -620,6 +630,35 @@ describe("server-side translation", () => {
     expect(calls.map(userTurn)).toEqual([text, text]);
   });
 
+  test.each([
+    ["こんにちは、テストです", "Konnichiha, tesuto desu", "Konnichiwa, tesuto desu"],
+    ["みなさん、こんばんは", "minasan, konbanha", "minasan, konbanwa"],
+    ["こんにちは", "konnichiwa", "konnichiwa"],
+    // A mark the model set apart goes back onto its word; nothing else is touched
+    ["みなさん、こんばんは。", "mina san , konbanwa .", "mina san, konbanwa."],
+    ["はい…そうですね", "hai... sou desu ne", "hai... sou desu ne"],
+  ])("the romaji of %s is tidied, however the model wrote it", async (text, fromModel, kept) => {
+    const { t, roomId, guestId } = await openRoom();
+    stubTranslator("Hello", fromModel);
+    const messageId = await sendText(t, { roomId, senderId: guestId, text });
+    await settle(t);
+
+    expect((await stored(t, messageId))?.processing?.romaji).toBe(kept);
+  });
+
+  test("the romaji instruction asks for particles as they are spoken and for no macrons", async () => {
+    const { t, roomId, guestId } = await openRoom();
+    const calls = stubTranslator("Hello", "konnichiwa");
+    await sendText(t, { roomId, senderId: guestId, text: "こんにちは" });
+    await settle(t);
+
+    const system = String(calls.find(isRomajiCall)!.json.system);
+    expect(system).toMatch(/は is wa/);
+    expect(system).toMatch(/no macrons/i);
+    // The message is still the whole user turn
+    expect(userTurn(calls.find(isRomajiCall)!)).toBe("こんにちは");
+  });
+
   test("the message is the whole user turn and is not part of the instruction", async () => {
     const { t, roomId, guestId } = await openRoom();
     const calls = stubTranslator();
@@ -762,20 +801,8 @@ describe("server-side translation", () => {
     expect(message?.processing?.error).toBeUndefined();
   });
 
-  // DEFECT: when the server's own translation fails, it takes the message away from the other translator. The
-  // server and the iOS host both translate every message, and a translation that arrives after a failure
-  // replaces it (tested above). But the host translates only what /api/messages/pending returns
-  // (HostRoomViewModel.processPendingMessages, polled every 1.5 s), and the server's failure, which lands
-  // within a moment of the send, makes the message "failed" and so drops it from that queue. While Anthropic
-  // answers with errors (overloaded, out of credit, a wrong key), or the deployment has no key, nearly every
-  // message shows "Translation failed" to everyone, for good, with a host in the room whose phone could have
-  // translated it. The host only wins when its poll happens to fall between the send and the failure.
-  // Not introduced by the five commits: before 93ed5d0 the same message became "processed" with nothing in it,
-  // which left the queue just the same. The review document was not at the path the audit was given, so
-  // whether it lists this could not be checked.
-  // The assertion holds for either fix: leave the message pending while the room's host is present (isPresent),
-  // or keep a server-failed message in the queue until the host has had its turn.
-  test.fails("a message the server could not translate is still offered to the host that is in the room", async () => {
+  // The host translates only what its queue holds, so the server's failure must not take the message out of it
+  test("a message the server could not translate is still offered to the host that is in the room", async () => {
     const { t, roomId, hostId, guestId } = await openRoom();
     vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
     stubFetch(() => jsonReply({ error: { type: "overloaded_error" } }, 529));
@@ -786,6 +813,368 @@ describe("server-side translation", () => {
     expect((await t.run(async (ctx) => await ctx.db.get(hostId)))?.online).toBe(true);
     const queue = await t.query(api.messages.getPendingMessagesForProcessor, { roomId });
     expect(queue.map((m) => m._id)).toEqual([messageId]);
+  });
+});
+
+// ─── A translation the server could not make ─────────────────────────────────
+//
+// The server and the iOS host both translate every message, and the host translates only what its queue
+// holds. When the server's own attempt fails, the message is still the host's: it stays pending while a host
+// that is in the room has its turn, and after that it is failed for the guests and still in the host's queue
+// until the host answers. What a guest's screen shows is the status and processing.error of the message:
+// "translating" while pending, the error text once failed.
+
+/** messages.ts: how long a host that is in the room is given before guests are shown the server's failure */
+const HOST_TURN_MS = 10_000;
+
+describe("a message the server could not translate is left for the host", () => {
+  /** A room where the model answers every request with an error */
+  async function roomWithFailingModel() {
+    const room = await openRoom();
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+    stubFetch(() => jsonReply({ error: { type: "overloaded_error" } }, 529));
+    return room;
+  }
+
+  const queueOf = async (t: Backend, roomId: Id<"rooms">) =>
+    (await t.query(api.messages.getPendingMessagesForProcessor, { roomId })).map((m) => m._id);
+
+  const hostReports = (t: Backend, messageId: Id<"messages">, error: string) =>
+    t.mutation(api.messages.markMessageFailed, { messageId, error });
+
+  /** What the iOS host sends when its app goes to the background, where it stops translating, and when it is back */
+  const hostPresence = (t: Backend, hostId: Id<"participants">, presence: "online" | "away") =>
+    t.mutation(api.participants.setParticipantOnline, { participantId: hostId, online: true, presence });
+
+  describe("while the host is in the room", () => {
+    test.each<[string, () => void]>([
+      [
+        "the model answers with an error",
+        () => {
+          vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+          stubFetch(() => jsonReply({ error: { type: "overloaded_error" } }, 529));
+        },
+      ],
+      [
+        "the reply is cut off for length",
+        () => {
+          vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic-key");
+          stubFetch(() => claude("こんに", "max_tokens"));
+        },
+      ],
+      ["the deployment has no API key", () => {}],
+    ])("when %s the message stays pending: guests are shown no failure, and the host's queue holds it", async (_label, arrange) => {
+      const { t, roomId, guestId } = await openRoom();
+      arrange();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+
+      const [message] = await chat(t, roomId);
+      expect(message).toMatchObject({ _id: messageId, status: "pending", text: "hello" });
+      expect(message.processing).toBeUndefined();
+      expect(message.processedAt).toBeUndefined();
+      expect(await queueOf(t, roomId)).toEqual([messageId]);
+    });
+
+    test("the host's translation during its turn is the outcome: the server's failure never shows", async () => {
+      const { t, roomId, guestId } = await roomWithFailingModel();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+      await hostSubmits(t, messageId, { translatedText: "こんにちは", romaji: "konnichiwa" });
+      await settle(t);
+
+      const message = await stored(t, messageId);
+      expect(message).toMatchObject({
+        status: "processed",
+        processing: { translatedText: "こんにちは", romaji: "konnichiwa" },
+        processedAt: NOW,
+      });
+      expect(message?.processing?.error).toBeUndefined();
+      expect(await queueOf(t, roomId)).toEqual([]);
+    });
+
+    test("the host's own failure during its turn is the outcome, and the end of the turn does not replace it", async () => {
+      const { t, roomId, guestId } = await roomWithFailingModel();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+      await hostReports(t, messageId, "MyMemory timed out");
+      await settle(t);
+
+      expect(await stored(t, messageId)).toMatchObject({
+        status: "failed",
+        text: "hello",
+        processing: { error: "MyMemory timed out" },
+        processedAt: NOW,
+      });
+      expect(await queueOf(t, roomId)).toEqual([]);
+    });
+
+    test("a host that has not answered in ten seconds: guests are shown the failure, and the message stays in the host's queue", async () => {
+      const { t, roomId, guestId } = await roomWithFailingModel();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+
+      vi.advanceTimersByTime(HOST_TURN_MS - 1);
+      await t.finishInProgressScheduledFunctions();
+      expect((await stored(t, messageId))?.status).toBe("pending");
+
+      vi.advanceTimersByTime(1);
+      await t.finishInProgressScheduledFunctions();
+      const [message] = await chat(t, roomId);
+      expect(message).toMatchObject({
+        status: "failed",
+        text: "hello",
+        processing: { error: expect.stringMatching(/\S/) },
+        processedAt: NOW + HOST_TURN_MS,
+      });
+      expect(message.processing?.translatedText).toBeUndefined();
+      expect(await queueOf(t, roomId)).toEqual([messageId]);
+    });
+
+    test("a host heard from 44.999 seconds ago is still waited for", async () => {
+      const { t, roomId, guestId } = await roomWithFailingModel();
+      vi.setSystemTime(NOW + 44_999);
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+      expect((await stored(t, messageId))?.status).toBe("pending");
+    });
+
+    test("a message deleted during the host's turn is left alone when the turn is over", async () => {
+      const { t, roomId, guestId } = await roomWithFailingModel();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+      await t.mutation(api.messages.deleteMessage, { messageId });
+      // Had the end of the turn thrown on the missing message, afterEach would report the crash
+      await settle(t);
+      expect(await stored(t, messageId)).toBeNull();
+    });
+  });
+
+  describe("once the host's turn is over", () => {
+    /** A message the server failed on and the host, though in the room, did not answer for in time */
+    async function leftForHost() {
+      const room = await roomWithFailingModel();
+      const messageId = await sendText(room.t, { roomId: room.roomId, senderId: room.guestId });
+      await settle(room.t);
+      const failure = (await stored(room.t, messageId))!;
+      expect(failure).toMatchObject({ status: "failed", processing: { error: expect.stringMatching(/\S/) } });
+      return { ...room, messageId, failure };
+    }
+
+    test("the host's translation replaces the failure and takes the message out of the queue", async () => {
+      const { t, roomId, messageId } = await leftForHost();
+      vi.setSystemTime(NOW + 60_000);
+      await hostSubmits(t, messageId, { translatedText: "こんにちは", romaji: "konnichiwa" });
+
+      const [message] = await chat(t, roomId);
+      expect(message).toMatchObject({
+        status: "processed",
+        text: "hello",
+        processing: { translatedText: "こんにちは", romaji: "konnichiwa" },
+        processedAt: NOW + 60_000,
+      });
+      expect(message.processing?.error).toBeUndefined();
+      expect(await queueOf(t, roomId)).toEqual([]);
+    });
+
+    test("the host's failure replaces the server's and is the last word: nothing puts the message back in the queue", async () => {
+      const { t, roomId, messageId } = await leftForHost();
+      await hostReports(t, messageId, "MyMemory timed out");
+      expect(await stored(t, messageId)).toMatchObject({ status: "failed", text: "hello", processing: { error: "MyMemory timed out" } });
+      expect(await queueOf(t, roomId)).toEqual([]);
+
+      // Neither a repeated report nor the server failing once more
+      await hostReports(t, messageId, "second report");
+      await t.mutation(internal.messages.markMessageFailedInternal, { messageId, error: "Translation failed" });
+      await settle(t);
+      expect((await stored(t, messageId))?.processing).toEqual({ error: "MyMemory timed out" });
+      expect(await queueOf(t, roomId)).toEqual([]);
+    });
+
+    test("a host result with no translation leaves the failure standing and still takes the message out of the queue", async () => {
+      const { t, roomId, messageId, failure } = await leftForHost();
+      await hostSubmits(t, messageId, { suggestions: ["はい"] });
+
+      // Left in the queue, the host would translate it again on every poll, for ever
+      expect(await queueOf(t, roomId)).toEqual([]);
+      expect(await stored(t, messageId)).toMatchObject({ status: "failed", processing: failure.processing });
+    });
+
+    test("the first translation still wins: a second result, a late failure and a late server failure change nothing", async () => {
+      const { t, roomId, messageId } = await leftForHost();
+      await hostSubmits(t, messageId, { translatedText: "first" });
+      vi.setSystemTime(NOW + 60_000);
+      await hostSubmits(t, messageId, { translatedText: "second" });
+      await hostReports(t, messageId, "late");
+      await t.mutation(internal.messages.markMessageFailedInternal, { messageId, error: "Translation failed" });
+      await settle(t);
+
+      const message = await stored(t, messageId);
+      expect(message).toMatchObject({ status: "processed", processing: { translatedText: "first" } });
+      expect(message?.processing?.error).toBeUndefined();
+      expect(await queueOf(t, roomId)).toEqual([]);
+    });
+
+    test("the server failing again does not replace its first failure or start the host's turn again", async () => {
+      const { t, roomId, messageId, failure } = await leftForHost();
+      vi.setSystemTime(NOW + 60_000);
+      await t.mutation(internal.messages.markMessageFailedInternal, { messageId, error: "another error" });
+      await settle(t);
+
+      expect(await stored(t, messageId)).toMatchObject({
+        status: "failed",
+        processing: failure.processing,
+        processedAt: failure.processedAt,
+      });
+      expect(await queueOf(t, roomId)).toEqual([messageId]);
+    });
+  });
+
+  describe("while the host is not there to answer", () => {
+    type Room = Awaited<ReturnType<typeof roomWithFailingModel>>;
+
+    test.each<[string, (room: Room) => Promise<unknown>]>([
+      ["has its app in the background", ({ t, hostId }) => hostPresence(t, hostId, "away")],
+      ["has left the room", ({ t, hostId }) => t.mutation(api.participants.leaveRoom, { participantId: hostId })],
+      ["has not been heard from for 45 seconds", async () => vi.setSystemTime(NOW + 45_000)],
+    ])("a host that %s is not waited for: the failure shows at once, and the host translates the message when it is back", async (_label, hostGoes) => {
+      const room = await roomWithFailingModel();
+      const { t, roomId, hostId, guestId } = room;
+      await hostGoes(room);
+      const sentAt = Date.now();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await runDue(t);
+
+      const [failed] = await chat(t, roomId);
+      expect(failed).toMatchObject({
+        _id: messageId,
+        status: "failed",
+        text: "hello",
+        processing: { error: expect.stringMatching(/\S/) },
+        processedAt: sentAt,
+      });
+      expect(await queueOf(t, roomId)).toEqual([messageId]);
+
+      // A minute later the host is back, polls, and answers for what it finds
+      vi.setSystemTime(sentAt + 60_000);
+      await hostPresence(t, hostId, "online");
+      expect(await queueOf(t, roomId)).toEqual([messageId]);
+      await hostSubmits(t, messageId, { translatedText: "こんにちは" });
+
+      const [translated] = await chat(t, roomId);
+      expect(translated).toMatchObject({ status: "processed", processing: { translatedText: "こんにちは" } });
+      expect(translated.processing?.error).toBeUndefined();
+      expect(await queueOf(t, roomId)).toEqual([]);
+    });
+
+    test("a host whose room has closed is not waited for, though its heartbeat still arrives", async () => {
+      const { t, roomId, hostId, guestId } = await roomWithFailingModel();
+      const messageId = await sendText(t, { roomId, senderId: guestId });
+      await closeRoom(t, roomId);
+      await hostPresence(t, hostId, "online");
+      await runDue(t);
+      expect((await stored(t, messageId))?.status).toBe("failed");
+    });
+
+    test("a host back after an outage is handed what is pending and the newest twenty of its backlog, then the rest as it answers", async () => {
+      const { t, roomId, hostId, guestId } = await roomWithFailingModel();
+      await hostPresence(t, hostId, "away");
+      const backlog: Id<"messages">[] = [];
+      for (let i = 1; i <= 25; i++) {
+        vi.setSystemTime(NOW + i * 1000);
+        backlog.push(await sendText(t, { roomId, senderId: guestId, text: `message ${i}` }));
+      }
+      await runDue(t);
+      const justSent = await sendText(t, { roomId, senderId: guestId, text: "just sent" });
+
+      // The host starts on all it is handed at once, so its backlog comes twenty at a time, oldest of them first
+      expect(await queueOf(t, roomId)).toEqual([justSent, ...backlog.slice(5)]);
+      for (const messageId of backlog.slice(5)) await hostSubmits(t, messageId, { translatedText: "訳" });
+      expect(await queueOf(t, roomId)).toEqual([justSent, ...backlog.slice(0, 5)]);
+      for (const messageId of backlog.slice(0, 5)) await hostReports(t, messageId, "MyMemory status 429");
+      expect(await queueOf(t, roomId)).toEqual([justSent]);
+    });
+  });
+
+  test("the pending route hands a failed message over with what every iOS build decodes, and the submit and mark-failed routes answer for it", async () => {
+    const { t, roomId, hostId, guestId } = await roomWithFailingModel();
+    await hostPresence(t, hostId, "away");
+    const toTranslate = await sendText(t, { roomId, senderId: guestId, text: "one" });
+    const toFail = await sendText(t, { roomId, senderId: guestId, text: "two" });
+    await runDue(t);
+
+    const queue = await post(t, "/api/messages/pending", { roomId });
+    expect(queue.status).toBe(200);
+    expect(queue.body.map((m: any) => m._id)).toEqual([toTranslate, toFail]);
+    // The fields the iOS Message model requires. Its status is one of pending, processed and failed, and the
+    // oldest build knows no kind but text, image, drawing and system: anything else fails the whole array
+    for (const message of queue.body) {
+      expect(message).toEqual(
+        expect.objectContaining({
+          _id: expect.any(String),
+          roomId,
+          senderId: guestId,
+          kind: "text",
+          status: "failed",
+          text: expect.stringMatching(/^(one|two)$/),
+          processing: { error: expect.any(String) },
+          createdAt: expect.any(Number),
+          processedAt: expect.any(Number),
+        })
+      );
+    }
+
+    const submitted = await post(t, "/api/messages/submit-processed", {
+      messageId: toTranslate,
+      processing: { translatedText: "一", romaji: "ichi" },
+    });
+    expect(submitted).toEqual({ status: 200, body: { ok: true } });
+    expect(await post(t, "/api/messages/mark-failed", { messageId: toFail, error: "no network" })).toEqual({ status: 200, body: { ok: true } });
+
+    expect(await stored(t, toTranslate)).toMatchObject({ status: "processed", processing: { translatedText: "一", romaji: "ichi" } });
+    expect((await stored(t, toFail))?.processing).toEqual({ error: "no network" });
+    expect((await post(t, "/api/messages/pending", { roomId })).body).toEqual([]);
+  });
+
+  describe("a voice message's transcript", () => {
+    async function sendTranscript(t: Backend, roomId: Id<"rooms">, senderId: Id<"participants">) {
+      const storageId = await upload(t, { type: "audio/mp4" });
+      return await sendVoice(t, { roomId, senderId, storageId, text: "hello" });
+    }
+
+    test("it stays pending for the host that is in the room, whose translation is the outcome", async () => {
+      const { t, roomId, guestId } = await roomWithFailingModel();
+      const messageId = await sendTranscript(t, roomId, guestId);
+      await runDue(t);
+      expect((await stored(t, messageId))?.status).toBe("pending");
+      expect(await queueOf(t, roomId)).toEqual([messageId]);
+
+      await hostSubmits(t, messageId, { translatedText: "こんにちは" });
+      await settle(t);
+      expect(await stored(t, messageId)).toMatchObject({ kind: "audio", status: "processed", processing: { translatedText: "こんにちは" } });
+    });
+
+    // The oldest installed iOS build cannot decode a voice message and reads its queue as one array, so a
+    // voice message that stayed in the queue would stop that build translating anything in the room
+    test("once it has failed it is not kept in the host's queue, with the host in the room or away", async () => {
+      const { t, roomId, hostId, guestId } = await roomWithFailingModel();
+      const duringTurn = await sendTranscript(t, roomId, guestId);
+      const typed = await sendText(t, { roomId, senderId: guestId });
+      await settle(t);
+      await hostPresence(t, hostId, "away");
+      const whileAway = await sendTranscript(t, roomId, guestId);
+      await runDue(t);
+
+      for (const messageId of [duringTurn, whileAway]) {
+        expect(await stored(t, messageId)).toMatchObject({ kind: "audio", status: "failed", text: "hello", processing: { error: expect.stringMatching(/\S/) } });
+      }
+      const queue = await t.query(api.messages.getPendingMessagesForProcessor, { roomId });
+      expect(queue.map((m) => [m._id, m.kind])).toEqual([[typed, "text"]]);
+
+      // Its failure is still replaced by a translation that arrives late, as any failure is
+      await hostSubmits(t, duringTurn, { translatedText: "こんにちは" });
+      expect(await stored(t, duringTurn)).toMatchObject({ status: "processed", processing: { translatedText: "こんにちは" } });
+    });
   });
 });
 
@@ -1969,6 +2358,28 @@ describe("caller checks", () => {
       processing: { translatedText: "こんにちは" },
     });
     expect((await stored(t, messageId))?.status).toBe("processed");
+  });
+
+  test("under enforce a guest cannot answer for a message the server left for the host, nor take it out of the host's queue", async () => {
+    const { t, roomId, hostId, guestId } = await enforcedRoom();
+    await t.mutation(api.participants.setParticipantOnline, { participantId: hostId, online: true, presence: "away", token: HOST_TOKEN });
+    // No API key: the server's translation fails, and the host is not there to be waited for
+    const messageId = await sendText(t, { roomId, senderId: guestId, token: GUEST_TOKEN });
+    await runDue(t);
+    const failure = await stored(t, messageId);
+    expect(failure?.status).toBe("failed");
+    const asGuest = { messageId, callerId: guestId, token: GUEST_TOKEN };
+
+    for (const processing of [{ translatedText: "made up" }, { suggestions: ["made up"] }]) {
+      await expect(t.mutation(api.messages.submitProcessedMessage, { ...asGuest, processing })).rejects.toThrow(/Not authorised/);
+    }
+    await expect(t.mutation(api.messages.markMessageFailed, { ...asGuest, error: "made up" })).rejects.toThrow(/Not authorised/);
+    expect(await stored(t, messageId)).toEqual(failure);
+    expect((await t.query(api.messages.getPendingMessagesForProcessor, { roomId })).map((m) => m._id)).toEqual([messageId]);
+
+    await t.mutation(api.messages.markMessageFailed, { messageId, callerId: hostId, token: HOST_TOKEN, error: "MyMemory timed out" });
+    expect((await stored(t, messageId))?.processing).toEqual({ error: "MyMemory timed out" });
+    expect(await t.query(api.messages.getPendingMessagesForProcessor, { roomId })).toEqual([]);
   });
 
   test("under enforce a reaction needs the reacting participant's own token", async () => {

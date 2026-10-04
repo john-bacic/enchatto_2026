@@ -56,20 +56,6 @@ async function storedGame(t: Backend, gameId: GameId): Promise<Game> {
   return game;
 }
 
-/**
- * For the set-up of a test.fails test. Such a test passes when anything in it throws, so a set-up that
- * breaks would be counted as the defect still being there. Set-up run through here does not throw: it
- * logs and returns undefined, the test returns, and test.fails reports a test that did not fail.
- */
-async function setUp<T extends object>(steps: () => Promise<T>): Promise<T | undefined> {
-  try {
-    return await steps();
-  } catch (error) {
-    console.error("The set-up of a defect test failed, so the test proves nothing:", error);
-    return undefined;
-  }
-}
-
 /** A room that holds more than the default ten people */
 async function createBigRoom(t: Backend) {
   const room = await t.mutation(api.rooms.createRoom, {
@@ -170,6 +156,14 @@ async function missPair(t: Backend, gameId: GameId) {
 async function chatLines(t: Backend, roomId: RoomId): Promise<string[]> {
   const messages = await t.query(api.messages.getRoomMessages, { roomId });
   return messages.filter((m) => m.kind === "system").map((m) => m.text ?? "");
+}
+
+/** Fixture: a system line written straight into the room's chat, such as another game's summary */
+async function postSystemLine(t: Backend, roomId: RoomId, senderId: PlayerId, text: string) {
+  return await t.run(
+    async (ctx) =>
+      await ctx.db.insert("messages", { roomId, senderId, kind: "system", status: "processed", text, createdAt: Date.now() })
+  );
 }
 
 const SUMMARY = "emoji_match_summary:";
@@ -344,39 +338,55 @@ describe("lobby", () => {
     expect(next).not.toBe(gameId);
   });
 
-  // DEFECT: emojiMatch.createLobby only checks that the room exists. Lost in Translation
-  // (games.ts:324), Word Rush (wordRush.ts:312) and Truth or Dare (truthOrDare.ts:361) all refuse a
-  // closed room with "Room is closed"; Emoji Match opens a lobby in it, and the game can be started
-  // and played there (playAgain has the same gap).
-  test.fails("a lobby cannot be opened in a closed room", async () => {
+  // A closed room starts no game, as with Lost in Translation, Word Rush and Truth or Dare
+  test("a lobby cannot be opened in a closed room", async () => {
     const t = newBackend();
-    const ready = await setUp(async () => {
-      const room = await createRoom(t);
-      await t.mutation(api.rooms.closeRoom, { roomId: room.roomId });
-      return room;
-    });
-    if (!ready) return;
+    const room = await createRoom(t);
+    await t.mutation(api.rooms.closeRoom, { roomId: room.roomId });
 
     await expect(
-      t.mutation(api.emojiMatch.createLobby, { roomId: ready.roomId, hostParticipantId: ready.hostId })
+      t.mutation(api.emojiMatch.createLobby, { roomId: room.roomId, hostParticipantId: room.hostId })
     ).rejects.toThrow(/closed/i);
   });
 
-  // DEFECT: the same gap in playAgain (emojiMatch.ts:834), which opens a lobby without looking at the
-  // room at all. A fix of createLobby alone leaves this way in.
-  test.fails("a finished game cannot be played again in a closed room", async () => {
+  // playAgain opens a lobby too: the second way in
+  test("a finished game cannot be played again in a closed room", async () => {
     const t = newBackend();
-    const ready = await setUp(async () => {
-      const started = await startedGame(t, 1);
-      await t.mutation(api.emojiMatch.cancelGame, { gameId: started.gameId, participantId: started.hostId });
-      await t.mutation(api.rooms.closeRoom, { roomId: started.roomId });
-      return started;
-    });
-    if (!ready) return;
+    const started = await startedGame(t, 1);
+    await t.mutation(api.emojiMatch.cancelGame, { gameId: started.gameId, participantId: started.hostId });
+    await t.mutation(api.rooms.closeRoom, { roomId: started.roomId });
 
     await expect(
-      t.mutation(api.emojiMatch.playAgain, { gameId: ready.gameId, participantId: ready.hostId })
+      t.mutation(api.emojiMatch.playAgain, { gameId: started.gameId, participantId: started.hostId })
     ).rejects.toThrow(/closed/i);
+  });
+
+  // A lobby that was open when the room closed: the third way to a game in a closed room
+  test("a lobby left open when its room closed cannot be started", async () => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await lobbyWith(t, 1);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    await expect(t.mutation(api.emojiMatch.startGame, { gameId, participantId: hostId })).rejects.toThrow(/closed/i);
+
+    expect((await getGame(t, gameId)).status).toBe("lobby");
+    expect(await chatLines(t, roomId)).not.toContain("game:Emoji Match");
+    // Nothing was scheduled either: no turn clock is waiting to run in the closed room
+    await advance(t, 2 * TURN_MS);
+    expect((await getGame(t, gameId)).status).toBe("lobby");
+  });
+
+  test("the room host's takeover of an abandoned lobby is refused as well once the room is closed", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const guestId = await joinGuest(t, roomId, "Aki");
+    const gameId = await t.mutation(api.emojiMatch.createLobby, { roomId, hostParticipantId: guestId });
+    await t.mutation(api.rooms.closeRoom, { roomId }); // which also marks everyone as gone
+
+    await expect(t.mutation(api.emojiMatch.createLobby, { roomId, hostParticipantId: hostId })).rejects.toThrow(
+      /closed/i
+    );
+    expect((await getGame(t, gameId)).hostParticipantId).toBe(guestId);
   });
 });
 
@@ -1187,8 +1197,8 @@ describe("a game nobody is playing", () => {
 
     await advance(t, TURN_MS);
     game = await getGame(t, gameId);
-    // "completed", not "canceled": the active-game query would otherwise fall back to an older game.
-    // Both clients show endReason "canceled" as a cancelled game.
+    // "completed", not "canceled": both clients show a completed game with endReason "canceled" as a
+    // cancelled game's results, where status "canceled" closes the game screen.
     expect(game.status).toBe("completed");
     expect(game.result).toEqual({ winnerParticipantIds: [], isTie: false, endReason: "canceled" });
     expect(game.currentTurnParticipantId).toBeUndefined();
@@ -1353,13 +1363,9 @@ describe("finishing the game", () => {
     expect(summaries[0].games[1].players.map((p: { score: number }) => p.score)).toEqual([8, 0]);
   });
 
-  // DEFECT: upsertMatchEmojiSummary (emojiMatch.ts:94) updates the newest system message that starts
-  // with "emoji_match_summary:", whatever game it belongs to. Word Rush (wordRush.ts:279) and Emoji
-  // Bingo (emojiBingo.ts:185) post their summaries under the same prefix and tell them apart by
-  // gameType; Emoji Match does not, so a finished Emoji Match appends its round to their message and
-  // relabels the whole message "Match Emoji". Review doc: "The Emoji Match summary overwrites the
-  // Emoji Bingo or Word Rush summary message". The fixture below is the text wordRush.ts writes.
-  test.fails("a finished game leaves another game's summary message alone and posts its own", async () => {
+  // Word Rush and Emoji Bingo post their summaries under the same "emoji_match_summary:" prefix and are
+  // told apart by gameType. The fixture below is the text wordRush.ts writes.
+  test("a finished game leaves another game's summary message alone and posts its own", async () => {
     const t = newBackend();
     const wordRush =
       SUMMARY +
@@ -1367,29 +1373,78 @@ describe("finishing the game", () => {
         gameType: "Word Rush",
         games: [{ players: [{ name: "Host", avatar: "default", score: 3, isWinner: true }], totalPairs: 5, isTie: false }],
       });
-    const ready = await setUp(async () => {
-      const { roomId, hostId, gameId } = await startedGame(t, 1);
-      const wordRushMessage = await t.run(
-        async (ctx) =>
-          await ctx.db.insert("messages", {
-            roomId,
-            senderId: hostId,
-            kind: "system",
-            status: "processed",
-            text: wordRush,
-            createdAt: Date.now(),
-          })
-      );
-      vi.advanceTimersByTime(1_000);
-      await takePairs(t, gameId, 8);
-      return { roomId, wordRushMessage };
-    });
-    if (!ready) return;
+    const { roomId, hostId, gameId } = await startedGame(t, 1);
+    const wordRushMessage = await postSystemLine(t, roomId, hostId, wordRush);
+    vi.advanceTimersByTime(1_000);
+    await takePairs(t, gameId, 8);
 
-    const kept = await t.query(api.messages.getMessageById, { messageId: ready.wordRushMessage });
+    const kept = await t.query(api.messages.getMessageById, { messageId: wordRushMessage });
     expect(kept?.text).toBe(wordRush);
-    const summaries = summariesIn(await chatLines(t, ready.roomId));
+    const summaries = summariesIn(await chatLines(t, roomId));
     expect(summaries.map((s) => s.gameType).sort()).toEqual(["Match Emoji", "Word Rush"]);
+  });
+
+  // The fixture is the text emojiBingo.ts writes; a player's name is no gameType, whatever it says
+  test("an Emoji Bingo summary is left alone too, also when one of its players is called Match Emoji", async () => {
+    const t = newBackend();
+    const bingo =
+      SUMMARY +
+      JSON.stringify({
+        gameType: "Emoji Bingo",
+        games: [{ players: [{ name: "Match Emoji", avatar: "default", score: 5, isWinner: true }], totalPairs: 25, isTie: false }],
+      });
+    const { roomId, hostId, gameId } = await startedGame(t, 1);
+    const bingoMessage = await postSystemLine(t, roomId, hostId, bingo);
+    vi.advanceTimersByTime(1_000);
+    await takePair(t, gameId);
+    await t.mutation(api.emojiMatch.cancelGame, { gameId, participantId: hostId }); // the other way a summary is written
+
+    expect((await t.query(api.messages.getMessageById, { messageId: bingoMessage }))?.text).toBe(bingo);
+    const summaries = summariesIn(await chatLines(t, roomId));
+    expect(summaries.map((s) => s.gameType).sort()).toEqual(["Emoji Bingo", "Match Emoji"]);
+    expect(summaries.find((s) => s.gameType === "Match Emoji")).toMatchObject({ cancelled: true, games: [{ totalPairs: 8 }] });
+  });
+
+  test("a later game finds its own summary behind a newer one of another game, and adds its round there", async () => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await startedGame(t, 0);
+    await takePairs(t, gameId, 8);
+    const [own] = (await t.query(api.messages.getRoomMessages, { roomId })).filter((m) => m.text?.startsWith(SUMMARY));
+    vi.advanceTimersByTime(1_000);
+    const wordRush = SUMMARY + JSON.stringify({ gameType: "Word Rush", games: [{ players: [], totalPairs: 5, isTie: false }] });
+    const wordRushMessage = await postSystemLine(t, roomId, hostId, wordRush);
+    vi.advanceTimersByTime(1_000);
+
+    const second = await t.mutation(api.emojiMatch.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiMatch.startGame, { gameId: second, participantId: hostId });
+    await takePairs(t, second, 8);
+
+    expect((await t.query(api.messages.getMessageById, { messageId: wordRushMessage }))?.text).toBe(wordRush);
+    const updated = await t.query(api.messages.getMessageById, { messageId: own._id });
+    expect(summariesIn([updated!.text!])[0]).toMatchObject({ gameType: "Match Emoji", games: [{}, {}] });
+    expect(updated!.createdAt).toBe(Date.now()); // moved below the Word Rush card
+    expect(summariesIn(await chatLines(t, roomId))).toHaveLength(2);
+  });
+
+  // Rooms that played before summaries carried a gameType: only Emoji Match wrote them then
+  test.each([
+    ["one game, the oldest format", { players: [{ name: "Host", avatar: "default", score: 8, isWinner: true }], totalPairs: 8, isTie: false }],
+    ["a list of games", { games: [{ players: [{ name: "Host", avatar: "default", score: 8, isWinner: true }], totalPairs: 8, isTie: false }] }],
+  ])("a summary from before gameType existed (%s) is this game's: the next round is added to it", async (_format, old) => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await startedGame(t, 0);
+    const oldMessage = await postSystemLine(t, roomId, hostId, SUMMARY + JSON.stringify(old));
+    vi.advanceTimersByTime(1_000);
+    await takePairs(t, gameId, 8);
+
+    const summaries = summariesIn(await chatLines(t, roomId));
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].gameType).toBe("Match Emoji");
+    expect(summaries[0].games).toEqual([
+      { players: [{ name: "Host", avatar: "default", score: 8, isWinner: true }], totalPairs: 8, isTie: false },
+      { players: [{ name: "Host", avatar: "default", score: 8, isWinner: true }], totalPairs: 8, isTie: false },
+    ]);
+    expect((await t.query(api.messages.getMessageById, { messageId: oldMessage }))?.createdAt).toBe(Date.now());
   });
 });
 
@@ -1656,76 +1711,186 @@ describe("queries", () => {
     });
   });
 
-  // DEFECT: getActiveEmojiMatch (emojiMatch.ts:933) looks for the newest "completed" game before it
-  // looks at "canceled" ones, so once a room has a completed game, a newer game that was cancelled is
-  // never returned: clients are handed the older game's result screen again. Review doc: "After a
-  // newer game is cancelled, the active-game query returns an older finished game". The idle cap
-  // works round it by ending its game as "completed" (see passTurn); cancelGame does not.
-  test.fails("after a newer game is cancelled, that game is the one returned, not an older completed one", async () => {
+  // With nothing in play the room's latest game is returned, whether it was completed or cancelled
+  test("after a newer game is cancelled, that game is the one returned, not an older completed one", async () => {
     const t = newBackend();
-    const ready = await setUp(async () => {
-      const { roomId, hostId, gameId } = await startedGame(t, 1);
-      await takePairs(t, gameId, 8);
-      vi.advanceTimersByTime(60_000);
-      const next: GameId = await t.mutation(api.emojiMatch.playAgain, { gameId, participantId: hostId });
-      await t.mutation(api.emojiMatch.startGame, { gameId: next, participantId: hostId });
-      await t.mutation(api.emojiMatch.cancelGame, { gameId: next, participantId: hostId });
-      return { roomId, next };
-    });
-    if (!ready) return;
+    const { roomId, hostId, gameId } = await startedGame(t, 1);
+    await takePairs(t, gameId, 8);
+    vi.advanceTimersByTime(60_000);
+    const next: GameId = await t.mutation(api.emojiMatch.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiMatch.startGame, { gameId: next, participantId: hostId });
+    await t.mutation(api.emojiMatch.cancelGame, { gameId: next, participantId: hostId });
 
-    const latest = await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId: ready.roomId });
-    expect(latest?._id).toBe(ready.next);
+    const latest = await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId });
+    expect(latest?._id).toBe(next);
   });
 
-  // DEFECT: getEmojiMatchById and getActiveEmojiMatch (emojiMatch.ts:918-952) return the stored
-  // document, so every client receives pairKey and content for the cards that are still face down
-  // and can read the whole board. (cardId gives the pairs away as well: card_0 and card_1 are a
-  // pair, card_2 and card_3, and so on.) Review doc, Security: "Game queries send answers to
-  // clients: ... face-down Emoji Match pairs". Correct: face-down cards look alike apart from their id.
-  test.fails("a face-down card looks like every other face-down card to a client", async () => {
+  // The other way to a cancelled game: the last player walks out of the lobby that Play Again opened
+  test("after the next lobby is abandoned, the cancelled lobby is the one returned, in the shape clients decode", async () => {
     const t = newBackend();
-    const ready = await setUp(async () => {
-      const { roomId, gameId } = await startedGame(t, 1);
-      const seen = [
-        await t.query(api.emojiMatch.getEmojiMatchById, { gameId }),
-        await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId }),
-      ].map((game) => game!.board.filter((c) => !c.isRevealed && !c.isMatched));
-      for (const faceDown of seen) expect(faceDown).toHaveLength(16);
-      return { seen };
-    });
-    if (!ready) return;
+    const { roomId, hostId, gameId } = await startedGame(t, 0);
+    await takePairs(t, gameId, 8);
+    vi.advanceTimersByTime(60_000);
+    const next: GameId = await t.mutation(api.emojiMatch.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiMatch.leaveLobby, { gameId: next, participantId: hostId });
 
-    for (const faceDown of ready.seen) {
+    // No result on it: iOS decodes result as optional, and both clients hide a game whose status is "canceled"
+    const { status, body } = await post(t, "/api/emoji-match/active", { roomId });
+    expect(status).toBe(200);
+    expect(body).toMatchObject({ _id: next, status: "canceled", players: [], board: [], selectedCardIds: [] });
+    expect(body.result).toBeUndefined();
+  });
+
+  test("a game completed after an older one was cancelled is the one returned", async () => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await startedGame(t, 0);
+    await t.mutation(api.emojiMatch.cancelGame, { gameId, participantId: hostId });
+    vi.advanceTimersByTime(60_000);
+    const next: GameId = await t.mutation(api.emojiMatch.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiMatch.startGame, { gameId: next, participantId: hostId });
+    await takePairs(t, next, 8);
+
+    expect(await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId })).toMatchObject({ _id: next, status: "completed" });
+  });
+
+  // Hiding the face-down cards is behind a switch, off unless it is set to "on": builds that turn their own
+  // tapped card over before the server answers would draw an empty face
+  test.each([undefined, "", "off", "true"])(
+    "with EMOJI_MATCH_HIDE_CARDS %j, clients are sent the board as it is stored",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv("EMOJI_MATCH_HIDE_CARDS", value);
+      const t = newBackend();
+      const { roomId, gameId } = await startedGame(t, 1);
+      const stored = (await storedGame(t, gameId)).board;
+      expect(stored.every((c) => c.pairKey && c.content.value)).toBe(true);
+
+      expect((await t.query(api.emojiMatch.getEmojiMatchById, { gameId }))!.board).toEqual(stored);
+      expect((await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId }))!.board).toEqual(stored);
+    }
+  );
+
+  // With the switch on, both queries send a face-down card without its pair and its emoji: face-down cards
+  // look alike apart from their id
+  test("with the switch on, a face-down card looks like every other face-down card to a client", async () => {
+    vi.stubEnv("EMOJI_MATCH_HIDE_CARDS", "on");
+    const t = newBackend();
+    const { roomId, gameId } = await startedGame(t, 1);
+    const seen = [
+      await t.query(api.emojiMatch.getEmojiMatchById, { gameId }),
+      await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId }),
+    ].map((game) => game!.board.filter((c) => !c.isRevealed && !c.isMatched));
+    for (const faceDown of seen) expect(faceDown).toHaveLength(16);
+
+    for (const faceDown of seen) {
       const looks = new Set(faceDown.map(({ cardId: _cardId, ...rest }) => JSON.stringify(rest)));
       expect(looks.size).toBe(1);
     }
   });
 
-  // DEFECT: the same leak by another road. startGame (emojiMatch.ts:422) numbers the cards before it
-  // shuffles them: card_0 and card_1 are the first pair, card_2 and card_3 the second, and so on. The
-  // ids stay with the cards, so any client can pair the whole board from the ids alone, whatever the
-  // queries do with pairKey and content. Correct: an id says nothing about the pair, for example
-  // because the cards are numbered by their place on the shuffled board. Clients use the id only as a key.
-  test.fails("a card's id does not say which card is its pair", async () => {
+  // The cards are numbered after the shuffle, so an id says nothing about the pair. Clients use it only as a key
+  test("a card's id does not say which card is its pair", async () => {
     const t = newBackend();
-    const ready = await setUp(async () => {
-      const { hostId, gameId } = await lobbyWith(t, 1);
-      seedRandom(7); // a fixed shuffle, so that this is the same test on every run once the defect is fixed
-      await t.mutation(api.emojiMatch.startGame, { gameId, participantId: hostId });
-      const pairs = await openPairs(t, gameId);
-      expect(pairs).toHaveLength(8);
-      return { pairs };
-    });
-    if (!ready) return;
+    const { hostId, gameId } = await lobbyWith(t, 1);
+    seedRandom(7); // a fixed shuffle, so that this is the same test on every run
+    await t.mutation(api.emojiMatch.startGame, { gameId, participantId: hostId });
+    const pairs = await openPairs(t, gameId);
+    expect(pairs).toHaveLength(8);
 
     const number = (cardId: string) => Number(cardId.replace(/\D+/g, ""));
-    const givenAway = ready.pairs.filter(([a, b]) => Math.floor(number(a) / 2) === Math.floor(number(b) / 2));
-    expect(givenAway.length).toBeLessThan(ready.pairs.length);
+    const givenAway = pairs.filter(([a, b]) => Math.floor(number(a) / 2) === Math.floor(number(b) / 2));
+    expect(givenAway.length).toBeLessThan(pairs.length);
   });
 
-  // What must stay true when the leak above is closed
+  // The test above rules out one numbering. This is the rule itself: which ids pair up is the shuffle's doing
+  test("the ids are the places on the board, and which two of them are a pair changes from deal to deal", async () => {
+    const deal = async (seed: number) => {
+      const t = newBackend();
+      const { hostId, gameId } = await lobbyWith(t, 1);
+      const random = seedRandom(seed);
+      await t.mutation(api.emojiMatch.startGame, { gameId, participantId: hostId });
+      random.mockRestore();
+      const board = (await storedGame(t, gameId)).board;
+      expect(board.map((c) => c.cardId)).toEqual(board.map((_, place) => `card_${place}`));
+      // Every pair as "card_a+card_b", lower place first
+      const number = (cardId: string) => Number(cardId.replace(/\D+/g, ""));
+      return (await openPairs(t, gameId)).map((pair) => [...pair].sort((a, b) => number(a) - number(b)).join("+")).sort();
+    };
+    const one = await deal(1);
+    const two = await deal(2);
+
+    expect(one).toHaveLength(8);
+    expect(two).not.toEqual(one);
+    expect(two.filter((pair) => one.includes(pair)).length).toBeLessThan(4);
+  });
+
+  test("a card keeps its id and its place for the whole game: through a miss, a match and the end", async () => {
+    const t = newBackend();
+    const { gameId } = await startedGame(t, 0);
+    const dealt = (await getGame(t, gameId)).board.map((c) => c.cardId);
+    const ids = async () => (await getGame(t, gameId)).board.map((c) => c.cardId);
+
+    await missPair(t, gameId);
+    expect(await ids()).toEqual(dealt);
+    await advance(t, REVEAL_MS);
+    expect(await ids()).toEqual(dealt);
+    await takePair(t, gameId);
+    expect(await ids()).toEqual(dealt);
+    await takePairs(t, gameId, 7);
+    expect((await getGame(t, gameId)).status).toBe("completed");
+    expect(await ids()).toEqual(dealt);
+  });
+
+  test("with the switch on, a card that is turned back after a miss is hidden again, and one flipped alone is hidden when its turn runs out", async () => {
+    vi.stubEnv("EMOJI_MATCH_HIDE_CARDS", "on");
+    const t = newBackend();
+    const { roomId, gameId } = await startedGame(t, 1);
+    const [[first], [second], [alone]] = await openPairs(t, gameId);
+    const seen = async (cardId: string) =>
+      [
+        await t.query(api.emojiMatch.getEmojiMatchById, { gameId }),
+        await t.query(api.emojiMatch.getActiveEmojiMatch, { roomId }),
+      ].map((game) => game!.board.find((c) => c.cardId === cardId)!);
+    const hidden = { pairKey: "", content: { kind: "emoji", value: "" }, isMatched: false, isRevealed: false };
+
+    let player = (await getGame(t, gameId)).currentTurnParticipantId!;
+    await flip(t, gameId, player, first);
+    await flip(t, gameId, player, second);
+    for (const cardId of [first, second]) {
+      for (const card of await seen(cardId)) expect(card.content.value).toBeTruthy();
+    }
+    await advance(t, REVEAL_MS);
+    for (const cardId of [first, second]) {
+      for (const card of await seen(cardId)) expect(card).toEqual({ cardId, ...hidden });
+    }
+
+    player = (await getGame(t, gameId)).currentTurnParticipantId!;
+    await flip(t, gameId, player, alone);
+    for (const card of await seen(alone)) expect(card.content.value).toBeTruthy();
+    await advance(t, TURN_MS);
+    for (const card of await seen(alone)) expect(card).toEqual({ cardId: alone, ...hidden });
+  });
+
+  // The stored game keeps every card whole: the server decides a match from it, not from what clients are sent
+  test("hiding the cards from clients leaves the stored board, and the game it decides, as they were", async () => {
+    vi.stubEnv("EMOJI_MATCH_HIDE_CARDS", "on");
+    const t = newBackend();
+    const { gameId } = await startedGame(t, 0);
+    const stored = (await storedGame(t, gameId)).board;
+    expect(stored.every((c) => c.pairKey && c.content.value && c.content.label)).toBe(true);
+    await t.query(api.emojiMatch.getEmojiMatchById, { gameId });
+    expect((await storedGame(t, gameId)).board).toEqual(stored);
+
+    // Two cards that are not a pair are a miss: on the blanked board every face-down pairKey is "", and
+    // a server that compared those would call any two cards a match
+    expect(await missPair(t, gameId)).toEqual({ action: "mismatch" });
+    await advance(t, REVEAL_MS);
+    // A client that knows only ids and what it has been shown can still play the board to the end
+    expect(await takePairs(t, gameId, 8)).toEqual({ action: "game_complete" });
+  });
+
+  // What clients must still be sent with the face-down cards hidden
   test("a client is shown the emoji and label of every card that is face up or matched", async () => {
+    vi.stubEnv("EMOJI_MATCH_HIDE_CARDS", "on");
     const t = newBackend();
     const { roomId, gameId } = await startedGame(t, 1);
     const player = (await getGame(t, gameId)).currentTurnParticipantId!;
@@ -2075,6 +2240,49 @@ describe("HTTP routes", () => {
     expect(again.body).toMatchObject({ gameId: expect.any(String) });
     expect(again.body.gameId).not.toBe(gameId);
     expect((await getGame(t, again.body.gameId)).status).toBe("lobby");
+  });
+
+  // EmojiMatchCard and EmojiMatchContent (apps/ios/Models/EmojiMatchGame.swift) are the same in every
+  // build: cardId, pairKey, content.kind and content.value are required strings, label is optional. A
+  // card that fails to decode fails the whole game, which the app reads as "no game".
+  test.each([
+    ["off", 0],
+    ["on", 13],
+  ])("with the hiding switch %s, every card the routes send has the fields the iOS decoder requires", async (hiding, blank) => {
+    vi.stubEnv("EMOJI_MATCH_HIDE_CARDS", hiding);
+    const t = newBackend();
+    const { roomId, gameId } = await startedGame(t, 0);
+    const [[matchedA, matchedB], [faceUp]] = await openPairs(t, gameId);
+    const player = (await getGame(t, gameId)).currentTurnParticipantId!;
+    for (const cardId of [matchedA, matchedB, faceUp]) await flip(t, gameId, player, cardId);
+
+    for (const [path, body] of [
+      ["/api/emoji-match/active", { roomId }],
+      ["/api/emoji-match/state", { gameId }],
+    ] as const) {
+      const res = await post(t, path, body);
+      expect([path, res.status]).toEqual([path, 200]);
+      const board: Array<Record<string, any>> = res.body.board;
+      expect(board).toHaveLength(16);
+      expect(new Set(board.map((card) => card.cardId)).size).toBe(16);
+      for (const card of board) {
+        expect(card).toEqual({
+          cardId: expect.any(String),
+          pairKey: expect.any(String),
+          content: expect.objectContaining({ kind: expect.any(String), value: expect.any(String) }),
+          isMatched: expect.any(Boolean),
+          isRevealed: expect.any(Boolean),
+        });
+        if ("label" in card.content) expect(card.content.label).toEqual(expect.any(String));
+      }
+      // Three with their faces either way. With the switch on, the 13 face down have nothing to tell them apart
+      expect(board.filter((card) => card.content.value === "")).toHaveLength(blank);
+      expect(board.filter((card) => card.isMatched).map((card) => card.cardId).sort()).toEqual([matchedA, matchedB].sort());
+      expect(board.find((card) => card.cardId === faceUp)).toMatchObject({ isRevealed: true, isMatched: false });
+      if (hiding === "on") {
+        expect(JSON.stringify(board.filter((card) => !card.isRevealed && !card.isMatched))).not.toMatch(/pair_|label/);
+      }
+    }
   });
 
   test("a refusal is answered 400 with the reason", async () => {

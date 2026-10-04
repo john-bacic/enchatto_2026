@@ -1,8 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { authFail, isPresent, requireCaller } from "./participants";
+
+type Game = Doc<"emojiBingoGames">;
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -43,6 +45,9 @@ const BINGO_EMOJI_POOL = [
 const FREE_SPACE = "⭐";
 const TURN_TIMEOUT_MS = 10000; // 10 seconds to roll
 const GRACE_ROLL_INTERVAL_MS = 3000; // auto-roll every 3s during grace period
+// After the last emoji is called the game stays open this long for marks and claims, then ends.
+// Longer than a turn: every other call can still be claimed when the next one comes, and so can the last.
+const FINAL_CLAIM_MS = 15000;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -84,7 +89,25 @@ function drawAndAdvance(
     drawIndex: game.drawIndex + 1,
     currentTurnParticipantId: nextPlayer,
     turnStartedAt: now,
+    // Nothing is left to roll after the last call: the countdown both clients draw from
+    // turnStartedAt and turnTimeoutMs then runs to the end of the game
+    ...(drawsLastEmoji(game) ? { turnTimeoutMs: FINAL_CLAIM_MS } : {}),
   };
+}
+
+/** Whether the next draw from this game, as it was read, takes the last emoji in the deck */
+function drawsLastEmoji(game: { drawIndex: number; drawDeck: string[] }): boolean {
+  return game.drawIndex + 1 >= game.drawDeck.length;
+}
+
+/**
+ * How long after a draw from this game, as it was read, the next roll is due: the next player's
+ * 10 seconds, or 3 once the first bingo is in. The roll after the last call is the one that ends
+ * the game, so it waits out the final claim window.
+ */
+function msUntilNextRoll(game: { status: string; drawIndex: number; drawDeck: string[] }): number {
+  if (drawsLastEmoji(game)) return FINAL_CLAIM_MS;
+  return game.status === "won" ? GRACE_ROLL_INTERVAL_MS : TURN_TIMEOUT_MS;
 }
 
 // ─── Win pattern checking ────────────────────────────────────────────────────
@@ -199,6 +222,7 @@ export const createLobby = mutation({
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
     await requireCaller(ctx, args.hostParticipantId, args.token, "emojiBingo.createLobby");
 
     const participant = await ctx.db.get(args.hostParticipantId);
@@ -361,6 +385,9 @@ export const startGame = mutation({
     if (game.players.length < 1) {
       throw new Error("Need at least 1 player to start");
     }
+    // A lobby that was still open when its room closed: nobody is left to play it
+    const room = await ctx.db.get(game.roomId);
+    if (!room || room.status === "closed") throw new Error("Room is closed");
 
     const players = game.players.map((p) => ({
       ...p,
@@ -440,27 +467,16 @@ export const rollEmoji = mutation({
     }
 
     const patch = drawAndAdvance(game);
-    if (!patch) {
-      // Deck exhausted
-      await ctx.db.patch(args.gameId, {
-        status: "completed",
-        endedAt: Date.now(),
-      });
-      const round: BingoRound = {
-        players: game.players.map((p) => ({
-          name: p.nickname, avatar: p.avatarValue, marked: p.markedCells.length, placement: p.placement,
-        })),
-        winPattern: game.winPattern,
-      };
-      await upsertBingoSummary(ctx, game.roomId, args.participantId, round);
-      return;
-    }
+    // Deck exhausted. Both clients still offer Roll to the turn holder, and the tap must not end the
+    // game before the last call could be marked and claimed: the roll that was scheduled with that
+    // call ends it, when the final claim window is over (internalAutoRoll).
+    if (!patch) return;
 
     await ctx.db.patch(args.gameId, patch);
 
     // Schedule timeout for next player's turn
     if (game.status === "active") {
-      await ctx.scheduler.runAfter(TURN_TIMEOUT_MS, internal.emojiBingo.internalAutoRoll, {
+      await ctx.scheduler.runAfter(msUntilNextRoll(game), internal.emojiBingo.internalAutoRoll, {
         gameId: args.gameId,
         expectedDrawIndex: game.drawIndex + 1,
       });
@@ -574,11 +590,14 @@ export const claimBingo = mutation({
       patch.status = "won";
       patch.firstBingoAt = now;
 
-      // Schedule auto-rolls so the game keeps going
-      await ctx.scheduler.runAfter(GRACE_ROLL_INTERVAL_MS, internal.emojiBingo.internalAutoRoll, {
-        gameId: args.gameId,
-        expectedDrawIndex: game.drawIndex,
-      });
+      // Schedule auto-rolls so the game keeps going. With the deck out there is nothing to roll,
+      // and the roll that ends the game is already waiting for the final claim window to pass
+      if (game.drawIndex < game.drawDeck.length) {
+        await ctx.scheduler.runAfter(GRACE_ROLL_INTERVAL_MS, internal.emojiBingo.internalAutoRoll, {
+          gameId: args.gameId,
+          expectedDrawIndex: game.drawIndex,
+        });
+      }
     } else if (game.status === "won") {
       // Another player finished but not all yet — check again
       // (no state change needed, auto-rolling is already scheduled)
@@ -656,6 +675,10 @@ export const playAgain = mutation({
     const game = await ctx.db.get(args.gameId);
     if (!game) throw new Error("Game not found");
     await requireCaller(ctx, args.participantId, args.token, "emojiBingo.playAgain");
+    // This opens a lobby as createLobby does, and like it refuses a closed room
+    const room = await ctx.db.get(game.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
 
     for (const status of ["lobby", "active", "won"] as const) {
       const existing = await ctx.db
@@ -739,12 +762,28 @@ export const internalAutoRoll = internalMutation({
     if (game.status !== "active" && game.status !== "won") return;
     // If someone already rolled (drawIndex advanced), this timeout is stale — skip
     if (game.drawIndex !== args.expectedDrawIndex) return;
+    // Closing a room does not end its game. Nobody is left to play it, so the calls stop here
+    // rather than run through the deck and post a summary into a closed room's chat
+    const room = await ctx.db.get(game.roomId);
+    if (!room || room.status === "closed") return;
 
     const patch = drawAndAdvance(game);
     if (!patch) {
+      // The deck is out, and the game ends once the last call has had its claim window. A roll
+      // that comes before that was queued one turn or one grace interval after the last call, by
+      // the build that ended the game there: it comes back when the window is over.
+      const endsAt = (game.turnStartedAt ?? 0) + FINAL_CLAIM_MS;
+      const now = Date.now();
+      if (now < endsAt) {
+        await ctx.scheduler.runAfter(endsAt - now, internal.emojiBingo.internalAutoRoll, {
+          gameId: args.gameId,
+          expectedDrawIndex: args.expectedDrawIndex,
+        });
+        return;
+      }
       await ctx.db.patch(args.gameId, {
         status: "completed",
-        endedAt: Date.now(),
+        endedAt: now,
       });
       const round: BingoRound = {
         players: game.players.map((p) => ({
@@ -759,8 +798,7 @@ export const internalAutoRoll = internalMutation({
     await ctx.db.patch(args.gameId, patch);
 
     // Schedule next timeout/auto-roll
-    const interval = game.status === "won" ? GRACE_ROLL_INTERVAL_MS : TURN_TIMEOUT_MS;
-    await ctx.scheduler.runAfter(interval, internal.emojiBingo.internalAutoRoll, {
+    await ctx.scheduler.runAfter(msUntilNextRoll(game), internal.emojiBingo.internalAutoRoll, {
       gameId: args.gameId,
       expectedDrawIndex: game.drawIndex + 1,
     });
@@ -801,6 +839,20 @@ export const internalEndGracePeriod = internalMutation({
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
+/**
+ * The game as clients are sent it: the part of the deck that has not been drawn is blanked, so a
+ * client cannot read the calls to come. The deck keeps its length: installed iOS builds decode
+ * drawDeck as a required array of strings, read a failed decode as "no game", and print its count
+ * beside the number called ("5/48 called"). The players' cards go out whole: these queries are not
+ * told who is asking, and each client takes its own card from the list.
+ */
+function forClients(game: Game): Game {
+  return {
+    ...game,
+    drawDeck: game.drawDeck.map((emoji, i) => (i < game.drawIndex ? emoji : "")),
+  };
+}
+
 export const getActiveEmojiBingo = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
@@ -811,8 +863,12 @@ export const getActiveEmojiBingo = query({
           q.eq("roomId", args.roomId).eq("status", status)
         )
         .first();
-      if (game) return game;
+      if (game) return forClients(game);
     }
+    // Nothing in progress: the room's latest game, completed or canceled, whichever is newer. A room
+    // has one game in progress at a time, so the newer one ended last, and an older game's results
+    // must not come back when a later lobby or game is canceled.
+    let latest: Game | null = null;
     for (const endStatus of ["completed", "canceled"] as const) {
       const game = await ctx.db
         .query("emojiBingoGames")
@@ -821,15 +877,16 @@ export const getActiveEmojiBingo = query({
         )
         .order("desc")
         .first();
-      if (game) return game;
+      if (game && (!latest || game._creationTime > latest._creationTime)) latest = game;
     }
-    return null;
+    return latest && forClients(latest);
   },
 });
 
 export const getEmojiBingoById = query({
   args: { gameId: v.id("emojiBingoGames") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.gameId);
+    const game = await ctx.db.get(args.gameId);
+    return game && forClients(game);
   },
 });

@@ -28,6 +28,8 @@ struct HostMessageRow: View {
     /// Retry and Delete under a bubble the server refused; shown only where both are given
     var onRetrySend: (() -> Void)?
     var onDeleteUnsent: (() -> Void)?
+    /// The server's copy of a message this device sent, taking the place of its placeholder
+    var replacesPlaceholder = false
 
     private var isAudio: Bool { message.kind == .audio }
     /// A voice message's transcript (and its translation) stays collapsed until "Show text"
@@ -49,10 +51,12 @@ struct HostMessageRow: View {
         .modifier(FreshMessagePop(isFresh: isFresh, fromTrailing: isOwn))
     }
 
-    /// The host's own text, photo or drawing is on screen as a placeholder before the server's copy (which carries
-    /// the clientId) arrives: only the placeholder pops in
+    /// The host's own text, photo or drawing is on screen as a placeholder before the server's copy arrives: only
+    /// the placeholder pops in. The copy is known by its clientId, or by the send's answer when the server does
+    /// not echo one (a deployment from before clientId), or it would pop in a second time
     private var isFresh: Bool {
         guard Date().timeIntervalSince(message.createdAt) < 8 else { return false }
+        if replacesPlaceholder { return false }
         return !(isOwn && !isAudio && message.clientId != nil && !message.isQueuedPlaceholder)
     }
 

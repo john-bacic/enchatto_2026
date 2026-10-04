@@ -203,6 +203,20 @@ describe("createRoom", () => {
     expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(0);
   });
 
+  // The iOS host decodes maxParticipants as Int, and its own room's state would never decode
+  test("a maxParticipants that is not a whole number is refused, by the mutation and by rooms/create", async () => {
+    const t = newBackend();
+    for (const maxParticipants of [2.5, 10.000001, 49.5]) {
+      await expect(
+        t.mutation(api.rooms.createRoom, { hostNickname: "Mika", settings: settings({ maxParticipants }) })
+      ).rejects.toThrow(/Max participants/);
+    }
+    const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", settings: settings({ maxParticipants: 2.5 }) });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Max participants/);
+    expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(0);
+  });
+
   test("an avatar id over 64 characters and a language code over 16 are refused", async () => {
     const t = newBackend();
     await expect(
@@ -510,19 +524,39 @@ describe("joinRoom", () => {
       expect(sent[0].args[0]).toMatchObject({ token: DEVICE_TOKEN, body: `Ana joined room ${joinCode}` });
     });
 
-    // DEFECT: the push is decided on the host's stored `online` and `presence` alone (notifyHostOfJoin), and
-    // those change only when the app says so. A host whose app was killed or crashed in the foreground sent no
-    // "away" and still reads online, so nobody who joins in the 15 to 20 minutes before closeAbandonedRooms
-    // closes the room is announced to them: the one time the push is the only way they would know. The review
-    // lists it ("The join push to the host is skipped while the host's stored presence is stale") and none of
-    // the five commits changed the server: 17f6267 made the app report "away" from the background, which a
-    // killed app cannot do. isPresent already says who is here.
-    test.fails("a host who has been silent for two minutes is sent the push, though their last heartbeat said online", async () => {
+    // An app that was killed or crashed in the foreground never said "away": the push goes by isPresent, not by the stored flags
+    test("a host who has been silent for two minutes is sent the push, though their last heartbeat said online", async () => {
       const t = newBackend();
       const { roomId } = await roomWithDevice(t, "en");
       clockTo(2 * MINUTE);
       await joinGuest(t, roomId, "Ana");
       expect(await pushes(t)).toHaveLength(1);
+    });
+
+    test("the push is held back until 45 seconds after the host's last heartbeat, and sent from then on", async () => {
+      const t = newBackend();
+      const { roomId, hostId } = await roomWithDevice(t, "en");
+      await heartbeat(t, hostId, "online");
+      clockTo(45 * SECOND - 1);
+      await joinGuest(t, roomId, "Ana");
+      expect(await pushes(t)).toHaveLength(0);
+
+      clockTo(45 * SECOND);
+      await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+      const sent = await pushes(t);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].args[0]).toMatchObject({ body: expect.stringContaining("Ben joined room") });
+    });
+
+    // The 45 seconds count from the last heartbeat, with or without a presence in it, not from when the room was made
+    test("a host whose heartbeats keep arriving is not sent a push, however long the room has been open", async () => {
+      const t = newBackend();
+      const { roomId, hostId } = await roomWithDevice(t, "en");
+      clockTo(10 * MINUTE);
+      await heartbeat(t, hostId);
+      clockTo(10 * MINUTE + 30 * SECOND);
+      await joinGuest(t, roomId, "Ana");
+      expect(await pushes(t)).toHaveLength(0);
     });
   });
 });
@@ -612,7 +646,7 @@ describe("setParticipantOnline", () => {
     const ana = await joinGuest(t, roomId, "Ana");
     await heartbeat(t, ana, "away");
     clockTo(MINUTE);
-    await t.mutation(internal.participants.cleanupStaleParticipants);
+    await t.mutation(internal.participants.cleanupStaleParticipants, {});
     expect(await person(t, ana)).toMatchObject({ online: false, departed: true });
 
     await heartbeat(t, ana); // an older build's heartbeat names no presence
@@ -630,14 +664,8 @@ describe("setParticipantOnline", () => {
     expect((await person(t, ana)).departed).toBe(true);
   });
 
-  // DEFECT: a closing tab sends its leave beacon and then, from its visibilitychange handler, an "away" ping
-  // (app/room/[roomId]/page.tsx). setParticipantOnline keeps `departed` for that ping, but it still writes
-  // online: true over the beacon's online: false, and because the guest was offline it posts "join:<name>".
-  // When the ping lands after the beacon, everyone sees the guest join a moment after they left (the web plays
-  // its cut-in for that message), and the row reads online again until the next hourly sweep: the iOS host,
-  // which does not know `departed`, lists the guest as "Away", the row counts towards maxParticipants, and
-  // joinRoom will not hand it back.
-  test.fails("an away ping that lands after the leave beacon does not announce the guest as joined", async () => {
+  // A closing tab sends its leave beacon and then, from visibilitychange, an "away" ping: the ping can land second
+  test("an away ping that lands after the leave beacon does not announce the guest as joined", async () => {
     const t = newBackend();
     const { roomId } = await createRoom(t);
     const ana = await joinGuest(t, roomId, "Ana");
@@ -646,6 +674,90 @@ describe("setParticipantOnline", () => {
     expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
     // The other half of the defect: a fix that only drops the message leaves the seat taken
     expect((await person(t, ana)).online).toBe(false);
+  });
+
+  // The page sends the beacon four times (two events, twice each), so the ping can also land between two of them
+  test("an away ping between two leave beacons leaves one leave in the chat and the guest's own row to come back to", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, {
+      hostNickname: "Mika",
+      settings: settings({ maxParticipants: 2 }),
+    });
+    const ana = await joinGuest(t, roomId, "Ana");
+    await leave(t, ana);
+    await heartbeat(t, ana, "away");
+    await leave(t, ana);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+
+    // The seat is free and the row is theirs again: neither would hold if the ping had put them back online
+    expect(await joinGuest(t, roomId, "Ana")).toBe(ana);
+    expect(await people(t, roomId)).toHaveLength(2);
+  });
+
+  // The Leave button sends online: false and does not set departed. A tab hidden before that answer came
+  // back sends "away" behind it
+  test("an away ping does not bring back a guest who went offline with Leave", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await goOffline(t, ana);
+    clockTo(5 * SECOND);
+    await heartbeat(t, ana, "away");
+    const row = await person(t, ana);
+    expect(row.online).toBe(false);
+    expect(row.presence).toBeUndefined();
+    expect(row.lastSeenAt).toBe(START + 5 * SECOND);
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
+  });
+
+  test("a guest who is offline after an away ping is back, and announced once, with their next online heartbeat", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await leave(t, ana);
+    await heartbeat(t, ana, "away");
+    await heartbeat(t, ana, "online"); // the reloaded page mounts
+    const row = await person(t, ana);
+    expect(row).toMatchObject({ online: true, presence: "online" });
+    expect(row.departed).toBeUndefined();
+    expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana", "join:Ana"]);
+  });
+
+  // The iOS host heartbeats "away" from the background. One the sweep took offline must not read as back, and
+  // its room must not be closed as abandoned while those heartbeats arrive
+  test("an away heartbeat from a host the sweep took offline keeps the room open without bringing the host back", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await heartbeat(t, hostId, "away");
+    clockTo(MINUTE);
+    await t.mutation(internal.participants.cleanupStaleParticipants, {});
+    expect(await person(t, hostId)).toMatchObject({ online: false, departed: true });
+
+    clockTo(14 * MINUTE);
+    await heartbeat(t, hostId, "away");
+    expect(await person(t, hostId)).toMatchObject({ online: false, departed: true, lastSeenAt: START + 14 * MINUTE });
+    clockTo(28 * MINUTE);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(0);
+    expect((await roomRow(t, roomId)).status).toBe("waiting");
+
+    // Back in the foreground
+    await heartbeat(t, hostId, "online");
+    const host = await person(t, hostId);
+    expect(host).toMatchObject({ online: true, presence: "online" });
+    expect(host.departed).toBeUndefined();
+    expect(await announcements(t, roomId)).toEqual([]);
+  });
+
+  test("an away ping from someone who is online still marks them away, departed or not", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    // A row from before heartbeats cleared the flag: online and departed at once
+    await t.run((ctx) => ctx.db.patch(ana, { departed: true }));
+    clockTo(5 * SECOND);
+    await heartbeat(t, ana, "away");
+    expect(await person(t, ana)).toMatchObject({ online: true, presence: "away", departed: true, lastSeenAt: START + 5 * SECOND });
+    expect(await announcements(t, roomId)).toEqual(["join:Ana"]);
   });
 
   test("a heartbeat from a guest who was kicked fails and does not bring them back", async () => {
@@ -757,19 +869,48 @@ describe("leaveRoom", () => {
     expect(await announcements(t, roomId)).toEqual(["join:Ana", "leave:Ana"]);
   });
 
-  // DEFECT: nothing clears typingAction when a guest leaves or goes offline. leaveRoom and setParticipantOnline
-  // do not touch it, and the stale sweep, the only place that clears it, skips rows that are already offline.
-  // A guest who closes the tab while typing, drawing or recording is shown as doing so to everyone else for
-  // good: both clients list whoever has a typingAction, online or not (room page `typingParticipants`,
-  // HostRoomViewModel). The review lists it ("Typing, drawing and voicing indicators are never cleared when a
-  // participant leaves") and none of the five commits fixed it.
-  test.fails("leaving clears what the guest was shown as doing", async () => {
+  // Both apps list whoever has a typingAction, online or not, and a closed tab cannot clear its own
+  test("leaving clears what the guest was shown as doing", async () => {
     const t = newBackend();
     const { roomId } = await createRoom(t);
     const ana = await joinGuest(t, roomId, "Ana");
     await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "typing" });
     await leave(t, ana);
     expect((await person(t, ana)).typingAction).toBeUndefined();
+  });
+
+  test("leaving in the middle of a drawing clears the drawing and when it started", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "drawing", drawingStartedAt: START });
+    await leave(t, ana);
+    const row = await person(t, ana);
+    expect(row.typingAction).toBeUndefined();
+    expect(row.drawingStartedAt).toBeUndefined();
+  });
+
+  // The room page's Leave button: setParticipantOnline with online: false
+  test("going offline with Leave clears what the guest was shown as doing, too", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "drawing", drawingStartedAt: START });
+    await goOffline(t, ana);
+    const row = await person(t, ana);
+    expect(row.typingAction).toBeUndefined();
+    expect(row.drawingStartedAt).toBeUndefined();
+  });
+
+  test("a heartbeat or an away ping from someone who is online leaves what they are shown as doing", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    await t.mutation(api.participants.setTypingAction, { participantId: ana, action: "voicing" });
+    await heartbeat(t, ana, "online");
+    expect((await person(t, ana)).typingAction).toBe("voicing");
+    await heartbeat(t, ana, "away");
+    expect((await person(t, ana)).typingAction).toBe("voicing");
   });
 });
 
@@ -955,16 +1096,30 @@ describe("updateRoomSettings", () => {
     expect((await roomRow(t, roomId)).settings).toEqual(before);
   });
 
-  // DEFECT: the bounds check takes any number from 2 to 50, whole or not, here and in createRoom. The room
-  // document goes to the iOS host as it is, and Room.swift decodes maxParticipants as Int: with 2.5 stored,
-  // JSONDecoder refuses the whole /api/rooms/state answer, so every poll of that room fails on the host's
-  // phone. The iOS app only ever sends whole numbers, but while AUTH_MODE is "log" any guest can make this call.
-  test.fails("a maxParticipants that is not a whole number is refused", async () => {
+  // Room.swift decodes maxParticipants as Int: a fraction stored here would fail every /api/rooms/state poll on the host's phone
+  test("a maxParticipants that is not a whole number is refused", async () => {
     const t = newBackend();
     const { roomId } = await createRoom(t);
     await expect(
       t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants: 2.5 }) })
     ).rejects.toThrow(/Max participants/);
+  });
+
+  test("a fraction is refused wherever it falls in the range, and the settings stay as they were", async () => {
+    const t = newBackend();
+    const { roomId } = await createRoom(t);
+    const before = (await roomRow(t, roomId)).settings;
+    for (const maxParticipants of [2.000001, 10.5, 49.999, Infinity]) {
+      await expect(
+        t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants }) })
+      ).rejects.toThrow(/Max participants/);
+    }
+    expect((await roomRow(t, roomId)).settings).toEqual(before);
+    // The whole numbers at both ends are still taken
+    for (const maxParticipants of [2, 50]) {
+      await t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants }) });
+      expect((await roomRow(t, roomId)).settings.maxParticipants).toBe(maxParticipants);
+    }
   });
 
   test("a closed room's settings cannot be changed", async () => {
@@ -1064,14 +1219,8 @@ describe("room queries", () => {
     expect(await t.query(api.rooms.getRoomByJoinCode, { joinCode: "000000" })).toBeNull();
   });
 
-  // DEFECT: createRoom never checks that its code is free, closed rooms keep theirs for good (the purge is off
-  // unless PURGE_CLOSED_ROOMS_AFTER_DAYS is set), and getRoomByJoinCode returns the oldest room with the code.
-  // A new room that draws the code of any earlier room cannot be joined: the join page shows "Room closed"
-  // (or drops guests into the other open room). The review lists it ("Join codes are not checked for
-  // collisions") and none of the five commits fixed it. One in 32^6 per earlier room, per new room.
-  // The test asks only that the code the host is shown leads to the host's room, so it passes whichever way
-  // this is fixed: createRoom drawing again while a room holds the code, or the lookup preferring the open room.
-  test.fails("the join code a new room is given finds that room, though an earlier room drew the same code", async () => {
+  // createRoom draws again while any room, open or closed, holds the code: getRoomByJoinCode answers the oldest room with it
+  test("the join code a new room is given finds that room, though an earlier room drew the same code", async () => {
     const t = newBackend();
     // The same draws for both rooms, which is what createRoom meets one time in a billion per earlier room.
     // Past those the draws differ, so a createRoom that draws again gets a code that is free
@@ -1085,6 +1234,68 @@ describe("room queries", () => {
 
     const found = await t.query(api.rooms.getRoomByJoinCode, { joinCode: fresh.joinCode });
     expect(found?._id).toBe(fresh.roomId);
+  });
+
+  /** Makes createRoom's draws repeat from the start for every room: each new room first draws the codes the earlier ones drew */
+  function sameDrawsForEveryRoom() {
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
+    return () => {
+      draws = 0;
+    };
+  }
+
+  test("a new room never shares its code with a room that is still open, and each code finds its own room", async () => {
+    const t = newBackend();
+    const again = sameDrawsForEveryRoom();
+    const rooms = [];
+    for (let i = 0; i < 4; i++) {
+      again();
+      rooms.push(await createRoom(t));
+    }
+    expect(new Set(rooms.map((room) => room.joinCode)).size).toBe(4);
+    for (const room of rooms) {
+      expect(room.joinCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+      expect((await t.query(api.rooms.getRoomByJoinCode, { joinCode: room.joinCode }))?._id).toBe(room.roomId);
+    }
+    // One row per code in the table itself, not only in what createRoom answered
+    const stored = await t.run((ctx) => ctx.db.query("rooms").collect());
+    expect(stored.map((room) => room.joinCode).sort()).toEqual(rooms.map((room) => room.joinCode).sort());
+  });
+
+  test("a code is free again once the room that held it is gone, as after the purge of closed rooms", async () => {
+    const t = newBackend();
+    const again = sameDrawsForEveryRoom();
+    const old = await createRoom(t);
+    await t.run(async (ctx) => {
+      await ctx.db.delete(old.hostId);
+      await ctx.db.delete(old.roomId);
+    });
+    again();
+    const fresh = await createRoom(t);
+    expect(fresh.joinCode).toBe(old.joinCode);
+    expect((await t.query(api.rooms.getRoomByJoinCode, { joinCode: fresh.joinCode }))?._id).toBe(fresh.roomId);
+  });
+
+  // A stubbed or broken Math.random must not hang the mutation: after ten taken codes it stops
+  test("createRoom gives up with an error, and makes nothing, when every code it draws is taken", async () => {
+    const t = newBackend();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const first = await createRoom(t);
+    const drawsForOneRoom = random.mock.calls.length;
+
+    await expect(createRoom(t)).rejects.toThrow(/Could not make a join code/);
+    // Ten codes of six draws each, and the draw for the background: not one more
+    expect(random.mock.calls.length - drawsForOneRoom).toBe(10 * 6 + 1);
+    expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("participants").collect())).toHaveLength(1);
+
+    const res = await post(t, "/api/rooms/create", { hostNickname: "Mika" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Could not make a join code/);
+
+    // The first room is untouched and its code still leads to it
+    expect((await t.query(api.rooms.getRoomByJoinCode, { joinCode: first.joinCode }))?._id).toBe(first.roomId);
   });
 
   test("getRoomState answers null for a room that does not exist", async () => {
@@ -1227,6 +1438,13 @@ test("crons.ts runs closeAbandonedRooms every five minutes and the stale-partici
   });
 });
 
+// Only a run the sweep itself asked for carries a cursor and the sweep's clock
+test("the cron starts the stale-participant sweep as a start: with no cursor and no clock of its own", () => {
+  const sweeps = Object.values(crons.crons).filter((job) => job.name === "participants:cleanupStaleParticipants");
+  expect(sweeps).toHaveLength(1);
+  expect(sweeps[0].args).toEqual([{}]);
+});
+
 describe("closeAbandonedRooms", () => {
   test("closes a room whose host has been silent for more than 15 minutes", async () => {
     const t = newBackend();
@@ -1313,7 +1531,7 @@ describe("closeAbandonedRooms", () => {
 // ─── cleanupStaleParticipants ────────────────────────────────────────────────
 
 describe("cleanupStaleParticipants", () => {
-  const sweep = (t: Backend) => t.mutation(internal.participants.cleanupStaleParticipants);
+  const sweep = (t: Backend) => t.mutation(internal.participants.cleanupStaleParticipants, {});
 
   test("marks someone away once they have been silent for more than 45 seconds, and clears what they were shown as doing", async () => {
     const t = newBackend();
@@ -1393,6 +1611,88 @@ describe("cleanupStaleParticipants", () => {
     clockTo(HOUR);
     await sweep(t);
     expect(await person(t, ana)).toEqual(before);
+  });
+
+  describe("a sweep with more to do than one run takes", () => {
+    /** People whose tabs died without a word: online, last heard from at START. Every third had already gone away */
+    async function addSilentGuests(t: Backend, roomId: Id<"rooms">, count: number) {
+      await t.run(async (ctx) => {
+        for (let i = 0; i < count; i++) {
+          await ctx.db.insert("participants", {
+            roomId,
+            nickname: `Silent ${i}`,
+            role: "participant",
+            platform: "web",
+            avatar: { type: "preset", value: "fox" },
+            preferredLanguage: "en",
+            online: true,
+            presence: i % 3 === 0 ? "away" : "online",
+            typingAction: "typing",
+            lastSeenAt: START,
+            joinedAt: START,
+          });
+        }
+      });
+    }
+    const sweepJobs = async (t: Backend) => (await scheduled(t)).filter((job) => job.name.includes("cleanupStaleParticipants"));
+
+    test("goes through 500 people a run, and the runs follow each other until everyone has been looked at once", async () => {
+      const t = newBackend();
+      const { roomId, hostId } = await createRoom(t);
+      await addSilentGuests(t, roomId, 1100);
+      await goOffline(t, hostId); // only the 1,100 are in the sweep's way
+      clockTo(HOUR);
+
+      await sweep(t);
+      const afterOne = (await people(t, roomId)).filter((p) => p._id !== hostId);
+      expect(afterOne.filter((p) => p.typingAction === undefined)).toHaveLength(500);
+      // The next run is asked for with where this one stopped and the clock the sweep started by
+      const jobs = await sweepJobs(t);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].args).toEqual([{ cursor: expect.any(String), now: START + HOUR }]);
+
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const everyone = (await people(t, roomId)).filter((p) => p._id !== hostId);
+      expect(everyone).toHaveLength(1100);
+      for (const p of everyone) expect(p.typingAction).toBeUndefined();
+      // Each was looked at once. Those who were away are offline. Those who were online are away and no
+      // more: a run that looked at them again would have taken them offline in the same sweep
+      const wasAway = (p: Doc<"participants">) => Number(p.nickname.split(" ")[1]) % 3 === 0;
+      for (const p of everyone.filter(wasAway)) expect(p).toMatchObject({ online: false, departed: true });
+      for (const p of everyone.filter((p) => !wasAway(p))) expect(p).toMatchObject({ online: true, presence: "away" });
+      expect(everyone.filter((p) => !wasAway(p) && p.departed)).toHaveLength(0);
+      // Three runs for 1,100 people, and no fourth one waiting
+      const all = await sweepJobs(t);
+      expect(all).toHaveLength(2);
+      expect(all.every((job) => job.state.kind === "success")).toBe(true);
+    });
+
+    test("a sweep that fits in one run asks for no other", async () => {
+      const t = newBackend();
+      const { roomId } = await createRoom(t);
+      await addSilentGuests(t, roomId, 300);
+      clockTo(HOUR);
+      await sweep(t);
+      expect((await people(t, roomId)).filter((p) => p.typingAction !== undefined)).toHaveLength(0);
+      expect(await sweepJobs(t)).toHaveLength(0);
+    });
+
+    // The runs of one sweep can be seconds apart. Who is stale is judged once, by the clock the sweep started by
+    test("a later run does not take in people who went silent after the sweep started", async () => {
+      const t = newBackend();
+      const { roomId, hostId } = await createRoom(t);
+      await addSilentGuests(t, roomId, 600);
+      await goOffline(t, hostId);
+      clockTo(HOUR);
+      // In a room of their own (the first has had its 300 members), and heard from as the sweep starts
+      const late = await joinGuest(t, (await createRoom(t)).roomId, "Late");
+      await sweep(t);
+
+      clockTo(HOUR + 10 * MINUTE); // the next run is held up
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(await person(t, late)).toMatchObject({ online: true, presence: "online" });
+      expect((await people(t, roomId)).filter((p) => p.typingAction !== undefined)).toHaveLength(0);
+    });
   });
 });
 
@@ -1652,8 +1952,8 @@ describe("/api/rooms/* and /api/participants/*", () => {
     const t = newBackend();
     const { hostId } = await createRoom(t);
     clockTo(HOUR);
-    await t.mutation(internal.participants.cleanupStaleParticipants);
-    await t.mutation(internal.participants.cleanupStaleParticipants);
+    await t.mutation(internal.participants.cleanupStaleParticipants, {});
+    await t.mutation(internal.participants.cleanupStaleParticipants, {});
     expect(await person(t, hostId)).toMatchObject({ online: false, departed: true });
 
     const res = await post(t, "/api/participants/set-online", { participantId: hostId, online: true, presence: "online" });

@@ -754,7 +754,8 @@ struct HostConversationView: View {
                                 showRomaji: showRomaji,
                                 onImageTap: { url in fullScreenImage = (url: url, messageId: message.id) },
                                 onRetrySend: { viewModel.retrySend(id: message.id) },
-                                onDeleteUnsent: { Task { await viewModel.deleteMessage(messageId: message.id) } }
+                                onDeleteUnsent: { Task { await viewModel.deleteMessage(messageId: message.id) } },
+                                replacesPlaceholder: viewModel.wasSentFromThisDevice(message.id)
                             )
                             .id(message.id)
                             .background(
@@ -789,11 +790,10 @@ struct HostConversationView: View {
             .onPreferenceChange(MessageFramePreferenceKey.self) { frames in
                 messageFrames.frames = frames
             }
+            .onAppear { scrollToNewest(proxy, animated: false) }
             .onChange(of: viewModel.messages.count) { _ in
                 guard contextMenuMessageId == nil else { return }
-                withAnimation {
-                    proxy.scrollTo("bottom-anchor", anchor: .bottom)
-                }
+                scrollToNewest(proxy)
             }
             .onChange(of: translationFingerprint) { _ in
                 guard contextMenuMessageId == nil else { return }
@@ -815,6 +815,23 @@ struct HostConversationView: View {
                         proxy.scrollTo("bottom-anchor", anchor: .bottom)
                     }
                 }
+            }
+        }
+    }
+
+    /// Scrolls the list to its newest message, and once more shortly after. The first pass can stop short and leave
+    /// the newest message under the input bar: it runs before a new row of the lazy stack has its height, and a
+    /// send closes the keyboard, which is still changing the height of the list
+    private func scrollToNewest(_ proxy: ScrollViewProxy, animated: Bool = true) {
+        if animated {
+            withAnimation { proxy.scrollTo("bottom-anchor", anchor: .bottom) }
+        } else {
+            proxy.scrollTo("bottom-anchor", anchor: .bottom)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            guard contextMenuMessageId == nil else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                proxy.scrollTo("bottom-anchor", anchor: .bottom)
             }
         }
     }

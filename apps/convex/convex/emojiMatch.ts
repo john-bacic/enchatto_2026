@@ -78,51 +78,70 @@ interface GameRound {
   isTie: boolean;
 }
 
+const SUMMARY_PREFIX = "emoji_match_summary:";
+const SUMMARY_GAME_TYPE = "Match Emoji";
+
+/**
+ * The data of this game's summary message, or null for anything else. Emoji Bingo and Word Rush post
+ * their summaries under the same prefix and are told apart by gameType; a summary with no gameType is
+ * from before the field existed, when only this game wrote them. The gameType is read from the parsed
+ * data, not searched for in the text, where a player's nickname could stand in for it.
+ */
+function ownSummaryData(message: { kind: string; text?: string }): any | null {
+  if (message.kind !== "system" || !message.text?.startsWith(SUMMARY_PREFIX)) return null;
+  try {
+    const data = JSON.parse(message.text.slice(SUMMARY_PREFIX.length));
+    if (!data || typeof data !== "object") return null;
+    return (data.gameType ?? SUMMARY_GAME_TYPE) === SUMMARY_GAME_TYPE ? data : null;
+  } catch {
+    // Not a summary this game can add a round to
+    return null;
+  }
+}
+
 async function upsertMatchEmojiSummary(
-  ctx: any,
+  ctx: MutationCtx,
   roomId: Id<"rooms">,
   senderId: Id<"participants">,
   newRound: GameRound,
   cancelled?: boolean,
 ) {
-  // Find existing summary message in this room
+  // Find this game's existing summary message in this room
   const allMessages = await ctx.db
     .query("messages")
-    .withIndex("by_roomId_createdAt", (q: any) => q.eq("roomId", roomId))
+    .withIndex("by_roomId_createdAt", (q) => q.eq("roomId", roomId))
     .order("desc")
     .collect();
-  const existing = allMessages.find(
-    (m: any) => m.kind === "system" && m.text?.startsWith("emoji_match_summary:")
-  );
+  const existing = allMessages.find((m) => ownSummaryData(m) !== null);
 
   if (existing) {
-    // Parse existing data and append
+    // Append to the existing data
     try {
-      const oldData = JSON.parse(existing.text.slice("emoji_match_summary:".length));
+      const oldData = ownSummaryData(existing);
       const games: GameRound[] = oldData.games ?? [
         // Migrate legacy single-game format
         { players: oldData.players, totalPairs: oldData.totalPairs, isTie: oldData.isTie },
       ];
       games.push(newRound);
-      const summaryData = { gameType: "Match Emoji", cancelled, games };
+      const summaryData = { gameType: SUMMARY_GAME_TYPE, cancelled, games };
       await ctx.db.patch(existing._id, {
-        text: `emoji_match_summary:${JSON.stringify(summaryData)}`,
+        text: `${SUMMARY_PREFIX}${JSON.stringify(summaryData)}`,
         createdAt: Date.now(),
       });
       return;
     } catch {
-      // If parse fails, fall through to create new
+      // If the old data cannot be added to, fall through to create new
     }
   }
 
   // Create new summary
-  const summaryData = { gameType: "Match Emoji", cancelled, games: [newRound] };
+  const summaryData = { gameType: SUMMARY_GAME_TYPE, cancelled, games: [newRound] };
   await ctx.db.insert("messages", {
     roomId,
     senderId,
     kind: "system",
     status: "processed",
-    text: `emoji_match_summary:${JSON.stringify(summaryData)}`,
+    text: `${SUMMARY_PREFIX}${JSON.stringify(summaryData)}`,
     createdAt: Date.now(),
   });
 }
@@ -253,6 +272,7 @@ export const createLobby = mutation({
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
     await requireCaller(ctx, args.hostParticipantId, args.token, "emojiMatch.createLobby");
 
     const participant = await ctx.db.get(args.hostParticipantId);
@@ -400,6 +420,9 @@ export const startGame = mutation({
     if (game.hostParticipantId !== args.participantId) {
       throw new Error("Only the host can start the game");
     }
+    // A lobby that was still open when its room closed: nobody is left to play it
+    const room = await ctx.db.get(game.roomId);
+    if (!room || room.status === "closed") throw new Error("Room is closed");
 
     const activePlayers = game.players.filter((p) => p.isActive);
     if (activePlayers.length < 1) {
@@ -412,7 +435,6 @@ export const startGame = mutation({
     const selectedEmojis = shuffleArray(EMOJI_POOL).slice(0, pairs);
 
     const cards: Array<{
-      cardId: string;
       pairKey: string;
       content: { kind: string; value: string; label?: string };
       isMatched: boolean;
@@ -423,14 +445,12 @@ export const startGame = mutation({
       const pairKey = `pair_${i}`;
       const item = selectedEmojis[i];
       cards.push({
-        cardId: `card_${i * 2}`,
         pairKey,
         content: { kind: "emoji", value: item.emoji, label: item.en },
         isMatched: false,
         isRevealed: false,
       });
       cards.push({
-        cardId: `card_${i * 2 + 1}`,
         pairKey,
         content: { kind: "emoji", value: item.emoji, label: item.ja },
         isMatched: false,
@@ -438,7 +458,9 @@ export const startGame = mutation({
       });
     }
 
-    const shuffledCards = shuffleArray(cards);
+    // Ids are given after the shuffle, by place on the board. Numbered as the cards are made, two by
+    // two, card_0 and card_1 would be a pair, card_2 and card_3 the next: the ids go to every client.
+    const shuffledCards = shuffleArray(cards).map((card, place) => ({ cardId: `card_${place}`, ...card }));
     const turnOrder = shuffleArray(activePlayers.map((p) => p.participantId));
     const now = Date.now();
     const isMultiplayer = activePlayers.length > 1;
@@ -671,8 +693,9 @@ async function passTurn(ctx: MutationCtx, game: Game, timedOut: boolean = false)
 
   if (!nextPlayer) {
     // Walked away from, not won: no winners, and the same chat record cancelGame leaves.
-    // Status stays "completed" because the active-game query would otherwise fall back to an
-    // older finished game; both clients show endReason "canceled" as a cancelled game.
+    // Status is "completed", from when the active-game query put any completed game ahead of a
+    // newer canceled one. It stays so: both clients show a completed game with endReason "canceled"
+    // as a cancelled game's results, where status "canceled" closes the game screen.
     const sorted = [...game.players].sort((a, b) => b.score - a.score);
     const maxScore = sorted[0]?.score ?? 0;
     await ctx.db.patch(game._id, {
@@ -844,6 +867,10 @@ export const playAgain = mutation({
       throw new Error("Game is not finished");
     }
     await requireCaller(ctx, args.participantId, args.token, "emojiMatch.playAgain");
+    // This opens a lobby as createLobby does, and like it refuses a closed room
+    const room = await ctx.db.get(game.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
 
     // Check no existing active game in room
     for (const status of ["lobby", "active", "resolving"] as const) {
@@ -915,6 +942,30 @@ export const playAgain = mutation({
 
 // --- Queries ---
 
+/**
+ * The game as clients are sent it. With EMOJI_MATCH_HIDE_CARDS set to "on", a card that is face down goes
+ * out without its pair and its emoji, so a client cannot read the board ahead of the players. The fields
+ * stay, blank, and the ids and the order stay as dealt: installed iOS builds decode pairKey and content
+ * as required fields and read a failed decode as "no game", and both clients key their cards by cardId.
+ * No client reads pairKey. The content comes back in the first answer after the flip.
+ *
+ * Off unless set, like AUTH_MODE: an iOS build that turns its own tapped card over before that answer
+ * (every build up to 2a14426) draws an empty face until it arrives, and builds before the same commit
+ * lose a card's emoji at the start of its turn back. Set it once those builds are no longer in use.
+ * Mutations read the stored game either way.
+ */
+function forClients(game: Game): Game {
+  if (process.env.EMOJI_MATCH_HIDE_CARDS !== "on") return game;
+  return {
+    ...game,
+    board: game.board.map((card) =>
+      card.isRevealed || card.isMatched
+        ? card
+        : { ...card, pairKey: "", content: { kind: "emoji", value: "" } }
+    ),
+  };
+}
+
 export const getActiveEmojiMatch = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
@@ -926,10 +977,12 @@ export const getActiveEmojiMatch = query({
           q.eq("roomId", args.roomId).eq("status", status)
         )
         .first();
-      if (game) return game;
+      if (game) return forClients(game);
     }
-    // If no in-progress game, return the most recently completed/canceled game
-    // so the results screen can display.
+    // If no in-progress game, return the room's latest game, so the results screen can display.
+    // Completed or canceled, whichever is newer: a room has one game in progress at a time, so the
+    // newer one ended last, and an older result must not come back when a later game is canceled.
+    let latest: Game | null = null;
     for (const endStatus of ["completed", "canceled"] as const) {
       const game = await ctx.db
         .query("emojiMatchGames")
@@ -938,16 +991,17 @@ export const getActiveEmojiMatch = query({
         )
         .order("desc")
         .first();
-      if (game) return game;
+      if (game && (!latest || game._creationTime > latest._creationTime)) latest = game;
     }
-    return null;
+    return latest && forClients(latest);
   },
 });
 
 export const getEmojiMatchById = query({
   args: { gameId: v.id("emojiMatchGames") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.gameId);
+    const game = await ctx.db.get(args.gameId);
+    return game && forClients(game);
   },
 });
 

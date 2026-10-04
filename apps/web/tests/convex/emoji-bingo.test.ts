@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { api } from "../../convex/_generated/api";
+import { api, internal } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { Backend, createRoom, joinGuest, newBackend, tokenFor } from "./setup";
 
 // Emoji Bingo (convex/emojiBingo.ts and the /api/emoji-bingo/* routes).
 // lobby -> active (players take turns to roll; a turn nobody takes is rolled after 10 s)
 //       -> won (after the first bingo an emoji is called every 3 s while the others play for 2nd, 3rd...)
-//       -> completed (everyone placed, or the deck of 48 ran out) | canceled
+//       -> completed (everyone placed, or 15 s after the last of the 48 emojis was called) | canceled
 //
 // Cards and the deck are shuffled with Math.random. Tests that need a particular call next use stackDeck,
-// which rearranges the undrawn part of the stored deck; everything else goes through the public functions.
-// A test marked test.fails states the correct behaviour for a defect in the product code (see its DEFECT note).
+// which rearranges the undrawn part of the stored deck; everything else goes through the public functions
+// (but for one test that runs the roll timer's function by hand, as a roll queued by an earlier build).
 
 type GameId = Id<"emojiBingoGames">;
 type PlayerId = Id<"participants">;
@@ -25,6 +25,8 @@ const MIDDLE_ROW = [10, 11, 12, 13, 14];
 const CORNERS = [0, 4, 20, 24];
 const TURN_MS = 10_000;
 const GRACE_MS = 3_000;
+/** After the last emoji is called the game stays open this long for marks and claims, then ends */
+const FINAL_CLAIM_MS = 15_000;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -46,7 +48,8 @@ async function gameOf(t: Backend, gameId: GameId): Promise<Game> {
 
 /**
  * The deck as the server holds it, read from the database. How much of it the queries show is a separate
- * question (see the DEFECT note on the draw order), so no test takes the order of the deck from a query.
+ * question (see "the polled game does not give away the order of the emojis still to be called"), so no
+ * test takes the order of the deck from a query.
  */
 async function deckOf(t: Backend, gameId: GameId): Promise<string[]> {
   return await t.run(async (ctx) => (await ctx.db.get(gameId))!.drawDeck);
@@ -254,16 +257,89 @@ describe("createLobby", () => {
     });
   });
 
-  // DEFECT: createLobby never looks at the room's status, so a lobby opens in a closed room; startGame then
-  // writes a "game:Emoji Bingo" line into the closed room's chat and starts the roll timer, which also runs
-  // on to the end of the deck in a room closed mid-game. Word Rush, Truth or Dare and Lost in Translation
-  // refuse with "Room is closed", as does every message send. Low severity: only a client that missed the
-  // close would ask.
-  test.fails("a lobby cannot be opened in a closed room", async () => {
+  // A closed room starts no game, as with Word Rush, Truth or Dare and Lost in Translation
+  test("a lobby cannot be opened in a closed room", async () => {
     const t = newBackend();
     const { roomId, hostId } = await createRoom(t);
     await t.mutation(api.rooms.closeRoom, { roomId });
     await expect(t.mutation(api.emojiBingo.createLobby, { roomId, hostParticipantId: hostId })).rejects.toThrow(/closed/i);
+  });
+});
+
+// ─── A closed room ───────────────────────────────────────────────────────────
+// Only a client that missed the close gets here: the web sends guests home and the iOS host has left the room.
+
+describe("in a closed room", () => {
+  const gameLines = async (t: Backend, roomId: RoomId) =>
+    (await t.query(api.messages.getRoomMessages, { roomId })).filter((m) => m.text === "game:Emoji Bingo");
+
+  // playAgain opens a lobby too: the second way in
+  test("Play Again on a game that ended before the close opens no lobby", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await startedGame(t);
+    await cancel(t, gameId, hostId);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    await expect(t.mutation(api.emojiBingo.playAgain, { gameId, participantId: hostId })).rejects.toThrow(/closed/i);
+    expect((await t.query(api.emojiBingo.getActiveEmojiBingo, { roomId }))?._id).toBe(gameId);
+  });
+
+  test("a lobby left open when the room closed cannot be started: no cards, no chat line, no timer", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await openLobby(t);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    await expect(t.mutation(api.emojiBingo.startGame, { gameId, participantId: hostId })).rejects.toThrow(/closed/i);
+
+    const lobby = await gameOf(t, gameId);
+    expect(lobby).toMatchObject({ status: "lobby", drawDeck: [], drawIndex: 0 });
+    expect(lobby.players.map((p) => p.card)).toEqual([[], []]);
+    expect(await gameLines(t, roomId)).toEqual([]);
+    await advance(t, 3 * TURN_MS);
+    expect(await gameOf(t, gameId)).toEqual(lobby);
+  });
+
+  // Closing a room does not end its game. The roll timer is what would keep it going, to the end of the
+  // deck and a summary in the closed room's chat
+  test("the turn timer of a game that was running stops: nothing more is called and no summary is posted", async () => {
+    const t = newBackend();
+    const { roomId, gameId } = await startedGame(t);
+    await rollTurn(t, gameId);
+    await advance(t, TURN_MS);
+    const before = await gameOf(t, gameId);
+    expect(before).toMatchObject({ status: "active", drawIndex: 2 });
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    for (let i = 0; i < 60; i++) await advance(t, TURN_MS);
+
+    expect(await gameOf(t, gameId)).toEqual(before);
+    expect(await summaries(t, roomId)).toEqual([]);
+  });
+
+  test("the 3-second calls after the first bingo stop as well", async () => {
+    const t = newBackend();
+    const { roomId, gameId } = await wonGame(t);
+    await advance(t, GRACE_MS);
+    const before = await gameOf(t, gameId);
+    expect(before.status).toBe("won");
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    for (let i = 0; i < 60; i++) await advance(t, GRACE_MS);
+
+    expect(await gameOf(t, gameId)).toEqual(before);
+    expect(await summaries(t, roomId)).toEqual([]);
+  });
+
+  test("a game whose last emoji was called before the close is not ended into the closed room's chat", async () => {
+    const t = newBackend();
+    const { roomId, gameId } = await startedGame(t);
+    for (let i = 0; i < 48; i++) await rollTurn(t, gameId);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+
+    await advance(t, 4 * FINAL_CLAIM_MS);
+
+    expect(await gameOf(t, gameId)).toMatchObject({ status: "active", drawIndex: 48 });
+    expect(await summaries(t, roomId)).toEqual([]);
   });
 });
 
@@ -536,13 +612,8 @@ describe("rollEmoji", () => {
     expect(summary.data.games[0].players.map((p) => p.isWinner)).toEqual([false, false]);
   });
 
-  // DEFECT: the roll after the 48th call ends the game on the spot (rollEmoji and internalAutoRoll both set
-  // "completed" when the deck is empty). A player whose pattern needed the last emoji has until the next
-  // player taps Roll, or 10 s (3 s once the game is won) for the timer, to mark and claim; after that markCell
-  // and claimBingo throw "Game is not active" and the summary shows no winner. Under blackout the last call is
-  // the one that matters about half the time. Listed in the review ("Bingo completes on the first roll after
-  // the 48th call"); none of the five commits changed it.
-  test.fails("a roll that arrives after the last emoji was called still leaves time to claim it", async () => {
+  // A roll on an empty deck does nothing: the game ends when the last call's claim window is over, not on a tap
+  test("a roll that arrives after the last emoji was called still leaves time to claim it", async () => {
     const t = newBackend();
     const { gameId, guestIds } = await startedGame(t);
     const aki = guestIds[0];
@@ -956,14 +1027,9 @@ describe("after the first bingo", () => {
     expect(await gameOf(t, gameId)).toEqual(ended);
   });
 
-  // DEFECT: the timer's side of "a roll that arrives after the last emoji was called..." above, which is the
-  // side everyone playing on after the first bingo meets. Once the game is won an emoji is called every 3 s,
-  // and what comes 3 s after the 48th is the end of the game. Every other emoji can be marked and claimed for
-  // as long as the game runs; the last one for 3 s. Under blackout a card needs the 48th call half the time,
-  // so whoever plays on for 2nd place then has 3 s to find it, mark it and tap Bingo. A fix that only makes
-  // rollEmoji ignore a roll on an empty deck leaves this as it is: the end has to wait longer than the gap
-  // between two calls. Same review item, same fix (a last window to claim in when the deck runs out).
-  test.fails("after the first bingo, the last emoji called can still be claimed when the next call would have come", async () => {
+  // The timer's side of "a roll that arrives after the last emoji was called..." above: the end of the game
+  // waits longer after the last call than the gap between two calls
+  test("after the first bingo, the last emoji called can still be claimed when the next call would have come", async () => {
     const t = newBackend();
     const { gameId, hostId, guestIds } = await startedGame(t);
     const aki = guestIds[0];
@@ -993,6 +1059,145 @@ describe("after the first bingo", () => {
       if (cellIndex !== CENTRE) await markCell(t, gameId, aki, cellIndex);
     }
     expect(await claim(t, gameId, aki)).toEqual({ valid: true, placement: 2 });
+  });
+});
+
+// ─── The last call ───────────────────────────────────────────────────────────
+// Every call but the last is followed by another, 10 s later at the latest, and can be claimed all that time.
+// The last is followed by the end of the game, which waits 15 s: longer than a turn, whoever rolls or does not.
+
+describe("after the last emoji is called", () => {
+  /** A two-player game in which all 48 emojis have just been called by the players' rolls */
+  async function allCalledGame(t: Backend) {
+    const table = await startedGame(t);
+    for (let i = 0; i < 48; i++) await rollTurn(t, table.gameId);
+    return table;
+  }
+
+  test("the game stays open for 15 s and then ends with one summary; rolls in that time change nothing", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId, guestIds } = await allCalledGame(t);
+    const allCalled = await gameOf(t, gameId);
+    // Both clients draw their countdown from these two fields: it now runs to the end of the game.
+    // Swift decodes turnTimeoutMs as Int
+    expect(allCalled).toMatchObject({ status: "active", drawIndex: 48, turnStartedAt: Date.now(), turnTimeoutMs: FINAL_CLAIM_MS });
+    expect(Number.isInteger(allCalled.turnTimeoutMs)).toBe(true);
+
+    // Both clients still offer Roll to the turn holder
+    for (const participantId of [hostId, guestIds[0], hostId]) {
+      if ((await gameOf(t, gameId)).currentTurnParticipantId === participantId) await rollTurn(t, gameId);
+    }
+    expect(await gameOf(t, gameId)).toEqual(allCalled);
+
+    await advance(t, FINAL_CLAIM_MS - 1);
+    expect(await gameOf(t, gameId)).toEqual(allCalled);
+    expect(await summaries(t, roomId)).toEqual([]);
+
+    await advance(t, 1);
+    const ended = await gameOf(t, gameId);
+    expect(ended).toMatchObject({ status: "completed", endedAt: Date.now(), drawIndex: 48 });
+    expect(await summaries(t, roomId)).toHaveLength(1);
+
+    await advance(t, 4 * FINAL_CLAIM_MS);
+    expect(await gameOf(t, gameId)).toEqual(ended);
+    expect(await summaries(t, roomId)).toHaveLength(1);
+
+    // The long last turn belongs to that game only: the next one has 10-second turns again
+    const nextId = await t.mutation(api.emojiBingo.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId });
+    expect((await gameOf(t, nextId)).turnTimeoutMs).toBe(TURN_MS);
+  });
+
+  test("with nobody rolling, the last emoji can still be claimed 10 s after the timer called it", async () => {
+    const t = newBackend();
+    const { roomId, gameId, guestIds } = await startedGame(t);
+    const aki = guestIds[0];
+    const last = seat(await gameOf(t, gameId), aki).card[10];
+    await t.run(async (ctx) => {
+      const game = (await ctx.db.get(gameId))!;
+      await ctx.db.patch(gameId, { drawDeck: [...game.drawDeck.filter((e) => e !== last), last] });
+    });
+    for (let i = 0; i < 48; i++) await advance(t, TURN_MS);
+    const allCalled = await gameOf(t, gameId);
+    expect(allCalled).toMatchObject({ status: "active", drawIndex: 48, turnTimeoutMs: FINAL_CLAIM_MS });
+    expect(allCalled.calledEmojis[47]).toBe(last);
+
+    // When the next call would have come
+    await advance(t, TURN_MS);
+    expect((await gameOf(t, gameId)).status).toBe("active");
+    for (const cellIndex of [10, 11, 13, 14]) await markCell(t, gameId, aki, cellIndex);
+    expect(await claim(t, gameId, aki)).toEqual({ valid: true, placement: 1 });
+
+    // The first bingo does not restart anything: the game ends when the window that was running is over
+    await advance(t, FINAL_CLAIM_MS - TURN_MS - 1);
+    expect((await gameOf(t, gameId)).status).toBe("won");
+    await advance(t, 1);
+    expect(await gameOf(t, gameId)).toMatchObject({ status: "completed", drawIndex: 48 });
+    const [summary, ...others] = await summaries(t, roomId);
+    expect(others).toEqual([]);
+    expect(summary.data.games[0].players.map((p) => [p.name, p.isWinner])).toEqual([["Host", false], ["Aki", true]]);
+  });
+
+  // A first bingo used to start the 3-second calls, and on an empty deck the first of them ended the game
+  test("a first bingo claimed after the last call does not bring the end forward", async () => {
+    const t = newBackend();
+    const { gameId, hostId } = await allCalledGame(t);
+    for (const cellIndex of [10, 11, 13, 14]) await markCell(t, gameId, hostId, cellIndex);
+    expect(await claim(t, gameId, hostId)).toEqual({ valid: true, placement: 1 });
+
+    await advance(t, GRACE_MS);
+    expect((await gameOf(t, gameId)).status).toBe("won");
+    await advance(t, FINAL_CLAIM_MS - GRACE_MS - 1);
+    expect((await gameOf(t, gameId)).status).toBe("won");
+    await advance(t, 1);
+    expect((await gameOf(t, gameId)).status).toBe("completed");
+  });
+
+  test("after the first bingo the window is the same 15 s from the last automatic call", async () => {
+    const t = newBackend();
+    const { roomId, gameId } = await wonGame(t);
+    const left = 48 - (await gameOf(t, gameId)).drawIndex;
+    for (let i = 0; i < left; i++) await advance(t, GRACE_MS);
+    expect(await gameOf(t, gameId)).toMatchObject({ status: "won", drawIndex: 48, turnStartedAt: Date.now() });
+
+    await advance(t, FINAL_CLAIM_MS - 1);
+    expect((await gameOf(t, gameId)).status).toBe("won");
+    expect(await summaries(t, roomId)).toEqual([]);
+    await advance(t, 1);
+    expect((await gameOf(t, gameId)).status).toBe("completed");
+    expect(await summaries(t, roomId)).toHaveLength(1);
+  });
+
+  // A game in play when this is deployed: the build before it queued the roll after the last call one turn
+  // (or, once won, 3 s) after it, and that roll ended the game. The queued roll's arguments are unchanged.
+  test.each([
+    ["one turn after the last call, in an active game", TURN_MS, false],
+    ["3 s after the last call, in a won game", GRACE_MS, true],
+  ])("a roll queued %s waits for the window to pass, and the game ends once", async (_when, queuedAfter, won) => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await allCalledGame(t);
+    if (won) {
+      for (const cellIndex of [10, 11, 13, 14]) await markCell(t, gameId, hostId, cellIndex);
+      await claim(t, gameId, hostId);
+    }
+
+    await advance(t, queuedAfter);
+    await t.mutation(internal.emojiBingo.internalAutoRoll, { gameId, expectedDrawIndex: 48 });
+    expect(await gameOf(t, gameId)).toMatchObject({ status: won ? "won" : "active", drawIndex: 48 });
+    expect(await summaries(t, roomId)).toEqual([]);
+
+    await advance(t, FINAL_CLAIM_MS - queuedAfter - 1);
+    expect((await gameOf(t, gameId)).status).toBe(won ? "won" : "active");
+    await advance(t, 1);
+    const ended = await gameOf(t, gameId);
+    expect(ended.status).toBe("completed");
+
+    // Two rolls came due at the end of the window, this one and the one set with the last call: one summary
+    await advance(t, 4 * FINAL_CLAIM_MS);
+    expect(await gameOf(t, gameId)).toEqual(ended);
+    const all = await summaries(t, roomId);
+    expect(all).toHaveLength(1);
+    expect(all[0].data.games).toHaveLength(1);
   });
 });
 
@@ -1321,14 +1526,8 @@ describe("the summary in the chat", () => {
     expect(bingo.data.games[0].totalPairs).toBe(25);
   });
 
-  // DEFECT: the fault is in convex/emojiMatch.ts, the damage is to Bingo's summary. upsertMatchEmojiSummary
-  // takes the room's latest "emoji_match_summary:" message as its own whatever its gameType, and Bingo writes
-  // its summary under that prefix. An Emoji Match game that ends after a Bingo game appends its round to the
-  // Bingo message and relabels it "Match Emoji": the Bingo card is gone from the chat and its rounds are shown
-  // as match rounds (marked cells as pairs out of 25). Bingo's own finder checks for "Emoji Bingo" (the test
-  // above). Listed in the review ("The Emoji Match summary overwrites the Emoji Bingo or Word Rush summary
-  // message"); none of the five commits changed it.
-  test.fails("an Emoji Match game that ends afterwards leaves the Bingo summary as it was", async () => {
+  // The other direction, which is convex/emojiMatch.ts's to keep: it takes only a "Match Emoji" summary as its own
+  test("an Emoji Match game that ends afterwards leaves the Bingo summary as it was", async () => {
     const t = newBackend();
     const { roomId, gameId, hostId } = await startedGame(t, []);
     await win(t, gameId, hostId);
@@ -1559,14 +1758,8 @@ describe("the queries clients poll", () => {
     expect(await t.query(api.emojiBingo.getActiveEmojiBingo, { roomId })).toMatchObject({ _id: nextId, status: "completed" });
   });
 
-  // DEFECT: getActiveEmojiBingo looks for a completed game before a cancelled one, whatever their order in
-  // time. After game 1 completes, Play Again opens a lobby and that lobby (or the game started from it) is
-  // cancelled, the query goes back to game 1. The web hides a cancelled game but shows a completed one, and
-  // Play Again cleared its dismissed id, so game 1's results pop up again (for whoever tapped Play Again and
-  // anyone who never closed them; the iOS host's game screen goes back to them too) and their Play Again
-  // button acts on the stale game. The review lists this fault for Emoji Match's query (emojiMatch.ts, low),
-  // which has the same shape, not for this one; none of the five commits changed either.
-  test.fails("after a newer game is cancelled, the room's latest game is the cancelled one, not an older completed game", async () => {
+  // With nothing in progress the room's latest game is returned, whether it was completed or cancelled
+  test("after a newer game is cancelled, the room's latest game is the cancelled one, not an older completed game", async () => {
     const t = newBackend();
     const { roomId, gameId, hostId } = await startedGame(t, []);
     await win(t, gameId, hostId);
@@ -1575,6 +1768,37 @@ describe("the queries clients poll", () => {
     await cancel(t, nextId, hostId);
 
     expect((await t.query(api.emojiBingo.getActiveEmojiBingo, { roomId }))?._id).toBe(nextId);
+  });
+
+  test("the same when the newer game was started before it was cancelled, or its lobby was abandoned", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await startedGame(t, []);
+    await win(t, gameId, hostId);
+    const latest = async () => (await post(t, "active", { roomId })).body;
+
+    vi.advanceTimersByTime(1_000);
+    const secondId = await t.mutation(api.emojiBingo.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiBingo.startGame, { gameId: secondId, participantId: hostId });
+    await cancel(t, secondId, hostId);
+    expect(await latest()).toMatchObject({ _id: secondId, status: "canceled" });
+
+    vi.advanceTimersByTime(1_000);
+    const thirdId = await t.mutation(api.emojiBingo.playAgain, { gameId: secondId, participantId: hostId });
+    await t.mutation(api.emojiBingo.leaveLobby, { gameId: thirdId, participantId: hostId });
+    // The shape both clients already get when a room's only game was a lobby its host left
+    expect(await latest()).toMatchObject({ _id: thirdId, status: "canceled", players: [], drawDeck: [], calledEmojis: [] });
+  });
+
+  test("a game completed after an older one was cancelled is the one returned", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await startedGame(t, []);
+    await cancel(t, gameId, hostId);
+    vi.advanceTimersByTime(1_000);
+    const nextId = await t.mutation(api.emojiBingo.playAgain, { gameId, participantId: hostId });
+    await t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId });
+    await win(t, nextId, hostId);
+
+    expect(await t.query(api.emojiBingo.getActiveEmojiBingo, { roomId })).toMatchObject({ _id: nextId, status: "completed" });
   });
 
   test("the polled game has every field the iOS decoder requires", async () => {
@@ -1637,14 +1861,8 @@ describe("the queries clients poll", () => {
     expect(polled).not.toContain(akiToken);
   });
 
-  // DEFECT: both queries return the stored document whole, so every client receives drawDeck, the order in
-  // which all 48 emojis will be called (and every other player's card). A player can read the next calls off
-  // the subscription or the /api/emoji-bingo/state response. Listed in the review under Security ("Game
-  // queries send answers to clients: the Bingo draw order"); none of the five commits changed it. The iOS
-  // model decodes drawDeck as a required array, so a fix has to keep the field, and the iOS game screen
-  // prints calledEmojis.count/drawDeck.count ("5/48 called"): 48 entries with the undrawn ones blanked keep
-  // that label right on installed builds, where an emptied or cut deck would read "5/0" or "5/5".
-  test.fails("the polled game does not give away the order of the emojis still to be called", async () => {
+  // Both queries blank the part of the deck that has not been drawn: a client cannot read the calls to come
+  test("the polled game does not give away the order of the emojis still to be called", async () => {
     const t = newBackend();
     const { roomId, gameId } = await startedGame(t);
     await rollTurn(t, gameId);
@@ -1659,6 +1877,33 @@ describe("the queries clients poll", () => {
       expect(polled!.calledEmojis).toEqual(stored.calledEmojis);
       expect(polled!.drawDeck.slice(polled!.drawIndex)).not.toEqual(upcoming);
     }
+  });
+
+  // The iOS model decodes drawDeck as a required array of strings, and every build's game screen prints
+  // calledEmojis.count/drawDeck.count ("5/48 called"): a deck cut to what was drawn would read "5/5", an
+  // emptied one "5/0", a missing one would fail the decode, which the app reads as "no game".
+  test("the deck a client is sent keeps its 48 places: the drawn ones as called, the rest blank, over both routes", async () => {
+    const t = newBackend();
+    const { roomId, gameId } = await startedGame(t);
+    const atStart = (await post(t, "state", { gameId })).body.drawDeck;
+    expect(atStart).toEqual(Array(48).fill(""));
+
+    for (let i = 0; i < 5; i++) await rollTurn(t, gameId);
+    const deck = await deckOf(t, gameId);
+    for (const [route, body] of [["active", { roomId }], ["state", { gameId }]] as const) {
+      const polled = (await post(t, route, body)).body;
+      expect(polled.drawDeck, route).toEqual([...deck.slice(0, 5), ...Array(43).fill("")]);
+      expect(polled.calledEmojis, route).toEqual(deck.slice(0, 5));
+      // No emoji that is still to come is anywhere in what a client receives, apart from the players' own cards
+      const { players: _players, ...rest } = polled;
+      for (const emoji of deck.slice(5)) expect(JSON.stringify(rest), route).not.toContain(emoji);
+    }
+    // What the server holds is untouched: the next calls come from the real deck
+    await rollTurn(t, gameId);
+    expect((await gameOf(t, gameId)).calledEmojis).toEqual(deck.slice(0, 6));
+
+    for (let i = 6; i < 48; i++) await rollTurn(t, gameId);
+    expect((await post(t, "active", { roomId })).body.drawDeck).toEqual(deck);
   });
 });
 

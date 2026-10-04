@@ -1,5 +1,4 @@
 import Foundation
-import NaturalLanguage
 
 /// Configuration for which processing steps to run
 struct ProcessingConfig {
@@ -38,10 +37,9 @@ class MessageProcessor {
     ///   - config: Processing configuration from room settings
     /// - Returns: Complete processing result
     func process(text: String, config: ProcessingConfig) async throws -> ProcessingState {
-        // Detect actual language of the text
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(text)
-        let isJapanese = recognizer.dominantLanguage == .japanese
+        // Detect actual language of the text, by the rule the translation goes by: the romaji
+        // below has to be of the text that is in Japanese
+        let isJapanese = MyMemoryTranslationService.isJapanese(text)
 
         // Run translation first since suggestions depend on it
         let translatedText = try await translationService.translate(

@@ -403,7 +403,13 @@ final class SpeechRecognizer: ObservableObject {
         let exclamStarters = ["wow", "oh", "yes", "no", "hey", "stop", "wait",
                               "help", "nice", "awesome", "amazing", "great",
                               "let's go", "come on", "hurry"]
-        let isExclaim = exclamStarters.contains(where: { lower.hasPrefix($0) })
+        // A starter counts as a whole word only: "No way" and "Oh, really", but not "Now we can
+        // go", "Nobody knows" or "Yesterday was fun"
+        let isExclaim = exclamStarters.contains(where: { starter in
+            guard lower.hasPrefix(starter) else { return false }
+            guard let next = lower.dropFirst(starter.count).first else { return true }
+            return !(next.isLetter || next.isNumber)
+        })
         let jpExclaim = lastLine.hasSuffix("よ") || lastLine.hasSuffix("ぞ")
             || lastLine.hasSuffix("ね") || lastLine.hasSuffix("なあ")
             || lastLine.hasSuffix("すごい") || lastLine.hasSuffix("やばい")

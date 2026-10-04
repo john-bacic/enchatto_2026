@@ -253,7 +253,8 @@ async function notifyHostOfJoin(
   nickname: string
 ) {
   const host = participants.find((p) => p._id === room.hostId);
-  if (!host || (host.online && host.presence !== "away")) return;
+  // Not the stored flags alone: an app that was killed or crashed never said "away" and still reads online
+  if (!host || isPresent(host, Date.now())) return;
   const pushToken = await ctx.db
     .query("hostPushTokens")
     .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
@@ -464,6 +465,9 @@ export const leaveRoom = mutation({
       online: false,
       departed: true,
       lastSeenAt: now,
+      // Both apps show whoever has a typingAction, online or not, and a closed tab cannot clear its own
+      typingAction: undefined,
+      drawingStartedAt: undefined,
     });
 
     // Insert system message for leave
@@ -491,6 +495,14 @@ export const setParticipantOnline = mutation({
   handler: async (ctx, args) => {
     const participant = await requireCaller(ctx, args.participantId, args.token, "participants.setParticipantOnline");
     const now = Date.now();
+    // "away" says the tab or app went to the background, which is not an arrival. A closing tab sends it
+    // right after its leave beacon and the two can land in either order, so someone who is offline stays
+    // offline and is not announced. They were still heard from: a host the sweep took offline keeps its
+    // room open with these pings from the background (rooms.closeAbandonedRooms).
+    if (participant && !participant.online && args.online && args.presence === "away") {
+      await ctx.db.patch(args.participantId, { lastSeenAt: now });
+      return;
+    }
     await ctx.db.patch(args.participantId, {
       online: args.online,
       lastSeenAt: now,
@@ -498,6 +510,8 @@ export const setParticipantOnline = mutation({
       // The unload beacon and the stale sweep both set departed; someone who is back is not departed.
       // "away" does not count as back: a closing tab sends it right after its leave beacon.
       ...(args.online && args.presence !== "away" ? { departed: undefined } : {}),
+      // Gone offline, as in leaveRoom: nobody is left to clear what they were shown as doing
+      ...(args.online ? {} : { typingAction: undefined, drawingStartedAt: undefined }),
     });
 
     if (participant) {
@@ -650,18 +664,31 @@ export const getRoomParticipants = query({
   },
 });
 
+/** Rows one run of the stale sweep looks at. A sweep with more to do carries on in a run of its own */
+const STALE_SWEEP_BATCH = 500;
+
 // Two-tier stale detection:
 // "away" + 30s no heartbeat → offline (removed from list)
 // "online" + 45s no heartbeat → mark as "away" (safety net)
 export const cleanupStaleParticipants = internalMutation({
-  handler: async (ctx) => {
-    const now = Date.now();
+  // Set by the sweep itself when one run did not reach the end. The cron's call has neither: a start
+  args: { cursor: v.optional(v.string()), now: v.optional(v.number()) },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    // One clock for the whole sweep: the cursor only fits the range it was made in
+    const now = args.now ?? Date.now();
     const awayOfflineCutoff = now - 30 * 1000; // away users go offline after 30s
     // Never mark away someone isPresent still accepts: games skip a player who reads as away
     const onlineAwayCutoff = now - PRESENT_WITHIN_MS;
-    const allParticipants = await ctx.db.query("participants").collect();
-    for (const p of allParticipants) {
-      if (!p.online) continue;
+    // Only who is online and has been silent for the shorter of the two times. The table keeps everyone
+    // who ever joined, so reading all of it would in time be more than one function may read.
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("participants")
+      .withIndex("by_online_lastSeenAt", (q) =>
+        q.eq("online", true).lt("lastSeenAt", Math.max(awayOfflineCutoff, onlineAwayCutoff))
+      )
+      .paginate({ cursor: args.cursor ?? null, numItems: STALE_SWEEP_BATCH });
+    for (const p of page) {
       if (p.presence === "away" && p.lastSeenAt < awayOfflineCutoff) {
         // Mark offline and departed — remove from participant list
         await ctx.db.patch(p._id, { online: false, departed: true, presence: undefined, typingAction: undefined });
@@ -669,6 +696,12 @@ export const cleanupStaleParticipants = internalMutation({
         await ctx.db.patch(p._id, { presence: "away", typingAction: undefined });
       }
     }
+    // On from the cursor, never from the start again: someone just marked away is still in the range, and
+    // a second look in the same sweep would take them offline at once instead of at the next sweep
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.participants.cleanupStaleParticipants, { cursor: continueCursor, now });
+    }
+    return null;
   },
 });
 

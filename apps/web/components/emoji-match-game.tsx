@@ -520,7 +520,8 @@ function GameBoardView({
           >
             {game.board.map((card: any) => (
               <MatchCard
-                key={card.cardId}
+                // Card ids repeat from game to game (card_0 ...): a new deal gets new cards, with nothing kept from the last
+                key={`${game._id}:${card.cardId}`}
                 card={card}
                 isClickable={canFlip && !card.isMatched && !card.isRevealed}
                 mismatch={game.status === "resolving" && card.isRevealed && !card.isMatched}
@@ -601,7 +602,21 @@ const MatchCard = memo(function MatchCard({
     return () => clearTimeout(timer);
   }, [card.isMatched]);
 
-  const label: string | undefined = card.content.label;
+  // The server sends a face-down card without its face, in the same answer that turns it back. The
+  // front keeps drawing the face this card last showed until the turn back has hidden it, then drops it.
+  const [lastFace, setLastFace] = useState<{ value: string; label?: string } | null>(null);
+  const { value: ownValue, label: ownLabel } = card.content;
+  useEffect(() => {
+    if (ownValue) {
+      setLastFace({ value: ownValue, label: ownLabel });
+      return;
+    }
+    const timer = setTimeout(() => setLastFace(null), 600);
+    return () => clearTimeout(timer);
+  }, [ownValue, ownLabel]);
+  const shown: { value: string; label?: string } = ownValue ? card.content : lastFace ?? card.content;
+
+  const label = shown.label;
   const isJa = label ? JA_RE.test(label) : false;
 
   const face: React.CSSProperties = {
@@ -688,7 +703,7 @@ const MatchCard = memo(function MatchCard({
               }}
             >
               <span style={{ display: "grid", placeItems: "center", animation: mismatch ? "ec-shake 0.45s ease-in-out" : card.isMatched ? "ec-kick 0.5s ease-in-out 2" : undefined }}>
-                <EmojiArt emoji={card.content.value} size={small ? 30 : 46} />
+                <EmojiArt emoji={shown.value} size={small ? 30 : 46} />
               </span>
               {label && (
                 <span

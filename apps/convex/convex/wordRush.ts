@@ -22,7 +22,14 @@ import {
   wordRushVote,
 } from "./wordRushShared";
 import { FALLBACK_DECK, RawCard } from "./wordRushDeck";
-import { heldByVoiceMessage, isPresent, requireCaller, takeRateLimit } from "./participants";
+import {
+  heldByVoiceMessage,
+  isAround,
+  isPresent,
+  PRESENT_WITHIN_MS,
+  requireCaller,
+  takeRateLimit,
+} from "./participants";
 
 // ─── Tuning ──────────────────────────────────────────────────────────────────
 
@@ -141,6 +148,28 @@ async function votesFor(ctx: MutationCtx, game: Game) {
     .collect();
 }
 
+/**
+ * Whether a player is still here to answer, take the mic or judge: someone a phase is kept open for.
+ * Neither test in participants.ts fits phases that last seconds. isPresent drops a tab the moment it goes
+ * to the background, so a phone that locked would cost its owner the card before they could unlock it.
+ * isAround alone keeps someone who locked the phone and walked off for three minutes, most of a game.
+ * So: around, and heard from within the time a heartbeat may take. A tab says "away" once as it is hidden
+ * and then goes quiet, which gives a locked phone that long to come back and no longer.
+ * Players are never taken out of the game: whoever comes back is here again from their next heartbeat.
+ */
+function isHere(p: Doc<"participants"> | null, now: number): boolean {
+  return !!p && isAround(p, now) && now - p.lastSeenAt < PRESENT_WITHIN_MS;
+}
+
+/** Whether any of these players is still here. Stops at the first one found, so the usual call reads one row */
+async function anyoneHere(ctx: MutationCtx, playerIds: Id<"participants">[]): Promise<boolean> {
+  const now = Date.now();
+  for (const id of playerIds) {
+    if (isHere(await ctx.db.get(id), now)) return true;
+  }
+  return false;
+}
+
 async function endClues(ctx: MutationCtx, game: Game, players: Player[]) {
   const answered = new Set((await answersFor(ctx, game)).map((a) => a.participantId));
   const updated = players.map((p) => (answered.has(p.participantId) ? p : { ...p, streak: 0 }));
@@ -151,9 +180,20 @@ async function afterReveal(ctx: MutationCtx, game: Game) {
   const sayItTurn = game.sayIt && game.cardIndex % SAYIT_EVERY === SAYIT_EVERY - 1;
   if (!sayItTurn || game.players.length < 2) return await nextCard(ctx, game);
 
-  const performer = [...game.players].sort(
-    (a, b) => a.sayItCount - b.sayItCount || a.joinedAt - b.joinedAt
-  )[0];
+  // In mic order: whoever has performed least, earliest joiner first. The mic goes to the first one who
+  // is still here, and the round needs a second player here to judge it; the walk stops at that second
+  // one rather than read every player's row. Being passed over costs nothing: sayItCount only moves when
+  // the mic is given, so a player who comes back is first in line.
+  const micOrder = [...game.players].sort((a, b) => a.sayItCount - b.sayItCount || a.joinedAt - b.joinedAt);
+  const now = Date.now();
+  const here: Player[] = [];
+  for (const p of micOrder) {
+    if (isHere(await ctx.db.get(p.participantId), now)) here.push(p);
+    if (here.length === 2) break;
+  }
+  if (here.length < 2) return await nextCard(ctx, game);
+
+  const performer = here[0];
   const players = game.players.map((p) =>
     p.participantId === performer.participantId ? { ...p, sayItCount: p.sayItCount + 1 } : p
   );
@@ -579,7 +619,11 @@ export const answer = mutation({
       correct: player.correct + (correct ? 1 : 0),
     };
 
-    if (answers.length + 1 >= players.length) {
+    // The reveal starts once nobody who is still here has yet to answer. A player who has left is not
+    // waited for; the 15 s timer still closes the clues on one who is here and does not answer.
+    const answered = new Set(answers.map((a) => a.participantId)).add(args.participantId);
+    const yetToAnswer = players.map((p) => p.participantId).filter((id) => !answered.has(id));
+    if (!(await anyoneHere(ctx, yetToAnswer))) {
       await endClues(ctx, game, players);
     } else {
       await ctx.db.patch(game._id, { players });
@@ -686,7 +730,13 @@ export const vote = mutation({
       weight: judge.learning !== game.performerLang ? NATIVE_WEIGHT : 1,
     });
 
-    if (votes.length + 1 >= game.players.length - 1) await tally(ctx, game);
+    // As with the clues: the verdict comes once no judge who is still here has yet to vote, and the 10 s
+    // timer still closes the judging on one who is here and does not vote
+    const voted = new Set(votes.map((x) => x.judgeId)).add(args.participantId);
+    const yetToVote = game.players
+      .map((p) => p.participantId)
+      .filter((id) => id !== game.performerId && !voted.has(id));
+    if (!(await anyoneHere(ctx, yetToVote))) await tally(ctx, game);
     return null;
   },
 });
@@ -847,11 +897,20 @@ export const claimGeneration = internalMutation({
     if (!game || game.status !== "lobby" || (game.genSeq ?? 0) !== args.seq) return false;
     const count = game.genCount ?? 0;
     const globalMax = Number(process.env.WORD_RUSH_GENERATIONS_PER_HOUR_MAX);
-    const allowed =
+    const roomKey = `wordrush:${game.roomId}`;
+    let allowed =
       count < MAX_GENERATIONS_PER_GAME &&
-      (await takeRateLimit(ctx, `wordrush:${game.roomId}`, ROOM_GENERATIONS_PER_HOUR, 60 * 60_000)) &&
-      // One row for all rooms, but written once per generation by this scheduled mutation, never by a user's request
-      (!(globalMax > 0) || (await takeRateLimit(ctx, "wordrush:all", globalMax, 60 * 60_000)));
+      (await takeRateLimit(ctx, roomKey, ROOM_GENERATIONS_PER_HOUR, 60 * 60_000));
+    // One row for all rooms, but written once per generation by this scheduled mutation, never by a user's request
+    if (allowed && globalMax > 0 && !(await takeRateLimit(ctx, "wordrush:all", globalMax, 60 * 60_000))) {
+      // The room has just been counted a generation it is not getting, and a lobby that keeps asking while
+      // the shared ceiling is reached would spend its room's hour on nothing. A cost of -1 gives the unit
+      // back: the row was written a moment ago in this same mutation, so it exists and its window is open.
+      // The room is still asked first: the other way round, a room over its own limit would use up the
+      // budget every room shares.
+      await takeRateLimit(ctx, roomKey, ROOM_GENERATIONS_PER_HOUR, 60 * 60_000, -1);
+      allowed = false;
+    }
     if (!allowed) {
       // The lobby already holds the built-in deck for this pack: deal it rather than wait for cards that are not coming
       console.warn(`Word Rush: generation skipped for game ${game._id}, limit reached`);
@@ -885,12 +944,17 @@ export const getGenerationInput = internalQuery({
         .slice(0, 40)
         .reverse();
     }
+    // Words the room has played lately, so that the next game brings new ones. Only games that started
+    // count: a lobby that was cancelled showed nobody its cards, and leaving its words out as well used
+    // up the built-in deck on games that were never played.
     const earlier = await ctx.db
       .query("wordRushGames")
       .withIndex("by_roomId", (q) => q.eq("roomId", game.roomId))
       .order("desc")
       .take(5);
-    const previous = earlier.filter((g) => g._id !== game._id).flatMap((g) => g.cards.map((c) => c.en));
+    const previous = earlier
+      .filter((g) => g._id !== game._id && g.startedAt !== undefined)
+      .flatMap((g) => g.cards.map((c) => c.en));
     return { pack: game.pack, chat, previous };
   },
 });
@@ -907,6 +971,12 @@ export const setCards = internalMutation({
     const game = await ctx.db.get(args.gameId);
     // The seq drops a generation that was already running when the pack changed, even back to the same pack
     if (!game || game.status !== "lobby" || game.pack !== args.pack || (game.genSeq ?? 0) !== (args.seq ?? 0)) {
+      return null;
+    }
+    // A lobby is never left with no cards, whatever sends them: it already holds the built-in deck for
+    // its pack, and Start refuses an empty one
+    if (args.cards.length === 0) {
+      await ctx.db.patch(args.gameId, { cardsReady: true });
       return null;
     }
     await ctx.db.patch(args.gameId, { cards: args.cards, cardsReady: true });
@@ -1049,7 +1119,13 @@ export const generateCards = internalAction({
       .slice(0, CARD_COUNT)
       .map(toCard);
     for (const c of ai) exclude.add(c.en);
-    const cards = ai.length >= CARD_COUNT ? ai : [...ai, ...fallbackCards(input.pack, exclude)].slice(0, CARD_COUNT);
+    let cards = ai.length >= CARD_COUNT ? ai : [...ai, ...fallbackCards(input.pack, exclude)].slice(0, CARD_COUNT);
+    // The room has played most of the built-in deck. A word it has seen before is better than a short
+    // deck, or none: top up from the whole deck, leaving out only what this deck already holds.
+    if (cards.length < CARD_COUNT) {
+      const dealt = new Set(cards.map((c) => c.en));
+      cards = [...cards, ...fallbackCards(input.pack, dealt)].slice(0, CARD_COUNT);
+    }
     await ctx.runMutation(internal.wordRush.setCards, { gameId: args.gameId, pack: input.pack, cards, seq });
     return null;
   },

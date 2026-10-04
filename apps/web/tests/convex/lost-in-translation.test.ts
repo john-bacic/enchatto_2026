@@ -1,8 +1,10 @@
+import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { Backend, joinGuest, newBackend, tokenFor } from "./setup";
+import schema from "../../convex/schema";
+import { Backend, joinGuest, modules, newBackend, tokenFor } from "./setup";
 
 // games.ts: Lost in Translation (sessions, chains, steps, the round watcher) and the retired Emojifyr.
 
@@ -510,14 +512,8 @@ describe("startGame", () => {
     expect((await sessionDoc(t, sessionId)).status).toBe("active");
   });
 
-  // DEFECT: startGame takes the prompts from a custom word bank of ten or more (games.ts:366), but takes every
-  // round's wrong options from what is left of the bank once the prompts are picked, whatever its size
-  // (games.ts:379-386). A bank of exactly ten, or an empty one, leaves nothing, and Start throws "Cannot read
-  // properties of undefined (reading 'text')" at games.ts:394. A bank of 1, 2, 11 or 12 leaves one or two words,
-  // and the game starts with the same wrong option two or three times in a round. Thirteen is the smallest bank
-  // that works; the host app sends 40. Refusing a small bank in words would be a fix too, and this test would
-  // then have to expect the refusal.
-  test.fails.each([0, 1, 2, 10, 11, 12])(
+  // A word bank under thirteen prompts cannot give ten rounds a prompt and three wrong options each: it is not played
+  test.each([0, 1, 2, 10, 11, 12])(
     "a custom word bank of %i prompts still gives every round four different options",
     async (size) => {
       const t = newBackend();
@@ -528,6 +524,63 @@ describe("startGame", () => {
       for (const chain of await chainsOf(t, await started)) expect(new Set(chain.options).size).toBe(4);
     }
   );
+
+  test("a word bank too small to play is replaced whole by the built-in phrases of the level", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+    const words = bank(12).map((p) => p.text);
+    const sessionId = await start(t, roomId, hostId, { customPrompts: bank(12), level: 2 });
+
+    const chains = await chainsOf(t, sessionId);
+    expect(new Set(chains.map((c) => c.originalPrompt)).size).toBe(10);
+    const offered = chains.flatMap((c) => c.options ?? []);
+    expect(offered.filter((o) => words.includes(o))).toEqual([]);
+    // Level 2's phrases are two words each
+    expect(new Set(offered.map((o) => o.split(" ").length))).toEqual(new Set([2]));
+  });
+
+  test("thirteen prompts are the smallest word bank that is played: every prompt and option is its own", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+    const words = bank(13).map((p) => p.text);
+    const sessionId = await start(t, roomId, hostId, { customPrompts: bank(13) });
+
+    const chains = await chainsOf(t, sessionId);
+    expect(new Set(chains.map((c) => c.originalPrompt)).size).toBe(10);
+    for (const chain of chains) {
+      expect(new Set(chain.options).size).toBe(4);
+      expect(chain.options).toContain(chain.originalPrompt);
+      expect(chain.options!.every((o) => words.includes(o))).toBe(true);
+    }
+  });
+
+  // A text listed twice could be dealt twice into one round, or as two rounds' prompt
+  test("a word bank is counted by its different texts", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+
+    // 24 prompts, 12 different: too small, although ten rounds could be dealt from it
+    const twelveTwice = [...bank(12), ...bank(12)];
+    const words = twelveTwice.map((p) => p.text);
+    const builtIn = await start(t, roomId, hostId, { customPrompts: twelveTwice });
+    for (const chain of await chainsOf(t, builtIn)) {
+      expect(new Set(chain.options).size).toBe(4);
+      expect(chain.options!.filter((o) => words.includes(o))).toEqual([]);
+    }
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+
+    // 26 prompts, 13 different: played, with no text twice in a round and no prompt twice in the game
+    const thirteenTwice = [...bank(13), ...bank(13)];
+    const own = await start(t, roomId, hostId, { customPrompts: thirteenTwice });
+    const chains = await chainsOf(t, own);
+    expect(new Set(chains.map((c) => c.originalPrompt)).size).toBe(10);
+    for (const chain of chains) {
+      expect(new Set(chain.options).size).toBe(4);
+      expect(chain.options!.every((o) => o.startsWith("word "))).toBe(true);
+    }
+    // The bank is stored as it was sent
+    expect((await sessionDoc(t, own)).customPrompts).toEqual(thirteenTwice);
+  });
 });
 
 describe("caller tokens", () => {
@@ -718,12 +771,8 @@ describe("submitGameStep", () => {
     expect(await stepDoc(t, step._id)).toMatchObject({ status: "submitted", outputDrawingUrl: JPEG });
   });
 
-  // DEFECT: submitGameStep takes a drawing step that carries no drawing (games.ts:500-540 never checks for one),
-  // and the submit-step route turns an empty outputDrawingUrl into exactly that (http.ts:448). The guessers then
-  // get a guess step with no picture, and the round is counted in the end-of-game summary (finishRound and
-  // cancelGame count every answered guess) but not in the live scores or the replay (both skip a round whose
-  // drawing step has no outputDrawingUrl). Neither client sends this: both always attach the canvas image.
-  test.fails("a drawing step cannot be submitted without a drawing", async () => {
+  // Neither client sends this: both always attach the canvas image. The guessers would get a guess with no picture
+  test("a drawing step cannot be submitted without a drawing", async () => {
     const t = newBackend();
     const { roomId, hostId, guestIds: [ann] } = await room(t);
     await start(t, roomId, hostId);
@@ -732,6 +781,45 @@ describe("submitGameStep", () => {
     await expect(t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: hostId })).rejects.toThrow();
     expect((await stepDoc(t, step._id)).status).toBe("active");
     expect(await myStep(t, ann)).toBeNull();
+  });
+
+  test("a drawing step sent with only an answer, or with an empty drawing over the route, is refused in words and stays open", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [ann] } = await room(t);
+    const sessionId = await start(t, roomId, hostId);
+    const step = await openStep(t, hostId, "draw");
+
+    await expect(
+      t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: hostId, selectedOption: "Cat", outputText: "Cat" })
+    ).rejects.toThrow(/Drawing is missing/);
+    await expect(
+      t.action(api.games.submitGameStepWithTranslation, { stepId: step._id, participantId: hostId })
+    ).rejects.toThrow(/Drawing is missing/);
+    // The route leaves an empty outputDrawingUrl out of what it passes on
+    const empty = await post(t, "/api/games/submit-step", { stepId: step._id, participantId: hostId, outputDrawingUrl: "" });
+    expect(empty.status).toBe(400);
+    expect(empty.body.error).toMatch(/Drawing is missing/);
+
+    expect(await stepDoc(t, step._id)).toMatchObject({ status: "active" });
+    expect(await stepsOf(t, sessionId)).toHaveLength(1);
+    expect(await myStep(t, ann)).toBeNull();
+    expect((await chatOf(t, roomId)).filter((m) => m.kind === "drawing")).toEqual([]);
+
+    // The step is still there to be drawn
+    await draw(t, hostId);
+    expect(await myStep(t, ann)).toMatchObject({ stepType: "guess", inputDrawingUrl: PNG });
+  });
+
+  // The overlay retries a submit until it is taken, so an answer to a step that is already closed is never an error
+  test("a late submit with no drawing, to a drawing step that is already closed, is dropped like any late answer", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+    await start(t, roomId, hostId);
+    const step = await draw(t, hostId);
+
+    await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: hostId });
+    expect((await post(t, "/api/games/submit-step", { stepId: step._id, participantId: hostId })).status).toBe(200);
+    expect((await stepDoc(t, step._id)).outputDrawingUrl).toBe(PNG);
   });
 
   test("an answer over 500 characters is refused, and one of 500 is taken as a wrong guess", async () => {
@@ -808,13 +896,8 @@ describe("submitGameStep", () => {
     expect((await stepDoc(t, other._id)).correct).toBe(false);
   });
 
-  // DEFECT: for a custom prompt whose English text is also in the built-in bank, getMyActiveStep shows a
-  // Japanese-speaking player the session's own translation (the custom prompts overwrite the built-in map,
-  // games.ts:852-857), but submitGameStep scores against the built-in translation and looks at the session's
-  // prompts only when there is none (games.ts:546-551). The option the server itself offered as the right one is
-  // then scored wrong. Latent today: wherever the host app's word bank and the built-in bank share a text, they
-  // share its translation.
-  test.fails("a Japanese guess is scored against the translation the player was shown, also for a built-in word", async () => {
+  // The session's word bank comes before the built-in one, in what is shown and in what is scored
+  test("a Japanese guess is scored against the translation the player was shown, also for a built-in word", async () => {
     const t = newBackend();
     const { roomId, hostId } = await room(t, []);
     const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja" });
@@ -828,6 +911,43 @@ describe("submitGameStep", () => {
 
     const step = await openStep(t, yuki, "guess");
     expect(step.options).toContain(shown);
+    await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: yuki, selectedOption: shown });
+    expect((await stepDoc(t, step._id)).correct).toBe(true);
+  });
+
+  test("the built-in translation of a word the session's bank translates otherwise was not on offer, and is not right", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t, []);
+    const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja" });
+    const builtIn: Record<string, string> = {
+      Cat: "猫", Dog: "犬", Sun: "太陽", Tree: "木", Fish: "魚", House: "家", Star: "星",
+      Flower: "花", Car: "車", Bird: "鳥", Moon: "月", Apple: "りんご", Robot: "ロボット",
+    };
+    const prompts = Object.keys(builtIn).map((text, i) => ({ text, ja: `別訳${i}` }));
+    const sessionId = await start(t, roomId, hostId, { customPrompts: prompts });
+    const [chain] = await chainsOf(t, sessionId);
+    await draw(t, hostId);
+
+    const step = await openStep(t, yuki, "guess");
+    expect(step.options).not.toContain(builtIn[chain.originalPrompt]);
+    await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: yuki, selectedOption: builtIn[chain.originalPrompt] });
+    expect((await stepDoc(t, step._id)).correct).toBe(false);
+  });
+
+  // Shown and scored are read from one map, in which the later of two entries for a text stands
+  test("when a word bank lists a text twice, a Japanese guess is scored against the translation that was shown", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t, []);
+    const yuki = await joinGuest(t, roomId, "Yuki", { language: "ja" });
+    const first = bank(13).map((p) => ({ text: p.text, ja: `先${p.ja}` }));
+    const second = bank(13).map((p) => ({ text: p.text, ja: `後${p.ja}` }));
+    const sessionId = await start(t, roomId, hostId, { customPrompts: [...first, ...second] });
+    const [chain] = await chainsOf(t, sessionId);
+    await draw(t, hostId);
+
+    const step = await openStep(t, yuki, "guess");
+    const shown = step.options![chain.options!.indexOf(chain.originalPrompt)];
+    expect(shown).toBe(second.find((p) => p.text === chain.originalPrompt)!.ja);
     await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: yuki, selectedOption: shown });
     expect((await stepDoc(t, step._id)).correct).toBe(true);
   });
@@ -1503,7 +1623,7 @@ describe("the queries clients poll", () => {
   });
 
   // DEFECT: getMyActiveStep returns `correctOption` (the round's prompt) with a guess step that is still open
-  // (games.ts:872-885), so a guesser's client holds the answer before the guess is made. The review's security
+  // (games.ts:906-919), so a guesser's client holds the answer before the guess is made. The review's security
   // table lists it ("the correct Lost in Translation option before the guess") and the five fix commits left it.
   // Both clients read the field to colour the options on tap (game-task-overlay.tsx:99, GameTaskOverlayView.swift:195),
   // so a fix has to return correctness from the submit instead, and a client from before the fix would stamp every
@@ -1518,11 +1638,8 @@ describe("the queries clients poll", () => {
     expect(step.correctOption).toBeUndefined();
   });
 
-  // DEFECT: the same answer from another query. getGameReplay answers for a session that is still running, and
-  // once the drawing is in, the round's chain is in it with originalPrompt (games.ts:1081-1096). Both clients ask
-  // for the replay only once the session is complete (the web room page's gameReplay query, HostRoomViewModel's
-  // "replay" poll), so leaving an unfinished round out needs no client change.
-  test.fails("the replay of a running game leaves out the round still being guessed", async () => {
+  // Both clients ask for the replay only once the session is complete, but the query answers for a running one too
+  test("the replay of a running game leaves out the round still being guessed", async () => {
     const t = newBackend();
     const { roomId, hostId } = await room(t);
     const sessionId = await start(t, roomId, hostId);
@@ -1530,6 +1647,60 @@ describe("the queries clients poll", () => {
 
     const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
     expect((replay?.chains ?? []).filter((c) => c.status !== "complete").map((c) => c.originalPrompt)).toEqual([]);
+  });
+
+  test("the replay of a running game still decodes, gains each round as its last guess comes in, and is whole once the game is cancelled", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [ann] } = await room(t);
+    const sessionId = await start(t, roomId, hostId);
+    const chains = await chainsOf(t, sessionId);
+    await draw(t, hostId);
+
+    // Round 1 is being guessed. The body has every field the app's replay decoder requires, and no round
+    const running = await post(t, "/api/games/replay", { gameSessionId: sessionId });
+    expect(running.status).toBe(200);
+    expect(running.body).toMatchObject({ session: { _id: sessionId, status: "active" }, chains: [] });
+    expect(Object.keys(running.body)).toEqual(
+      expect.arrayContaining(["chains", "participants", "promptTranslations", "scores", "session"])
+    );
+
+    await guess(t, ann, "right");
+    await draw(t, ann);
+    // Round 1 is over, round 2 is being guessed
+    let replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.chains.map((c) => c.originalPrompt)).toEqual([chains[0].originalPrompt]);
+
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    // A finished game shows every round that was drawn, the one that was cut short included
+    replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.chains.map((c) => c.originalPrompt)).toEqual([chains[0].originalPrompt, chains[1].originalPrompt]);
+  });
+
+  // The rule looks at the session, so a game that ended without its rounds being closed keeps its replay
+  test("the replay of a finished game shows a drawn round whatever state the round itself was left in", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+    const sessionId = await start(t, roomId, hostId);
+    const chains = await chainsOf(t, sessionId);
+    await draw(t, hostId);
+    await t.run(async (ctx) => await ctx.db.patch(sessionId, { status: "complete", completedAt: Date.now() }));
+
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.chains.map((c) => [c.originalPrompt, c.status])).toEqual([[chains[0].originalPrompt, "active"]]);
+  });
+
+  // The translations cover every round's options, the rounds to come included, so they must not single out a prompt
+  test("the replay of a running game translates every option on offer and nothing that tells the prompts apart", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+    const prompts = bank(40);
+    const sessionId = await start(t, roomId, hostId, { customPrompts: prompts });
+    await draw(t, hostId);
+
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    // All 40 words of the bank are on offer in some round, each with its translation, in the order of their texts
+    expect(Object.entries(replay!.promptTranslations)).toEqual(prompts.map((p) => [p.text, p.ja]));
+    expect(replay!.chains).toEqual([]);
   });
 
   test("a Japanese-speaking player gets the prompt, its hint and the options in Japanese", async () => {
@@ -1952,12 +2123,13 @@ describe("Emojifyr", () => {
     expect((await sessionDoc(t, sessionId)).status).toBe("complete");
   });
 
-  test("Emojifyr and Lost in Translation cannot run together, and each one's queries and Cancel leave the other alone", async () => {
+  // Emojifyr is opened without a token and no current build can close it, so it gives way to a Start. The other
+  // way round it does not: a running Lost in Translation game, which only the host may end, keeps Emojifyr out.
+  test("Emojifyr and Lost in Translation cannot run together: a Start ends Emojifyr, and each one's queries and Cancel leave the other alone", async () => {
     const t = newBackend();
     const { roomId, hostId } = await room(t);
     const { sessionId } = await emojifyr(t, roomId, hostId, "writing");
 
-    await expect(start(t, roomId, hostId)).rejects.toThrow(/already in progress/);
     expect(await t.query(api.games.getActiveGameSession, { roomId })).toBeNull();
     expect(await t.query(api.games.getLatestGameSession, { roomId })).toBeNull();
     expect(await t.query(api.games.getGameStatus, { roomId })).toBeNull();
@@ -1965,21 +2137,45 @@ describe("Emojifyr", () => {
     expect((await sessionDoc(t, sessionId)).status).toBe("active");
     expect(await gameRecords(t, roomId)).toEqual(["game:Emojifyr"]);
 
-    await t.mutation(api.games.cancelEmojifyr, { gameSessionId: sessionId });
-    await start(t, roomId, hostId);
+    const litId = await start(t, roomId, hostId);
+    // Emojifyr ended as its own Cancel ends it, for the builds that still show it
+    expect(await sessionDoc(t, sessionId)).toMatchObject({ status: "complete", cancelled: true, completedAt: Date.now() });
+    expect(await t.query(api.games.getActiveEmojifyrSession, { roomId })).toBeNull();
+    expect(await t.query(api.games.getEmojifyrGameState, { roomId })).toBeNull();
+    expect(await gameRecords(t, roomId)).toEqual([
+      "game:Emojifyr",
+      "game_cancelled:Emojifyr",
+      "game:Lost in Translation Level 1",
+    ]);
+    expect(await t.query(api.games.getActiveGameSession, { roomId })).toMatchObject({ _id: litId, status: "active" });
+    expect(await myStep(t, hostId)).toMatchObject({ stepType: "draw", gameSessionId: litId });
+
     await expect(t.mutation(api.games.startEmojifyr, { roomId, createdByParticipantId: hostId })).rejects.toThrow(
       /already in progress/
     );
     expect(await t.query(api.games.getActiveEmojifyrSession, { roomId })).toBeNull();
+    expect((await sessionDoc(t, litId)).status).toBe("active");
   });
 
-  // DEFECT: an Emojifyr session shuts Lost in Translation out of its room for good. startGame refuses while any
-  // session is active (games.ts:334-338), cancelGame leaves an Emojifyr session alone (games.ts:693-694), and no
-  // current build has a screen that calls cancelEmojifyr. Emojifyr asks for no token (CLAUDE.md), and every
-  // participant id is on every guest's screen, so with tokens enforced a guest can still start it in the host's
-  // name. The host's Start then fails with "A game is already in progress" until the room is closed. The test
-  // above pins the two behaviours this rests on, so a fix changes that test too.
-  test.fails("when enforced, a guest who starts Emojifyr in the host's name does not shut the host out of Lost in Translation", async () => {
+  test("a Start that is refused leaves a running Emojifyr game as it was", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [ann] } = await room(t, ["Ann"], { token: tokenFor(1) });
+    const { sessionId, roundId } = await emojifyr(t, roomId, hostId, "guessing");
+    const before = await sessionDoc(t, sessionId);
+
+    vi.stubEnv("AUTH_MODE", "enforce");
+    await expect(start(t, roomId, hostId)).rejects.toThrow(/Not authorised/);
+    await expect(start(t, roomId, ann)).rejects.toThrow(/Only the host can start a game/);
+    // Refused after the Emojifyr session was found: nobody is left to play with
+    await t.mutation(api.participants.leaveRoom, { participantId: ann });
+    await expect(start(t, roomId, hostId, { token: tokenFor(1) })).rejects.toThrow(/at least 2 players/);
+
+    expect(await sessionDoc(t, sessionId)).toEqual(before);
+    expect((await roundDoc(t, roundId)).status).toBe("guessing");
+    expect(await gameRecords(t, roomId)).toEqual(["game:Emojifyr"]);
+  });
+
+  test("when enforced, a guest who starts Emojifyr in the host's name does not shut the host out of Lost in Translation", async () => {
     const t = newBackend();
     const { roomId, hostId } = await room(t, [], { token: tokenFor(1) });
     await joinGuest(t, roomId, "Ann", { token: tokenFor(2) });
@@ -1990,6 +2186,97 @@ describe("Emojifyr", () => {
     // What both clients send when the host presses Start: Cancel, then Start
     await t.mutation(api.games.cancelGame, { roomId, participantId: hostId, token: tokenFor(1) });
     await expect(start(t, roomId, hostId, { token: tokenFor(1) })).resolves.toBeTruthy();
+  });
+
+  // Cancel and Start are two calls. Were it Cancel that cleared Emojifyr, a caller who reopens it in between would
+  // still keep the host out, so it is Start that does, and the host's route with it.
+  test("a guest who reopens Emojifyr between the host's Cancel and Start, again and again, never keeps the game from starting", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t, [], { token: tokenFor(1) });
+    await joinGuest(t, roomId, "Ann", { token: tokenFor(2) });
+    vi.stubEnv("AUTH_MODE", "enforce");
+
+    for (const level of [1, 2, 3]) {
+      expect((await post(t, "/api/games/cancel", { roomId, participantId: hostId, callerToken: tokenFor(1) })).status).toBe(200);
+      const reopened: SessionId = await t.mutation(api.games.startEmojifyr, { roomId, createdByParticipantId: hostId });
+
+      const started = await post(t, "/api/games/start", {
+        roomId,
+        participantId: hostId,
+        gameType: "lost-in-translation",
+        level,
+        customPrompts: bank(40),
+        callerToken: tokenFor(1),
+      });
+      expect(started.status).toBe(200);
+      expect(await t.query(api.games.getActiveGameSession, { roomId })).toMatchObject({ _id: started.body.sessionId, level });
+      expect(await sessionDoc(t, reopened)).toMatchObject({ status: "complete", cancelled: true });
+    }
+    expect((await sessionsIn(t, roomId)).filter((s) => s.status === "active")).toHaveLength(1);
+  });
+
+  // Emojifyr's rounds are written without a token as well, and at any size. A Start that read them to close them
+  // could be pushed over what one transaction may read, and the room kept out of the game that way instead.
+  test("an Emojifyr session whose rounds hold more than a transaction may read still gives way to a Start", async () => {
+    // Enforces Convex's limits on one transaction (16 MiB read), which newBackend() leaves off
+    const t: Backend = convexTest({ schema, modules, transactionLimits: true });
+    const { roomId, hostId } = await room(t);
+    const { sessionId } = await emojifyr(t, roomId, hostId, "writing");
+    for (let i = 0; i < 17; i++) await t.mutation(api.games.advanceEmojifyrRound, { gameSessionId: sessionId });
+    const roundIds = await t.run(async (ctx) => (await ctx.db.query("emojifyrRounds").collect()).map((r) => r._id));
+    expect(roundIds).toHaveLength(18);
+    // Just under the 1 MiB a document may hold, eighteen times
+    for (const roundId of roundIds) {
+      await t.mutation(api.games.patchEmojifyrRoundTranslation, { roundId, translatedSentence: "x".repeat(1_000_000) });
+    }
+    await expect(t.run(async (ctx) => (await ctx.db.query("emojifyrRounds").collect()).length)).rejects.toThrow(
+      /Read too much data/
+    );
+
+    const litId = await start(t, roomId, hostId);
+
+    expect(await sessionDoc(t, sessionId)).toMatchObject({ status: "complete", cancelled: true });
+    expect(await t.query(api.games.getActiveEmojifyrSession, { roomId })).toBeNull();
+    expect(await t.query(api.games.getActiveGameSession, { roomId })).toMatchObject({ _id: litId, status: "active" });
+  });
+
+  // Their ids come from the same table as Lost in Translation's, and a running game's id is in what every guest reads
+  test("Emojifyr's Cancel and Next round, which take no token, refuse a session that is not Emojifyr's, also over their routes", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [ann] } = await room(t);
+    const sessionId = await start(t, roomId, hostId);
+    await draw(t, hostId);
+    const before = { session: await sessionDoc(t, sessionId), chains: await chainsOf(t, sessionId), steps: await stepsOf(t, sessionId) };
+
+    await expect(t.mutation(api.games.cancelEmojifyr, { gameSessionId: sessionId })).rejects.toThrow(/Not an Emojifyr game/);
+    await expect(t.mutation(api.games.advanceEmojifyrRound, { gameSessionId: sessionId })).rejects.toThrow(/Not an Emojifyr game/);
+    for (const path of ["/api/emojifyr/cancel", "/api/emojifyr/advance-round"]) {
+      const refused = await post(t, path, { gameSessionId: sessionId });
+      expect(refused.status).toBe(400);
+      expect(refused.body.error).toMatch(/Not an Emojifyr game/);
+    }
+
+    expect({ session: await sessionDoc(t, sessionId), chains: await chainsOf(t, sessionId), steps: await stepsOf(t, sessionId) }).toEqual(before);
+    expect(await t.run(async (ctx) => await ctx.db.query("emojifyrRounds").collect())).toEqual([]);
+    expect(await gameRecords(t, roomId)).toEqual(["game:Lost in Translation Level 1"]);
+    // The game goes on
+    const step = await guess(t, ann, "right");
+    expect((await stepDoc(t, step._id)).correct).toBe(true);
+  });
+
+  // The same holds for a game that is over: its id is in the latest-session query
+  test("Emojifyr's Cancel does not touch a finished Lost in Translation game or add to the chat", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await room(t);
+    const sessionId = await start(t, roomId, hostId);
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    const before = await sessionDoc(t, sessionId);
+    await advance(t, 1_000);
+
+    await expect(t.mutation(api.games.cancelEmojifyr, { gameSessionId: sessionId })).rejects.toThrow(/Not an Emojifyr game/);
+
+    expect(await sessionDoc(t, sessionId)).toEqual(before);
+    expect(await gameRecords(t, roomId)).toEqual(["game:Lost in Translation Level 1", "game_cancelled:Lost in Translation"]);
   });
 
   describe("model calls", () => {

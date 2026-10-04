@@ -10,8 +10,9 @@ import XCTest
 /// through `URLSession.shared`, and fails a request that a test did not prepare an answer for.
 ///
 /// What depends on the operating system: the direction of a translation comes from
-/// `NLLanguageRecognizer`. These tests only need English sentences not to be taken for Japanese
-/// and a sentence with kana to be taken for Japanese, which is as safe as detection gets.
+/// `NLLanguageRecognizer`, except for a message in kana or kanji with no Latin letter in it,
+/// which is Japanese whatever the recognizer says. These tests only need English sentences not
+/// to be taken for Japanese, which is as safe as detection gets.
 final class MyMemoryTranslationServiceTests: XCTestCase {
     private let service = MyMemoryTranslationService()
 
@@ -81,6 +82,37 @@ final class MyMemoryTranslationServiceTests: XCTestCase {
         XCTAssertEqual(punctuated, "昨日映画を見た。")
     }
 
+    /// でしたか。 with a full stop: the casualizer cannot tell "Were you OK?" from "I see", and
+    /// keeps だったか。 The source can tell.
+    func testAQuestionInTheSourceStaysAQuestion() async throws {
+        StubURLProtocol.respond(translatedText: "大丈夫でしたか。")
+        let asked = try await translate("Were you OK?")
+        XCTAssertEqual(asked, "大丈夫だった？")
+        // A source that does not ask keeps the realization
+        StubURLProtocol.respond(translatedText: "そうでしたか。")
+        let realized = try await translate("I see, so that is how it was.")
+        XCTAssertEqual(realized, "そうだったか。")
+        // Every other か。 the casualizer leaves is left here too
+        StubURLProtocol.respond(translatedText: "行きましょうか。")
+        let shallWe = try await translate("Shall we go?")
+        XCTAssertEqual(shallWe, "行きましょうか。")
+        StubURLProtocol.respond(translatedText: "本当に大丈夫でしょうか。")
+        let wonder = try await translate("Is it really all right?")
+        XCTAssertEqual(wonder, "本当に大丈夫でしょうか。")
+    }
+
+    func testAQuestionWithAFullStopThatTheSourceDoesNotMark() async throws {
+        // DEFECT: only the last sentence is looked at, and only its ending mark. A question in
+        // front of another sentence keeps the か of an older man's question (大丈夫だったか。).
+        StubURLProtocol.respond(translatedText: "大丈夫でしたか。心配しました。")
+        let first = try await translate("Were you OK? I was worried.")
+        XCTExpectDefect(first, shouldBe: "大丈夫だった？心配した。")
+        // DEFECT: so does a question typed without its question mark.
+        StubURLProtocol.respond(translatedText: "大丈夫でしたか。")
+        let unmarked = try await translate("were you ok")
+        XCTExpectDefect(unmarked, shouldBe: "大丈夫だった？")
+    }
+
     func testTranslationIntoEnglishIsReturnedAsIs() async throws {
         StubURLProtocol.respond(translatedText: "Where is the station")
         let result = try await translate("駅はどこですか？")
@@ -134,24 +166,66 @@ final class MyMemoryTranslationServiceTests: XCTestCase {
         }
     }
 
-    // MARK: - Known defects
+    // MARK: - Which way a message is translated
 
+    /// NLLanguageRecognizer takes a short message written only in kanji for Chinese (which
+    /// words is up to the operating system: 東京 and 日本 are recognised on macOS 26.6, 大丈夫
+    /// and 了解 are not). The app has no Chinese: such a message is Japanese and is translated
+    /// into English, not sent as English to be translated into Japanese.
     func testJapaneseWrittenOnlyInKanjiIsTranslatedIntoEnglish() async throws {
-        // DEFECT: `detectLanguage` trusts NLLanguageRecognizer, which takes a short message
-        // written only in kanji for Chinese, and the service treats everything that is not
-        // Japanese as English. One-word replies such as 大丈夫 and 了解 are therefore sent to
-        // be translated from English into Japanese ("en|ja").
-        //
-        // Which words are affected is up to the operating system (東京 and 日本 are recognised
-        // on macOS 26.6), so a word this macOS does recognise as Japanese is left out here.
-        for word in ["大丈夫", "了解", "今日", "学生"] {
-            let recognizer = NLLanguageRecognizer()
-            recognizer.processString(word)
-            if recognizer.dominantLanguage == .japanese { continue }
-
+        for word in ["大丈夫", "了解", "今日", "学生", "東京", "何時？", "3時", "笑", "了解！"] {
             StubURLProtocol.respond(translatedText: "ok")
             _ = try await translate(word)
-            XCTExpectDefect(StubURLProtocol.lastQuery["langpair"] ?? "no request", shouldBe: "ja|en")
+            XCTAssertEqual(StubURLProtocol.lastQuery["langpair"], "ja|en", "for \(word)")
+        }
+    }
+
+    func testKanaOrKanjiWithoutLatinLettersIsJapanese() {
+        for text in ["大丈夫", "了解", "3時", "5,000円", "笑", "ラーメン", "うん", "ｱﾘｶﾞﾄｳ", "駅はどこですか？", "時々", "参加×"] {
+            XCTAssertTrue(MyMemoryTranslationService.isJapanese(text), text)
+        }
+    }
+
+    /// × and ÷ lie among the accented Latin letters in Unicode (U+00D7, U+00F7) and are signs.
+    /// × is the "no" mark of Japanese chat (参加×).
+    func testMultiplicationAndDivisionSignsAreNotLatinLetters() {
+        for text in ["参加×", "大丈夫×", "明日×", "了解÷"] {
+            XCTAssertTrue(MyMemoryTranslationService.isJapanese(text), text)
+        }
+        // The letters on either side of them still are Latin letters
+        for text in ["参加Ö", "参加Ø", "参加ö", "参加ø", "café 東京"] {
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(text)
+            XCTAssertEqual(
+                MyMemoryTranslationService.isJapanese(text),
+                recognizer.dominantLanguage == .japanese,
+                text
+            )
+        }
+        // Without kana or kanji a sign changes nothing
+        XCTAssertFalse(MyMemoryTranslationService.isJapanese("3×4"))
+        XCTAssertFalse(MyMemoryTranslationService.isJapanese("café"))
+    }
+
+    /// Without kana or kanji the answer is the recognizer's, and it does not take English for
+    /// Japanese.
+    func testEnglishIsNotJapanese() {
+        for text in ["Hello", "Where is the station?", "I'm tired", "Thanks.", "OK", "", " "] {
+            XCTAssertFalse(MyMemoryTranslationService.isJapanese(text), text)
+        }
+    }
+
+    /// A message that mixes Latin letters with kana or kanji is left to the recognizer: an
+    /// English sentence may quote a Japanese word.
+    func testMixedTextFollowsTheRecognizer() {
+        for text in ["I love 寿司", "This is 東京", "Johnです", "iPhoneを買った", "Wi-Fiはありますか？", "OKです"] {
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(text)
+            XCTAssertEqual(
+                MyMemoryTranslationService.isJapanese(text),
+                recognizer.dominantLanguage == .japanese,
+                text
+            )
         }
     }
 }

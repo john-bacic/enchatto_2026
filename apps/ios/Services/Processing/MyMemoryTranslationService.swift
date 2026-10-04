@@ -127,6 +127,12 @@ class MyMemoryTranslationService: TranslationService {
         // Convert polite Japanese to casual using MeCab morphological analysis
         if toLang == "ja" {
             var result = casualizer.casualify(translated)
+            // The source says whether it asked: 大丈夫でしたか。 for "Were you OK?". The casualizer keeps
+            // だったか。 where it cannot tell a question from "I see". Only that ending: 行きましょうか。
+            // and 大丈夫でしょうか。 are left polite by the casualizer and must keep their か
+            if let last = text.last, "?？".contains(last), result.hasSuffix("だったか。") {
+                result = String(result.dropLast(2)) + "？"
+            }
             result = matchEndingPunctuation(from: text, to: result)
             return result
         }
@@ -154,10 +160,34 @@ class MyMemoryTranslationService: TranslationService {
     }
 
     private func detectLanguage(_ text: String) -> String {
+        Self.isJapanese(text) ? "ja" : "en"
+    }
+
+    /// Whether `text` is Japanese. The app only knows English and Japanese, so anything that
+    /// is not Japanese is taken for English.
+    static func isJapanese(_ text: String) -> Bool {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
-        let lang = recognizer.dominantLanguage
-        return lang == .japanese ? "ja" : "en"
+        if recognizer.dominantLanguage == .japanese { return true }
+
+        // The recognizer takes a short message written only in kanji for Chinese (大丈夫, 了解,
+        // 3時). There is no Chinese here: kana or kanji with no Latin letter is Japanese. A
+        // message that mixes the two (I love 寿司) stays with the recognizer's answer.
+        var hasKanaOrKanji = false
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            // Latin letters. × (U+00D7) and ÷ (U+00F7) lie among the accented ones and are
+            // signs: 参加× is Japanese
+            case 0x41...0x5A, 0x61...0x7A, 0xC0...0xD6, 0xD8...0xF6, 0xF8...0x24F:
+                return false
+            case 0x3041...0x3096, 0x30A1...0x30FA, 0xFF66...0xFF9D, // hiragana, katakana, half-width katakana
+                 0x3005, 0x3400...0x4DBF, 0x4E00...0x9FFF: // 々 and kanji
+                hasKanaOrKanji = true
+            default:
+                break
+            }
+        }
+        return hasKanaOrKanji
     }
 }
 

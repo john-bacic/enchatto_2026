@@ -627,6 +627,75 @@ describe("card generation without a model key", () => {
     expect(new Set(words).size).toBe(10);
     expect(words.filter((w) => used.includes(w))).toEqual([]);
   });
+
+  // The built-in deck holds 24 cards: a lobby is dealt ten of them whatever the room was dealt before
+  test("every lobby gets a full built-in deck, however many the room has had", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const dealt: number[] = [];
+    for (let lobby = 0; lobby < 4; lobby++) {
+      const gameId = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
+      await tick(t);
+      dealt.push((await stateOf(t, roomId)).totalCards);
+      await t.mutation(api.wordRush.cancel, { gameId, participantId: hostId });
+    }
+    expect(dealt).toEqual([10, 10, 10, 10]);
+  });
+
+  test("a room that has played through the built-in deck is still dealt ten different cards, the unplayed ones among them", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const played: string[][] = [];
+    for (let game = 0; game < 5; game++) {
+      const gameId = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
+      await tick(t);
+      const words = (await gameDoc(t, gameId)).cards.map((c) => c.en);
+      expect(new Set(words).size, `game ${game + 1}`).toBe(10);
+      expect(words.every((w) => DECK_WORDS.has(w)), `game ${game + 1}`).toBe(true);
+      expect((await stateOf(t, roomId)).cardsReady).toBe(true);
+      played.push(words);
+      // Started, so its words count as played, then ended to make room for the next lobby
+      await t.mutation(api.wordRush.start, { gameId, participantId: hostId });
+      await t.mutation(api.wordRush.cancel, { gameId, participantId: hostId });
+    }
+    // Two games use 20 of the 24 cards without a repeat. The third takes the four that are left and
+    // fills up with six the room has seen
+    expect(played[1].filter((w) => played[0].includes(w))).toEqual([]);
+    const unplayed = [...DECK_WORDS].filter((w) => !played[0].includes(w) && !played[1].includes(w));
+    expect(unplayed).toHaveLength(4);
+    expect(unplayed.filter((w) => !played[2].includes(w))).toEqual([]);
+  });
+
+  test("a lobby that was cancelled before it started does not hold its words back from the next one", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    // A mix lobby is dealt every built-in word of the mix pack first, unless the room has played them
+    const mix = FALLBACK_DECK.filter((c) => c.packs.includes("mix")).map((c) => c.en);
+    expect(mix.length).toBeGreaterThan(0);
+    const abandoned = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
+    await tick(t);
+    const shown = (await gameDoc(t, abandoned)).cards.map((c) => c.en);
+    expect(mix.filter((w) => !shown.includes(w))).toEqual([]);
+    await t.mutation(api.wordRush.cancel, { gameId: abandoned, participantId: hostId });
+
+    const next = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
+    await tick(t);
+    const words = (await gameDoc(t, next)).cards.map((c) => c.en);
+    expect(mix.filter((w) => !words.includes(w))).toEqual([]);
+  });
+
+  test("cards that arrive empty leave the lobby its built-in deck, ready to start", async () => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await openLobby(t);
+    const builtIn = (await gameDoc(t, gameId)).cards;
+    // As while a generation is running
+    await t.run(async (ctx) => await ctx.db.patch(gameId, { cardsReady: false }));
+    await t.mutation(internal.wordRush.setCards, { gameId, pack: "mix", cards: [], seq: 0 });
+    expect(await stateOf(t, roomId)).toMatchObject({ cardsReady: true, totalCards: 10 });
+    expect((await gameDoc(t, gameId)).cards).toEqual(builtIn);
+    await t.mutation(api.wordRush.start, { gameId, participantId: hostId });
+    expect((await stateOf(t, roomId)).status).toBe("active");
+  });
 });
 
 describe("card generation with a model key", () => {
@@ -733,6 +802,19 @@ describe("card generation with a model key", () => {
     const third = await nextLobby(second.gameId);
     expect(third.words).toHaveLength(10);
     expect(third.words.filter((w) => first.includes(w) || second.words.includes(w))).toEqual([]);
+  });
+
+  test("the words of a lobby that was cancelled before it started are not kept from the model", async () => {
+    const t = newBackend();
+    const fetchMock = stubModel();
+    const { roomId, hostId, gameId } = await openLobby(t);
+    const abandoned = (await gameDoc(t, gameId)).cards.map((c) => c.en);
+    await t.mutation(api.wordRush.cancel, { gameId, participantId: hostId });
+    const next = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
+    await tick(t);
+    // Nobody saw those cards, so the model may give them again, and does
+    expect(promptOf(fetchMock.mock.calls[1])).not.toMatch(/Do NOT reuse/);
+    expect((await gameDoc(t, next)).cards.map((c) => c.en)).toEqual(abandoned);
   });
 
   test("only the chat pack sends the room's recent lines to the model, each cut to 200 characters", async () => {
@@ -914,6 +996,12 @@ describe("generation limits", () => {
     return gameId;
   }
 
+  /** What the limits have counted, by key: `wordrush:<roomId>` for a room, `wordrush:all` for the shared ceiling */
+  async function counted(t: Backend): Promise<Record<string, number>> {
+    const rows = await t.run(async (ctx) => await ctx.db.query("rateLimits").collect());
+    return Object.fromEntries(rows.map((row) => [row.key, row.count]));
+  }
+
   test("a game pays for ten generations; after that a pack change keeps the built-in deck and the lobby is still made ready", async () => {
     const t = newBackend();
     quiet();
@@ -984,6 +1072,78 @@ describe("generation limits", () => {
     await tick(t, 61_000);
     await openLobby(t);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  // A room's 30 an hour count the generations it was given, not the ones the shared ceiling refused it
+  test("a generation refused by the shared ceiling does not use up the room's own allowance", async () => {
+    const t = newBackend();
+    quiet();
+    vi.stubEnv("WORD_RUSH_GENERATIONS_PER_HOUR_MAX", "1");
+    const fetchMock = stubModel();
+    await openLobby(t);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // 59 minutes into the ceiling's hour another room asks 30 times, and is refused each time
+    await tick(t, 59 * 60_000);
+    const { hostId, gameId } = await openLobby(t);
+    for (let i = 0; i < 29; i++) {
+      await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack: PACKS[i % PACKS.length] });
+      await tick(t, 1500);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // The ceiling's hour is over, and this room has had no generation at all
+    await tick(t, 60_000);
+    await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack: "mix" });
+    await tick(t, 1500);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("a refusal by the shared ceiling leaves a room's count where it was, and the ceiling's too", async () => {
+    const t = newBackend();
+    quiet();
+    vi.stubEnv("WORD_RUSH_GENERATIONS_PER_HOUR_MAX", "3");
+    const fetchMock = stubModel();
+    // Two generations for this room, then one for another: the ceiling is reached
+    const { roomId, hostId, gameId } = await openLobby(t);
+    await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack: "anime" });
+    await tick(t, 1500);
+    await openLobby(t);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const pack of ["slang", "travel", "foodie"]) {
+      await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack });
+      await tick(t, 1500);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(await counted(t)).toMatchObject({ [`wordrush:${roomId}`]: 2, "wordrush:all": 3 });
+    // Nor are the refused generations counted against the game's own ten
+    expect((await gameDoc(t, gameId)).genCount).toBe(2);
+    expect(await stateOf(t, roomId)).toMatchObject({ pack: "foodie", cardsReady: true, totalCards: 10 });
+  });
+
+  test("a room over its own 30 an hour does not use up the ceiling every room shares", async () => {
+    const t = newBackend();
+    quiet();
+    vi.stubEnv("WORD_RUSH_GENERATIONS_PER_HOUR_MAX", "31");
+    const fetchMock = stubModel();
+    const { roomId, hostId } = await createRoom(t);
+    for (let lobby = 0; lobby < 3; lobby++) {
+      const gameId = await tenGenerations(t, roomId, hostId);
+      await t.mutation(api.wordRush.cancel, { gameId, participantId: hostId });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(30);
+    // Refused on the room's own count, three times over: the shared count stays at 30
+    const gameId = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
+    await tick(t);
+    for (const pack of ["anime", "slang"]) {
+      await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack });
+      await tick(t, 1500);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(30);
+    expect(await counted(t)).toMatchObject({ [`wordrush:${roomId}`]: 30, "wordrush:all": 30 });
+    // So another room still gets the one generation left under the ceiling, and the room after it none
+    await openLobby(t);
+    expect(fetchMock).toHaveBeenCalledTimes(31);
+    await openLobby(t);
+    expect(fetchMock).toHaveBeenCalledTimes(31);
   });
 
   test("without that ceiling, rooms share no counter", async () => {
@@ -1712,7 +1872,7 @@ describe("the end of a game", () => {
   test("a deck shorter than ten cards is played to its last card, and the summary counts its cards", async () => {
     const t = newBackend();
     const { roomId, hostId, gameId } = await openLobby(t, { sayIt: false });
-    // As a room's third lobby is dealt today when no model answers (see the open defects)
+    // No lobby is dealt a short deck any more, but a game left with one before that plays out all the same
     await t.run(async (ctx) => {
       const game = (await ctx.db.get(gameId))!;
       await ctx.db.patch(gameId, { cards: game.cards.slice(0, 3) });
@@ -2212,88 +2372,258 @@ describe("the /api/word-rush routes", () => {
   });
 });
 
-// ─── Open defects ────────────────────────────────────────────────────────────
+// ─── Players who have left ───────────────────────────────────────────────────
 
-describe("open defects", () => {
-  // DEFECT: the built-in deck runs out. generateCards leaves out every word the room's last four lobbies
-  // were dealt (getGenerationInput's `previous`, cancelled lobbies included) and the deck has 24 cards, so
-  // without a model answer (no key, or a failed call) the third lobby in a room gets 4 cards and the fourth
-  // gets none, and `start` then refuses with "No cards to play". The review lists this ("The Word Rush
-  // fallback deck runs out"); the fix it asks for, topping up from the full deck, was not made.
-  test.fails("every lobby gets a full built-in deck, however many the room has had", async () => {
-    const t = newBackend();
-    const { roomId, hostId } = await createRoom(t);
-    const dealt: number[] = [];
-    for (let lobby = 0; lobby < 4; lobby++) {
-      const gameId = await t.mutation(api.wordRush.createLobby, { roomId, hostParticipantId: hostId });
-      await tick(t);
-      dealt.push((await stateOf(t, roomId)).totalCards);
-      await t.mutation(api.wordRush.cancel, { gameId, participantId: hostId });
+describe("players who have left", () => {
+  /** What a tab sends as it is hidden: a phone that locked, or a look at another app */
+  async function goAway(t: Backend, participantId: PlayerId) {
+    await t.mutation(api.participants.setParticipantOnline, { participantId, online: true, presence: "away" });
+  }
+
+  describe("the clues", () => {
+    // The clues end early on the answers of the players who are still here, not on a count of all players
+    test("the reveal starts once every player who is still here has answered", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"] });
+      await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
+      await answer(t, gameId, hostId);
+      expect((await stateOf(t, roomId)).phase).toBe("reveal");
+    });
+
+    test("a closing tab's away ping, before or after its leave beacon, does not make the player waited for", async () => {
+      const t = newBackend();
+      for (const order of ["beacon first", "ping first"]) {
+        const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"] });
+        if (order === "ping first") await goAway(t, guests[0]);
+        await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
+        if (order === "beacon first") await goAway(t, guests[0]);
+        await answer(t, gameId, hostId);
+        expect((await stateOf(t, roomId)).phase, order).toBe("reveal");
+      }
+    });
+
+    test("a player who was kicked is not waited for, and one who is still here is", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
+      await t.mutation(api.participants.kickParticipant, { participantId: guests[0], roomId });
+      await answer(t, gameId, hostId);
+      expect((await stateOf(t, roomId)).phase).toBe("clues");
+      await answer(t, gameId, guests[1]);
+      const state = await stateOf(t, roomId);
+      expect(state.phase).toBe("reveal");
+      // The kicked player keeps their place on the scoreboard, with no answer and no streak
+      expect(state.players.map((p) => [p.participantId, p.streak])).toEqual([
+        [hostId, 1],
+        [guests[0], 0],
+        [guests[1], 1],
+      ]);
+    });
+
+    test("a player whose phone has just locked is still waited for, and the 15 s timer still closes the clues", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"] });
+      await goAway(t, guests[0]);
+      await answer(t, gameId, hostId);
+      await tick(t, 14_999);
+      expect((await stateOf(t, roomId)).phase).toBe("clues");
+      // Back in time: their answer is taken and ends the clues
+      await heartbeat(t, guests[0]);
+      expect(await answer(t, gameId, guests[0])).toEqual({ correct: true, points: 100 });
+      expect((await stateOf(t, roomId)).phase).toBe("reveal");
+
+      // On the next card they stay away, and the timer closes the clues as it always has
+      await skipTo(t, gameId, hostId, "clues", 1);
+      await goAway(t, guests[0]);
+      await answer(t, gameId, hostId);
+      await tick(t, 14_999);
+      expect((await stateOf(t, roomId)).phase).toBe("clues");
+      await tick(t, 1);
+      expect((await stateOf(t, roomId)).phase).toBe("reveal");
+    });
+
+    test("a player not heard from for 45 s is no longer waited for, whether their tab said away or just went quiet", async () => {
+      const t = newBackend();
+      for (const lastWord of ["away", "nothing"]) {
+        const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"], sayIt: false });
+        if (lastWord === "away") await goAway(t, guests[0]);
+        else await heartbeat(t, guests[0]);
+        // One millisecond short of 45 s they are still waited for
+        await tick(t, 44_999);
+        await skipTo(t, gameId, hostId, "clues", 1);
+        await answer(t, gameId, hostId);
+        expect((await stateOf(t, roomId)).phase, lastWord).toBe("clues");
+        await tick(t, 1);
+        await skipTo(t, gameId, hostId, "clues", 2);
+        await answer(t, gameId, hostId);
+        expect((await stateOf(t, roomId)).phase, lastWord).toBe("reveal");
+      }
+    });
+
+    test("an app in the background that is still heard from is waited for", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"], sayIt: false });
+      // The iOS app keeps its heartbeat going in the background, and says "away" with each one
+      await goAway(t, hostId);
+      await tick(t, 40_000);
+      await goAway(t, hostId);
+      await tick(t, 10_000);
+      await heartbeat(t, guests[0]);
+      await skipTo(t, gameId, hostId, "clues", 1);
+      await answer(t, gameId, guests[0]);
+      expect((await stateOf(t, roomId)).phase).toBe("clues");
+    });
+
+    test("a player who left and has come back is waited for again and plays on", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"] });
+      await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
+      await answer(t, gameId, hostId);
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "reveal", cardIndex: 0 });
+      // As a reload does: the leave beacon, then the heartbeat of the page that loads
+      await heartbeat(t, guests[0]);
+      await skipTo(t, gameId, hostId, "clues", 1);
+      await answer(t, gameId, hostId);
+      expect((await stateOf(t, roomId)).phase).toBe("clues");
+      expect(await answer(t, gameId, guests[0])).toEqual({ correct: true, points: 300 });
+      const state = await stateOf(t, roomId);
+      expect(state.phase).toBe("reveal");
+      expect(state.players.map((p) => p.score)).toEqual([600, 300]);
+    });
+  });
+
+  describe("the mic", () => {
+    // The mic goes to a player who is still here
+    test("a player who has left is not put on the mic", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
+      // The host would be first on the mic; make it Ann's turn by having the host perform first
+      await skipTo(t, gameId, hostId, "mic");
+      await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
+      await skip(t, gameId, hostId);
+      await skipTo(t, gameId, hostId, "mic");
+      expect((await stateOf(t, roomId)).performer?.participantId).toBe(guests[1]);
+    });
+
+    test("a player who was kicked is not put on the mic, when the reveal ends on its timer as on a skip", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
+      await skipTo(t, gameId, hostId, "mic");
+      await t.mutation(api.participants.kickParticipant, { participantId: guests[0], roomId });
+      await skip(t, gameId, hostId);
+      await skipTo(t, gameId, hostId, "reveal", 3);
+      await tick(t, 8000);
+      expect(await stateOf(t, roomId)).toMatchObject({
+        phase: "mic",
+        cardIndex: 3,
+        performer: { participantId: guests[1] },
+      });
+    });
+
+    test("a player passed over while they were gone takes the mic at the next round once they are back", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
+      await skipTo(t, gameId, hostId, "mic", 1);
+      await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
+      await skip(t, gameId, hostId);
+      await skipTo(t, gameId, hostId, "mic", 3);
+      expect((await stateOf(t, roomId)).performer?.participantId).toBe(guests[1]);
+      await heartbeat(t, guests[0]);
+      await skip(t, gameId, hostId);
+      await skipTo(t, gameId, hostId, "mic", 5);
+      expect((await stateOf(t, roomId)).performer?.participantId).toBe(guests[0]);
+      // Their clip is taken like anyone's
+      await t.mutation(api.wordRush.submitClip, { gameId, participantId: guests[0], storageId: await upload(t) });
+      expect((await stateOf(t, roomId)).phase).toBe("judging");
+    });
+
+    test("a player whose phone has just locked keeps their turn on the mic", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
+      await skipTo(t, gameId, hostId, "mic", 1);
+      await skip(t, gameId, hostId);
+      await skipTo(t, gameId, hostId, "reveal", 3);
+      await goAway(t, guests[0]);
+      await skip(t, gameId, hostId);
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "mic", performer: { participantId: guests[0] } });
+    });
+
+    test("with fewer than two players still here there is no mic round, and the game goes on to the next card", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"] });
+      await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
+      await skipTo(t, gameId, hostId, "reveal", 1);
+      await skip(t, gameId, hostId);
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "clues", cardIndex: 2, performer: null });
+      // Nobody performed, so nobody's turn was used up: back in the room, the two play the next round
+      await heartbeat(t, guests[0]);
+      await skipTo(t, gameId, hostId, "reveal", 3);
+      await skip(t, gameId, hostId);
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "mic", performer: { participantId: hostId } });
+    });
+  });
+
+  describe("the judging", () => {
+    /** A game in judging: the host performed, and Ann and Ben are the judges */
+    async function judging(t: Backend) {
+      const game = await startGame(t, { guests: ["Ann", "Ben"] });
+      await skipTo(t, game.gameId, game.hostId, "mic");
+      const storageId = await upload(t);
+      await t.mutation(api.wordRush.submitClip, { gameId: game.gameId, participantId: game.hostId, storageId });
+      return { ...game, ann: game.guests[0], ben: game.guests[1] };
     }
-    expect(dealt).toEqual([10, 10, 10, 10]);
-  });
 
-  // DEFECT: a generation refused by the shared ceiling is still counted against the room. claimGeneration
-  // takes the room's allowance before it asks for the shared one, and the refusal does not give it back, so
-  // a lobby that keeps trying while the ceiling is reached spends the room's 30 on generations it never
-  // got, and is then refused on its own count after the ceiling has reset. Only with
-  // WORD_RUSH_GENERATIONS_PER_HOUR_MAX set; the lobby falls back to the built-in deck.
-  test.fails("a generation refused by the shared ceiling does not use up the room's own allowance", async () => {
-    const t = newBackend();
-    quiet();
-    vi.stubEnv("WORD_RUSH_GENERATIONS_PER_HOUR_MAX", "1");
-    const fetchMock = stubModel();
-    await openLobby(t);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    // 59 minutes into the ceiling's hour another room asks 30 times, and is refused each time
-    await tick(t, 59 * 60_000);
-    const { hostId, gameId } = await openLobby(t);
-    for (let i = 0; i < 29; i++) {
-      await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack: PACKS[i % PACKS.length] });
-      await tick(t, 1500);
-    }
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    // The ceiling's hour is over, and this room has had no generation at all
-    await tick(t, 60_000);
-    await t.mutation(api.wordRush.updateSettings, { gameId, participantId: hostId, pack: "mix" });
-    await tick(t, 1500);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
+    // The verdict comes on the votes of the judges who are still here, not on a count of all players
+    test("the verdict comes once every judge who is still here has voted", async () => {
+      const t = newBackend();
+      const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
+      await skipTo(t, gameId, hostId, "mic");
+      await t.mutation(api.wordRush.submitClip, { gameId, participantId: hostId, storageId: await upload(t) });
+      await t.mutation(api.participants.leaveRoom, { participantId: guests[1] });
+      await t.mutation(api.wordRush.vote, { gameId, participantId: guests[0], vote: "native" });
+      expect((await stateOf(t, roomId)).phase).toBe("verdict");
+    });
 
-  // DEFECT: absent players are never dropped. `answer` ends the clue phase when the number of answers
-  // reaches the number of players, whoever is still here, so one player who closed the tab makes every card
-  // run its full 15 s. The review lists this ("Word Rush never drops absent players, so every phase runs to
-  // its full timeout"); 17f6267 fixed the lobby and rematch, not the phases.
-  test.fails("the reveal starts once every player who is still here has answered", async () => {
-    const t = newBackend();
-    const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann"] });
-    await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
-    await answer(t, gameId, hostId);
-    expect((await stateOf(t, roomId)).phase).toBe("reveal");
-  });
+    test("a judge who was kicked is not waited for", async () => {
+      const t = newBackend();
+      const { roomId, gameId, ann, ben } = await judging(t);
+      await t.mutation(api.participants.kickParticipant, { participantId: ben, roomId });
+      await t.mutation(api.wordRush.vote, { gameId, participantId: ann, vote: "close" });
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "verdict", verdict: { votes: [{ judgeId: ann }] } });
+    });
 
-  // DEFECT: the same review item, for the mic. afterReveal picks the performer from all players, so a player
-  // who has left is put on the mic and the round waits 15 s for a clip that cannot come.
-  test.fails("a player who has left is not put on the mic", async () => {
-    const t = newBackend();
-    const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
-    // The host would be first on the mic; make it Ann's turn by having the host perform first
-    await skipTo(t, gameId, hostId, "mic");
-    await t.mutation(api.participants.leaveRoom, { participantId: guests[0] });
-    await skip(t, gameId, hostId);
-    await skipTo(t, gameId, hostId, "mic");
-    expect((await stateOf(t, roomId)).performer?.participantId).toBe(guests[1]);
-  });
+    test("a judge whose phone has just locked is still waited for, and the 10 s timer still closes the judging", async () => {
+      const t = newBackend();
+      const { roomId, gameId, ann, ben } = await judging(t);
+      await goAway(t, ben);
+      await t.mutation(api.wordRush.vote, { gameId, participantId: ann, vote: "close" });
+      await tick(t, 9999);
+      expect((await stateOf(t, roomId)).phase).toBe("judging");
+      await tick(t, 1);
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "verdict", verdict: { votes: [{ judgeId: ann }] } });
+    });
 
-  // DEFECT: the same review item, for the judging. `vote` gives the verdict when every player but the
-  // performer has voted, whoever is still here, so one judge who has left makes the round run its full 10 s.
-  test.fails("the verdict comes once every judge who is still here has voted", async () => {
-    const t = newBackend();
-    const { roomId, hostId, gameId, guests } = await startGame(t, { guests: ["Ann", "Ben"] });
-    await skipTo(t, gameId, hostId, "mic");
-    await t.mutation(api.wordRush.submitClip, { gameId, participantId: hostId, storageId: await upload(t) });
-    await t.mutation(api.participants.leaveRoom, { participantId: guests[1] });
-    await t.mutation(api.wordRush.vote, { gameId, participantId: guests[0], vote: "native" });
-    expect((await stateOf(t, roomId)).phase).toBe("verdict");
+    test("a judge who left and has come back is waited for again, and their vote counts", async () => {
+      const t = newBackend();
+      const { roomId, gameId, ann, ben } = await judging(t);
+      await t.mutation(api.participants.leaveRoom, { participantId: ben });
+      await heartbeat(t, ben);
+      await t.mutation(api.wordRush.vote, { gameId, participantId: ann, vote: "native" });
+      expect((await stateOf(t, roomId)).phase).toBe("judging");
+      await t.mutation(api.wordRush.vote, { gameId, participantId: ben, vote: "native" });
+      const state = await stateOf(t, roomId);
+      expect(state.phase).toBe("verdict");
+      expect(state.verdict?.votes.map((v) => v.judgeId)).toEqual([ann, ben]);
+    });
+
+    test("a vote from a judge who reads as gone is still taken, and the judges who are here are still waited for", async () => {
+      const t = newBackend();
+      const { roomId, gameId, ann, ben } = await judging(t);
+      await t.mutation(api.participants.leaveRoom, { participantId: ben });
+      // Their tab is back before its first heartbeat has said so
+      await t.mutation(api.wordRush.vote, { gameId, participantId: ben, vote: "close" });
+      expect((await stateOf(t, roomId)).phase).toBe("judging");
+      await t.mutation(api.wordRush.vote, { gameId, participantId: ann, vote: "close" });
+      expect(await stateOf(t, roomId)).toMatchObject({ phase: "verdict", verdict: { bonus: 40 } });
+    });
   });
 });

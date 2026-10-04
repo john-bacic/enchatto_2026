@@ -9,9 +9,6 @@
 //   send-audio and transcribe routes are only shown to get past the caller check.
 // - participantSecrets and hostPushTokens are returned by no function, by design, so what is on record is
 //   read with t.run.
-//
-// Two tests are marked test.fails. Each states a defect in how Emojifyr's functions, which take no token, reach
-// the Lost in Translation game, which is gated: see the end of the Emojifyr section.
 import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from "vitest";
 import { api } from "../../convex/_generated/api";
@@ -910,7 +907,8 @@ describe("emojiMatch.resolveMismatch: callerId is who is calling", () => {
   /** The turn holder turns up two cards that do not match; the reveal has run its 1.2 s */
   async function mismatchShown(w: World) {
     const { gameId, holder, waiting } = await twoPlayerMatch(w);
-    const board = (await matchGame(w, gameId)).board;
+    // The pairs are read from the stored board: the query sends a face-down card without its pairKey
+    const board = (await w.t.run(async (ctx) => await ctx.db.get(gameId)))!.board;
     const second = board.find((card) => card.pairKey !== board[0].pairKey)!;
     for (const card of [board[0], second]) {
       await w.t.mutation(api.emojiMatch.flipCard, { gameId, participantId: holder, cardId: card.cardId, token: w.tokenOf(holder) });
@@ -1354,7 +1352,7 @@ const OUTSIDERS: OutsiderCase<any>[] = [
     fn: "truthOrDare.submitRating",
     as: "guest",
     arrange: async (w) => (await answeredTurn(w)).turnId,
-    act: (w, who, token, turnId) => w.t.mutation(api.truthOrDare.submitRating, { turnId, participantId: who, score: 8, token }),
+    act: (w, who, token, turnId) => w.t.mutation(api.truthOrDare.submitRating, { turnId, participantId: who, score: 4, token }),
     observe: async (w) => (await truthOrDare(w))?.currentTurn?.ratings ?? [],
   }),
   outsider({
@@ -1826,13 +1824,12 @@ describe("Emojifyr, which installed iOS builds still call without a token", () =
     expect(Object.keys(callable.find((f) => f.name === "participants:setHostPushToken")!.args)).toContain("callerToken");
   });
 
-  // ── Defects: what the exception lets a caller with no token do to the game that is gated ──
-  // Both are in convex/games.ts and both are reachable over the /api/emojifyr/* routes as well.
+  // ── What the exception must not let a caller with no token do to the game that is gated ──
+  // Both rules are in convex/games.ts and both calls are reachable over the /api/emojifyr/* routes as well.
 
-  // DEFECT: cancelEmojifyr ends whatever session it is handed, without looking at its game type. The id of a
-  // running Lost in Translation game is in games.getActiveGameSession, which every guest reads, so anyone can
-  // end the game that games.cancelGame lets only the host end.
-  test.fails("enforce: Lost in Translation, which only the host may cancel, is not ended by cancelEmojifyr from a caller with no token", async () => {
+  // cancelEmojifyr and advanceEmojifyrRound act on Emojifyr's own sessions only. The id of a running Lost in
+  // Translation game is in games.getActiveGameSession, which every guest reads.
+  test("enforce: Lost in Translation, which only the host may cancel, is not ended by cancelEmojifyr from a caller with no token", async () => {
     const w = await makeWorld();
     const { sessionId } = await startLostInTranslation(w);
     setMode("enforce");
@@ -1847,10 +1844,9 @@ describe("Emojifyr, which installed iOS builds still call without a token", () =
     expect(await litSession(w)).toBe(sessionId);
   });
 
-  // DEFECT: startEmojifyr takes the host's id, which every guest can read, as the host's word. The session it
-  // makes counts as "A game is already in progress" for startGame, cancelGame leaves Emojifyr sessions alone,
-  // and no current build shows one or can cancel it: the room cannot play Lost in Translation again.
-  test.fails("enforce: a caller with no token who names the host cannot leave the host unable to start Lost in Translation", async () => {
+  // startEmojifyr takes the host's id, which every guest can read, as the host's word, and no current build shows
+  // an Emojifyr session or can cancel one. So it does not count as a game in progress: startGame ends it.
+  test("enforce: a caller with no token who names the host cannot leave the host unable to start Lost in Translation", async () => {
     const w = await makeWorld();
     setMode("enforce");
     // Refusing the call and ignoring it would both be right
@@ -2115,12 +2111,12 @@ describe("HTTP routes", () => {
       await gated(t, "/api/truth-or-dare/submit-choice", { gameId, participantId: holder, choice: "truth" }, callerFor(holder));
       await gated(t, "/api/truth-or-dare/submit-response", { gameId, participantId: holder, responseText: "an answer" }, callerFor(holder));
       await gated(t, "/api/truth-or-dare/submit-translation", { turnId, translatedText: "答え" }, host);
-      await gated(t, "/api/truth-or-dare/submit-rating", { turnId, participantId: rater, score: 8 }, callerFor(rater));
+      await gated(t, "/api/truth-or-dare/submit-rating", { turnId, participantId: rater, score: 4 }, callerFor(rater));
       const answered = (await truthOrDare(w))!.currentTurn!;
       expect([answered.status, answered.translatedResponseText, answered.ratings]).toEqual([
         "completed",
         "答え",
-        [{ participantId: rater, score: 8 }],
+        [{ participantId: rater, score: 4 }],
       ]);
 
       await gated(t, "/api/truth-or-dare/ack-round-break", { gameId, participantId: hostId, completedTurns: 1 }, host);

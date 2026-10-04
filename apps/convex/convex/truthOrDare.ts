@@ -390,15 +390,14 @@ export const createGame = mutation({
       [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
     }
 
-    // Post system message (only if no existing truth_or_dare system message in room)
-    const existingMessages = await ctx.db
-      .query("messages")
+    // The chat says "game:Truth or Dare" once, at the room's first game. Whether this is the first is
+    // read from the room's games, not by looking through the chat for the message: a chat that holds
+    // inline drawings can be more than one function may read.
+    const earlierGame = await ctx.db
+      .query("truthOrDareGames")
       .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
-      .collect();
-    const hasExistingStart = existingMessages.some(
-      (m) => m.kind === "system" && m.text === "game:Truth or Dare"
-    );
-    if (!hasExistingStart) {
+      .first();
+    if (!earlierGame) {
       await ctx.db.insert("messages", {
         roomId: args.roomId,
         senderId: args.hostParticipantId,
@@ -721,8 +720,10 @@ export const submitRating = mutation({
   },
   handler: async (ctx, args) => {
     const score = Math.round(args.score * 2) / 2; // snap to nearest 0.5
+    // Both apps rate with five stars and show the average out of five, so a higher score would put
+    // its player above everyone a real rating can reach.
     // Written this way round so that NaN, which fails every comparison, is refused too
-    if (!(score >= 1 && score <= 10)) throw new Error("Score must be 1-10");
+    if (!(score >= 1 && score <= 5)) throw new Error("Score must be 1-5");
 
     const turn = await ctx.db.get(args.turnId);
     if (!turn) throw new Error("Turn not found");
@@ -851,14 +852,14 @@ export const postSummary = mutation({
       .sort((a, b) => (b.completedAt ?? b.createdAt) - (a.completedAt ?? a.createdAt))[0];
     if (!game) return;
 
-    // Check if summary already posted
+    // Check if summary already posted. Only a message from after the game began can be its summary,
+    // so the chat before that is not read: it may be more than one function may read
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .withIndex("by_roomId_createdAt", (q) => q.eq("roomId", args.roomId).gte("createdAt", game.createdAt))
       .collect();
     const hasSummary = messages.some(
       (m) => m.kind === "system" && m.text?.startsWith("truth_or_dare_summary:")
-        && m.createdAt >= game.createdAt
     );
     if (hasSummary) return;
 

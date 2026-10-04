@@ -53,7 +53,9 @@ export default defineSchema({
     joinedAt: v.number(),
   })
     .index("by_roomId", ["roomId"])
-    .index("by_roomId_role", ["roomId", "role"]),
+    .index("by_roomId_role", ["roomId", "role"])
+    // Finds who is online and has gone silent without reading everyone who ever joined (participants.cleanupStaleParticipants)
+    .index("by_online_lastSeenAt", ["online", "lastSeenAt"]),
 
   // The secret each client made up for its participant (participants.ts: requireCaller). A table of its
   // own because participant documents are sent whole to everyone in the room.
@@ -98,13 +100,19 @@ export default defineSchema({
     clientId: v.optional(v.string()),
     createdAt: v.number(),
     processedAt: v.optional(v.number()),
+    /** True on a failed message whose only failure so far is the server's own translation: the iOS host has not answered for it, so it stays in the host's queue (messages.ts: getPendingMessagesForProcessor). Removed by the host's answer or by a translation. */
+    awaitingHost: v.optional(v.boolean()),
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"])
     .index("by_roomId_createdAt", ["roomId", "createdAt"])
     .index("by_roomId_clientId", ["roomId", "clientId"])
     // Whether a stored file is already some voice message's clip (participants.ts: heldByVoiceMessage)
-    .index("by_audioStorageId", ["audioStorageId"]),
+    .index("by_audioStorageId", ["audioStorageId"])
+    // The failed messages still left for the host, without reading the room's other failed ones
+    .index("by_roomId_awaitingHost", ["roomId", "awaitingHost"])
+    // A room's messages that still have a voice clip, without reading its other messages (messages.ts: purgeRoomAudio)
+    .index("by_roomId_audioStorageId", ["roomId", "audioStorageId"]),
 
   reactions: defineTable({
     messageId: v.id("messages"),

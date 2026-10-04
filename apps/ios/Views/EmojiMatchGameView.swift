@@ -29,10 +29,10 @@ struct EmojiMatchGameView: View {
                 switch game.status {
                 case .lobby:
                     lobbyView(game: game)
-                case .active, .resolving:
-                    boardView(game: game)
-                case .completed:
-                    if showCompleted {
+                case .active, .resolving, .completed:
+                    // One branch for the board in every status that shows it, so the card views live
+                    // through the end of the game and the last pair pops like every other pair
+                    if game.status == .completed && showCompleted {
                         completedView(game: game)
                             .transition(.opacity)
                     } else {
@@ -239,6 +239,8 @@ struct EmojiMatchGameView: View {
                         .frame(width: width, height: height)
                     }
                 }
+                // Card ids repeat from game to game (card_0 ...): a new deal gets new card views, with nothing kept from the last
+                .id(game.id)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
             }
             .padding(.horizontal, 16)
@@ -391,6 +393,14 @@ private struct FlipCardView: View {
     @State private var showFace = false
     @State private var gone = false
     @State private var matchPop = false
+    // The face this card last showed. The server sends a face-down card without its face, in the same
+    // answer that turns it back, so the front draws this until the turn back has hidden it
+    @State private var lastFace: EmojiMatchContent?
+
+    /// What the front draws: the card's own face, or, once the server has taken it back, the one it showed
+    private var face: EmojiMatchContent {
+        card.content.value.isEmpty ? lastFace ?? card.content : card.content
+    }
 
     var body: some View {
         let targetShowFace = card.isRevealed || card.isMatched
@@ -426,6 +436,17 @@ private struct FlipCardView: View {
                 showFace = newValue
             }
         }
+        .task(id: card.content) {
+            // Keep a face while the card has one. When it comes without (turned back), wait out the
+            // turn, which has the front at no opacity well inside a second, then drop the kept face.
+            // A card that is turned up again first cancels this: its face comes with it.
+            if !card.content.value.isEmpty {
+                lastFace = card.content
+            } else if lastFace != nil {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if !Task.isCancelled { lastFace = nil }
+            }
+        }
         .onChange(of: card.isMatched) { matched in
             guard matched else {
                 gone = false
@@ -459,8 +480,8 @@ private struct FlipCardView: View {
     private var cardFront: some View {
         GeometryReader { geo in
             VStack(spacing: 2) {
-                EmojiArt(emoji: card.content.value, size: min(geo.size.width * 0.62, geo.size.height * 0.5))
-                if let label = card.content.label {
+                EmojiArt(emoji: face.value, size: min(geo.size.width * 0.62, geo.size.height * 0.5))
+                if let label = face.label {
                     Text(label)
                         .font(.round(11, .black))
                         .foregroundStyle(card.isMatched ? EC.ink : EC.pink)

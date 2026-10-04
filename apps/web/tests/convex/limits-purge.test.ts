@@ -4,10 +4,6 @@
 // The limits are tested through the mutations and routes that take them. The purge is tested against a
 // room that has a row in every table a room can own: see BELONGS below, which walks schema.ts table by
 // table and is what every "nothing is left" assertion is built on.
-//
-// Two tests are marked test.fails, each under a DEFECT note: the product code is wrong there and the test
-// states what it should do. Both are about a function that reads without bound and meets Convex's limits on
-// one transaction, which only this file's limitedBackend() enforces.
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, MockInstance, test, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
@@ -153,6 +149,56 @@ async function sendVoice(t: Backend, roomId: Id<"rooms">, senderId: Id<"particip
     text,
   });
   return { messageId, storageId };
+}
+
+/**
+ * Voice messages written straight to the database, each with a clip of its own in storage: the send
+ * allowance stops a sender at twenty clips a minute. Ten to a transaction, as they may be large.
+ */
+async function voiceRows(
+  t: Backend,
+  roomId: Id<"rooms">,
+  senderId: Id<"participants">,
+  count: number,
+  fields: Partial<Doc<"messages">> = {}
+): Promise<Id<"messages">[]> {
+  const ids: Id<"messages">[] = [];
+  for (let done = 0; done < count; done += 10) {
+    await t.run(async (ctx) => {
+      for (let i = done; i < Math.min(count, done + 10); i++) {
+        const storageId = await ctx.storage.store(new Blob([new Uint8Array(16)]));
+        ids.push(
+          await ctx.db.insert("messages", {
+            roomId,
+            senderId,
+            kind: "audio",
+            status: "processed",
+            text: "hello",
+            mediaUrl: must(await ctx.storage.getUrl(storageId), "clip URL"),
+            audioStorageId: storageId,
+            durationMs: 1500,
+            waveform: [],
+            createdAt: Date.now(),
+            processedAt: Date.now(),
+            ...fields,
+          })
+        );
+      }
+    });
+  }
+  return ids;
+}
+
+/** How many of these voice messages still point at a clip, or are gone: closing a room keeps its messages. Read ten to a transaction, as they were written */
+async function clipsLeft(t: Backend, messageIds: Id<"messages">[]): Promise<number> {
+  let left = 0;
+  for (let from = 0; from < messageIds.length; from += 10) {
+    left += await t.run(async (ctx) => {
+      const rows = await Promise.all(messageIds.slice(from, from + 10).map((id) => ctx.db.get(id)));
+      return rows.filter((m) => !m || m.audioStorageId !== undefined || m.mediaUrl !== undefined).length;
+    });
+  }
+  return left;
 }
 
 const sendImage = async (t: Backend, roomId: Id<"rooms">, senderId: Id<"participants">, storageId?: Id<"_storage">) =>
@@ -667,46 +713,35 @@ describe("the crons that start the sweep and the purge", () => {
     expect(period(purge[0].schedule)).toBe(DAY);
   });
 
-  // DEFECT: cleanupStaleParticipants (participants.ts), the hourly cron beside these two, reads the whole
-  // participants table with one collect(). A participant row is only ever deleted by a kick or by the purge,
-  // which is off by default, so the table grows for as long as the deployment lives. Past 32,000 rows, the most
-  // one function may scan, the cron throws on every run. From then on nothing marks a guest whose browser went
-  // away without its leave beacon as away or offline: they stay in the room's list for good and keep counting
-  // towards maxParticipants, so a room they once joined reads as full to the next person (joinRoom).
-  // It is here, not with the function's other tests, because only this file's backend enforces the limits.
-  test.fails(
+  // The participants table keeps everyone who ever joined (only a kick or the purge deletes a row), so the hourly
+  // sweep (participants.ts: cleanupStaleParticipants) must not read all of it: 32,000 rows is the most one
+  // function may scan. It is here, not with the function's other tests, because only this file's backend
+  // enforces the limits.
+  test(
     "the hourly sweep of stale participants still runs when the deployment holds more than 32,000 participants",
     async () => {
       const t = limitedBackend();
-      // A test.fails test passes when anything in it throws, so a set-up that broke must not pass for the defect
-      const room = await (async () => {
-        const { roomId, alice } = await chatRoom(t);
-        // The people of rooms closed long ago. Which room they were in makes no difference to the sweep
-        const closed = await closedRoomWith(t, 0);
-        for (let batch = 0; batch < 4; batch++) {
-          await t.run(async (ctx) => {
-            for (let i = 0; i < 8000; i++) {
-              await ctx.db.insert("participants", {
-                roomId: closed.roomId,
-                nickname: `Guest ${batch}-${i}`,
-                role: "participant",
-                platform: "web",
-                avatar: { type: "preset", value: "fox" },
-                preferredLanguage: "en",
-                online: false,
-                departed: true,
-                lastSeenAt: T0,
-                joinedAt: T0,
-              });
-            }
-          });
-        }
-        return { roomId, alice };
-      })().catch((error) => {
-        console.error("The set-up of a defect test failed, so the test proves nothing:", error);
-        return undefined;
-      });
-      if (!room) return;
+      const room = await chatRoom(t);
+      // The people of rooms closed long ago. Which room they were in makes no difference to the sweep
+      const closed = await closedRoomWith(t, 0);
+      for (let batch = 0; batch < 4; batch++) {
+        await t.run(async (ctx) => {
+          for (let i = 0; i < 8000; i++) {
+            await ctx.db.insert("participants", {
+              roomId: closed.roomId,
+              nickname: `Guest ${batch}-${i}`,
+              role: "participant",
+              platform: "web",
+              avatar: { type: "preset", value: "fox" },
+              preferredLanguage: "en",
+              online: false,
+              departed: true,
+              lastSeenAt: T0,
+              joinedAt: T0,
+            });
+          }
+        });
+      }
       // Alice's tab died two minutes ago: no heartbeat, no leave beacon
       vi.setSystemTime(T0 + 2 * MINUTE);
 
@@ -720,6 +755,50 @@ describe("the crons that start the sweep and the purge", () => {
       expect(people.find((p) => p._id === room.alice)?.presence).toBe("away");
     },
     30_000
+  );
+
+  // What the first sweep meets on a deployment where the sweep has been failing: far more people still marked
+  // online than one function may write (16,000 documents)
+  test(
+    "a backlog of 17,000 people still marked online is worked off in runs that each stay inside the limits",
+    async () => {
+      const t = limitedBackend();
+      const closed = await closedRoomWith(t, 0);
+      for (let batch = 0; batch < 2; batch++) {
+        await t.run(async (ctx) => {
+          for (let i = 0; i < 8500; i++) {
+            await ctx.db.insert("participants", {
+              roomId: closed.roomId,
+              nickname: `Guest ${batch}-${i}`,
+              role: "participant",
+              platform: "web",
+              avatar: { type: "preset", value: "fox" },
+              preferredLanguage: "en",
+              online: true,
+              presence: "online",
+              lastSeenAt: T0,
+              joinedAt: T0,
+            });
+          }
+        });
+      }
+      vi.setSystemTime(T0 + HOUR);
+
+      await t.mutation(internal.participants.cleanupStaleParticipants, {});
+      for (let runs = 0; (await pendingJobs(t, /cleanupStaleParticipants/)) > 0; runs++) {
+        if (runs >= 100) throw new Error("the sweep never reached the end of its backlog");
+        await runDue(t);
+      }
+
+      // A run that failed is reported by afterEach. Everyone was marked away, and nobody was looked at twice:
+      // a second look in the same sweep would have taken them offline
+      const backlog = await t.run(async (ctx) =>
+        (await ctx.db.query("participants").collect()).filter((p) => p.nickname.startsWith("Guest "))
+      );
+      expect(backlog).toHaveLength(17_000);
+      expect(backlog.filter((p) => p.online && p.presence === "away")).toHaveLength(17_000);
+    },
+    60_000
   );
 });
 
@@ -1152,9 +1231,6 @@ async function roomOver16MiB(t: Backend) {
       }
     });
   }
-  // While the DEFECT under purgeRoomAudio stands, the audio purge fails here and convex-test prints the
-  // error. It is still recorded for the afterEach check: the two tests that use this room deal with it
-  consoleError.mockImplementationOnce(() => undefined);
   await t.mutation(api.rooms.closeRoom, { roomId });
   await runDue(t);
   return { roomId, voice };
@@ -1356,7 +1432,7 @@ describe("purgeClosedRooms with a retention of 30 days", () => {
     const room = await buildRichRoom(t, 1);
     await closeRich(t, room);
     const mid = countByTable(rowsOf(await dump(t), room.roomId));
-    // Nobody is left to play, so every game is moved on by its own timers until it is over
+    // Nobody is left to play: each game's timers run it to its end, or stop when they find the room closed
     expect(await pendingJobs(t, /./)).toBeGreaterThan(0);
     for (let hours = 0; (await pendingJobs(t, /./)) > 0; hours++) {
       if (hours >= 200) throw new Error("the game clocks of a closed room never stopped");
@@ -1364,9 +1440,10 @@ describe("purgeClosedRooms with a retention of 30 days", () => {
       await t.finishInProgressScheduledFunctions();
     }
     const ended = await dump(t);
-    // What the clocks left is not what the other tests purge: more trace rows, and the Word Rush game,
-    // now over, has deleted its own two clips
-    expect(countByTable(rowsOf(ended, room.roomId)).bingoTrace).toBeGreaterThan(mid.bingoTrace);
+    // What the clocks left is not what the other tests purge: the Word Rush game, now over, has deleted its
+    // own two clips. Emoji Bingo's roll timer stops at a closed room, like Emoji Match's turn clock, so its
+    // game is left as the close found it and has no new trace rows
+    expect(countByTable(rowsOf(ended, room.roomId)).bingoTrace).toBe(mid.bingoTrace);
     expect(ended.files).toHaveLength(3);
     vi.setSystemTime(T0 + 31 * DAY);
 
@@ -1666,12 +1743,6 @@ describe("a purge run works in steps of 50 rows", () => {
   test("a room holding more than one transaction may read is purged inside Convex's transaction limits", async () => {
     const t = limitedBackend();
     const { roomId, voice } = await roomOver16MiB(t);
-    // The close failed to delete the room's voice clip (the DEFECT test under purgeRoomAudio), which
-    // convex-test reports as a failed job. Not what this test is about: here the purge has to cope.
-    // Only that job is set aside: any other that failed on the way here still fails the test
-    const failedSoFar = consoleError.mock.calls.map((call) => String(call[0])).filter((line) => line.includes("scheduled function"));
-    expect(failedSoFar.filter((line) => !line.includes("purgeRoomAudio"))).toEqual([]);
-    consoleError.mockClear();
     vi.setSystemTime(T0 + 31 * DAY);
 
     const steps = await runPurge(t);
@@ -1959,28 +2030,56 @@ describe("purgeRoomAudio: closing a room deletes its voice clips", () => {
     expect(await fileExists(t, voice.storageId)).toBe(false);
   });
 
-  // DEFECT: purgeRoomAudio (messages.ts) reads every message of the room with one collect(). A message can
-  // hold a drawing inline, up to 1 MiB (every Lost in Translation round posts one, and so does the web's
-  // offline queue), so a long-lived room passes the 16 MiB a transaction may read. The scheduled mutation
-  // then throws "Read too much data in a single function execution", nothing retries it, and the room's
-  // voice clips stay in file storage: for good while PURGE_CLOSED_ROOMS_AFTER_DAYS is unset, which is the
-  // default. purgeClosedRooms reads such a room one row at a time and does delete the clip (see "a room
-  // holding more than one transaction may read is purged").
-  test.fails("closing a room whose messages add up to more than 16 MiB still deletes its voice clips", async () => {
+  // The audio purge reads only the messages that still have a clip: a room's inline drawings, up to 1 MiB each, are more than one transaction may read
+  test("closing a room whose messages add up to more than 16 MiB still deletes its voice clips", async () => {
     const t = limitedBackend();
-    // A test.fails test passes when anything in it throws. A set-up that broke must not pass for the defect:
-    // it is logged, the test returns without failing, and vitest reports a defect test that did not fail
-    const room = await roomOver16MiB(t).catch((error) => {
-      console.error("The set-up of a defect test failed, so the test proves nothing:", error);
-      return undefined;
+    const room = await roomOver16MiB(t);
+    expect(await fileExists(t, room.voice.storageId)).toBe(false);
+  });
+
+  test("a room with more voice messages than one step clears loses every clip, fifty a step", async () => {
+    const t = newBackend();
+    const { roomId, alice } = await chatRoom(t);
+    const voices = await voiceRows(t, roomId, alice, 100);
+    const picture = must(await sendImage(t, roomId, alice), "image message");
+    expect(await clipsLeft(t, voices)).toBe(100);
+
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    await runDue(t);
+    expect(await clipsLeft(t, voices)).toBe(50);
+    expect(await pendingJobs(t, /purgeRoomAudio/)).toBe(1);
+
+    await runDue(t);
+    expect(await clipsLeft(t, voices)).toBe(0);
+    // A full step cannot tell that it was the last: one more runs, finds nothing and schedules no other
+    expect(await pendingJobs(t, /purgeRoomAudio/)).toBe(1);
+    await runDue(t);
+    expect(await pendingJobs(t, /purgeRoomAudio/)).toBe(0);
+
+    // Only the picture's file is left, and every voice message is still there with its transcript
+    expect(await fileCount(t)).toBe(1);
+    expect((await t.query(api.messages.getMessageById, { messageId: picture }))?.mediaUrl).toBeTruthy();
+    expect((await messagesOfKind(t, roomId, "audio")).map((m) => m.text)).toEqual(voices.map(() => "hello"));
+  });
+
+  test("voice messages that together hold more than one transaction may read are cleared inside Convex's limits", async () => {
+    const t = limitedBackend();
+    const { roomId, alice } = await chatRoom(t);
+    // Each as large as a voice message gets: a full transcript, and the longest translation, romaji and
+    // suggestions a host may submit. 130 of them are 18 MB
+    const long = (chars: number) => "あ".repeat(chars);
+    const voices = await voiceRows(t, roomId, alice, 130, {
+      text: long(2000),
+      processing: { translatedText: long(20_000), romaji: long(20_000), suggestions: Array.from({ length: 10 }, () => long(500)) },
     });
-    if (!room) return;
-    try {
-      expect(await fileExists(t, room.voice.storageId)).toBe(false);
-    } finally {
-      // The failed job is this defect, already asserted above: keep the hook's check for the other tests
-      consoleError.mockClear();
-    }
+
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    await runDue(t, 4);
+
+    // A step that read or wrote too much would have failed, which afterEach reports
+    expect(await clipsLeft(t, voices)).toBe(0);
+    expect(await fileCount(t)).toBe(0);
+    expect(await pendingJobs(t, /purgeRoomAudio/)).toBe(0);
   });
 
   test("running it again on a closed room changes nothing", async () => {

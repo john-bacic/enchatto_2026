@@ -104,6 +104,29 @@ for (const prompts of Object.values(LEVEL_PROMPTS)) {
   }
 }
 
+/**
+ * English text → Japanese for one session: the built-in bank, with the session's own word bank on top.
+ * What a Japanese-speaking player is shown and what a guess is scored against both come from here, so
+ * the option the server offers as the right one is always scored right.
+ */
+function translationsFor(session: Doc<"gameSessions">): Record<string, { ja: string; hintJa?: string }> {
+  const translations: Record<string, { ja: string; hintJa?: string }> = { ...PROMPT_TRANSLATIONS };
+  for (const cp of session.customPrompts ?? []) {
+    translations[cp.text] = { ja: cp.ja, hintJa: cp.hintJa };
+  }
+  return translations;
+}
+
+/** The prompts of a word bank with each text kept once */
+function distinctByText<T extends { text: string }>(prompts: T[]): T[] {
+  const seen = new Set<string>();
+  return prompts.filter((p) => {
+    if (seen.has(p.text)) return false;
+    seen.add(p.text);
+    return true;
+  });
+}
+
 function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -121,6 +144,9 @@ function generateDistractors(correctPrompt: string, allPrompts: Array<{ text: st
 }
 
 const TOTAL_ROUNDS = 10;
+// The smallest word bank a game can be played from: a prompt for every round, and three more texts
+// to offer as a round's wrong options
+const MIN_WORD_BANK = TOTAL_ROUNDS + 3;
 
 // How often the server looks at an open draw or guess phase, which is also how long the room
 // waits for a player who is not there
@@ -330,12 +356,13 @@ export const startGame = mutation({
     // "Host" above is any room's host; it has to be this room's, and has to prove it
     await requireHost(ctx, args.roomId, args.participantId, args.token, "games.startGame");
 
-    // Check no active game
+    // Check no active game. An Emojifyr session does not count: it is opened without a token, and no
+    // current build can close one, so it would keep this game out of the room for good. Start ends it below.
     const activeGames = await ctx.db
       .query("gameSessions")
       .withIndex("by_roomId_status", (q) => q.eq("roomId", args.roomId).eq("status", "active"))
       .collect();
-    if (activeGames.length > 0) throw new Error("A game is already in progress");
+    if (activeGames.some((s) => s.gameType !== "emojifyr")) throw new Error("A game is already in progress");
 
     // Deal in whoever has been here lately, plus the host who is pressing Start. There is no way to
     // join later, so a phone that just dimmed still gets a seat; roundDeadline moves past anyone
@@ -360,12 +387,17 @@ export const startGame = mutation({
     const playerIds = players.map((p) => p._id);
     const playerCount = playerIds.length;
 
-    // Use custom prompts from iOS host if provided, otherwise fall back to hardcoded
+    // Use custom prompts from iOS host if provided, otherwise fall back to hardcoded. A word bank too
+    // small to fill the game is not played at all: the wrong options come from what is left of it once
+    // the prompts are picked, and fewer than three left means a round with the same option twice, or
+    // none to offer. It is counted by its different texts, since one listed twice could land twice
+    // in the same round.
     const promptLevel = Math.min(level, 4);
-    const prompts: Array<{ text: string; ja: string; hint?: string; hintJa?: string }> =
-      args.customPrompts && args.customPrompts.length >= TOTAL_ROUNDS
-        ? args.customPrompts
-        : LEVEL_PROMPTS[promptLevel] ?? LEVEL_PROMPTS[4];
+    const wordBank = distinctByText(args.customPrompts ?? []);
+    const useWordBank = wordBank.length >= MIN_WORD_BANK;
+    const prompts: Array<{ text: string; ja: string; hint?: string; hintJa?: string }> = useWordBank
+      ? wordBank
+      : LEVEL_PROMPTS[promptLevel] ?? LEVEL_PROMPTS[4];
     const shuffledPrompts = shuffleArray(prompts);
 
     // Pick 10 correct prompts for the 10 rounds
@@ -376,8 +408,8 @@ export const startGame = mutation({
     // (e.g., level 1 only shows single words, level 2 only two-word phrases).
     // Fall back to all levels only if same-level pool is too small.
     const sameLevelPool = LEVEL_PROMPTS[promptLevel] ?? [];
-    const allAvailable: Array<{ text: string }> = args.customPrompts
-      ? args.customPrompts
+    const allAvailable: Array<{ text: string }> = useWordBank
+      ? wordBank
       : sameLevelPool.filter((p) => !correctTexts.has(p.text)).length >= 3
         ? sameLevelPool
         : Object.values(LEVEL_PROMPTS).flat();
@@ -395,6 +427,13 @@ export const startGame = mutation({
         distIdx++;
       }
       roundDistractors.push(rd);
+    }
+
+    // Take the room over from Emojifyr: every session still active here is one of its own. This happens
+    // in the transaction that starts the game, so a caller who keeps reopening Emojifyr cannot slip in
+    // between a Cancel and this Start.
+    for (const emojifyr of activeGames) {
+      await endEmojifyrSession(ctx, emojifyr);
     }
 
     // Create game session — always 10 rounds
@@ -498,6 +537,10 @@ export const submitGameStep = mutation({
 
     // === DRAW STEP SUBMITTED ===
     if (step.stepType === "draw") {
+      // Both apps always attach the canvas image. Without one the others would be asked to guess at
+      // nothing, in a round the summary counts and the scores and the replay leave out.
+      if (!args.outputDrawingUrl) throw new Error("Drawing is missing");
+
       // Save the drawing
       await ctx.db.patch(args.stepId, {
         outputDrawingUrl: args.outputDrawingUrl,
@@ -541,13 +584,9 @@ export const submitGameStep = mutation({
 
     // === GUESS STEP SUBMITTED ===
     const selectedOption = args.selectedOption ?? args.outputText;
-    // Check correctness against both English original and Japanese translation
-    // Look up translation from custom prompts first, then hardcoded
-    let jaTranslation = PROMPT_TRANSLATIONS[chain.originalPrompt]?.ja;
-    if (!jaTranslation && session.customPrompts) {
-      const cp = session.customPrompts.find((p: { text: string; ja: string }) => p.text === chain.originalPrompt);
-      if (cp) jaTranslation = cp.ja;
-    }
+    // Check correctness against both English original and Japanese translation: the translation
+    // getMyActiveStep showed, which is the session's own word bank first, then the built-in one
+    const jaTranslation = translationsFor(session)[chain.originalPrompt]?.ja;
     const isCorrect = selectedOption === chain.originalPrompt || (!!jaTranslation && selectedOption === jaTranslation);
     console.log("[submitGameStep] guess:", selectedOption, "correct:", isCorrect, "expected:", chain.originalPrompt, "ja:", jaTranslation);
 
@@ -849,12 +888,7 @@ export const getMyActiveStep = query({
     const totalRounds = session.chainCount ?? TOTAL_ROUNDS;
 
     // Build translation map: merge hardcoded with any custom prompts from this session
-    const translationMap: Record<string, { ja: string; hintJa?: string }> = { ...PROMPT_TRANSLATIONS };
-    if (session.customPrompts) {
-      for (const cp of session.customPrompts) {
-        translationMap[cp.text] = { ja: cp.ja, hintJa: cp.hintJa };
-      }
-    }
+    const translationMap = translationsFor(session);
 
     // Translate prompt and options if player's language is Japanese
     const lang = participant.preferredLanguage;
@@ -1089,20 +1123,18 @@ export const getGameReplay = query({
           steps,
         };
       })
-      // Only include chains that were actually played (have a draw step with output)
+      // Only include chains that were actually played (have a draw step with output). While the game
+      // is running that also means finished: a round still being guessed would hand its prompt to the
+      // guessers. Both apps ask for the replay only once the session is complete, and that replay is
+      // what it always was.
       .filter((chain) => {
         const drawStep = chain.steps.find((s) => s.stepType === "draw");
-        return drawStep && drawStep.outputDrawingUrl;
+        return drawStep && drawStep.outputDrawingUrl && (session.status !== "active" || chain.status === "complete");
       });
 
     // Build prompt translations (en→ja) for all options used in this game
     const promptTranslations: Record<string, string> = {};
-    const translationMap: Record<string, { ja: string }> = { ...PROMPT_TRANSLATIONS };
-    if (session.customPrompts) {
-      for (const cp of session.customPrompts as Array<{ text: string; ja: string }>) {
-        translationMap[cp.text] = { ja: cp.ja };
-      }
-    }
+    const translationMap = translationsFor(session);
     for (const chain of chains) {
       // originalPrompt
       if (translationMap[chain.originalPrompt]) {
@@ -1126,7 +1158,7 @@ export const getGameReplay = query({
 
 // No current build offers Emojifyr, but installed iOS builds from before 2026-10-01 still call these
 // functions and their routes, so all of them stay as they are. What is bounded is what they can ask
-// of the model.
+// of the model, and which sessions they reach: Emojifyr's own, never Lost in Translation's.
 
 // The longest text the game's own screens send towards the model, in UTF-16 units. The sentence field
 // stops at 80 characters, which the iOS field counts whole: an emoji is one there and two to four here.
@@ -1153,6 +1185,43 @@ export const takeEmojifyrModelCall = internalMutation({
 /** Counts one model call against the ceiling. False once the hour's allowance is used up */
 async function emojifyrModelCallAllowed(ctx: ActionCtx): Promise<boolean> {
   return await ctx.runMutation(internal.games.takeEmojifyrModelCall, {});
+}
+
+/**
+ * The session an Emojifyr function was handed, which has to be one of Emojifyr's. These functions ask
+ * for no token, and Lost in Translation keeps its sessions in the same table, with their ids in what
+ * every guest reads: without this check anyone could end the game that cancelGame lets only the host end.
+ */
+async function emojifyrSessionById(ctx: MutationCtx, id: Id<"gameSessions">): Promise<Doc<"gameSessions">> {
+  const session = await ctx.db.get(id);
+  if (!session) throw new Error("Session not found");
+  if (session.gameType !== "emojifyr") throw new Error("Not an Emojifyr game");
+  return session;
+}
+
+/**
+ * Ends an Emojifyr session and records it in the chat: for the game's own Cancel, and for a Lost in
+ * Translation Start that takes the room over (startGame), so that a build which still shows Emojifyr
+ * sees the same thing either way. The rounds are left to the caller. startGame does not touch them:
+ * no build asks for the rounds of a session that is over, and they are written without a token, so
+ * reading them there would let whoever filled them push Start over a transaction's read limit.
+ */
+async function endEmojifyrSession(ctx: MutationCtx, session: Doc<"gameSessions">): Promise<void> {
+  await ctx.db.patch(session._id, {
+    status: "complete",
+    completedAt: Date.now(),
+    cancelled: true,
+  });
+
+  // Post system message
+  await ctx.db.insert("messages", {
+    roomId: session.roomId,
+    senderId: session.createdByParticipantId,
+    kind: "system",
+    status: "processed",
+    text: "game_cancelled:Emojifyr",
+    createdAt: Date.now(),
+  });
 }
 
 export const startEmojifyr = mutation({
@@ -1473,8 +1542,7 @@ export const advanceEmojifyrRound = mutation({
     gameSessionId: v.id("gameSessions"),
   },
   handler: async (ctx, args) => {
-    const session = await ctx.db.get(args.gameSessionId);
-    if (!session) throw new Error("Session not found");
+    const session = await emojifyrSessionById(ctx, args.gameSessionId);
     if (session.status !== "active") throw new Error("Session is not active");
 
     const playerOrder = session.playerOrder ?? session.playerIds;
@@ -1514,14 +1582,9 @@ export const cancelEmojifyr = mutation({
     gameSessionId: v.id("gameSessions"),
   },
   handler: async (ctx, args) => {
-    const session = await ctx.db.get(args.gameSessionId);
-    if (!session) throw new Error("Session not found");
+    const session = await emojifyrSessionById(ctx, args.gameSessionId);
 
-    await ctx.db.patch(args.gameSessionId, {
-      status: "complete",
-      completedAt: Date.now(),
-      cancelled: true,
-    });
+    await endEmojifyrSession(ctx, session);
 
     // Mark all non-complete rounds as complete
     const rounds = await ctx.db
@@ -1533,17 +1596,6 @@ export const cancelEmojifyr = mutation({
         await ctx.db.patch(round._id, { status: "complete" });
       }
     }
-
-    // Post system message
-    const creator = await ctx.db.get(session.createdByParticipantId);
-    await ctx.db.insert("messages", {
-      roomId: session.roomId,
-      senderId: session.createdByParticipantId,
-      kind: "system",
-      status: "processed",
-      text: "game_cancelled:Emojifyr",
-      createdAt: Date.now(),
-    });
   },
 });
 

@@ -39,6 +39,11 @@ git push --dry-run --quiet
 echo "→ Type check..."
 npx tsc --noEmit -p apps/web
 
+# The tests run the Convex functions that are about to be pushed, in memory, in a few seconds. CI runs
+# them as well, but only on the push below, which comes after production Convex has changed.
+echo "→ Tests..."
+npm test
+
 echo "Deploying $SHA..."
 
 echo "→ Convex dev (helpful-bulldog-420)..."
