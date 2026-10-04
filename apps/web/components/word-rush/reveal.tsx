@@ -101,7 +101,8 @@ export function RevealView({ state, me, myId, learning, s, now, isHost, toast }:
 
   return (
     <>
-      <div className="ec-card wr-word-card" style={{ marginTop: 8 }}>
+      {/* Room for the stamp, which reaches 24px above the card: the scrolling body cuts what is drawn past its top */}
+      <div className="ec-card wr-word-card" style={{ marginTop: 24 }}>
         {mine?.correct && (
           <div className="ec-stamp" style={{ whiteSpace: "pre-line" }}>
             {s.gotIt}

@@ -40,7 +40,9 @@ struct WordRushRevealView: View {
                         if let reveal {
                             wordCard(reveal)
                                 .overlay(alignment: .topTrailing) { verdictStamp }
-                                .padding(.top, 14)
+                                // Room for the stamp, which reaches 24 pt above the card: the scroll view cuts
+                                // what its content draws past its top edge
+                                .padding(.top, 28)
                             playerResults
                             choicesRecap(reveal)
                         }
@@ -157,8 +159,13 @@ struct WordRushRevealView: View {
                 .font(.chunky(15))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(myCorrect ? EC.mint : EC.pink)
+                // The word stays inside the inner ring, on one line
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 10)
                 .frame(width: 78, height: 78)
-                .background(Circle().fill(.white.opacity(0.92)))
+                // Opaque: the card's outline does not show through the stamp
+                .background(Circle().fill(.white))
                 .overlay(Circle().strokeBorder(myCorrect ? EC.mint : EC.pink, lineWidth: 4))
                 .overlay(Circle().strokeBorder(myCorrect ? EC.mint : EC.pink, lineWidth: 1.5).padding(5))
                 .rotationEffect(.degrees(14))
