@@ -58,6 +58,7 @@ enum L {
         "This room": ["ja": "このルーム"],
         "Max participants:": ["ja": "最大参加者数:"],
         "Language": ["ja": "言語"],
+        "Background": ["ja": "背景"],
 
         // QR panel
         "Room Code": ["ja": "ルームコード"],

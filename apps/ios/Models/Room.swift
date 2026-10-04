@@ -50,8 +50,9 @@ struct SavedHostRoom: Codable, Equatable {
     /// registered none. In UserDefaults with the rest of the record: it is good for this one room only, and the
     /// record is dropped when the room closes
     let hostToken: String?
-    /// Index into RoomTexture.all the room was created with, which the start screen shows for it. nil for a room
-    /// saved by a build that stored none: the index is then worked out from the join code
+    /// Index into RoomTexture.all of the room's background, which the start screen shows for it: the one the room
+    /// was created with, then whatever the room screen has drawn it on since. nil for a room saved by a build
+    /// that stored none: the index is then worked out from the join code
     let background: Int?
 
     private static let key = "enchatto_hostRoom"
@@ -71,9 +72,23 @@ struct SavedHostRoom: Codable, Equatable {
         UserDefaults.standard.set(data, forKey: Self.key)
     }
 
+    /// Stores the background the room is drawn on now, only if the record is still about this room. The record
+    /// of a room that has closed is kept up where it was set aside
+    static func setBackground(_ background: Int, roomId: String) {
+        let saved = load()
+        guard let record = saved ?? dropped, record.roomId == roomId, record.background != background else { return }
+        let drawn = SavedHostRoom(roomId: record.roomId, hostId: record.hostId, joinCode: record.joinCode, deployment: record.deployment, hostToken: record.hostToken, background: background)
+        if saved == nil { dropped = drawn } else { drawn.save() }
+    }
+
+    /// The record `clear` last forgot, kept while the app runs: the start screen reads the background a room had
+    /// last from it when the room closed with the host inside
+    private(set) static var dropped: SavedHostRoom?
+
     /// Forgets the record only if it is still about this room
     static func clear(roomId: String) {
-        guard load()?.roomId == roomId else { return }
+        guard let saved = load(), saved.roomId == roomId else { return }
+        dropped = saved
         UserDefaults.standard.removeObject(forKey: key)
     }
 }

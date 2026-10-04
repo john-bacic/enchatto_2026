@@ -156,7 +156,7 @@ struct HostConversationView: View {
                 closedBanner
             }
         }
-        .background { RoomBackground(index: viewModel.room.map { RoomTexture.index(background: $0.background, joinCode: $0.joinCode) } ?? textureIndex).ignoresSafeArea() }
+        .background { FadingRoomBackground(index: viewModel.textureIndex ?? textureIndex).ignoresSafeArea() }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .background { offlineTranslatorBridge }
@@ -1896,13 +1896,7 @@ struct HostConversationView: View {
             }
 
             if !viewModel.isClosed {
-                Button {
-                    Haptics.tap()
-                    showCloseConfirmation = true
-                } label: {
-                    Text(L.t("Close Room", hostLanguage))
-                }
-                .buttonStyle(.chunky(EC.red, size: .mini))
+                closeRoomButton
             }
         }
         .padding(.horizontal, 20)
@@ -1911,9 +1905,23 @@ struct HostConversationView: View {
         .background(EC.paper.ignoresSafeArea())
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// Close Room, on "In this room" and on Settings, with the dialog that asks first. The dialog is attached to the
+    /// button, so it is inside whichever sheet is up: a dialog is presented from what is in front
+    private var closeRoomButton: some View {
+        Button {
+            Haptics.tap()
+            showCloseConfirmation = true
+        } label: {
+            Text(L.t("Close Room", hostLanguage))
+        }
+        .buttonStyle(.chunky(EC.red, size: .mini))
         .confirmationDialog(L.t("Close this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
             Button(L.t("Close Room", hostLanguage), role: .destructive) {
+                // The sheet the button is on goes away, and the closed banner shows
                 showInRoom = false
+                viewModel.showParticipantSheet = false
                 Task { await viewModel.closeRoom() }
             }
         } message: {
@@ -1947,6 +1955,30 @@ struct HostConversationView: View {
                     .onChange(of: hostLanguage) { newValue in
                         UserDefaults.standard.set(newValue, forKey: "enchatto_lastLanguage")
                         viewModel.setHostLanguage(newValue)
+                    }
+
+                    if !viewModel.isClosed {
+                        HStack(spacing: 10) {
+                            Text(L.t("Background", hostLanguage))
+                                .font(.round(15, .bold))
+                                .foregroundStyle(EC.ink)
+                            Spacer()
+                            // Another of the textures, for everyone in the room
+                            Button {
+                                Haptics.tap()
+                                viewModel.randomizeBackground()
+                            } label: {
+                                HStack(spacing: 5) {
+                                    PackIcon("g-arrows", size: 18)
+                                        .accessibilityHidden(true)
+                                    Text(L.t("Random", hostLanguage))
+                                }
+                            }
+                            .buttonStyle(.chunky(.white, size: .mini, fullWidth: false))
+                            // There is no background to change from until the room's state is here
+                            .disabled(viewModel.room == nil)
+                        }
+                        .listRowBackground(Color.white)
                     }
 
                     if !viewModel.translationPacksInstalled {
@@ -1994,7 +2026,15 @@ struct HostConversationView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(RoomBackground(room: viewModel.room).ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                if !viewModel.isClosed {
+                    closeRoomButton
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+                }
+            }
+            .background(FadingRoomBackground(index: viewModel.textureIndex ?? textureIndex).ignoresSafeArea())
             .tint(EC.blue)
             .navigationTitle(L.t("Settings", hostLanguage))
             .navigationBarTitleDisplayMode(.inline)
@@ -2007,8 +2047,19 @@ struct HostConversationView: View {
                 }
             }
         }
-        .presentationDetents([.height(320)])
+        // An open room has the background row and Close Room besides
+        .presentationDetents([.height(viewModel.isClosed ? 320 : 440)])
         .presentationDragIndicator(.visible)
+        // The room screen's alert again, inside the sheet: an alert is presented from what is in front, and a
+        // background the server refused comes back while this sheet is up
+        .alert("Error", isPresented: .init(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK") { viewModel.error = nil }
+        } message: {
+            Text(viewModel.error ?? "")
+        }
     }
 
     // MARK: - Helpers

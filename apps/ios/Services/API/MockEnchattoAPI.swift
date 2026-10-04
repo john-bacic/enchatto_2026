@@ -207,6 +207,14 @@ class MockEnchattoAPI: EnchattoAPI {
         rooms[roomId]?.closedAt = Date()
     }
 
+    func setRoomBackground(roomId: String, background: Int) async throws {
+        // As the server does: only an open room, and only an index that is one of the textures
+        guard let room = rooms[roomId] else { throw APIError.roomNotFound }
+        guard room.status != .closed else { throw APIError.serverError("Room is closed") }
+        guard RoomTexture.all.indices.contains(background) else { throw APIError.serverError("Unknown background") }
+        rooms[roomId]?.background = background
+    }
+
     func setHostPushToken(roomId: String, hostId: String, token: String) async throws {}
 
     func kickParticipant(participantId: String, roomId: String) async throws {

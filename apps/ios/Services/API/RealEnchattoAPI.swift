@@ -70,6 +70,10 @@ class RealEnchattoAPI: EnchattoAPI {
         try await client.postVoid("/api/rooms/close", body: ["roomId": roomId], retriesOn5xx: 1)
     }
 
+    func setRoomBackground(roomId: String, background: Int) async throws {
+        try await client.postVoid("/api/rooms/background", body: ["roomId": roomId, "background": background], retriesOn5xx: 1)
+    }
+
     func setHostPushToken(roomId: String, hostId: String, token: String) async throws {
         try await client.postVoid("/api/rooms/push-token", body: ["roomId": roomId, "hostId": hostId, "token": token], retriesOn5xx: 1)
     }

@@ -135,6 +135,9 @@ async function makeWorld(options: { legacy?: boolean; legacyHost?: boolean } = {
 }
 
 const roomStatus = async (w: World) => (await w.t.query(api.rooms.getRoomState, { roomId: w.roomId }))?.room.status;
+const roomBackground = async (w: World) => (await w.t.query(api.rooms.getRoomState, { roomId: w.roomId }))?.room.background;
+/** A background the room does not have, so that a change of it can be seen */
+const anotherBackground = async (w: World) => (((await roomBackground(w)) ?? 0) + 1) % 10;
 const person = async (w: World, id: Pid) =>
   (await w.t.query(api.participants.getRoomParticipants, { roomId: w.roomId })).find((p) => p._id === id) ?? null;
 const countMessages = async (w: World, kind: string) =>
@@ -360,6 +363,13 @@ const GATED: GateCase<any>[] = [
     act: (w, token) =>
       w.t.mutation(api.rooms.updateRoomSettings, { roomId: w.roomId, settings: SETTINGS, callerId: w.hostId, token }),
     observe: async (w) => (await w.t.query(api.rooms.getRoomState, { roomId: w.roomId }))?.room.settings.maxParticipants,
+  }),
+  gate({
+    fn: "rooms.setRoomBackground",
+    arrange: async (w) => ({ actor: w.hostId, data: await anotherBackground(w) }),
+    act: (w, token, background) =>
+      w.t.mutation(api.rooms.setRoomBackground, { roomId: w.roomId, background, callerId: w.hostId, token }),
+    observe: roomBackground,
   }),
 
   // ── participants ──
@@ -987,6 +997,13 @@ const HOST_ONLY: HostOnlyCase<any>[] = [
     observe: async (w) => (await w.t.query(api.rooms.getRoomState, { roomId: w.roomId }))?.room.settings.maxParticipants,
   }),
   hostOnly({
+    fn: "rooms.setRoomBackground",
+    arrange: anotherBackground,
+    act: (w, caller, token, background) =>
+      w.t.mutation(api.rooms.setRoomBackground, { roomId: w.roomId, background, callerId: caller, token }),
+    observe: roomBackground,
+  }),
+  hostOnly({
     fn: "participants.kickParticipant",
     arrange: (w) => joinGuest(w.t, w.roomId, "Victim", { avatar: "owl" }),
     act: (w, caller, token, victim) =>
@@ -1202,6 +1219,14 @@ const OUTSIDERS: OutsiderCase<any>[] = [
     act: (w, who, token) =>
       w.t.mutation(api.rooms.updateRoomSettings, { roomId: w.roomId, settings: SETTINGS, callerId: who, token }),
     observe: async (w) => (await w.t.query(api.rooms.getRoomState, { roomId: w.roomId }))?.room.settings.maxParticipants,
+  }),
+  outsider({
+    fn: "rooms.setRoomBackground",
+    as: "host",
+    arrange: anotherBackground,
+    act: (w, who, token, background) =>
+      w.t.mutation(api.rooms.setRoomBackground, { roomId: w.roomId, background, callerId: who, token }),
+    observe: roomBackground,
   }),
   outsider({
     fn: "participants.kickParticipant",
@@ -2181,6 +2206,7 @@ describe("HTTP routes", () => {
     const messageId = await say(w, guestId);
     const { turnId } = await answeredTurn(w);
     const routes: Array<[path: string, label: string, body: Record<string, unknown>]> = [
+      ["/api/rooms/background", "rooms.setRoomBackground", { roomId, background: 4 }],
       ["/api/rooms/close", "rooms.closeRoom", { roomId }],
       ["/api/participants/kick", "participants.kickParticipant", { participantId: victim, roomId }],
       ["/api/messages/submit-processed", "messages.submitProcessedMessage", { messageId, processing: { translatedText: "no" } }],
@@ -2212,6 +2238,7 @@ describe("HTTP routes", () => {
       ["/api/participants/set-typing", { participantId: hostId, action: "typing" }],
       ["/api/emoji-match/create-lobby", { roomId, hostParticipantId: hostId }],
       ["/api/word-rush/create-lobby", { roomId, hostParticipantId: hostId }],
+      ["/api/rooms/background", { roomId, background: 4 }],
       ["/api/rooms/close", { roomId }],
     ];
     for (const [path, body] of bodies) {

@@ -1,12 +1,13 @@
 // rooms.ts and participants.ts: creating, joining, presence, leaving, kicking, the update mutations, closing,
 // the two sweeps the crons run, and the /api/rooms/* and /api/participants/* routes the iOS host calls.
-// The caller-token rules (AUTH_MODE, requireCaller and friends) have their own file.
+// The caller-token rules (AUTH_MODE, requireCaller and friends) have their own file; setRoomBackground is
+// held to them here, beside its other tests.
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import crons from "../../convex/crons";
 import { isAround, isPresent } from "../../convex/participants";
-import { Backend, createRoom, joinGuest, newBackend } from "./setup";
+import { Backend, createRoom, joinGuest, newBackend, tokenFor } from "./setup";
 
 const START = new Date("2026-10-03T12:00:00Z").getTime();
 const SECOND = 1000;
@@ -108,6 +109,18 @@ async function post(t: Backend, path: string, body: unknown) {
 
 /** A device token in the shape APNs gives out: 64 hex characters */
 const DEVICE_TOKEN = "9e8d7c6b".repeat(8);
+
+/**
+ * Keeps console.warn out of the test's output and collects the lines a failed caller check writes:
+ * "auth: <function> <reason>". `clear` forgets the lines so far.
+ */
+function authLog() {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  return {
+    lines: () => warn.mock.calls.map((args) => args.join(" ")).filter((line) => line.startsWith("auth:")),
+    clear: () => warn.mockClear(),
+  };
+}
 
 // ─── createRoom ──────────────────────────────────────────────────────────────
 
@@ -1225,6 +1238,276 @@ describe("updateRoomSettings", () => {
   });
 });
 
+// ─── setRoomBackground ───────────────────────────────────────────────────────
+
+describe("setRoomBackground", () => {
+  const HOST = tokenFor(1);
+  const GUEST = tokenFor(2);
+  const OTHER_HOST = tokenFor(3);
+  /** Well formed, on record for nobody */
+  const NOBODY = tokenFor(4);
+  const MODES = [undefined, "log", "enforce"] as const;
+  const modeName = (mode: string | undefined) => `AUTH_MODE ${mode ?? "unset"}`;
+
+  /** A room with background 3. Its host and its one guest each registered a token, unless `legacyHost` */
+  async function roomOfTwo(options: { legacyHost?: boolean } = {}) {
+    const t = newBackend();
+    const { roomId, hostId } = await t.mutation(api.rooms.createRoom, {
+      hostNickname: "Mika",
+      hostToken: options.legacyHost ? undefined : HOST,
+      background: 3,
+    });
+    const guestId = await joinGuest(t, roomId, "Ana", { token: GUEST });
+    return { t, roomId, hostId, guestId };
+  }
+
+  test("gives the room the background the host asks for, answers with it, and every reader of the room sees it", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    await joinGuest(t, roomId, "Ana");
+
+    expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background: 8 })).toEqual({ background: 8 });
+
+    // What the web room page subscribes to, what the join page finds the room by, and what the iOS host polls
+    expect((await t.query(api.rooms.getRoomState, { roomId }))?.room.background).toBe(8);
+    expect((await t.query(api.rooms.getRoomByJoinCode, { joinCode }))?.background).toBe(8);
+    expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(8);
+  });
+
+  test("each of the ten textures is taken", async () => {
+    const t = newBackend();
+    // From the last texture, so that every one of the ten below is a change
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 9 });
+    for (let background = 0; background <= 9; background++) {
+      expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background })).toEqual({ background });
+      expect((await roomRow(t, roomId)).background).toBe(background);
+    }
+  });
+
+  // A request whose answer is lost leaves the app showing the background from before, and its next pick can
+  // be the one the room already got
+  test("the background the room already has is taken again, and answered the same", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    for (let i = 0; i < 2; i++) {
+      expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background: 8 })).toEqual({ background: 8 });
+      expect((await roomRow(t, roomId)).background).toBe(8);
+    }
+  });
+
+  // -1 and 10 are one past each end of the texture list. The iOS host decodes the room's background as Int, so
+  // a fraction that was stored would fail every poll of the room
+  test("a number that is not one of the ten textures is refused, and the room keeps the background it has", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    const before = await roomRow(t, roomId);
+    for (const background of [-1, 10, 1.5, NaN, Infinity, -Infinity, 0.5, 8.999]) {
+      await expect(
+        t.mutation(api.rooms.setRoomBackground, { roomId, background }),
+        String(background)
+      ).rejects.toThrow(/Unknown background/);
+    }
+    expect(await roomRow(t, roomId)).toEqual(before);
+  });
+
+  test("a closed room keeps its background", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    const before = await roomRow(t, roomId);
+    await expect(t.mutation(api.rooms.setRoomBackground, { roomId, background: 8 })).rejects.toThrow(/Room is closed/);
+    expect(await roomRow(t, roomId)).toEqual(before);
+  });
+
+  test("a room that does not exist is reported as not found", async () => {
+    const t = newBackend();
+    const roomId = await deletedRoom(t);
+    await expect(t.mutation(api.rooms.setRoomBackground, { roomId, background: 8 })).rejects.toThrow(/Room not found/);
+  });
+
+  test("only the background changes: the rest of the room, its people, its chat and every other room stay as they are", async () => {
+    // A room nobody has joined is waiting, and one with a guest is active
+    for (const withGuest of [false, true]) {
+      // Each pass starts at the same hour, so the change below is always ten minutes after everything before it
+      clockTo(0);
+      const t = newBackend();
+      const { roomId } = await t.mutation(api.rooms.createRoom, {
+        hostNickname: "Mika",
+        background: 3,
+        settings: settings({ maxParticipants: 12 }),
+      });
+      if (withGuest) await joinGuest(t, roomId, "Ana");
+      const other = await t.mutation(api.rooms.createRoom, { hostNickname: "Ken", background: 3 });
+      const before = {
+        room: await roomRow(t, roomId),
+        other: await roomRow(t, other.roomId),
+        people: await people(t, roomId),
+        chat: await announcements(t, roomId),
+        jobs: await scheduled(t),
+      };
+      expect(before.room.status).toBe(withGuest ? "active" : "waiting");
+
+      clockTo(10 * MINUTE);
+      await t.mutation(api.rooms.setRoomBackground, { roomId, background: 6 });
+
+      expect(await roomRow(t, roomId)).toEqual({ ...before.room, background: 6 });
+      expect(await roomRow(t, other.roomId)).toEqual(before.other);
+      expect(await people(t, roomId)).toEqual(before.people);
+      expect(await announcements(t, roomId)).toEqual(before.chat);
+      expect(await scheduled(t)).toEqual(before.jobs);
+    }
+  });
+
+  // The caller check is requireHost, the one closeRoom and updateRoomSettings make. Its rules are in
+  // auth-tokens.test.ts; the tests from here on hold this mutation to them.
+
+  test("AUTH_MODE unset or log: a call without the host's token, or with another, is logged and goes through", async () => {
+    const log = authLog();
+    for (const mode of [undefined, "log"] as const) {
+      for (const [token, reason] of [
+        [undefined, "no token"],
+        [GUEST, "wrong token"],
+        [NOBODY, "wrong token"],
+      ] as const) {
+        const where = `${modeName(mode)}, ${reason}`;
+        const { t, roomId, hostId } = await roomOfTwo();
+        vi.stubEnv("AUTH_MODE", mode);
+        log.clear();
+
+        expect(
+          await t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, callerId: hostId, token }),
+          where
+        ).toEqual({ background: 8 });
+
+        expect(log.lines(), where).toEqual([`auth: rooms.setRoomBackground ${reason}`]);
+        expect((await roomRow(t, roomId)).background, where).toBe(8);
+      }
+    }
+  });
+
+  test("AUTH_MODE enforce: without the host's token, or with any other, the call is refused and the room keeps its background; with it, it goes through", async () => {
+    const log = authLog();
+    const { t, roomId, hostId } = await roomOfTwo();
+    const before = await roomRow(t, roomId);
+    vi.stubEnv("AUTH_MODE", "enforce");
+    log.clear();
+
+    for (const token of [undefined, GUEST, NOBODY]) {
+      await expect(
+        t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, callerId: hostId, token }),
+        token ?? "no token"
+      ).rejects.toThrow(/Not authorised/);
+    }
+    // The same lines the other modes write, so a deployment's log lists exactly what enforce refuses
+    expect(log.lines()).toEqual([
+      "auth: rooms.setRoomBackground no token",
+      "auth: rooms.setRoomBackground wrong token",
+      "auth: rooms.setRoomBackground wrong token",
+    ]);
+    expect(await roomRow(t, roomId)).toEqual(before);
+
+    log.clear();
+    expect(
+      await t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, callerId: hostId, token: HOST })
+    ).toEqual({ background: 8 });
+    expect(log.lines()).toEqual([]);
+    expect((await roomRow(t, roomId)).background).toBe(8);
+  });
+
+  // The host app names its caller on every request. A call that names none is taken for the room's host
+  test("enforce: with no caller named the room's own host is assumed, and has to prove it like any other", async () => {
+    const log = authLog();
+    const { t, roomId } = await roomOfTwo();
+    vi.stubEnv("AUTH_MODE", "enforce");
+    log.clear();
+
+    for (const token of [undefined, GUEST]) {
+      await expect(
+        t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, token }),
+        token ?? "no token"
+      ).rejects.toThrow(/Not authorised/);
+    }
+    expect(log.lines()).toEqual([
+      "auth: rooms.setRoomBackground no token",
+      "auth: rooms.setRoomBackground wrong token",
+    ]);
+    expect((await roomRow(t, roomId)).background).toBe(3);
+
+    expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, token: HOST })).toEqual({
+      background: 8,
+    });
+  });
+
+  test("a guest who calls in its own name, with its own token, is logged as not the host, and refused under enforce", async () => {
+    const log = authLog();
+    for (const mode of MODES) {
+      const { t, roomId, guestId } = await roomOfTwo();
+      vi.stubEnv("AUTH_MODE", mode);
+      log.clear();
+
+      const call = t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, callerId: guestId, token: GUEST });
+      if (mode === "enforce") await expect(call, modeName(mode)).rejects.toThrow(/Not authorised/);
+      else expect(await call, modeName(mode)).toEqual({ background: 8 });
+
+      expect(log.lines(), modeName(mode)).toEqual(["auth: rooms.setRoomBackground not the host"]);
+      expect((await roomRow(t, roomId)).background, modeName(mode)).toBe(mode === "enforce" ? 3 : 8);
+    }
+  });
+
+  test("the host of another room is logged as not the host, and refused under enforce, though its token is good in its own room", async () => {
+    const log = authLog();
+    for (const mode of MODES) {
+      const { t, roomId } = await roomOfTwo();
+      const other = await t.mutation(api.rooms.createRoom, { hostNickname: "Ken", hostToken: OTHER_HOST, background: 5 });
+      const outsider = { callerId: other.hostId, token: OTHER_HOST };
+      vi.stubEnv("AUTH_MODE", mode);
+      log.clear();
+
+      const call = t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, ...outsider });
+      if (mode === "enforce") await expect(call, modeName(mode)).rejects.toThrow(/Not authorised/);
+      else expect(await call, modeName(mode)).toEqual({ background: 8 });
+
+      expect(log.lines(), modeName(mode)).toEqual(["auth: rooms.setRoomBackground not the host"]);
+      expect((await roomRow(t, roomId)).background, modeName(mode)).toBe(mode === "enforce" ? 3 : 8);
+
+      // The token is not the reason for the refusal: it changes the room it is the host of, and only that one
+      log.clear();
+      await t.mutation(api.rooms.setRoomBackground, { roomId: other.roomId, background: 1, ...outsider });
+      expect(log.lines(), modeName(mode)).toEqual([]);
+      expect((await roomRow(t, other.roomId)).background, modeName(mode)).toBe(1);
+      expect((await roomRow(t, roomId)).background, modeName(mode)).toBe(mode === "enforce" ? 3 : 8);
+    }
+  });
+
+  // A room an installed iOS build made: its host has no token to be asked for, but the caller a call names is
+  // still held to being the host
+  test("a host who registered no token is asked for none, in every mode, and a guest of that room is still not the host", async () => {
+    const log = authLog();
+    for (const mode of MODES) {
+      const { t, roomId, hostId, guestId } = await roomOfTwo({ legacyHost: true });
+      vi.stubEnv("AUTH_MODE", mode);
+      log.clear();
+
+      const asGuest = t.mutation(api.rooms.setRoomBackground, { roomId, background: 8, callerId: guestId, token: GUEST });
+      if (mode === "enforce") await expect(asGuest, modeName(mode)).rejects.toThrow(/Not authorised/);
+      else await asGuest;
+      expect(log.lines(), modeName(mode)).toEqual(["auth: rooms.setRoomBackground not the host"]);
+      expect((await roomRow(t, roomId)).background, modeName(mode)).toBe(mode === "enforce" ? 3 : 8);
+
+      log.clear();
+      // With no token, and with one there is nothing to check against
+      for (const [background, token] of [
+        [6, undefined],
+        [7, NOBODY],
+      ] as const) {
+        await t.mutation(api.rooms.setRoomBackground, { roomId, background, callerId: hostId, token });
+        expect((await roomRow(t, roomId)).background, modeName(mode)).toBe(background);
+      }
+      expect(log.lines(), modeName(mode)).toEqual([]);
+    }
+  });
+});
+
 // ─── closeRoom ───────────────────────────────────────────────────────────────
 
 describe("closeRoom", () => {
@@ -2043,6 +2326,95 @@ describe("/api/rooms/* and /api/participants/*", () => {
     });
   });
 
+  test("rooms/background gives the room in the body the background in the body, and answers with exactly that", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    const other = await t.mutation(api.rooms.createRoom, { hostNickname: "Ken", background: 3 });
+
+    const res = await post(t, "/api/rooms/background", { roomId, background: 8 });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    expect(res.body).toEqual({ background: 8 });
+
+    // What the host app polls, and what the guests' pages subscribe to
+    expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(8);
+    expect((await t.query(api.rooms.getRoomState, { roomId }))?.room.background).toBe(8);
+    expect((await roomRow(t, other.roomId)).background).toBe(3);
+  });
+
+  // ConvexHTTPClient adds callerId and callerToken to every body
+  test("rooms/background hands on callerId and callerToken: under enforce only the host's own are taken", async () => {
+    const log = authLog();
+    const t = newBackend();
+    const hostToken = tokenFor(1);
+    const guestToken = tokenFor(2);
+    const { roomId, hostId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", hostToken, background: 3 });
+    const ana = await joinGuest(t, roomId, "Ana", { token: guestToken });
+    vi.stubEnv("AUTH_MODE", "enforce");
+
+    const refused: Array<[caller: Record<string, unknown>, reason: string]> = [
+      [{ callerId: hostId }, "no token"],
+      // The name the function uses is not the name the body uses
+      [{ callerId: hostId, token: hostToken }, "no token"],
+      [{ callerId: hostId, callerToken: guestToken }, "wrong token"],
+      // Had callerId been left behind, the room's host would have been assumed and the reason would be "wrong token"
+      [{ callerId: ana, callerToken: guestToken }, "not the host"],
+    ];
+    for (const [caller, reason] of refused) {
+      log.clear();
+      const res = await post(t, "/api/rooms/background", { roomId, background: 8, ...caller });
+      expect({ caller, status: res.status, error: res.body.error }).toEqual({
+        caller,
+        status: 400,
+        error: expect.stringMatching(/Not authorised/),
+      });
+      expect(log.lines(), reason).toEqual([`auth: rooms.setRoomBackground ${reason}`]);
+    }
+    expect((await roomRow(t, roomId)).background).toBe(3);
+
+    log.clear();
+    const res = await post(t, "/api/rooms/background", { roomId, background: 8, callerId: hostId, callerToken: hostToken });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ background: 8 });
+    expect(log.lines()).toEqual([]);
+    expect((await roomRow(t, roomId)).background).toBe(8);
+  });
+
+  test("rooms/background answers 400 with the reason when the change is refused, and the room keeps its background", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    for (const background of [-1, 10, 1.5]) {
+      const res = await post(t, "/api/rooms/background", { roomId, background });
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: expect.stringMatching(/Unknown background/) });
+    }
+    expect((await roomRow(t, roomId)).background).toBe(3);
+
+    const gone = await post(t, "/api/rooms/background", { roomId: await deletedRoom(t), background: 8 });
+    expect(gone.status).toBe(400);
+    expect(gone.body.error).toMatch(/Room not found/);
+
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    const closed = await post(t, "/api/rooms/background", { roomId, background: 8 });
+    expect(closed.status).toBe(400);
+    expect(closed.body.error).toMatch(/Room is closed/);
+    expect((await roomRow(t, roomId)).background).toBe(3);
+  });
+
+  // setRoomBackground declares background a number, and Convex refuses a call whose argument is of another type.
+  // Read as a number, most of these would be a texture: "7" and [7] are 7, true is 1, and "", null and false are 0
+  test("rooms/background answers 400 to a background that is not a number, or to none, and the room keeps the one it has", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    const before = await roomRow(t, roomId);
+    for (const background of ["7", "", null, { index: 7 }, [7], true, false, undefined]) {
+      const res = await post(t, "/api/rooms/background", { roomId, background });
+      expect({ background, status: res.status }).toEqual({ background, status: 400 });
+      expect(typeof res.body.error).toBe("string");
+    }
+    expect(await roomRow(t, roomId)).toEqual(before);
+  });
+
   test("rooms/push-token stores the host's device token, and answers 400 to anyone else", async () => {
     const t = newBackend();
     const { roomId, hostId } = await createRoom(t);
@@ -2139,7 +2511,7 @@ describe("/api/rooms/* and /api/participants/*", () => {
   test("a body that is not JSON is answered 400 with an error, not a crash", async () => {
     const t = newBackend();
     const { roomId } = await createRoom(t);
-    for (const path of ["/api/rooms/close", "/api/participants/set-online"]) {
+    for (const path of ["/api/rooms/close", "/api/rooms/background", "/api/participants/set-online"]) {
       const res = await post(t, path, "this is not json");
       expect(res.status).toBe(400);
       expect(typeof res.body.error).toBe("string");

@@ -61,6 +61,9 @@ protocol EnchattoAPI {
     /// Close a room
     func closeRoom(roomId: String) async throws
 
+    /// Give an open room another background, an index into RoomTexture.all, for everyone in it (host only)
+    func setRoomBackground(roomId: String, background: Int) async throws
+
     /// Register the host's APNs device token so guests joining while the host is away trigger a push
     func setHostPushToken(roomId: String, hostId: String, token: String) async throws
 

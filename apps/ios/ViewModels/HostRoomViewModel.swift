@@ -9,7 +9,13 @@ import AVFoundation
 
 @MainActor
 class HostRoomViewModel: ObservableObject {
-    @Published var room: Room?
+    @Published var room: Room? {
+        // The saved record keeps the background the room is drawn on: the start screen shows it on the way back out
+        didSet {
+            guard let texture = textureIndex, texture != Self.textureIndex(of: oldValue) else { return }
+            SavedHostRoom.setBackground(texture, roomId: roomId)
+        }
+    }
     @Published var participants: [Participant] = []
     @Published var messages: [Message] = []
     @Published var reactionSummaries: [String: [ReactionSummaryEntry]] = [:]
@@ -275,6 +281,8 @@ class HostRoomViewModel: ObservableObject {
         heartbeatTask = nil
         // Like the flush below, the task clears its own handle when it unwinds
         hostLanguageTask?.cancel()
+        // So does this one. A background picked and not yet sent is not sent from outside the room
+        backgroundTask?.cancel()
         // The pass clears isFlushing itself when it unwinds
         flushTask?.cancel()
         stopEmojiMatchFastPoll()
@@ -321,12 +329,13 @@ class HostRoomViewModel: ObservableObject {
             return
         }
         do {
+            let epoch = backgroundEpoch
             let state = try await api.getRoomState(roomId: roomId)
             let msgs = try await api.getRoomMessages(roomId: roomId)
             let rxSummaries = try await api.getRoomReactions(roomId: roomId)
             try Task.checkCancellation()
 
-            room = state.room
+            room = roomOnScreen(state.room, askedAt: epoch)
             // Closed is final: this device has nothing to come back to
             if state.room.status == .closed { SavedHostRoom.clear(roomId: roomId) }
             participants = state.participants
@@ -559,6 +568,70 @@ class HostRoomViewModel: ObservableObject {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    // MARK: - Background
+
+    /// Index into RoomTexture.all the room is drawn on; nil until the room's state is here
+    var textureIndex: Int? { Self.textureIndex(of: room) }
+
+    private static func textureIndex(of room: Room?) -> Int? {
+        room.map { RoomTexture.index(background: $0.background, joinCode: $0.joinCode) }
+    }
+
+    /// Sends the background the host picked in Settings, and then whatever the host has picked meanwhile
+    private var backgroundTask: Task<Void, Never>?
+    /// Goes up when a background is sent and again when the request is answered or fails. A state asked for
+    /// before either may be from before the server took the change
+    private var backgroundEpoch = 0
+
+    /// Gives the room another background, picked at random, for everyone in it. It is drawn here at once
+    func randomizeBackground() {
+        guard let current = textureIndex, !isClosed else { return }
+        let before = room?.background
+        room?.background = RoomTexture.randomIndex(not: current)
+        guard backgroundTask == nil else { return }
+        // No request was out, so the background the room had until this tap is the one the server has
+        backgroundTask = Task { [weak self] in
+            await self?.sendBackground(onServer: before)
+        }
+    }
+
+    /// One request at a time, until the server has the background on screen. A pick made while a request is out
+    /// is not sent on its own: the next request carries the latest. No state changes the background while this
+    /// runs (see roomOnScreen), so the room's is the latest pick. `onServer` is the background the server has,
+    /// kept up with its answers: the one that comes back when a request fails
+    private func sendBackground(onServer: Int?) async {
+        var onServer = onServer
+        defer { backgroundTask = nil }
+        while let picked = room?.background, picked != onServer {
+            backgroundEpoch += 1
+            defer { backgroundEpoch += 1 }
+            do {
+                try Task.checkCancellation()
+                try await api.setRoomBackground(roomId: roomId, background: picked)
+                onServer = picked
+            } catch {
+                // The host has left the room. Whether the server took the pick is not known here; the next
+                // state says what the room has
+                if Task.isCancelled || error.isCancellation { return }
+                // The background the server has comes back, whatever was picked meanwhile
+                room?.background = onServer
+                self.error = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    /// The server's room as it is shown. A state asked for at `epoch` is the server's word on the background only
+    /// if no pick has been sent or answered since and none is waiting: any other may be from before the server
+    /// took a pick, and showing it as it is would put an earlier background back until the next state. So such
+    /// a state leaves the background on screen; the rest of it is shown
+    private func roomOnScreen(_ server: Room, askedAt epoch: Int) -> Room {
+        guard backgroundTask != nil || epoch != backgroundEpoch, let shown = room else { return server }
+        var room = server
+        room.background = shown.background
+        return room
     }
 
     // MARK: - Host language

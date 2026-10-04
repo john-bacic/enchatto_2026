@@ -18,7 +18,19 @@ class HostStartRoomViewModel: ObservableObject {
     // Set after room creation
     @Published var createdRoomId: String? {
         // Back on this screen (the room's navigation binding sets nil): nothing more is sent as that room's host
-        didSet { if createdRoomId == nil { api.setCaller(hostId: nil, token: nil) } }
+        didSet {
+            guard createdRoomId == nil else { return }
+            api.setCaller(hostId: nil, token: nil)
+            let saved = SavedHostRoom.load()
+            // The background the room's screen was last drawn on, which the host can change from inside the room.
+            // The room's record has it: still saved while the room is open, set aside when it closed
+            if let record = saved ?? SavedHostRoom.dropped, record.roomId == oldValue {
+                textureIndex = RoomTexture.index(background: record.background, joinCode: record.joinCode)
+                textureIsFromRoom = true
+            }
+            // A room that closed while the host was in it has left no record to go back to
+            if saved == nil { pickFreshTexture() }
+        }
     }
     @Published var createdJoinCode: String?
     @Published var createdHostId: String?
@@ -27,11 +39,12 @@ class HostStartRoomViewModel: ObservableObject {
     @Published private(set) var rejoinableRoom: SavedHostRoom?
     @Published private(set) var isRejoining = false
 
-    /// Index into RoomTexture.all of the background this screen is drawn on: that of the room this device was last
-    /// in, or with no such room one picked at random at launch
+    /// Index into RoomTexture.all of the background this screen is drawn on, which is the background of the room
+    /// entered from it, created or rejoined: that of the room there is to go back to, or with no such room one
+    /// picked at random
     @Published private(set) var textureIndex: Int
-    /// Whether `textureIndex` is a room's. One that no room has had goes to the next room created, so the room looks
-    /// like the screen it was created from; a room's is not handed on, so the next room gets another
+    /// Whether `textureIndex` is that of a room this device was in. Once there is no such room to go back to, the
+    /// screen picks another, so that a new chat does not look like the last one
     private(set) var textureIsFromRoom: Bool
 
     private let api: EnchattoAPI
@@ -60,8 +73,8 @@ class HostStartRoomViewModel: ObservableObject {
         isCreating = true
         error = nil
 
-        // A new chat brings a new background: this screen's own while no room has had it, otherwise any other
-        let background = textureIsFromRoom ? RoomTexture.randomIndex(not: textureIndex) : textureIndex
+        // The room looks like the screen it is entered from
+        let background = textureIndex
 
         do {
             let result = try await api.createRoom(
@@ -97,6 +110,7 @@ class HostStartRoomViewModel: ObservableObject {
         guard createdRoomId == nil, !isCreating, !isRejoining else { return }
         guard let saved = SavedHostRoom.load() else {
             rejoinableRoom = nil
+            pickFreshTexture()
             return
         }
         if enter {
@@ -132,17 +146,17 @@ class HostStartRoomViewModel: ObservableObject {
             unreachable = !gone
         }
 
-        // A room created while the request was out replaces the record: this answer is about the old one
-        guard createdRoomId == nil, SavedHostRoom.load() == saved else { return }
-
-        // The room's own word on its background, which a record saved by a build that stored none could only work
-        // out from the join code. A room that is gone says nothing, and the background on screen stays
-        if let texture {
-            textureIndex = texture
-            textureIsFromRoom = true
-        }
+        // A room created while the request was out replaces the record: this answer is about the old one. A record
+        // that only has another background since is still about this room
+        guard createdRoomId == nil, SavedHostRoom.load()?.roomId == saved.roomId else { return }
 
         if open {
+            // The room's own word on its background, which a record saved by a build that stored none could only
+            // work out from the join code
+            if let texture {
+                textureIndex = texture
+                textureIsFromRoom = true
+            }
             if enter {
                 // The token saved at creation; nil for a room an earlier build made, whose host the server takes by id alone
                 api.setCaller(hostId: saved.hostId, token: saved.hostToken)
@@ -159,7 +173,16 @@ class HostStartRoomViewModel: ObservableObject {
         } else {
             SavedHostRoom.clear(roomId: saved.roomId)
             rejoinableRoom = nil
+            pickFreshTexture()
             if enter { self.error = L.t("This room has been closed", hostLanguage) }
         }
+    }
+
+    /// With no room to go back to, the background of the last one gives way to another picked at random. One that
+    /// no room has had stays: it is waiting for the room created from this screen
+    private func pickFreshTexture() {
+        guard textureIsFromRoom else { return }
+        textureIndex = RoomTexture.randomIndex(not: textureIndex)
+        textureIsFromRoom = false
     }
 }

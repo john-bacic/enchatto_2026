@@ -402,6 +402,31 @@ export const updateRoomSettings = mutation({
 });
 
 /**
+ * The host gives an open room another texture. Every guest's page draws the index stored on the room, so
+ * they follow by themselves. Answers with the index the room now has.
+ */
+export const setRoomBackground = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    // The texture's index in the texture lists
+    background: v.number(),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
+    await requireHost(ctx, args.roomId, args.callerId, args.token, "rooms.setRoomBackground");
+    // Refused, where createRoom makes its own pick: the room has a background to keep
+    if (!isBackground(args.background)) throw new Error("Unknown background");
+
+    await ctx.db.patch(args.roomId, { background: args.background });
+    return { background: args.background };
+  },
+});
+
+/**
  * A maxParticipants a room may have: a whole number from 2 to 50. Whole, because the room document goes to
  * the iOS host as it is and the app decodes this field as an Int: one fraction fails every poll of the room.
  * NaN and Infinity are not whole numbers either.

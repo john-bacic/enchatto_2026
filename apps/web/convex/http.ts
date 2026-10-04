@@ -129,6 +129,19 @@ http.route({
   }),
 });
 
+http.route({
+  path: "/api/rooms/background",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runMutation(api.rooms.setRoomBackground, {
+      roomId: body.roomId,
+      background: body.background,
+      callerId: body.callerId,
+      token: body.callerToken,
+    });
+  }),
+});
+
 // --- Participants ---
 
 http.route({

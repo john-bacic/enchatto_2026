@@ -80,3 +80,20 @@ struct RoomBackground: View {
         .allowsHitTesting(false)
     }
 }
+
+/// A RoomBackground that cross-fades to the new texture when its index changes, as the start screen's does
+struct FadingRoomBackground: View {
+    let index: Int
+
+    var body: some View {
+        // Bare paper underneath, so a change of texture fades over paper and not over whatever is behind
+        ZStack {
+            EC.paper
+            RoomBackground(index: index)
+                .id(index)
+                .transition(.opacity)
+        }
+        .animation(.easeInOut(duration: 0.35), value: index)
+        .allowsHitTesting(false)
+    }
+}
