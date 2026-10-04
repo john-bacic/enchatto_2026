@@ -59,7 +59,8 @@ export function EmojiMatchGame({
   const amHost = game.hostParticipantId === myParticipantId;
 
   // Delay showing completed screen so players can see the final board.
-  // A game that had already ended when this mounted (reload, resume) goes straight to the results.
+  // A game that had already ended when this mounted (put away, then brought back with Resume) goes straight to
+  // the results. The room page does not mount this for a game that ended before the page saw it.
   const [showCompleted, setShowCompleted] = useState(game.status === "completed");
   const prevStatusRef = useRef(game.status);
 

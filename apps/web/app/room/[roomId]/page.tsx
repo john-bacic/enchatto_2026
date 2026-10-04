@@ -28,6 +28,7 @@ import { QUEUED_ID_PREFIX, avatarIconSrc, avatarTint, getAvatarById } from "@/li
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { teamInSession } from "@/lib/game-teams";
+import { useGameOnScreen } from "@/lib/game-results";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
@@ -190,6 +191,12 @@ function RoomContent() {
   const emojiMatchGame = useQuery(api.emojiMatch.getActiveEmojiMatch, {
     roomId: roomId as Id<"rooms">,
   });
+  // The answer is the room's latest game even when it ended long ago: its results are for a page that saw it played,
+  // and never go over a Lost in Translation task
+  const emojiMatchOnScreen = useGameOnScreen(
+    emojiMatchGame,
+    myActiveStep != null && myActiveStep._id !== dismissedGameStepId
+  );
   const emojiBingoGame = useQuery(api.emojiBingo.getActiveEmojiBingo, {
     roomId: roomId as Id<"rooms">,
   });
@@ -1669,7 +1676,7 @@ function RoomContent() {
       <WordRushGame roomId={roomId as Id<"rooms">} participantId={participantId as Id<"participants">} lang={lang} isRoomHost={me?.role === "host"} />
 
       {/* Emoji Match game overlay */}
-      {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId !== emojiMatchGame._id && (
+      {emojiMatchGame && emojiMatchOnScreen && dismissedEmojiMatchId !== emojiMatchGame._id && (
         <EmojiMatchGame
           game={emojiMatchGame}
           participants={participants}
@@ -1761,7 +1768,7 @@ function RoomContent() {
             {t("Resume", lang)}
           </button>
         )}
-        {emojiMatchGame && emojiMatchGame.status !== "canceled" && dismissedEmojiMatchId === emojiMatchGame._id && (
+        {emojiMatchGame && emojiMatchOnScreen && dismissedEmojiMatchId === emojiMatchGame._id && (
           <button
             className="ec-resume"
             onClick={() => setDismissedEmojiMatchId(null)}
