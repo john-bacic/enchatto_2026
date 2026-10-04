@@ -47,14 +47,39 @@ enum RoundWeight: String {
 }
 
 extension Font {
-    /// Dela Gothic One — headlines, buttons, scores
+    /// Dela Gothic One — headlines, buttons, scores. The bundled file has no common kanji: its kanji strokes are so
+    /// heavy that dense characters fill in at button and label sizes. Kanji come from Zen Maru Gothic Black instead,
+    /// named here as the face to fall to, since a missing glyph would otherwise get the system's regular weight
     static func chunky(_ size: CGFloat, relativeTo style: Font.TextStyle = .title) -> Font {
-        .custom("DelaGothicOne-Regular", size: size, relativeTo: style)
+        let kanji = UIFontDescriptor(fontAttributes: [.name: RoundWeight.black.rawValue])
+        let descriptor = UIFontDescriptor(fontAttributes: [.name: "DelaGothicOne-Regular", .cascadeList: [kanji]])
+        // The size follows the text size setting as it stood when the view was drawn
+        let scaled = UIFontMetrics(forTextStyle: style.uiTextStyle).scaledValue(for: size)
+        return Font(UIFont(descriptor: descriptor, size: scaled))
     }
 
     /// Zen Maru Gothic — body copy
     static func round(_ size: CGFloat, _ weight: RoundWeight = .bold, relativeTo style: Font.TextStyle = .body) -> Font {
         .custom(weight.rawValue, size: size, relativeTo: style)
+    }
+}
+
+private extension Font.TextStyle {
+    var uiTextStyle: UIFont.TextStyle {
+        switch self {
+        case .largeTitle: .largeTitle
+        case .title: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .subheadline: .subheadline
+        case .body: .body
+        case .callout: .callout
+        case .footnote: .footnote
+        case .caption: .caption1
+        case .caption2: .caption2
+        @unknown default: .body
+        }
     }
 }
 

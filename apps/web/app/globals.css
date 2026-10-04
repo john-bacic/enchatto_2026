@@ -24,7 +24,8 @@
   --violet: #a77bff;
   --violet-soft: #efe6ff;
   --red: #ff4f6d;
-  --chunky: var(--font-chunky), "Zen Maru Gothic", sans-serif;
+  /* Latin and kana from Dela Gothic One, kanji from Zen Maru Gothic Black (see layout.tsx) */
+  --chunky: var(--font-chunky), var(--font-chunky-kanji), "Zen Maru Gothic", sans-serif;
   --round: var(--font-round), "Hiragino Maru Gothic ProN", sans-serif;
   --outline2: 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink);
   --outline3: 3px 0 0 var(--ink), -3px 0 0 var(--ink), 0 3px 0 var(--ink), 0 -3px 0 var(--ink),

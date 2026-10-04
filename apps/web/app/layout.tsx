@@ -1,16 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Dela_Gothic_One, Zen_Maru_Gothic } from "next/font/google";
+import { Zen_Maru_Gothic } from "next/font/google";
+import localFont from "next/font/local";
 import { ConvexClientProvider } from "@/lib/convex";
 import { DeployRefresh } from "@/components/deploy-refresh";
 import "./globals.css";
 
-// Japanese glyphs come in unicode-range chunks, so skip preloading.
-const chunky = Dela_Gothic_One({
+// Dela Gothic One without its kanji: Latin, kana and punctuation only. Its kanji strokes are so heavy
+// that dense characters fill in at button and label sizes, so --chunky hands kanji to the next face.
+const chunky = localFont({
+  src: "./fonts/DelaGothicOne-NoKanji.woff2",
   weight: "400",
+  display: "swap",
+  variable: "--font-chunky",
+  adjustFontFallback: false,
+});
+// The kanji of bold text: Zen Maru Gothic at its heaviest. A family of its own with this one weight,
+// so that text set at weight 400 for Dela Gothic One still gets it.
+// Japanese glyphs come in unicode-range chunks, so skip preloading.
+const chunkyKanji = Zen_Maru_Gothic({
+  weight: "900",
   subsets: ["latin"],
   preload: false,
   display: "swap",
-  variable: "--font-chunky",
+  variable: "--font-chunky-kanji",
+  adjustFontFallback: false,
 });
 const round = Zen_Maru_Gothic({
   weight: ["500", "700", "900"],
@@ -36,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${chunky.variable} ${round.variable}`}>
+    <html lang="en" className={`${chunky.variable} ${chunkyKanji.variable} ${round.variable}`}>
       <body>
         <ConvexClientProvider>{children}</ConvexClientProvider>
         <DeployRefresh />
