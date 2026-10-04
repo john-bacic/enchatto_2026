@@ -1,0 +1,30 @@
+# What the Vercel CLI must not upload. The CLI does not read .gitignore: it skips a short built-in
+# list (.git, .next, .vercel, node_modules, .env.local, .env.*.local, .DS_Store) and whatever is
+# listed here. Gitignore syntax, relative to this directory, which is where `vercel` runs from.
+#
+# The Vercel project builds apps/web. Besides that directory it needs the root package.json and
+# package-lock.json, and a package.json for every workspace the lockfile names.
+
+# Env files. The build takes its env from the Vercel project settings, never from a file.
+.env
+.env.*
+
+# The iOS app
+/apps/ios
+
+# Backup copy of the Convex functions; the copy that deploys is apps/web/convex. It is an npm
+# workspace (@enchatto/convex) in package-lock.json, so its package.json stays for npm install.
+/apps/convex/*
+!/apps/convex/package.json
+
+# Stress-test output
+/apps/web/scripts/stress-test-results-*.json
+
+# tsc's incremental cache; next build keeps its own under .next
+*.tsbuildinfo
+
+# Repo tooling and docs
+/.claude
+/scripts
+/deploy.sh
+/*.md
