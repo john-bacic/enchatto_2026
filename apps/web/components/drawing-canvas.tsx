@@ -516,7 +516,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           </button>
         )}
 
-        <div style={{ position: "relative", flex: 1 }}>
+        {/* minWidth 0: on a narrow screen Send gives up side room rather than push Undo past the edge */}
+        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           {(hasDrawn || counting) && (
             <span
               key={counting ? countdownSeconds : "idle"}
@@ -559,7 +560,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               </span>
             )}
             {c.send}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}>
               <line x1="12" y1="19" x2="12" y2="5" />
               <polyline points="5 12 12 5 19 12" />
             </svg>
@@ -573,6 +574,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
               0% { transform: scale(1); opacity: 0.45; }
               100% { transform: scale(1.25, 1.6); opacity: 0; }
             }
+            /* Under 360px there is no room for Undo's label beside Send and its countdown: the arrow alone */
+            @media (max-width: 359px) {
+              .drawing-undo-label { display: none; }
+            }
           `}</style>
         </div>
 
@@ -580,13 +585,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>
           className="ec-btn white sm"
           onClick={handleUndo}
           disabled={!hasDrawn}
+          aria-label={c.undo}
           style={{ width: "auto", minHeight: gameMode ? 58 : 52, padding: "0 14px", gap: 6 }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 10h10a5 5 0 0 1 0 10H12" />
             <polyline points="7 14 3 10 7 6" />
           </svg>
-          {c.undo}
+          <span className="drawing-undo-label">{c.undo}</span>
         </button>
       </div>
     </div>
