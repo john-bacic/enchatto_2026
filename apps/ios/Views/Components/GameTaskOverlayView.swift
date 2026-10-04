@@ -16,6 +16,8 @@ struct GameTaskOverlayView: View {
     let onHoldGuess: (TimeInterval, Bool) -> Void
     let onReleaseGuess: (Bool) -> Void
     var onQuit: (() -> Void)?
+    /// The player's team in a team game: named in the header of the drawing and of the guess
+    var team: LITTeam? = nil
 
     private var timerSeconds: Int { step.timerEnabled ?? 20 }
     private var timerOn: Bool { timerSeconds > 0 }
@@ -98,6 +100,17 @@ struct GameTaskOverlayView: View {
                         Spacer()
                     }
                     .padding(.leading, 12)
+                }
+
+                if let team {
+                    HStack {
+                        Spacer()
+                        // No wider than the room beside the title: a longer name is set smaller
+                        LITTeamChip(team: team, lang: lang)
+                            .frame(maxWidth: 110, alignment: .trailing)
+                            .accessibilityLabel("\(L.t("Your team", lang)): \(team.name(lang))")
+                    }
+                    .padding(.trailing, 12)
                 }
             }
             .frame(maxWidth: .infinity)

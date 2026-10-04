@@ -2609,6 +2609,1468 @@ describe("the routes the host app calls", () => {
   });
 });
 
+// ─── Teams ───────────────────────────────────────────────────────────────────
+// Four players or more can play as two teams. The host's client asks for them with `teams`; a build from before
+// teams sends none and plays individually, as it always did.
+
+describe("teams", () => {
+  type Split = string[][];
+  type TeamView = { memberIds: string[]; points: number };
+  type TeamSummary = Omit<Summary, "rounds"> & {
+    rounds: Array<Summary["rounds"][number] & { teamPoints?: [number, number] }>;
+    teams?: TeamView[];
+  };
+
+  // Every key of an individual game's documents and answers, as builds from before teams have always been sent them
+  const SESSION_KEYS = [
+    "_creationTime", "_id", "chainCount", "createdAt", "createdByParticipantId", "gameType", "level", "playerIds",
+    "roomId", "status", "timerEnabled",
+  ];
+  const CHAIN_KEYS = [
+    "_creationTime", "_id", "chainIndex", "currentStepIndex", "drawerParticipantId", "gameSessionId", "maxSteps",
+    "options", "originalPrompt", "status",
+  ];
+  const STATUS_KEYS = [
+    "currentRound", "drawStartedAt", "drawerAvatar", "drawerName", "gameType", "guessesSubmitted", "guessesTotal",
+    "level", "phase", "scores", "timerSeconds", "totalRounds",
+  ];
+  const REPLAY_KEYS = ["chains", "participants", "promptTranslations", "scores", "session"];
+
+  /** A room with the host, who speaks English, and one guest per language given, named G1, G2, … in join order */
+  async function teamRoom(t: Backend, languages: string[], host: { token?: string } = {}) {
+    const { roomId, hostId } = await room(t, [], host);
+    // A room seats ten until its host raises the limit
+    if (languages.length >= 10) {
+      const { settings } = (await t.run(async (ctx) => await ctx.db.get(roomId)))!;
+      await t.mutation(api.rooms.updateRoomSettings, { roomId, settings: { ...settings, maxParticipants: 50 } });
+    }
+    const guestIds: PID[] = [];
+    for (const [i, language] of languages.entries()) {
+      guestIds.push(await joinGuest(t, roomId, `G${i + 1}`, { language, avatar: AVATARS[i % AVATARS.length] }));
+    }
+    return { roomId, hostId, guestIds, players: [hostId, ...guestIds] };
+  }
+
+  async function startTeams(t: Backend, roomId: RoomId, hostId: PID, teams: "auto" | Split, extra: StartExtras = {}) {
+    return await t.mutation(api.games.startGame, { roomId, participantId: hostId, gameType: "lost-in-translation", teams, ...extra });
+  }
+
+  async function storedTeams(t: Backend, sessionId: SessionId): Promise<PID[][]> {
+    const { teams } = await sessionDoc(t, sessionId);
+    if (!teams) throw new Error("The session has no teams");
+    return teams;
+  }
+
+  /** Math.random as a fixed sequence (mulberry32), so that a deal can be made again. Undone by mockRestore or restoreAllMocks */
+  function seedRandom(seed: number) {
+    let state = seed >>> 0;
+    return vi.spyOn(Math, "random").mockImplementation(() => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let x = Math.imul(state ^ (state >>> 15), state | 1);
+      x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    });
+  }
+
+  /** Two teams that hold every player once, each in drawing order: the host, then the others as they joined */
+  function expectTeams(teams: PID[][] | null | undefined, players: PID[]): asserts teams is PID[][] {
+    expect(teams).toHaveLength(2);
+    expect([...teams![0], ...teams![1]].sort()).toEqual([...players].sort());
+    for (const team of teams!) {
+      expect(team).toEqual(players.filter((p) => team.includes(p)));
+      expect(team.length).toBeGreaterThanOrEqual(2);
+    }
+    expect(Math.abs(teams![0].length - teams![1].length)).toBeLessThanOrEqual(1);
+  }
+
+  /**
+   * What a fresh deal promises on top of that: the teams as even as the players allow in size, in speakers of
+   * Japanese, in speakers of anything else and in players away. An even number is shared out in halves, an odd
+   * one leaves the teams one apart.
+   */
+  async function expectEven(t: Backend, teams: PID[][] | null | undefined, players: PID[], away: PID[] = []) {
+    expectTeams(teams, players);
+    const japanese: PID[] = [];
+    for (const p of players) if ((await participantDoc(t, p)).preferredLanguage.startsWith("ja")) japanese.push(p);
+    const kinds: Array<[string, (p: PID) => boolean]> = [
+      ["size", () => true],
+      ["Japanese", (p) => japanese.includes(p)],
+      ["other languages", (p) => !japanese.includes(p)],
+      ["away", (p) => away.includes(p)],
+    ];
+    for (const [kind, is] of kinds) {
+      const apart = Math.abs(teams[0].filter(is).length - teams[1].filter(is).length);
+      expect(apart, `${kind}: ${JSON.stringify(teams)}`).toBe(players.filter(is).length % 2);
+    }
+  }
+
+  /** The two groups of a split, whichever is called team 0 */
+  const sides = (teams: string[][]) => teams.map((team) => [...team].sort().join()).sort().join(" | ");
+
+  /** Plays one round to its end: the drawer draws, and every other player guesses, right if listed here and wrong if not */
+  async function playRound(t: Backend, players: PID[], drawer: PID, right: PID[]) {
+    await draw(t, drawer);
+    for (const guesser of players.filter((p) => p !== drawer)) await guess(t, guesser, right.includes(guesser) ? "right" : "wrong");
+  }
+
+  /** What the room's status says of the teams: their points */
+  async function points(t: Backend, roomId: RoomId): Promise<number[]> {
+    const status = await t.query(api.games.getGameStatus, { roomId });
+    return status!.teams!.map((team) => team.points);
+  }
+
+  async function teamSummary(t: Backend, roomId: RoomId): Promise<TeamSummary> {
+    const [summary, ...more] = (await summariesIn(t, roomId)) as TeamSummary[];
+    expect(more).toEqual([]);
+    return summary;
+  }
+
+  /** Host, G2 and G4 against G1 and G3. The drawing goes Host, G1, G2, G3, G4, G1, Host, G3, G2, G1 */
+  async function threeAgainstTwo(t: Backend, extra: StartExtras = {}) {
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4], players } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g2, g4], [g1, g3]], extra);
+    return { roomId, hostId, g1, g2, g3, g4, players, sessionId };
+  }
+
+  /** Host and G2 against G1 and G3. The drawing goes Host, G1, G2, G3, and round again */
+  async function twoAgainstTwo(t: Backend, extra: StartExtras = {}) {
+    const { roomId, hostId, guestIds: [g1, g2, g3], players } = await teamRoom(t, ["ja", "en", "ja"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g2], [g1, g3]], extra);
+    return { roomId, hostId, g1, g2, g3, players, sessionId };
+  }
+
+  // ── Who plays in teams ──
+
+  test.each([4, 5, 6])(
+    "a Start that says nothing of teams is an individual game with %i players too, stored and answered as it always was",
+    async (count) => {
+      const t = newBackend();
+      const languages = Array.from({ length: count - 1 }, (_, i) => (i % 2 === 0 ? "ja" : "en"));
+      const { roomId, hostId, players } = await teamRoom(t, languages);
+      const sessionId = await start(t, roomId, hostId);
+
+      const session = await sessionDoc(t, sessionId);
+      expect(Object.keys(session).sort()).toEqual(SESSION_KEYS);
+      expect(session.playerIds).toEqual(players);
+      // The drawing passes through the players in join order
+      const chains = await chainsOf(t, sessionId);
+      expect(chains.map((c) => c.drawerParticipantId)).toEqual(chains.map((_, r) => players[r % count]));
+
+      // Round 1 to its end, and round 2 with one guess in
+      await playRound(t, players, hostId, players.slice(1, 3));
+      await draw(t, players[1]);
+      await guess(t, hostId, "right");
+
+      const status = await post(t, "/api/games/status", { roomId });
+      expect(Object.keys(status.body).sort()).toEqual(STATUS_KEYS);
+      expect(Object.keys(status.body.scores).sort()).toEqual([...players].sort());
+      for (const score of Object.values(status.body.scores)) {
+        expect(Object.keys(score as object).sort()).toEqual(["avatar", "correct", "nickname", "total"]);
+      }
+      const active = await post(t, "/api/games/active-session", { roomId });
+      expect(Object.keys(active.body).sort()).toEqual(SESSION_KEYS);
+      for (const chain of await chainsOf(t, sessionId)) expect(Object.keys(chain).sort()).toEqual(CHAIN_KEYS);
+
+      await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+      const latest = await post(t, "/api/games/latest-session", { roomId });
+      expect(Object.keys(latest.body).sort()).toEqual([...SESSION_KEYS, "cancelled", "completedAt"].sort());
+      const replay = await post(t, "/api/games/replay", { gameSessionId: sessionId });
+      expect(Object.keys(replay.body).sort()).toEqual(REPLAY_KEYS);
+      expect(replay.body.chains).toHaveLength(2);
+      for (const chain of replay.body.chains) expect(Object.keys(chain).sort()).toEqual([...CHAIN_KEYS, "steps"].sort());
+      for (const score of Object.values(replay.body.scores)) expect(Object.keys(score as object).sort()).toEqual(["correct", "total"]);
+
+      const records = await gameRecords(t, roomId);
+      const summary = JSON.parse(records.find((r) => r.startsWith("game_summary:"))!.slice("game_summary:".length));
+      expect(Object.keys(summary)).toEqual(["gameType", "level", "cancelled", "players", "rounds", "totals"]);
+      for (const round of summary.rounds) expect(Object.keys(round)).toEqual(["round", "prompt", "results"]);
+      expect(Object.keys(summary.totals).sort()).toEqual([...players].sort());
+      expect(JSON.stringify([status.body, active.body, latest.body, replay.body, records])).not.toMatch(/team/i);
+    }
+  );
+
+  test("an individual game of four that runs to its end posts the summary it always did", async () => {
+    const t = newBackend();
+    const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja"]);
+    const sessionId = await start(t, roomId, hostId);
+    for (const chain of await chainsOf(t, sessionId)) await playRound(t, players, chain.drawerParticipantId!, [players[1]]);
+
+    const records = await gameRecords(t, roomId);
+    const summary = JSON.parse(records.find((r) => r.startsWith("game_summary:"))!.slice("game_summary:".length));
+    expect(Object.keys(summary)).toEqual(["gameType", "level", "players", "rounds", "totals"]);
+    expect(summary.rounds).toHaveLength(10);
+    for (const round of summary.rounds) expect(Object.keys(round)).toEqual(["round", "prompt", "results"]);
+    expect(Object.keys(await sessionDoc(t, sessionId)).sort()).toEqual([...SESSION_KEYS, "completedAt"].sort());
+    for (const chain of await chainsOf(t, sessionId)) expect(Object.keys(chain).sort()).toEqual(CHAIN_KEYS);
+  });
+
+  test.each([2, 3])("with %i players a game is individual whatever was asked for, and the Start is not refused", async (count) => {
+    for (const asked of ["auto", "a split", "auto over the route"]) {
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, ["ja", "en"].slice(0, count - 1));
+      const sessionId =
+        asked === "auto over the route"
+          ? (await post(t, "/api/games/start", { roomId, participantId: hostId, gameType: "lost-in-translation", teams: "auto" })).body.sessionId
+          : await startTeams(t, roomId, hostId, asked === "auto" ? "auto" : [[hostId], players.slice(1)]);
+
+      expect(Object.keys(await sessionDoc(t, sessionId)).sort(), asked).toEqual(SESSION_KEYS);
+      expect((await chainsOf(t, sessionId)).slice(0, 4).map((c) => c.drawerParticipantId)).toEqual(
+        [0, 1, 2, 3].map((r) => players[r % count])
+      );
+      const status = await t.query(api.games.getGameStatus, { roomId });
+      expect(Object.keys(status!).sort(), asked).toEqual(STATUS_KEYS);
+    }
+  });
+
+  // Who is dealt in is settled at Start, not by how many are in the room
+  test("four in the room of whom one has left are three players: an individual game", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3] } = await teamRoom(t, ["ja", "en", "ja"]);
+    await t.mutation(api.participants.leaveRoom, { participantId: g3 });
+
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g1], [g2, g3]]);
+    expect(Object.keys(await sessionDoc(t, sessionId)).sort()).toEqual(SESSION_KEYS);
+    expect((await sessionDoc(t, sessionId)).playerIds).toEqual([hostId, g1, g2]);
+  });
+
+  test("a Start with 'auto' stores the teams the server dealt, with nobody having had a turn yet, and the status names them", async () => {
+    const t = newBackend();
+    const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, "auto");
+
+    const session = await sessionDoc(t, sessionId);
+    expect(Object.keys(session).sort()).toEqual([...SESSION_KEYS, "teamAway", "teams"].sort());
+    expect(session.playerIds).toEqual(players);
+    expect(session.teamAway).toEqual(players);
+    await expectEven(t, session.teams, players);
+    const status = await t.query(api.games.getGameStatus, { roomId });
+    expect(status!.teams).toEqual(session.teams!.map((memberIds) => ({ memberIds, points: 0 })));
+    // The host draws round 1, so the host's team is the one drawing
+    expect(status!.drawingTeam).toBe(session.teams![0].includes(hostId) ? 0 : 1);
+    expect(await gameRecords(t, roomId)).toEqual(["game:Lost in Translation Level 1"]);
+  });
+
+  // ── The deal ──
+
+  // The guests' languages, and which guests (1 = G1) have their phone dimmed: dealt in, but not here right now
+  test.each<[string, string[], number[]]>([
+    ["four who speak one language", ["en", "en", "en"], []],
+    ["two and two", ["ja", "en", "ja"], []],
+    ["three Japanese speakers and two others", ["ja", "ja", "en", "ja"], []],
+    ["five and one", ["en", "en", "ja", "en", "en"], []],
+    ["three and four", ["ja", "ja", "ja", "en", "en", "en"], []],
+    ["languages the apps do not offer", ["ja-JP", "ko", "ja", "fr"], []],
+    ["two of three Japanese speakers away", ["ja", "ja", "ja"], [2, 3]],
+    ["one away in each language", ["ja", "ja", "en", "en", "en"], [2, 3]],
+    ["four of eight away", ["ja", "ja", "ja", "en", "en", "en", "ja"], [2, 5, 6, 7]],
+    ["three of seven away, all of one language", ["en", "en", "en", "ja", "ja", "ja"], [1, 2, 3]],
+    ["everyone but the host away", ["ja", "en", "ja", "en", "ja"], [1, 2, 3, 4, 5]],
+  ])("a deal is as even as the players allow in size, in each language and in players away: %s", async (_name, languages, dimmed) => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds, players } = await teamRoom(t, languages);
+    const away = dimmed.map((n) => guestIds[n - 1]);
+    await goAway(t, ...away);
+
+    const dealt = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const random = seedRandom(seed);
+      const { playerIds, teams } = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId });
+      random.mockRestore();
+      expect(playerIds).toEqual(players);
+      await expectEven(t, teams, players, away);
+      dealt.add(sides(teams!));
+    }
+    // Chance has a say: forty deals are not one deal made forty times
+    expect(dealt.size).toBeGreaterThan(1);
+  });
+
+  // "ja-JP" is Japanese for the split, as "ja" is, and every other language is the other half of the room
+  test("the languages shared out are Japanese and everything else, however a language is written", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3] } = await teamRoom(t, ["ja-JP", "ko", "ja"]);
+
+    for (let seed = 1; seed <= 20; seed++) {
+      const random = seedRandom(seed);
+      const { teams } = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId });
+      random.mockRestore();
+      // One of the two Japanese speakers on each team, with the host or with G2
+      expect([sides([[hostId, g1], [g2, g3]]), sides([[hostId, g3], [g1, g2]])]).toContain(sides(teams!));
+    }
+  });
+
+  test("the host who asks counts as here, whatever their last heartbeat said", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2], players } = await teamRoom(t, ["en", "en", "en"]);
+    // By their last heartbeat the host, G1 and G2 are away
+    await goAway(t, hostId, g1, g2);
+
+    for (let seed = 1; seed <= 20; seed++) {
+      const random = seedRandom(seed);
+      const { teams } = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId });
+      random.mockRestore();
+      // G1 and G2 are the two away, and are never on one team. With the host a third, they could be
+      await expectEven(t, teams, players, [g1, g2]);
+    }
+  });
+
+  test("the deal is Math.random's: the same draws make the same teams, and other draws make others", async () => {
+    const deals: string[] = [];
+    for (const seed of [11, 11, 12, 13, 14, 15, 16, 17]) {
+      const random = seedRandom(seed);
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja", "en", "ja"]);
+      const teams = await storedTeams(t, await startTeams(t, roomId, hostId, "auto"));
+      random.mockRestore();
+      // Ids are the same in every fresh backend, so a deal can be compared by each player's place in the room
+      deals.push(JSON.stringify(teams.map((team) => team.map((p) => players.indexOf(p)))));
+    }
+    expect(deals[1]).toBe(deals[0]);
+    expect(new Set(deals).size).toBeGreaterThan(2);
+  });
+
+  // ── The split the host's picker sends ──
+
+  test("a split that holds every player once, the teams at most one apart, is played as sent, each team in drawing order", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4] } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+    // Both Japanese speakers on one team, and neither list in join order: what the host saw is not second-guessed
+    const sessionId = await startTeams(t, roomId, hostId, [[g3, g1], [g4, hostId, g2]]);
+
+    expect(await storedTeams(t, sessionId)).toEqual([[g1, g3], [hostId, g2, g4]]);
+  });
+
+  test("an id that is not a player's is dropped: a guest who left, another room's guest, and no id at all", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4] } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+    const elsewhere = await teamRoom(t, ["en"]);
+    await t.mutation(api.participants.setParticipantOnline, { participantId: g4, online: false });
+
+    const sessionId = await startTeams(t, roomId, hostId, [
+      [hostId, g1, elsewhere.guestIds[0], "not an id"],
+      [g2, g3, g4],
+    ]);
+
+    expect((await sessionDoc(t, sessionId)).playerIds).toEqual([hostId, g1, g2, g3]);
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1], [g2, g3]]);
+  });
+
+  test("a player listed in both teams, or twice in one, stays where they are listed first", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3] } = await teamRoom(t, ["ja", "en", "ja"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g1, hostId], [g1, g2, g3, hostId]]);
+
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1], [g2, g3]]);
+  });
+
+  test("a player the split leaves out joins the smaller team, and between equal teams the one with fewer speakers of their language", async () => {
+    const t = newBackend();
+    // Host en, G1 ja, G2 en, G3 ja, then two the picker had not seen: G4 ja, G5 en
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5] } = await teamRoom(t, ["ja", "en", "ja", "ja", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g2], [g1, g3]]);
+
+    // G4 finds the teams equal and team 0 without a Japanese speaker; G5 then finds team 1 the smaller
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g2, g4], [g1, g3, g5]]);
+  });
+
+  test("a player the split leaves out joins the smaller team even when the other has fewer speakers of their language", async () => {
+    const t = newBackend();
+    // Host en and G1 en against G2, G3 and G4, all ja; then G5 en, whom the picker had not seen
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5] } = await teamRoom(t, ["en", "ja", "ja", "ja", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g1], [g2, g3, g4]]);
+
+    // Team 1 has no English speaker, but team 0 is the smaller: G5 joins it, and nobody who was kept is moved
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1, g5], [g2, g3, g4]]);
+  });
+
+  test("a player the split leaves out who is away joins, between teams equal in size and language, the one with fewer players away", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5] } = await teamRoom(t, ["en", "en", "en", "en", "en"]);
+    await goAway(t, g1, g4);
+
+    // G4, away, finds G1 away on team 0 and nobody away on team 1; G5 then finds team 0 the smaller
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g1], [g2, g3]]);
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1, g5], [g2, g3, g4]]);
+  });
+
+  test("the host the split leaves out is seated like anyone else, and still draws round 1", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4] } = await teamRoom(t, ["ja", "ja", "en", "en"]);
+
+    // The host speaks English, and joins the team without an English speaker: here team 1
+    const sessionId = await startTeams(t, roomId, hostId, [[g3, g4], [g1, g2]]);
+    expect(await storedTeams(t, sessionId)).toEqual([[g3, g4], [hostId, g1, g2]]);
+    expect((await chainsOf(t, sessionId)).slice(0, 3).map((c) => c.drawerParticipantId)).toEqual([hostId, g3, g1]);
+  });
+
+  test("teams more than one apart are evened out by the fewest moves: an empty team, and five against one", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5], players } = await teamRoom(t, ["ja", "en", "ja", "en", "ja"]);
+
+    // Everyone on one side. Three cross, each time the last in the drawing order of the language team 0 has most
+    // in excess: G5, then G4 (three English speakers against none), then G3
+    const oneSided = await startTeams(t, roomId, hostId, [players, []]);
+    expect(await storedTeams(t, oneSided)).toEqual([[hostId, g1, g2], [g3, g4, g5]]);
+    await expectEven(t, await storedTeams(t, oneSided), players);
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+
+    // Five against one, the one being Japanese. Two cross: G4, the last of three English speakers against none,
+    // then G3. Nobody who could stay is moved
+    const lopsided = await startTeams(t, roomId, hostId, [[hostId, g1, g2, g3, g4], [g5]]);
+    expect(await storedTeams(t, lopsided)).toEqual([[hostId, g1, g2], [g3, g4, g5]]);
+  });
+
+  test("evening out takes a speaker of the language most in excess, not simply the last in line", async () => {
+    const t = newBackend();
+    // Host en, G1 ja, G2 ja, G3 en, G4 en against G5 en. Two cross: G4, the last in line while both languages are
+    // two in excess, then G2: team 0 then has two Japanese speakers against none, and G3, the last in line, stays
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5] } = await teamRoom(t, ["ja", "ja", "en", "en", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g1, g2, g3, g4], [g5]]);
+
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1, g3], [g2, g4, g5]]);
+  });
+
+  test("of those who could cross, one who is away goes first while their team has more players away", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4], players } = await teamRoom(t, ["en", "en", "en", "en"]);
+    await goAway(t, g1, g2);
+
+    // Two of the five cross. G4 is the last in the drawing order, but G2 goes first: both players away are on
+    // team 0. With one of them on each team, G4 follows
+    const sessionId = await startTeams(t, roomId, hostId, [players, []]);
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1, g3], [g2, g4]]);
+  });
+
+  test("a team of one is never played: with four players a one-against-three split becomes two against two", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3] } = await teamRoom(t, ["en", "en", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId], [g1, g2, g3]]);
+
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g3], [g1, g2]]);
+  });
+
+  test("the split shown for six still fits when two of them have left by Start", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5] } = await teamRoom(t, ["ja", "en", "ja", "en", "ja"]);
+    const shown = [[hostId, g1, g4], [g2, g3, g5]];
+    await t.mutation(api.participants.setParticipantOnline, { participantId: g2, online: false });
+    await t.mutation(api.participants.setParticipantOnline, { participantId: g3, online: false });
+
+    const sessionId = await startTeams(t, roomId, hostId, shown);
+
+    // Team 1 is down to G5, so one of team 0 crosses: G4, whose language team 0 has two of against none
+    expect(await storedTeams(t, sessionId)).toEqual([[hostId, g1], [g4, g5]]);
+  });
+
+  test.each<[string, (players: PID[]) => Split]>([
+    ["no list", () => []],
+    ["two empty lists", () => [[], []]],
+    ["two lists of strangers", () => [["x"], ["y", "z"]]],
+    ["players in a third list only, which is no team", (players) => [[], [], players]],
+  ])("a split that keeps nobody is a fresh deal: %s", async (_name, split) => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const random = seedRandom(seed);
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+      const sessionId = await startTeams(t, roomId, hostId, split(players));
+      random.mockRestore();
+
+      await expectEven(t, await storedTeams(t, sessionId), players);
+    }
+  });
+
+  test.each<[string, (players: PID[]) => Split]>([
+    ["one list", (players) => [players]],
+    ["one player listed 300 times", (players) => [Array.from({ length: 300 }, () => players[1]), [players[2]]]],
+    ["three lists", (players) => [[players[0]], [players[1]], [players[2], players[3]]]],
+    ["the host alone on a team", (players) => [[players[0]], players.slice(1)]],
+    ["everyone in both lists", (players) => [players, players]],
+  ])("a split of any shape ends as two teams of at least two that hold every player once: %s", async (_name, split) => {
+    const t = newBackend();
+    const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+    const sessionId = await startTeams(t, roomId, hostId, split(players));
+
+    expectTeams(await storedTeams(t, sessionId), players);
+    expect((await chainsOf(t, sessionId))[0].drawerParticipantId).toBe(hostId);
+  });
+
+  test("over the route, 'auto' and a split are passed on, and anything else is a Start without teams, never a refusal", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3], players } = await teamRoom(t, ["ja", "en", "ja"]);
+    const body = { roomId, participantId: hostId, gameType: "lost-in-translation" };
+
+    const auto = await post(t, "/api/games/start", { ...body, teams: "auto" });
+    expect(auto.status).toBe(200);
+    expect(Object.keys(auto.body)).toEqual(["sessionId"]);
+    await expectEven(t, await storedTeams(t, auto.body.sessionId), players);
+    await post(t, "/api/games/cancel", { roomId, participantId: hostId });
+
+    const split = await post(t, "/api/games/start", { ...body, teams: [[g3, hostId], [g1, g2]] });
+    expect(await storedTeams(t, split.body.sessionId)).toEqual([[hostId, g3], [g1, g2]]);
+    await post(t, "/api/games/cancel", { roomId, participantId: hostId });
+
+    for (const teams of [null, true, false, 2, "teams", "", {}, { auto: true }, [hostId, g1], [[hostId, 1], [g2, g3]], [[hostId, g1], null]]) {
+      const res = await post(t, "/api/games/start", { ...body, teams });
+      expect(res.status, JSON.stringify(teams)).toBe(200);
+      expect(Object.keys(await sessionDoc(t, res.body.sessionId)).sort(), JSON.stringify(teams)).toEqual(SESSION_KEYS);
+      await post(t, "/api/games/cancel", { roomId, participantId: hostId });
+    }
+  });
+
+  // ── The picker's deal ──
+
+  describe("dealTeams", () => {
+    /** Everything a mutation could have written to */
+    async function everythingStored(t: Backend): Promise<string> {
+      return JSON.stringify(
+        await t.run(async (ctx) => ({
+          rooms: await ctx.db.query("rooms").collect(),
+          participants: await ctx.db.query("participants").collect(),
+          messages: await ctx.db.query("messages").collect(),
+          sessions: await ctx.db.query("gameSessions").collect(),
+          chains: await ctx.db.query("gameChains").collect(),
+          steps: await ctx.db.query("gameSteps").collect(),
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+        }))
+      );
+    }
+
+    test("answers with who would be dealt in and an even split of them, and writes nothing", async () => {
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [g1, g2, g3, g4] } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+      await t.mutation(api.participants.setParticipantOnline, { participantId: g4, online: false });
+      // The host's last heartbeat said "away". A Start records that the host is here; a deal records nothing
+      await goAway(t, hostId);
+      const before = await everythingStored(t);
+
+      const dealt = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId });
+      const again = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: dealt.teams! });
+
+      expect(Object.keys(dealt).sort()).toEqual(["playerIds", "teams"]);
+      expect(dealt.playerIds).toEqual([hostId, g1, g2, g3]);
+      await expectEven(t, dealt.teams, [hostId, g1, g2, g3]);
+      await expectEven(t, again.teams, [hostId, g1, g2, g3]);
+      expect(await everythingStored(t)).toBe(before);
+    });
+
+    test.each([2, 3])("with %i players there are no teams to show", async (count) => {
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, ["ja", "en"].slice(0, count - 1));
+
+      const answer = { playerIds: players, teams: null };
+      expect(await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).toEqual(answer);
+      expect(await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: [[hostId], []] })).toEqual(answer);
+      expect(await post(t, "/api/games/deal-teams", { roomId, participantId: hostId })).toEqual({ status: 200, body: answer });
+    });
+
+    test("it deals from the players a Start would deal in, and the split it returns, sent back with Start, is the one played", async () => {
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [g1, g2, g3, g4, g5] } = await teamRoom(t, ["ja", "en", "ja", "en", "ja"]);
+      // G5 has left, and G4's phone went dark four minutes ago: neither is dealt in
+      await t.mutation(api.participants.leaveRoom, { participantId: g5 });
+      await advance(t, 4 * 60_000);
+      await beat(t, hostId, g1, g2, g3);
+      const dealt = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId });
+      expect(dealt.playerIds).toEqual([hostId, g1, g2, g3]);
+      expect(g4).toBeTruthy();
+
+      const sessionId = await startTeams(t, roomId, hostId, dealt.teams!);
+      expect((await sessionDoc(t, sessionId)).playerIds).toEqual(dealt.playerIds);
+      expect(await storedTeams(t, sessionId)).toEqual(dealt.teams);
+    });
+
+    test("Reshuffle, which sends the split on screen, comes back with other teams every time, just as even", async () => {
+      seedRandom(5);
+      const t = newBackend();
+      // Two and two: there are only two ways to pair them, so chance alone would repeat the split every other press
+      const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja"]);
+
+      let shown = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams!;
+      for (let press = 0; press < 30; press++) {
+        const next = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: shown })).teams!;
+        expect(sides(next)).not.toBe(sides(shown));
+        // The same two groups under the other team's name are the same teams
+        const swapped = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: [shown[1], shown[0]] })).teams!;
+        expect(sides(swapped)).not.toBe(sides(shown));
+        await expectEven(t, next, players);
+        shown = next;
+      }
+    });
+
+    test.each([0, 0.25, 0.5, 0.75, 0.999])(
+      "when chance deals the split on screen again (Math.random stuck at %f), two players alike in language and in being here change sides",
+      async (stuck) => {
+        vi.spyOn(Math, "random").mockReturnValue(stuck);
+        const t = newBackend();
+        // Two Japanese speakers and four others, of whom G2 and G4 are away
+        const { roomId, hostId, guestIds: [, g2, , g4], players } = await teamRoom(t, ["ja", "en", "ja", "en", "en"]);
+        await goAway(t, g2, g4);
+        const shown = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams!;
+        expect((await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams).toEqual(shown);
+
+        const next = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: shown })).teams!;
+        expect(sides(next)).not.toBe(sides(shown));
+        // As even as the split it replaces, in every count
+        await expectEven(t, next, players, [g2, g4]);
+        // Two changed sides, and nobody else
+        expect(next[0].filter((p) => !shown[0].includes(p))).toHaveLength(1);
+        expect(next[1].filter((p) => !shown[1].includes(p))).toHaveLength(1);
+      }
+    );
+
+    // Host en here, G1 ja here, G2 ja away, G3 en away: one split alone is even in every count
+    test("when no other split is as even, Reshuffle still comes back with other teams, even in size and language", async () => {
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [g1, g2, g3], players } = await teamRoom(t, ["ja", "ja", "en"]);
+      await goAway(t, g2, g3);
+      const only = sides([[hostId, g2], [g1, g3]]);
+
+      for (let seed = 1; seed <= 10; seed++) {
+        const random = seedRandom(seed);
+        const shown = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams!;
+        expect(sides(shown)).toBe(only);
+        const next = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: shown })).teams!;
+        random.mockRestore();
+        // The two Japanese speakers change sides, or the two others: either way these teams
+        expect(sides(next)).toBe(sides([[hostId, g1], [g2, g3]]));
+        await expectEven(t, next, players);
+      }
+    });
+
+    // Host en here, G1 ja here, G2 ja away, G3 en here, G4 en away: three splits are even in every count, and a
+    // fresh deal comes up with one of them, [Host, G2, G3] against [G1, G4], every other time
+    test("when other splits are as even, Reshuffle comes back with one of them: the players away stay shared out", async () => {
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [, g2, , g4], players } = await teamRoom(t, ["ja", "ja", "en", "en"]);
+      await goAway(t, g2, g4);
+
+      const seen = new Set<string>();
+      for (let seed = 1; seed <= 40; seed++) {
+        const random = seedRandom(seed);
+        const shown = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams!;
+        const next = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: shown })).teams!;
+        random.mockRestore();
+        expect(sides(next)).not.toBe(sides(shown));
+        await expectEven(t, next, players, [g2, g4]);
+        seen.add(sides(shown));
+      }
+      expect(seen.size).toBe(3);
+    });
+
+    test("a split on screen that this room's players do not make up is nothing to differ from", async () => {
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, ["ja", "en", "ja"]);
+
+      for (const previous of [[], [players], [["x"], ["y"]], [[], [], []]]) {
+        const { teams } = await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous });
+        await expectEven(t, teams, players);
+      }
+      // Over the route, a value that is no split is none sent
+      for (const previous of [null, "auto", 7, [hostId], [[hostId, 3]]]) {
+        const res = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId, previous });
+        expect(res.status, JSON.stringify(previous)).toBe(200);
+        await expectEven(t, res.body.teams, players);
+      }
+    });
+
+    test("a guest who was on the split shown and has left since does not make the teams count as new", async () => {
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [g1, g2, g3, g4] } = await teamRoom(t, ["ja", "en", "ja", "en"]);
+      await t.mutation(api.participants.leaveRoom, { participantId: g4 });
+      const stuck = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams!;
+
+      // The split on screen still lists G4. Chance deals the four who stayed as before, which is not other teams
+      const shown = [[...stuck[0], g4], stuck[1]];
+      const next = (await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, previous: shown })).teams!;
+      expect(sides(next)).not.toBe(sides(stuck));
+      expectTeams(next, [hostId, g1, g2, g3]);
+    });
+
+    test("in a closed room nothing is dealt, as nothing can be started there", async () => {
+      const t = newBackend();
+      const { roomId, hostId } = await teamRoom(t, ["ja", "en", "ja"]);
+      await t.mutation(api.rooms.closeRoom, { roomId });
+
+      await expect(startTeams(t, roomId, hostId, "auto")).rejects.toThrow(/Room is closed/);
+      await expect(t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).rejects.toThrow(/Room is closed/);
+      const refused = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId });
+      expect(refused.status).toBe(400);
+      expect(refused.body.error).toMatch(/Room is closed/);
+    });
+
+    test("only the host can ask, and when enforced only with the host's own token; the route reads it from callerToken", async () => {
+      const t = newBackend();
+      const HOST_TOKEN = tokenFor(1);
+      const G1_TOKEN = tokenFor(2);
+      const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+      const g1 = await joinGuest(t, roomId, "G1", { token: G1_TOKEN });
+      for (const name of ["G2", "G3"]) await joinGuest(t, roomId, name);
+      const other = await room(t, ["Zed"], { token: tokenFor(3) });
+
+      await expect(t.mutation(api.games.dealTeams, { roomId, participantId: g1, token: G1_TOKEN })).rejects.toThrow(
+        /Only the host can start a game/
+      );
+      // Not enforced: a missing token is logged and let through
+      expect((await t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).teams).toHaveLength(2);
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringMatching(/^auth: games\.dealTeams no token/));
+
+      vi.stubEnv("AUTH_MODE", "enforce");
+      await expect(t.mutation(api.games.dealTeams, { roomId, participantId: hostId })).rejects.toThrow(/Not authorised/);
+      await expect(t.mutation(api.games.dealTeams, { roomId, participantId: hostId, token: G1_TOKEN })).rejects.toThrow(/Not authorised/);
+      await expect(t.mutation(api.games.dealTeams, { roomId, participantId: other.hostId, token: tokenFor(3) })).rejects.toThrow(
+        /Not authorised/
+      );
+      expect((await t.mutation(api.games.dealTeams, { roomId, participantId: hostId, token: HOST_TOKEN })).teams).toHaveLength(2);
+
+      const refused = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId });
+      expect(refused.status).toBe(400);
+      expect(refused.body.error).toMatch(/Not authorised/);
+      // The token is not read from `token`, which on the routes is never the caller's
+      expect((await post(t, "/api/games/deal-teams", { roomId, participantId: hostId, token: HOST_TOKEN })).status).toBe(400);
+      const dealt = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId, callerId: hostId, callerToken: HOST_TOKEN });
+      expect(dealt.status).toBe(200);
+      expect(Object.keys(dealt.body).sort()).toEqual(["playerIds", "teams"]);
+      expect(dealt.body.playerIds).toHaveLength(4);
+      expectTeams(dealt.body.teams, dealt.body.playerIds);
+      // And the split on screen from `previous`. Chance is held still, so it deals the same teams again
+      vi.spyOn(Math, "random").mockReturnValue(0.5);
+      const shown = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId, callerToken: HOST_TOKEN });
+      const again = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId, callerToken: HOST_TOKEN });
+      expect(again.body.teams).toEqual(shown.body.teams);
+      const next = await post(t, "/api/games/deal-teams", { roomId, participantId: hostId, callerToken: HOST_TOKEN, previous: shown.body.teams });
+      expect(sides(next.body.teams)).not.toBe(sides(shown.body.teams));
+    });
+  });
+
+  // ── Who draws ──
+
+  test.each<[string, string[], (p: PID[]) => Split, number[]]>([
+    // The numbers are places in the room: 0 is the host, 1 is G1
+    ["two against two", ["ja", "en", "ja"], (p) => [[p[0], p[2]], [p[1], p[3]]], [0, 1, 2, 3, 0, 1, 2, 3, 0, 1]],
+    ["three against two", ["ja", "en", "ja", "en"], (p) => [[p[0], p[2], p[4]], [p[1], p[3]]], [0, 1, 2, 3, 4, 1, 0, 3, 2, 1]],
+    ["two against three, the host on the smaller team", ["ja", "en", "ja", "en"], (p) => [[p[0], p[2]], [p[1], p[3], p[4]]], [0, 1, 2, 3, 0, 4, 2, 1, 0, 3]],
+    ["three against three", ["ja", "en", "ja", "en", "ja"], (p) => [[p[0], p[2], p[4]], [p[1], p[3], p[5]]], [0, 1, 2, 3, 4, 5, 0, 1, 2, 3]],
+    ["three against two, the host on team 1", ["ja", "en", "ja", "en"], (p) => [[p[1], p[3]], [p[0], p[2], p[4]]], [0, 1, 2, 3, 4, 1, 0, 3, 2, 1]],
+    ["three against three, the host on team 1", ["ja", "en", "ja", "en", "ja"], (p) => [[p[1], p[3], p[5]], [p[0], p[2], p[4]]], [0, 1, 2, 3, 4, 5, 0, 1, 2, 3]],
+  ])(
+    "the teams take the drawing in turn, the host's team first with the host, each going through its members in order: %s",
+    async (_name, languages, split, order) => {
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, languages);
+      const sessionId = await startTeams(t, roomId, hostId, split(players));
+
+      const chains = await chainsOf(t, sessionId);
+      expect(chains.map((c) => players.indexOf(c.drawerParticipantId!))).toEqual(order);
+      // Each team draws five of the ten rounds
+      const [team0] = await storedTeams(t, sessionId);
+      expect(chains.filter((c) => team0.includes(c.drawerParticipantId!))).toHaveLength(5);
+      expect(chains.every((c) => c.maxSteps === players.length)).toBe(true);
+      expect(await myStep(t, hostId)).toMatchObject({ stepType: "draw", round: 1 });
+    }
+  );
+
+  // The host's row is made with the room, so the host is the first to have joined. The drawing order does not lean on it
+  test("round 1 is drawn by whoever pressed Start, wherever they come in the join order", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [g1, g2, g3] } = await teamRoom(t, ["ja", "en", "ja"]);
+    await t.run(async (ctx) => await ctx.db.patch(g2, { role: "host" }));
+
+    const sessionId = await startTeams(t, roomId, g2, [[g1, g3], [hostId, g2]]);
+    expect(await storedTeams(t, sessionId)).toEqual([[g1, g3], [g2, hostId]]);
+    expect((await chainsOf(t, sessionId)).slice(0, 4).map((c) => c.drawerParticipantId)).toEqual([g2, g1, hostId, g3]);
+  });
+
+  test("everyone but the drawer guesses, the drawer's own team included, and a step says nothing of teams", async () => {
+    const t = newBackend();
+    const { hostId, g1, g2, g3, sessionId } = await twoAgainstTwo(t);
+    const [chain] = await chainsOf(t, sessionId);
+    expect(JSON.stringify(await myStep(t, hostId))).not.toMatch(/team/i);
+    await draw(t, hostId);
+
+    const guesses = (await stepsOf(t, sessionId)).filter((s) => s.stepType === "guess");
+    expect(guesses.map((s) => s.assignedParticipantId)).toEqual([g1, g2, g3]);
+    const step = await post(t, "/api/games/my-active-step", { participantId: g2 });
+    expect(step.body).toMatchObject({ stepType: "guess", round: 1, totalRounds: 10, chainMaxSteps: 4 });
+    expect(JSON.stringify(step.body)).not.toMatch(/team/i);
+    // The answer to a guess is what it is in any game
+    const open = await openStep(t, g2, "guess");
+    expect(
+      await t.mutation(api.games.submitGameStep, { stepId: open._id, participantId: g2, selectedOption: chain.originalPrompt })
+    ).toStrictEqual({ correct: true, correctOption: chain.originalPrompt, selectedOption: chain.originalPrompt });
+  });
+
+  test("the status names the team whose member has the round, through its drawing and its guessing", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, players } = await threeAgainstTwo(t);
+
+    expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({ phase: "drawing", drawerName: "Host", drawingTeam: 0 });
+    await draw(t, hostId);
+    expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({ phase: "guessing", drawerName: "Host", drawingTeam: 0 });
+    for (const guesser of [g1, g2, g3, g4]) await guess(t, guesser, "right");
+    expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({ phase: "drawing", drawerName: "G1", drawingTeam: 1 });
+    await playRound(t, players, g1, []);
+    expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({ phase: "drawing", drawerName: "G2", drawingTeam: 0 });
+  });
+
+  // ── Points ──
+
+  // Each round: how many of team 0's guessers and of team 1's are right, and the points that gives the two teams.
+  // The team whose member draws has one guesser fewer than its size.
+  test.each<[number, Array<[[number, number], [number, number]]>]>([
+    [2, [[[1, 1], [60, 30]], [[1, 0], [30, 0]], [[0, 2], [0, 60]], [[2, 1], [60, 60]]]],
+    [3, [[[1, 1], [30, 20]], [[2, 2], [40, 60]], [[2, 3], [60, 60]], [[0, 1], [0, 30]]]],
+    [4, [[[1, 3], [20, 45]], [[1, 2], [15, 40]], [[2, 1], [40, 15]], [[3, 3], [45, 60]]]],
+    [5, [[[1, 1], [15, 12]], [[2, 3], [24, 45]], [[3, 4], [45, 48]], [[3, 2], [36, 30]]]],
+    [6, [[[2, 5], [24, 50]], [[1, 4], [10, 48]], [[3, 0], [36, 0]], [[6, 1], [60, 12]]]],
+    // Sixty does not divide by seven: a seventh guesser's share is rounded to the nearest point, up (3 of 7 is
+    // 25.7) or down (2 of 7 is 17.1)
+    [7, [[[5, 3], [50, 26]], [[5, 1], [43, 10]], [[6, 7], [60, 60]], [[2, 2], [17, 20]]]],
+  ])(
+    "a team's points for a round are the share of its guessers who were right, out of 60, and its total their sum: teams of %i",
+    async (size, rounds) => {
+      const t = newBackend();
+      const { roomId, hostId, players } = await teamRoom(t, Array.from({ length: 2 * size - 1 }, () => "en"));
+      const teams = [players.filter((_, i) => i % 2 === 0), players.filter((_, i) => i % 2 === 1)];
+      const sessionId = await startTeams(t, roomId, hostId, teams);
+      const chains = await chainsOf(t, sessionId);
+
+      const totals = [0, 0];
+      for (const [r, [right, expected]] of rounds.entries()) {
+        const drawer = chains[r].drawerParticipantId!;
+        const guessers = teams.map((team) => team.filter((p) => p !== drawer));
+        await playRound(t, players, drawer, [...guessers[0].slice(0, right[0]), ...guessers[1].slice(0, right[1])]);
+
+        expect((await chainsOf(t, sessionId))[r].teamRound, `round ${r + 1}`).toEqual([
+          { right: right[0], counted: guessers[0].length },
+          { right: right[1], counted: guessers[1].length },
+        ]);
+        totals[0] += expected[0];
+        totals[1] += expected[1];
+        expect(await points(t, roomId), `after round ${r + 1}`).toEqual(totals);
+      }
+
+      // The next round is being drawn when the host ends the game: every round before it keeps its points
+      await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+      const standing = [
+        { memberIds: teams[0], points: totals[0] },
+        { memberIds: teams[1], points: totals[1] },
+      ];
+      const summary = await teamSummary(t, roomId);
+      expect(summary.teams).toEqual(standing);
+      expect(summary.rounds.map((round) => round.teamPoints)).toEqual(rounds.map(([, expected]) => expected));
+      const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+      expect(replay!.teams).toEqual(standing);
+      expect(replay!.chains.map((c) => c.teamPoints)).toEqual(rounds.map(([, expected]) => expected));
+      // Every player of the session has a name in the replay: in a team of six or more, someone never draws
+      expect(Object.keys(replay!.participants).sort()).toEqual([...players].sort());
+    }
+  );
+
+  test.each([undefined, "on"])(
+    "with the switch %j, the teams' points stand still while a round is open and move when its last guess is in",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv("LOST_IN_TRANSLATION_HIDE_ANSWER", value);
+      const t = newBackend();
+      const { roomId, hostId, g1, g2, g3, g4, players, sessionId } = await threeAgainstTwo(t);
+      await playRound(t, players, hostId, [g2, g1, g3]);
+      expect(await points(t, roomId)).toEqual([30, 60]);
+
+      /** Everything that tells a client how the teams stand */
+      async function board() {
+        const status = await t.query(api.games.getGameStatus, { roomId });
+        const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+        const session = await t.query(api.games.getActiveGameSession, { roomId });
+        return JSON.stringify([
+          status!.teams,
+          (await post(t, "/api/games/status", { roomId })).body.teams,
+          replay!.teams,
+          replay!.chains.map((c) => [c.teamPoints, c.teamRound]),
+          [session!.teams, session!.teamAway],
+          (await chainsOf(t, sessionId)).map((c) => c.teamRound),
+        ]);
+      }
+      const before = await board();
+      expect(before).toContain('"points":30');
+
+      // Round 2: G1 draws, and three of the four guesses come in, all of them right
+      await draw(t, g1);
+      expect(await board()).toBe(before);
+      for (const guesser of [hostId, g2, g3]) {
+        await guess(t, guesser, "right");
+        expect(await board(), "a guess is in").toBe(before);
+        // Each player's own score moves at once, as it always did
+        expect((await t.query(api.games.getGameStatus, { roomId }))!.scores[guesser].correct).toBeGreaterThan(0);
+      }
+
+      await guess(t, g4, "wrong");
+      expect(await board()).not.toBe(before);
+      expect(await points(t, roomId)).toEqual([30 + 40, 60 + 60]);
+    }
+  );
+
+  test("one strike: a guess the server closed is a wrong answer once for a player who was playing, and is left out for one who was not", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, players, sessionId } = await threeAgainstTwo(t);
+    const results = async () => (await chainsOf(t, sessionId)).map((c) => c.teamRound).filter((r) => r !== undefined);
+    const away = async () => (await sessionDoc(t, sessionId)).teamAway;
+    expect(await away()).toEqual(players);
+
+    // Round 1, the host draws. G3 has not had a turn and does not answer: left out, so team 1 is G1 alone
+    await goAway(t, g3);
+    await draw(t, hostId);
+    for (const guesser of [g1, g2, g4]) await guess(t, guesser, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g2, g4]);
+    expect(await results()).toEqual([[{ right: 2, counted: 2 }, { right: 1, counted: 1 }]]);
+    expect(await points(t, roomId)).toEqual([60, 60]);
+    expect(await away()).toEqual([g3]);
+
+    // Round 2, G1 draws. G3 is back and counts with the answer given. G4 answered round 1 and now does not:
+    // a wrong answer for team 0, which is one right out of three
+    await beat(t, g3);
+    await goAway(t, g4);
+    await draw(t, g1);
+    await guess(t, hostId, "right");
+    await guess(t, g2, "wrong");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g2, g3]);
+    expect((await results())[1]).toEqual([{ right: 1, counted: 3 }, { right: 1, counted: 1 }]);
+    expect(await points(t, roomId)).toEqual([60 + 20, 60 + 60]);
+    expect(await away()).toEqual([g4]);
+
+    // Round 3, G2 draws. G4 misses again: this time left out, so team 0 is the host alone
+    await draw(t, g2);
+    await guess(t, hostId, "right");
+    await guess(t, g1, "wrong");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g2, g3]);
+    expect((await results())[2]).toEqual([{ right: 1, counted: 1 }, { right: 1, counted: 2 }]);
+    expect(await points(t, roomId)).toEqual([80 + 60, 120 + 30]);
+    expect(await away()).toEqual([g4]);
+
+    // Round 4, G3 draws. G4 is back and answers, wrongly: counted again
+    await beat(t, g4);
+    await playRound(t, players, g3, [hostId, g2, g1]);
+    expect((await results())[3]).toEqual([{ right: 2, counted: 3 }, { right: 1, counted: 1 }]);
+    expect(await points(t, roomId)).toEqual([140 + 40, 150 + 60]);
+    expect(await away()).toEqual([]);
+
+    // A player's own score counts only the guesses they answered, as in any game
+    const status = await t.query(api.games.getGameStatus, { roomId });
+    expect(status!.scores[g4]).toMatchObject({ correct: 1, total: 2 });
+    expect(status!.scores[g3]).toMatchObject({ correct: 2, total: 2 });
+  });
+
+  test("the drawer of one round who does not answer the next counts as a wrong answer: a drawing sent is a turn played", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, players, sessionId } = await twoAgainstTwo(t);
+    await playRound(t, players, hostId, [g1, g2, g3]);
+
+    await goAway(t, hostId);
+    await draw(t, g1);
+    await guess(t, g2, "right");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [g1, g2, g3]);
+
+    expect((await chainsOf(t, sessionId))[1].teamRound).toEqual([{ right: 1, counted: 2 }, { right: 1, counted: 1 }]);
+    expect(await points(t, roomId)).toEqual([60 + 30, 60 + 60]);
+  });
+
+  test("a drawer who sent no drawing and does not answer the next round is left out of it: a drawing not sent is a turn not played", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, players, sessionId } = await twoAgainstTwo(t);
+    await playRound(t, players, hostId, [g1, g2, g3]);
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual([]);
+
+    // Round 2 is G1's to draw, and G1 is gone: no drawing, and G1 has now missed a turn
+    await goAway(t, g1);
+    await pass(t, ABSENT_MS, [hostId, g2, g3]);
+    expect((await chainsOf(t, sessionId))[1].teamRound).toEqual([{ right: 0, counted: 0 }, { right: 0, counted: 0 }]);
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual([g1]);
+
+    // Round 3, G2 draws. G1 answered round 1, but their last turn was the drawing: left out, not a wrong answer,
+    // so team 1 is G3 alone
+    await draw(t, g2);
+    await guess(t, hostId, "right");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [hostId, g2, g3]);
+    expect((await chainsOf(t, sessionId))[2].teamRound).toEqual([{ right: 1, counted: 1 }, { right: 1, counted: 1 }]);
+    expect(await points(t, roomId)).toEqual([60 + 60, 60 + 60]);
+  });
+
+  test("one strike is each player's own: a teammate who is away does not excuse one who was playing", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, sessionId } = await threeAgainstTwo(t);
+
+    // Round 1, the host draws. G4 has had no turn and does not answer: left out
+    await goAway(t, g4);
+    await draw(t, hostId);
+    for (const guesser of [g1, g2, g3]) await guess(t, guesser, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g2, g3]);
+    expect((await chainsOf(t, sessionId))[0].teamRound).toEqual([{ right: 1, counted: 1 }, { right: 2, counted: 2 }]);
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual([g4]);
+
+    // Round 2, G1 draws. G2 answered round 1 and now does not: a wrong answer for team 0, while G4 is still left out
+    await goAway(t, g2);
+    await draw(t, g1);
+    await guess(t, hostId, "right");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g3]);
+    expect((await chainsOf(t, sessionId))[1].teamRound).toEqual([{ right: 1, counted: 2 }, { right: 1, counted: 1 }]);
+    expect(await points(t, roomId)).toEqual([60 + 30, 60 + 60]);
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual([g2, g4]);
+  });
+
+  test("a round in which a team has nobody counted, and a round nobody drew, give neither team points", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, sessionId } = await twoAgainstTwo(t);
+    const chains = await chainsOf(t, sessionId);
+
+    // Round 1, the host draws. G2, team 0's only guesser, has not had a turn and does not answer. Team 1 is
+    // right twice, and gets nothing for it: with nobody of team 0 counted the round is void
+    await goAway(t, g2);
+    await draw(t, hostId);
+    await guess(t, g1, "right");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g3]);
+    expect((await chainsOf(t, sessionId))[0].teamRound).toEqual([{ right: 0, counted: 0 }, { right: 2, counted: 2 }]);
+    expect(await points(t, roomId)).toEqual([0, 0]);
+
+    // Round 2, G1 draws. G2 misses again and is still left out; the host is right, G3 is not
+    await draw(t, g1);
+    await guess(t, hostId, "right");
+    await guess(t, g3, "wrong");
+    await pass(t, ABSENT_MS, [hostId, g1, g3]);
+    expect(await points(t, roomId)).toEqual([60, 0]);
+
+    // Round 3 is G2's to draw, and is passed over: no drawing, no guesses, no points. Team 1 draws next
+    await pass(t, ABSENT_MS, [hostId, g1, g3]);
+    expect((await chainsOf(t, sessionId))[2]).toMatchObject({
+      status: "complete",
+      teamRound: [{ right: 0, counted: 0 }, { right: 0, counted: 0 }],
+    });
+    expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({
+      currentRound: 4,
+      phase: "drawing",
+      drawerName: "G3",
+      drawingTeam: 1,
+      teams: [{ memberIds: [hostId, g2], points: 60 }, { memberIds: [g1, g3], points: 0 }],
+    });
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual([g2]);
+
+    // The summary and the replay list a void round with its answers and without points
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    const summary = await teamSummary(t, roomId);
+    expect(summary.rounds).toEqual([
+      { round: 1, prompt: chains[0].originalPrompt, results: { [g1]: true, [g3]: true } },
+      { round: 2, prompt: chains[1].originalPrompt, results: { [hostId]: true, [g3]: false }, teamPoints: [60, 0] },
+    ]);
+    expect(summary.teams!.map((team) => team.points)).toEqual([60, 0]);
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.chains.map((c) => c.teamPoints)).toEqual([undefined, [60, 0]]);
+    expect(replay!.chains.every((c) => "teamPoints" in c === (c.chainIndex === 1))).toBe(true);
+    expect(replay!.teams!.map((team) => team.points)).toEqual([60, 0]);
+  });
+
+  test("a round in which team 1 has nobody counted gives neither team points", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, sessionId } = await twoAgainstTwo(t);
+
+    // Round 1, the host draws. G1 and G3, all of team 1, have had no turn and do not answer: both are left out.
+    // G2 is right for team 0, which gets nothing for it
+    await goAway(t, g1, g3);
+    await draw(t, hostId);
+    await guess(t, g2, "right");
+    await pass(t, ABSENT_MS, [hostId, g2]);
+    expect((await chainsOf(t, sessionId))[0].teamRound).toEqual([{ right: 1, counted: 1 }, { right: 0, counted: 0 }]);
+    expect(await points(t, roomId)).toEqual([0, 0]);
+  });
+
+  /**
+   * Two against two, to the end: host and G2 against G1 and G3. Team 0's guessers are always right; team 1's are
+   * right in the first `rightRounds` rounds only.
+   */
+  async function playTeamGame(t: Backend, rightRounds: number) {
+    const { roomId, hostId, g1, g2, g3, players, sessionId } = await twoAgainstTwo(t, { level: 2 });
+    const chains = await chainsOf(t, sessionId);
+    for (const [r, chain] of chains.entries()) {
+      await playRound(t, players, chain.drawerParticipantId!, r < rightRounds ? players : [hostId, g2]);
+    }
+    return { roomId, hostId, g1, g2, g3, players, sessionId, chains };
+  }
+
+  test("the summary of a team game names the teams with their points and each round's, after everything it held before", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, chains } = await playTeamGame(t, 4);
+
+    const records = await gameRecords(t, roomId);
+    expect(records.filter((r) => !r.startsWith("game_summary:"))).toEqual(["game:Lost in Translation Level 2"]);
+    const summary = await teamSummary(t, roomId);
+    // `teams` is the last key, and a round's points come after its results
+    expect(Object.keys(summary)).toEqual(["gameType", "level", "players", "rounds", "totals", "teams"]);
+    expect(summary.teams).toEqual([
+      { memberIds: [hostId, g2], points: 600 },
+      { memberIds: [g1, g3], points: 240 },
+    ]);
+    expect(summary.rounds.map((round) => round.teamPoints)).toEqual([
+      [60, 60], [60, 60], [60, 60], [60, 60], [60, 0], [60, 0], [60, 0], [60, 0], [60, 0], [60, 0],
+    ]);
+    expect(Object.keys(summary.rounds[0])).toEqual(["round", "prompt", "results", "teamPoints"]);
+    // What a build from before teams reads is what an individual game holds
+    expect(summary).toMatchObject({ gameType: "Lost in Translation", level: 2 });
+    expect(summary.players).toEqual({
+      [hostId]: { name: "Host", avatar: "default" },
+      [g1]: { name: "G1", avatar: "fox" },
+      [g2]: { name: "G2", avatar: "cat" },
+      [g3]: { name: "G3", avatar: "owl" },
+    });
+    expect(summary.rounds[0]).toEqual({
+      round: 1,
+      prompt: chains[0].originalPrompt,
+      results: { [g1]: true, [g2]: true, [g3]: true },
+      teamPoints: [60, 60],
+    });
+    expect(summary.totals).toEqual({
+      [hostId]: { correct: 7, total: 7 },
+      [g1]: { correct: 3, total: 7 },
+      [g2]: { correct: 8, total: 8 },
+      [g3]: { correct: 3, total: 8 },
+    });
+  });
+
+  test("the replay of a team game has the teams with their points, each round's points, and every player's name and own score", async () => {
+    const t = newBackend();
+    const { hostId, g1, g2, g3, players, sessionId } = await playTeamGame(t, 4);
+
+    const replay = await post(t, "/api/games/replay", { gameSessionId: sessionId });
+    expect(Object.keys(replay.body).sort()).toEqual([...REPLAY_KEYS, "teams"].sort());
+    expect(replay.body.session.teams).toEqual([[hostId, g2], [g1, g3]]);
+    expect(replay.body.teams).toEqual([
+      { memberIds: [hostId, g2], points: 600 },
+      { memberIds: [g1, g3], points: 240 },
+    ]);
+    expect(replay.body.chains.map((c: { teamPoints?: number[] }) => c.teamPoints)).toEqual([
+      [60, 60], [60, 60], [60, 60], [60, 60], [60, 0], [60, 0], [60, 0], [60, 0], [60, 0], [60, 0],
+    ]);
+    for (const chain of replay.body.chains) {
+      expect(Object.keys(chain).sort()).toEqual([...CHAIN_KEYS, "steps", "teamPoints", "teamRound"].sort());
+    }
+    expect(Object.keys(replay.body.participants).sort()).toEqual([...players].sort());
+    expect(replay.body.scores).toEqual({
+      [hostId]: { correct: 7, total: 7 },
+      [g1]: { correct: 3, total: 7 },
+      [g2]: { correct: 8, total: 8 },
+      [g3]: { correct: 3, total: 8 },
+    });
+  });
+
+  test("teams level on points are a draw: nothing breaks the tie and nothing names a winner", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, sessionId } = await playTeamGame(t, 10);
+
+    const level = [
+      { memberIds: [hostId, g2], points: 600 },
+      { memberIds: [g1, g3], points: 600 },
+    ];
+    const summary = await teamSummary(t, roomId);
+    expect(summary.teams).toEqual(level);
+    expect(Object.keys(summary.teams![0])).toEqual(["memberIds", "points"]);
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.teams).toEqual(level);
+    expect(JSON.stringify([summary, replay, await sessionDoc(t, sessionId)])).not.toMatch(/winner|tie/i);
+  });
+
+  test("the round a Cancel cuts short gives the teams nothing, and the summary and the replay say what the status said", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, players, sessionId } = await threeAgainstTwo(t);
+    const chains = await chainsOf(t, sessionId);
+    await playRound(t, players, hostId, [g2, g1, g3]);
+    // Round 2: team 0 has all answered right, and G3 of team 1 has not answered yet
+    await draw(t, g1);
+    for (const guesser of [hostId, g2, g4]) await guess(t, guesser, "right");
+    const status = await t.query(api.games.getGameStatus, { roomId });
+    expect(status!.teams).toEqual([
+      { memberIds: [hostId, g2, g4], points: 30 },
+      { memberIds: [g1, g3], points: 60 },
+    ]);
+
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+
+    const summary = await teamSummary(t, roomId);
+    expect(Object.keys(summary)).toEqual(["gameType", "level", "cancelled", "players", "rounds", "totals", "teams"]);
+    expect(summary.teams).toEqual(status!.teams);
+    // The cut-short round is listed with its answers, which count for each player: only the teams get nothing for it
+    expect(summary.rounds).toEqual([
+      { round: 1, prompt: chains[0].originalPrompt, results: { [g1]: true, [g2]: true, [g3]: true, [g4]: false }, teamPoints: [30, 60] },
+      { round: 2, prompt: chains[1].originalPrompt, results: { [hostId]: true, [g2]: true, [g4]: true } },
+    ]);
+    expect(summary.totals[hostId]).toEqual({ correct: 1, total: 1 });
+
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.teams).toEqual(status!.teams);
+    expect(replay!.chains.map((c) => c.teamPoints)).toEqual([[30, 60], undefined]);
+    expect(replay!.scores[hostId]).toEqual({ correct: 1, total: 1 });
+    // Nothing was stored for the round, and its closed guess did not make G3 away
+    const stored = await chainsOf(t, sessionId);
+    expect(stored.map((c) => c.teamRound !== undefined)).toEqual([true, ...Array.from({ length: 9 }, () => false)]);
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual([]);
+  });
+
+  test("the replay of a team game names every player of the session, also those the game never reached", async () => {
+    const t = newBackend();
+    const { roomId, hostId, players } = await teamRoom(t, Array.from({ length: 11 }, () => "en"));
+    const namedIn = async (gameSessionId: SessionId) =>
+      Object.keys((await t.query(api.games.getGameReplay, { gameSessionId }))!.participants).sort();
+
+    // An individual game ended at once names the ten players who had a round to draw, as it always did
+    const individual = await start(t, roomId, hostId);
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    expect(await namedIn(individual)).toEqual(players.slice(0, 10).sort());
+
+    // Six against six: one member of each team has no round to draw
+    const inTeams = await startTeams(t, roomId, hostId, "auto");
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    expect(await namedIn(inTeams)).toEqual([...players].sort());
+  });
+
+  test("a team game cancelled before anyone answered posts a cancellation and no summary, like any game", async () => {
+    const t = newBackend();
+    const { roomId, hostId, sessionId } = await threeAgainstTwo(t);
+    await draw(t, hostId);
+
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+
+    expect(await gameRecords(t, roomId)).toEqual(["game:Lost in Translation Level 1", "game_cancelled:Lost in Translation"]);
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.teams!.map((team) => team.points)).toEqual([0, 0]);
+  });
+
+  test("a team game whose rounds run out unanswered still ends with the points it had, and those rounds give none", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, players, sessionId } = await threeAgainstTwo(t);
+    await playRound(t, players, hostId, [g2, g1]);
+    await goAway(t, hostId, g1, g2, g3, g4);
+    for (let round = 2; round <= 10; round++) await pass(t, ABSENT_MS);
+
+    expect(await sessionDoc(t, sessionId)).toMatchObject({ status: "complete" });
+    // Each of the five had a round to draw among those nine: a drawing not sent is a turn not played
+    expect((await sessionDoc(t, sessionId)).teamAway).toEqual(players);
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.teams!.map((team) => team.points)).toEqual([30, 30]);
+    const summary = await teamSummary(t, roomId);
+    expect(summary.cancelled).toBeUndefined();
+    expect(summary.teams!.map((team) => team.points)).toEqual([30, 30]);
+    expect(summary.rounds).toHaveLength(1);
+  });
+
+  test("a kicked player stays on the team's list, costs the team one wrong answer, and is then left out", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, players, sessionId } = await threeAgainstTwo(t);
+    await playRound(t, players, hostId, [g2, g1, g3]);
+    await t.mutation(api.participants.kickParticipant, { participantId: g4, roomId });
+
+    // Round 2, G1 draws. G4 cannot come back, so the first look closes the guess they were dealt
+    await draw(t, g1);
+    await guess(t, hostId, "right");
+    await guess(t, g2, "right");
+    await guess(t, g3, "wrong");
+    await pass(t, ROUND_CHECK_MS, [hostId, g1, g2, g3]);
+    expect((await chainsOf(t, sessionId))[1].teamRound).toEqual([{ right: 2, counted: 3 }, { right: 0, counted: 1 }]);
+
+    // Round 3, G2 draws: the host is team 0's only counted guesser
+    await draw(t, g2);
+    await guess(t, hostId, "right");
+    await guess(t, g1, "right");
+    await guess(t, g3, "right");
+    await pass(t, ROUND_CHECK_MS, [hostId, g1, g2, g3]);
+    expect((await chainsOf(t, sessionId))[2].teamRound).toEqual([{ right: 1, counted: 1 }, { right: 2, counted: 2 }]);
+
+    expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({
+      currentRound: 4,
+      teams: [
+        { memberIds: [hostId, g2, g4], points: 30 + 40 + 60 },
+        { memberIds: [g1, g3], points: 60 + 0 + 60 },
+      ],
+    });
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    // The team still lists the id; the names do not have it, as in any game
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.teams![0].memberIds).toEqual([hostId, g2, g4]);
+    expect(Object.keys(replay!.participants).sort()).toEqual([hostId, g1, g2, g3].sort());
+    const summary = await teamSummary(t, roomId);
+    // The chat card says what the status said: the strike is in the stored result, not in the answers
+    expect(summary.teams!.map((team) => team.points)).toEqual([130, 120]);
+    expect(summary.rounds.map((round) => round.teamPoints)).toEqual([[30, 60], [40, 0], [60, 60]]);
+    expect(summary.teams![0].memberIds).toEqual([hostId, g2, g4]);
+    expect(Object.keys(summary.players).sort()).toEqual([hostId, g1, g2, g3].sort());
+  });
+
+  test("a game that runs to its end after a void round and a strike posts the points the status had", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, sessionId } = await twoAgainstTwo(t);
+    const chains = await chainsOf(t, sessionId);
+
+    // Round 1, the host draws. G2, team 0's only guesser, has had no turn and does not answer: void, with two answers
+    await goAway(t, g2);
+    await draw(t, hostId);
+    await guess(t, g1, "right");
+    await guess(t, g3, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g3]);
+
+    // Round 2, G1 draws: everyone answers right
+    await beat(t, g2);
+    await draw(t, g1);
+    for (const guesser of [hostId, g2, g3]) await guess(t, guesser, "right");
+
+    // Round 3, G2 draws. G3 answered round 2 and now does not: a wrong answer for team 1
+    await goAway(t, g3);
+    await draw(t, g2);
+    await guess(t, hostId, "right");
+    await guess(t, g1, "right");
+    await pass(t, ABSENT_MS, [hostId, g1, g2]);
+    expect(await points(t, roomId)).toEqual([120, 90]);
+
+    // Nobody draws rounds 4 to 10, and the game ends by itself
+    await goAway(t, hostId, g1, g2, g3);
+    for (let round = 4; round <= 10; round++) await pass(t, ABSENT_MS);
+    expect(await sessionDoc(t, sessionId)).toMatchObject({ status: "complete" });
+
+    const summary = await teamSummary(t, roomId);
+    expect(summary.cancelled).toBeUndefined();
+    expect(summary.teams!.map((team) => team.points)).toEqual([120, 90]);
+    // The void round is listed with its answers and without points; the strike is in round 3's
+    expect(summary.rounds).toEqual([
+      { round: 1, prompt: chains[0].originalPrompt, results: { [g1]: true, [g3]: true } },
+      { round: 2, prompt: chains[1].originalPrompt, results: { [hostId]: true, [g2]: true, [g3]: true }, teamPoints: [60, 60] },
+      { round: 3, prompt: chains[2].originalPrompt, results: { [hostId]: true, [g1]: true }, teamPoints: [60, 30] },
+    ]);
+  });
+
+  // ── Builds from before teams, in a game that has them ──
+
+  test("a team game sends every field an older build decodes, its own under new keys, and only players in the maps read by player", async () => {
+    const t = newBackend();
+    const { roomId, hostId, g1, g2, g3, g4, players, sessionId } = await threeAgainstTwo(t);
+    const everyone = [...players].sort();
+    await playRound(t, players, hostId, [g2, g1, g3]);
+    const standing = [
+      { memberIds: [hostId, g2, g4], points: 30 },
+      { memberIds: [g1, g3], points: 60 },
+    ];
+
+    for (const path of ["/api/games/active-session", "/api/games/latest-session"]) {
+      const session = await post(t, path, { roomId });
+      expect(Object.keys(session.body).sort(), path).toEqual([...SESSION_KEYS, "teamAway", "teams"].sort());
+      expect(session.body.playerIds).toEqual(players);
+      expect(session.body.teams).toEqual([[hostId, g2, g4], [g1, g3]]);
+    }
+
+    const status = await post(t, "/api/games/status", { roomId });
+    expect(Object.keys(status.body).sort()).toEqual([...STATUS_KEYS, "drawingTeam", "teams"].sort());
+    expect(status.body).toMatchObject({ gameType: "lost-in-translation", level: 1, currentRound: 2, totalRounds: 10, phase: "drawing" });
+    expect(status.body.teams).toEqual(standing);
+    expect(status.body.drawingTeam).toBe(1);
+    // An older host app decodes `scores` as a map of one fixed shape: an entry of any other fails the whole status
+    expect(Object.keys(status.body.scores).sort()).toEqual(everyone);
+    for (const score of Object.values(status.body.scores)) {
+      expect(Object.keys(score as object).sort()).toEqual(["avatar", "correct", "nickname", "total"]);
+    }
+    expect(status.body.scores[g2]).toEqual({ correct: 1, total: 1, nickname: "G2", avatar: { type: "preset", value: "cat" } });
+
+    await post(t, "/api/games/cancel", { roomId, participantId: hostId });
+    const replay = await post(t, "/api/games/replay", { gameSessionId: sessionId });
+    expect(Object.keys(replay.body).sort()).toEqual([...REPLAY_KEYS, "teams"].sort());
+    expect(replay.body.teams).toEqual(standing);
+    expect(Object.keys(replay.body.scores).sort()).toEqual(everyone);
+    for (const score of Object.values(replay.body.scores)) expect(Object.keys(score as object).sort()).toEqual(["correct", "total"]);
+    expect(replay.body.scores[g4]).toEqual({ correct: 0, total: 1 });
+    expect(Object.keys(replay.body.participants).sort()).toEqual(everyone);
+    for (const named of Object.values(replay.body.participants)) expect(Object.keys(named as object).sort()).toEqual(["avatar", "nickname"]);
+
+    const summary = await teamSummary(t, roomId);
+    expect(Object.keys(summary.players).sort()).toEqual(everyone);
+    for (const player of Object.values(summary.players)) expect(Object.keys(player).sort()).toEqual(["avatar", "name"]);
+    expect(Object.keys(summary.totals).sort()).toEqual(everyone);
+    for (const total of Object.values(summary.totals)) expect(Object.keys(total).sort()).toEqual(["correct", "total"]);
+    for (const round of summary.rounds) expect(everyone).toEqual(expect.arrayContaining(Object.keys(round.results)));
+  });
+
+  // The reads of "nothing a guesser can read before answering depends on which option is the prompt", in a team game
+  // that has a round behind it and points on the board
+  test("with the switch on, nothing a reader without a player's token can fetch in a team game depends on which option is the prompt", async () => {
+    const t = newBackend();
+    const TOKENS = [tokenFor(1), tokenFor(2), tokenFor(3), tokenFor(4)];
+    const { roomId, hostId } = await room(t, [], { token: TOKENS[0] });
+    const g1 = await joinGuest(t, roomId, "G1", { token: TOKENS[1], language: "ja" });
+    const g2 = await joinGuest(t, roomId, "G2", { token: TOKENS[2] });
+    const g3 = await joinGuest(t, roomId, "G3", { token: TOKENS[3], language: "ja" });
+    const sessionId = await startTeams(t, roomId, hostId, [[hostId, g2], [g1, g3]], { token: TOKENS[0], customPrompts: bank(40) });
+    await draw(t, hostId, { token: TOKENS[0] });
+    await guess(t, g1, "right", TOKENS[1]);
+    await guess(t, g2, "wrong", TOKENS[2]);
+    await guess(t, g3, "right", TOKENS[3]);
+    // Round 2 is G1's to draw
+    const chain = (await chainsOf(t, sessionId))[1];
+    vi.stubEnv("LOST_IN_TRANSLATION_HIDE_ANSWER", "on");
+
+    async function everythingReadable(): Promise<string> {
+      const seen: unknown[] = [];
+      for (const participantId of [hostId, g1, g2, g3]) {
+        seen.push(await t.query(api.games.getMyActiveStep, { participantId }));
+        seen.push((await post(t, "/api/games/my-active-step", { participantId })).body);
+        // A guesser's own token gets her own open guess, and nobody else's step
+        seen.push(await t.query(api.games.getMyActiveStep, { participantId, token: TOKENS[2] }));
+        seen.push((await post(t, "/api/games/my-active-step", { participantId, callerToken: TOKENS[2] })).body);
+      }
+      seen.push(await t.query(api.games.getActiveGameSession, { roomId }));
+      seen.push((await post(t, "/api/games/active-session", { roomId })).body);
+      seen.push(await t.query(api.games.getLatestGameSession, { roomId }));
+      seen.push(await t.query(api.games.getGameStatus, { roomId }));
+      seen.push((await post(t, "/api/games/status", { roomId })).body);
+      seen.push(await t.query(api.games.getGameReplay, { gameSessionId: sessionId }));
+      seen.push((await post(t, "/api/games/replay", { gameSessionId: sessionId })).body);
+      seen.push((await chatOf(t, roomId)).map((m) => [m.kind, m.text, m.mediaUrl]));
+      return JSON.stringify(seen);
+    }
+
+    /** Makes another of the round's options its prompt, as if the deal had gone that way */
+    async function dealAsPrompt(option: string) {
+      await t.run(async (ctx) => {
+        await ctx.db.patch(chain._id, { originalPrompt: option });
+        const drawStep = (await ctx.db.query("gameSteps").withIndex("by_chainId", (q) => q.eq("chainId", chain._id)).collect())
+          .find((s) => s.stepType === "draw")!;
+        await ctx.db.patch(drawStep._id, { inputText: option });
+      });
+    }
+
+    for (const phase of ["drawing", "guessing"] as const) {
+      if (phase === "guessing") {
+        const step = await t.query(api.games.getMyActiveStep, { participantId: g1, token: TOKENS[1] });
+        await t.mutation(api.games.submitGameStep, { stepId: step!._id, participantId: g1, outputDrawingUrl: PNG, token: TOKENS[1] });
+      }
+      const views = new Set<string>();
+      for (const option of chain.options!) {
+        await dealAsPrompt(option);
+        views.add(await everythingReadable());
+      }
+      expect(views.size, phase).toBe(1);
+      await dealAsPrompt(chain.originalPrompt);
+    }
+    // The reads are a team game's, with the first round's points among them and G2's own open guess
+    const seen = await everythingReadable();
+    expect(seen).toContain(`"teams":[{"memberIds":["${hostId}","${g2}"],"points":0},{"memberIds":["${g1}","${g3}"],"points":60}]`);
+    expect(seen).toContain('"drawingTeam":1');
+    expect(seen).toContain('"stepType":"guess"');
+    // The check has teeth: with the switch off the same reads do tell the prompt apart
+    vi.stubEnv("LOST_IN_TRANSLATION_HIDE_ANSWER", "off");
+    const told = new Set<string>();
+    for (const option of chain.options!) {
+      await dealAsPrompt(option);
+      told.add(await everythingReadable());
+    }
+    expect(told.size).toBe(4);
+  });
+});
+
 // ─── Emojifyr ────────────────────────────────────────────────────────────────
 // Retired: no current build offers it, but installed host apps still call these functions and routes.
 

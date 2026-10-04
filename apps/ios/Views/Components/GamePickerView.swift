@@ -65,12 +65,104 @@ private let wordRushPacks: [WordRushPack] = [
     WordRushPack(id: "chat", en: "Chat", ja: "会話", icon: "re-wave"),
 ]
 
+// MARK: - Team offer
+
+/// The two teams the picker offers for a Lost in Translation game. The server deals them
+/// (/api/games/deal-teams) from who a game started now would deal in, so the split on screen is one Start
+/// can keep. Nothing is balanced on the device.
+@MainActor
+final class LITTeamOffer: ObservableObject {
+    /// Asks the server for a deal. Given the split on screen, the answer is another one
+    typealias Deal = (_ previous: [[String]]?) async throws -> GameTeamDeal
+
+    enum Phase {
+        /// No deal is wanted: fewer than four players are here, or teams are switched off
+        case idle
+        /// A deal is on its way
+        case dealing
+        /// The server has answered
+        case dealt
+        /// No answer (a server from before teams has no such route, or the network is down): the server
+        /// deals as the game starts
+        case failed
+    }
+
+    @Published private(set) var phase = Phase.idle
+    /// The split on screen: two teams, each in the order its members take the drawing. nil until a deal is
+    /// in, and when the server would deal in fewer than four players
+    @Published private(set) var teams: [[String]]?
+    /// How many players the server's last deal counted in
+    @Published private(set) var dealtIn = 0
+
+    /// Who the deal on screen was asked for; nil while none is wanted
+    private var players: [String]?
+    /// Goes up with every request, and when a deal is no longer wanted: only the last request's answer is taken
+    private var requests = 0
+
+    /// Tells the offer who is here, each named with their language, and whether the host wants teams. Anyone
+    /// coming, going or changing language asks for a new deal; the split on screen stays until its answer is in
+    func follow(_ players: [String], wanted: Bool, deal: @escaping Deal) {
+        let players = wanted && players.count >= LITTeams.minPlayers ? players.sorted() : nil
+        guard players != self.players else { return }
+        self.players = players
+        guard players != nil else {
+            requests += 1
+            phase = .idle
+            teams = nil
+            return
+        }
+        request(previous: nil, deal: deal)
+    }
+
+    /// Asks for another split than the one on screen
+    func reshuffle(deal: @escaping Deal) {
+        guard phase == .dealt, let teams else { return }
+        request(previous: teams, deal: deal)
+    }
+
+    /// What Start asks for. nil is individual play: no deal is wanted. Else the split on screen, or a deal by
+    /// the server when there is none to send
+    var startRequest: GameTeamsRequest? {
+        guard players != nil else { return nil }
+        return teams.map(GameTeamsRequest.split) ?? .auto
+    }
+
+    private func request(previous: [[String]]?, deal: @escaping Deal) {
+        requests += 1
+        let number = requests
+        phase = .dealing
+        Task { [weak self] in
+            let answer = try? await deal(previous)
+            guard let self, self.requests == number else { return }
+            if let answer {
+                self.teams = LITTeams.pair(answer.teams)
+                self.dealtIn = answer.playerIds.count
+                self.phase = .dealt
+            } else if previous != nil {
+                // A reshuffle that got no answer leaves the split on screen: it is still the server's deal
+                // for these players
+                self.phase = .dealt
+            } else {
+                self.teams = nil
+                self.phase = .failed
+            }
+        }
+    }
+}
+
+// MARK: - Picker
+
 struct GamePickerView: View {
     let isHost: Bool
     let playerCount: Int
+    /// Who is here for a game, as this device sees the room. Lost in Translation offers teams from four
+    var players: [Participant] = []
     var nextLevel: Int = 1
     let lang: String
-    let onStartGame: (String, Int, Int) -> Void
+    /// Game type, level, timer seconds, and what a team game is asked for (nil for individual play)
+    let onStartGame: (String, Int, Int, GameTeamsRequest?) -> Void
+    /// Asks the server for two teams of who a game started now would deal in. See `LITTeamOffer`
+    let onDealTeams: LITTeamOffer.Deal
     let onStartWordRush: (_ pack: String, _ sayIt: Bool) -> Void
     let onStartEmojiMatch: () -> Void
     let onStartEmojiBingo: () -> Void
@@ -82,6 +174,9 @@ struct GamePickerView: View {
     @State private var todMode: String = "normal"
     @State private var wordRushPack: String = "mix"
     @State private var wordRushSayIt = true
+    /// The host's last choice, kept on this device. Teams are on until the host turns them off
+    @AppStorage("enchatto_litTeams") private var teamsOn = true
+    @StateObject private var teamOffer = LITTeamOffer()
 
     private var isJA: Bool { lang.hasPrefix("ja") }
 
@@ -95,6 +190,9 @@ struct GamePickerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(EC.paper.ignoresSafeArea())
+        .onAppear { follow(teamInputs) }
+        // The sheet stays open while people come, go and change language: the offer follows the room
+        .onChange(of: teamInputs) { follow($0) }
     }
 
     private var nonHostContent: some View {
@@ -334,10 +432,157 @@ struct GamePickerView: View {
                 }
             }
 
+            teamsSection
+
             if needsMorePlayers {
                 warning(L.t("Need at least 2 players to start.", lang))
             }
         }
+    }
+
+    // MARK: Teams (Lost in Translation)
+
+    /// What a deal depends on: the Teams switch, and everyone here, named with their language
+    private struct TeamInputs: Equatable {
+        let wanted: Bool
+        let players: [String]
+    }
+
+    private var teamInputs: TeamInputs {
+        TeamInputs(wanted: isHost && teamsOn, players: players.map { "\($0.id) \($0.preferredLanguage)" })
+    }
+
+    private var teamsAvailable: Bool { players.count >= LITTeams.minPlayers }
+
+    private func follow(_ inputs: TeamInputs) {
+        teamOffer.follow(inputs.players, wanted: inputs.wanted, deal: onDealTeams)
+    }
+
+    private func reshuffle() {
+        Haptics.tap()
+        teamOffer.reshuffle(deal: onDealTeams)
+    }
+
+    @ViewBuilder
+    private var teamsSection: some View {
+        if teamsAvailable {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(isOn: $teamsOn) {
+                    HStack(alignment: .top, spacing: 8) {
+                        PackIcon("re-peace", size: 30)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L.t("Teams", lang))
+                                .font(.chunky(15))
+                                .foregroundStyle(EC.ink)
+                            Text(L.t("Play as two teams. A right guess scores for your team.", lang))
+                                .font(.round(11.5, .bold))
+                                .foregroundStyle(EC.ink.opacity(0.7))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                }
+                .toggleStyle(GKPopToggleStyle())
+
+                if teamsOn {
+                    teamsOffer
+                }
+            }
+            .padding(10)
+            .ecOutline(fill: .white.opacity(0.85), radius: 16, border: 2.5)
+        } else if !needsMorePlayers {
+            teamsNote(L.t("Teams unlock at 4 players", lang))
+        }
+    }
+
+    /// The server's deal under the Teams switch, or one line saying why there is none to show
+    @ViewBuilder
+    private var teamsOffer: some View {
+        if let split = teamOffer.teams {
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(LITTeam.allCases) { team in
+                    teamColumn(team, memberIds: split[team.rawValue])
+                }
+            }
+            // A new deal is on its way: this is still the one before it
+            .opacity(teamOffer.phase == .dealing ? 0.5 : 1)
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: split)
+
+            Button(action: reshuffle) {
+                HStack(spacing: 6) {
+                    PackIcon("g-arrows", size: 22)
+                        .accessibilityHidden(true)
+                    Text(L.t("Reshuffle", lang))
+                }
+            }
+            // .small, not .mini: 44 pt is the least a control should be to tap
+            .buttonStyle(.chunky(.white, size: .small, fullWidth: false))
+            .disabled(teamOffer.phase == .dealing)
+        } else {
+            switch teamOffer.phase {
+            case .idle, .dealing:
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.7).tint(EC.ink)
+                    teamsNote(L.t("Dealing teams…", lang))
+                }
+            case .dealt:
+                // The server would deal in fewer players than this device counts as here
+                teamsNote("\(teamOffer.dealtIn) \(L.t("players", lang)) · \(L.t("Teams unlock at 4 players", lang))")
+            case .failed:
+                teamsNote(L.t("Teams are dealt when the game starts", lang))
+            }
+        }
+    }
+
+    private func teamsNote(_ text: String) -> some View {
+        Text(text)
+            .font(.round(11.5, .bold))
+            .foregroundStyle(EC.ink.opacity(0.7))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// One team: its name on its colour, then its players in the order they take the drawing. Names up to
+    /// five players, faces only beyond that
+    private func teamColumn(_ team: LITTeam, memberIds: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LITTeamChip(team: team, lang: lang)
+            if memberIds.count <= 5 {
+                ForEach(memberIds, id: \.self) { id in
+                    // Someone the server dealt in whom this device has yet to hear of shows as "?"
+                    let member = players.first { $0.id == id }
+                    HStack(spacing: 5) {
+                        AvatarDisc(avatarId: member?.avatar.value ?? "", size: 24)
+                        Text(member?.nickname ?? "?")
+                            .font(.round(12, .black))
+                            .foregroundStyle(EC.ink)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        if let member {
+                            LangBadge(lang: member.preferredLanguage, size: 16)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            } else {
+                GKFlowLayout(spacing: 4, lineSpacing: 4) {
+                    ForEach(memberIds, id: \.self) { id in
+                        let member = players.first { $0.id == id }
+                        AvatarDisc(avatarId: member?.avatar.value ?? "", size: 26)
+                            .overlay(alignment: .bottomTrailing) {
+                                if let member {
+                                    LangBadge(lang: member.preferredLanguage, size: 13).offset(x: 3, y: 3)
+                                }
+                            }
+                            .accessibilityLabel(member?.nickname ?? "?")
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .ecOutline(fill: team.soft, radius: 14, border: 2)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Emoji Bingo
@@ -410,7 +655,7 @@ struct GamePickerView: View {
             Haptics.thump()
             switch selectedGame {
             case .wordRush: onStartWordRush(wordRushPack, wordRushSayIt)
-            case .lostInTranslation: onStartGame("lost-in-translation", nextLevel, timerSeconds)
+            case .lostInTranslation: onStartGame("lost-in-translation", nextLevel, timerSeconds, teamOffer.startRequest)
             case .emojiBingo: onStartEmojiBingo()
             case .emojiMatch: onStartEmojiMatch()
             case .truthOrDare: onStartTruthOrDare(todMode)
@@ -443,7 +688,36 @@ struct GamePickerView: View {
         isHost: true,
         playerCount: 3,
         lang: "en",
-        onStartGame: { _, _, _ in },
+        onStartGame: { _, _, _, _ in },
+        onDealTeams: { _ in GameTeamDeal(playerIds: [], teams: nil) },
+        onStartWordRush: { _, _ in },
+        onStartEmojiMatch: {},
+        onStartEmojiBingo: {},
+        onStartTruthOrDare: { _ in },
+        onDismiss: {}
+    )
+}
+
+#Preview("Lost in Translation, five players") {
+    let people: [(String, String, String)] = [
+        ("Aki", "cat", "ja"), ("Ben", "fox", "en"), ("Chie", "panda", "ja"), ("Dan", "dog", "en"), ("Emi", "rabbit", "ja"),
+    ]
+    return GamePickerView(
+        isHost: true,
+        playerCount: people.count,
+        players: people.enumerated().map { index, person in
+            Participant(
+                id: "p\(index)", roomId: "r", nickname: person.0, role: index == 0 ? .host : .participant,
+                platform: index == 0 ? .ios : .web, avatar: AvatarConfig(type: .preset, value: person.1),
+                preferredLanguage: person.2, online: true, lastSeenAt: Date(), joinedAt: Date()
+            )
+        },
+        lang: "ja",
+        onStartGame: { _, _, _, _ in },
+        onDealTeams: { previous in
+            let splits = [[["p0", "p3", "p4"], ["p1", "p2"]], [["p0", "p1", "p2"], ["p3", "p4"]]]
+            return GameTeamDeal(playerIds: ["p0", "p1", "p2", "p3", "p4"], teams: previous == splits[0] ? splits[1] : splits[0])
+        },
         onStartWordRush: { _, _ in },
         onStartEmojiMatch: {},
         onStartEmojiBingo: {},

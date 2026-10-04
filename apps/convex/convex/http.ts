@@ -419,6 +419,12 @@ http.route({
 
 // --- Games ---
 
+/** A team split out of a request body: lists of participant ids. Anything else counts as none sent */
+function teamSplit(value: unknown): string[][] | undefined {
+  const isIds = (team: unknown) => Array.isArray(team) && team.every((id) => typeof id === "string");
+  return Array.isArray(value) && value.every(isIds) ? (value as string[][]) : undefined;
+}
+
 http.route({
   path: "/api/games/start",
   method: "POST",
@@ -431,8 +437,24 @@ http.route({
       timerEnabled: body.timerEnabled,
       customPrompts: body.customPrompts,
       token: body.callerToken,
+      // Builds from before teams send none, which is an individual game. So is a value this server cannot read:
+      // a Start is never refused over its teams
+      teams: body.teams === "auto" ? "auto" : teamSplit(body.teams),
     });
     return { sessionId };
+  }),
+});
+
+http.route({
+  path: "/api/games/deal-teams",
+  method: "POST",
+  handler: jsonAction(async (ctx, body) => {
+    return await ctx.runMutation(api.games.dealTeams, {
+      roomId: body.roomId,
+      participantId: body.participantId,
+      previous: teamSplit(body.previous),
+      token: body.callerToken,
+    });
   }),
 });
 

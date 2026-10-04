@@ -477,7 +477,7 @@ struct HostConversationView: View {
     @ViewBuilder
     private var gameStatusBarSection: some View {
         if let gameStatus = viewModel.gameStatus {
-            GameStatusBarView(status: gameStatus, lang: hostLanguage, drawTimeLeft: viewModel.drawCountdownTimeLeft)
+            GameStatusBarView(status: gameStatus, lang: hostLanguage, drawTimeLeft: viewModel.drawCountdownTimeLeft, myId: hostId)
         }
     }
 
@@ -1434,11 +1434,15 @@ struct HostConversationView: View {
                 GamePickerView(
                     isHost: true,
                     playerCount: viewModel.participants.filter { $0.online }.count,
+                    players: viewModel.gamePlayers,
                     nextLevel: (viewModel.latestGameSession?.status == .complete && viewModel.latestGameSession?.cancelled != true ? (viewModel.latestGameSession?.level ?? 1) + 1 : 1),
                     lang: hostLanguage,
-                    onStartGame: { gameType, level, timerSeconds in
+                    onStartGame: { gameType, level, timerSeconds, teams in
                         showGamePicker = false
-                        Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds) }
+                        Task { await viewModel.startGame(gameType: gameType, level: level, timerSeconds: timerSeconds, teams: teams) }
+                    },
+                    onDealTeams: { previous in
+                        try await viewModel.dealTeams(previous: previous)
                     },
                     onStartWordRush: { pack, sayIt in
                         showGamePicker = false
@@ -1513,7 +1517,8 @@ struct HostConversationView: View {
                         },
                         onQuit: {
                             showQuitGameConfirm = true
-                        }
+                        },
+                        team: LITTeam(index: viewModel.presentedStepTeam)
                     )
                     .id(step.id)
                     .alert(L.t("Quit game?", hostLanguage), isPresented: $showQuitGameConfirm) {
@@ -1539,8 +1544,12 @@ struct HostConversationView: View {
                         onNextLevel: { timerSeconds in
                             let nextLevel = (viewModel.latestGameSession?.level ?? 1) + 1
                             showGameReplay = false
-                            Task { await viewModel.startGame(gameType: "lost-in-translation", level: nextLevel, timerSeconds: timerSeconds) }
-                        }
+                            // The next level is played as this one was: by the same teams, or individually
+                            let teams = replay.session.teams.map(GameTeamsRequest.split)
+                            Task { await viewModel.startGame(gameType: "lost-in-translation", level: nextLevel, timerSeconds: timerSeconds, teams: teams) }
+                        },
+                        // As the picker counts (GamePickerView.teamsAvailable): under four the server plays individually
+                        playersHere: viewModel.gamePlayers.count
                     )
                 }
             }
@@ -2093,6 +2102,27 @@ private struct GameSummaryBanner: View {
         let score: Int
         let total: Int
         let isWinner: Bool
+        /// The participant, where a summary names one: what a team's player list is matched by
+        var pid: String = ""
+    }
+
+    /// One team of a Lost in Translation team game, with its players' own scores
+    private struct TeamScore: Identifiable {
+        let team: LITTeam
+        let points: Int
+        let players: [PlayerScore]
+        let isWinner: Bool
+
+        var id: Int { team.rawValue }
+    }
+
+    /// The team side of a Lost in Translation summary
+    private struct TeamResult {
+        let teams: [TeamScore]
+        /// What each round that scored gave the two teams
+        let rounds: [(round: Int, points: [Int])]
+        /// A game ended early has points and names no winner
+        let cancelled: Bool
     }
 
     private struct GameRoundData: Identifiable {
@@ -2125,7 +2155,8 @@ private struct GameSummaryBanner: View {
     private enum SummaryData {
         case emojiMatch(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore])
         case emojiBingo(title: String, subtitle: String, games: [BingoRoundData], aggregated: [BingoPlayerScore])
-        case litGame(title: String, subtitle: String, players: [PlayerScore])
+        /// `teams` is nil for an individual game, and for a summary from before teams
+        case litGame(title: String, subtitle: String, players: [PlayerScore], teams: TeamResult?)
         case truthOrDare(title: String, subtitle: String, players: [TodPlayerRating])
     }
 
@@ -2151,18 +2182,35 @@ private struct GameSummaryBanner: View {
                 let t = totals[pid]
                 let correct = t?["correct"] as? Int ?? 0
                 let total = t?["total"] as? Int ?? 0
-                playerScores.append(PlayerScore(name: pName, avatar: avatar, score: correct, total: total, isWinner: false))
+                playerScores.append(PlayerScore(name: pName, avatar: avatar, score: correct, total: total, isWinner: false, pid: pid))
             }
             playerScores.sort { $0.score > $1.score }
             let maxScore = playerScores.first?.score ?? 0
             playerScores = playerScores.map {
-                PlayerScore(name: $0.name, avatar: $0.avatar, score: $0.score, total: $0.total, isWinner: $0.score == maxScore && maxScore > 0)
+                PlayerScore(name: $0.name, avatar: $0.avatar, score: $0.score, total: $0.total, isWinner: $0.score == maxScore && maxScore > 0, pid: $0.pid)
             }
 
             let roundCount = rounds.count
             let fullSubtitle = "\(subtitle) · \(roundCount) \(roundCount == 1 ? "round" : "rounds")"
 
-            return .litGame(title: title, subtitle: fullSubtitle, players: playerScores)
+            // A team game carries its two teams and their points, which are shown as the server sends them
+            let teamResult = LITTeams.summaryTeams(obj).map { teams in
+                TeamResult(
+                    teams: LITTeam.allCases.map { team in
+                        let score = teams[team.rawValue]
+                        return TeamScore(
+                            team: team,
+                            points: score.points,
+                            players: playerScores.filter { score.memberIds.contains($0.pid) },
+                            isWinner: !cancelled && score.points > teams[1 - team.rawValue].points
+                        )
+                    },
+                    rounds: LITTeams.summaryRounds(obj),
+                    cancelled: cancelled
+                )
+            }
+
+            return .litGame(title: title, subtitle: fullSubtitle, players: playerScores, teams: teamResult)
         } else if text.hasPrefix("emoji_match_summary:") {
             let json = String(text.dropFirst("emoji_match_summary:".count))
             guard let data = json.data(using: .utf8),
@@ -2369,8 +2417,8 @@ private struct GameSummaryBanner: View {
                     emojiMatchBody(title: title, subtitle: subtitle, games: games, aggregated: aggregated)
                 case .emojiBingo(let title, let subtitle, let games, let aggregated):
                     emojiBingoBody(title: title, subtitle: subtitle, games: games, aggregated: aggregated)
-                case .litGame(let title, let subtitle, let players):
-                    litGameBody(title: title, subtitle: subtitle, players: players)
+                case .litGame(let title, let subtitle, let players, let teams):
+                    litGameBody(title: title, subtitle: subtitle, players: players, teams: teams)
                 case .truthOrDare(let title, let subtitle, let players):
                     truthOrDareBody(title: title, subtitle: subtitle, players: players)
                 }
@@ -2589,20 +2637,118 @@ private struct GameSummaryBanner: View {
     // MARK: - Lost in Translation body
 
     @ViewBuilder
-    private func litGameBody(title: String, subtitle: String, players: [PlayerScore]) -> some View {
+    private func litGameBody(title: String, subtitle: String, players: [PlayerScore], teams: TeamResult?) -> some View {
         header(title: title, subtitle: subtitle)
 
-        fitRow {
-            ForEach(players) { player in
-                playerCard(
-                    avatar: player.avatar,
-                    name: player.name,
-                    detail: "\(player.score)/\(player.total)",
-                    rank: player.isWinner ? 0 : nil,
-                    isHighlighted: player.isWinner
-                )
+        if let teams {
+            litTeamsBody(teams)
+        } else {
+            fitRow {
+                ForEach(players) { player in
+                    playerCard(
+                        avatar: player.avatar,
+                        name: player.name,
+                        detail: "\(player.score)/\(player.total)",
+                        rank: player.isWinner ? 0 : nil,
+                        isHighlighted: player.isWinner
+                    )
+                }
             }
         }
+    }
+
+    /// Team game: who won, or that nobody did, the two teams side by side, and what each round gave them
+    @ViewBuilder
+    private func litTeamsBody(_ result: TeamResult) -> some View {
+        if !result.cancelled {
+            let winner = result.teams.first { $0.isWinner }?.team
+            Text(winner?.winsLine(lang) ?? L.t("It's a draw!", lang))
+                .font(.chunky(15))
+                .foregroundStyle(EC.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(result.teams) { score in
+                litTeamBlock(score)
+            }
+        }
+
+        if !result.rounds.isEmpty {
+            litTeamRounds(result.rounds)
+        }
+    }
+
+    /// One team: its name on its colour, its points, and its players' own scores
+    private func litTeamBlock(_ score: TeamScore) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 4) {
+                if score.isWinner { rankMark(0, size: 16) }
+                LITTeamChip(team: score.team, lang: lang)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text("\(score.points)")
+                    .font(.chunky(20))
+                    .foregroundStyle(EC.ink)
+                Text(L.t("pts", lang))
+                    .font(.round(10, .black))
+                    .foregroundStyle(EC.inkSoft)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(score.players) { player in
+                    miniScore(avatar: player.avatar, name: player.name, value: "\(player.score)/\(player.total)", rank: nil)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity)
+        .ecCard(fill: score.team.soft, radius: 16, border: 2.5, shadow: score.isWinner ? 5 : 3)
+        .rotationEffect(.degrees(score.isWinner ? -2 : 0))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The rounds that scored, a column each, under a row a team. A round that gave neither team points has
+    /// no column. The points are in ink: the team's name, on its colour, leads the row
+    private func litTeamRounds(_ rounds: [(round: Int, points: [Int])]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 5) {
+                GridRow {
+                    Text(L.t("Round", lang))
+                        .font(.round(10, .black))
+                        .tracking(1)
+                        .textCase(.uppercase)
+                        .foregroundStyle(EC.inkSoft)
+                        .gridColumnAlignment(.leading)
+                    ForEach(Array(rounds.enumerated()), id: \.offset) { _, round in
+                        Text("\(round.round)")
+                            .font(.round(10, .black))
+                            .foregroundStyle(EC.inkSoft)
+                    }
+                }
+
+                ForEach(LITTeam.allCases) { team in
+                    GridRow {
+                        LITTeamChip(team: team, lang: lang, size: 10)
+                        ForEach(Array(rounds.enumerated()), id: \.offset) { _, round in
+                            Text("\(round.points[team.rawValue])")
+                                .font(.chunky(12))
+                                .foregroundStyle(EC.ink)
+                        }
+                    }
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(rounds.map { round in
+                let points = LITTeam.allCases.map { "\($0.name(lang)) \(round.points[$0.rawValue])" }
+                return "\(L.t("Round", lang)) \(round.round): \(points.joined(separator: ", "))"
+            }.joined(separator: ". "))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ecOutline(fill: .white.opacity(0.85), radius: 14, border: 2)
     }
 
     // MARK: - Truth or Dare body

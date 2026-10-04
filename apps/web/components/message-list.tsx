@@ -6,6 +6,8 @@ import { TypingIndicator } from "@/components/typing-indicator";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon } from "@/components/ui/icon";
+import { TeamChip, TeamDot, YourTeamTag } from "@/components/ui/team";
+import { TEAM_LOOK, leadingTeam, readTeamPoints, readTeams, teamOf, teamResultLine, teamTitle, type GameTeam, type TeamIndex } from "@/lib/game-teams";
 import { t } from "@/lib/i18n";
 
 interface MessageData {
@@ -123,6 +125,134 @@ function Podium({ entries }: { entries: PodiumEntry[] }) {
         );
       })}
     </div>
+  );
+}
+
+/** A round of a game_summary, as far as the team result reads it: `teamPoints` only on a round that scored */
+type SummaryRound = { round?: unknown; teamPoints?: unknown } | null | undefined;
+
+// A game is ten rounds: one the host ended early keeps the cells of a whole one
+const ROUND_CELLS = 10;
+
+/**
+ * What each round gave the two teams, either side of the round numbers. A round that gave neither any shows a
+ * dash. Every cell names its column, so that a game of fewer rounds still has one line a team.
+ */
+function TeamRounds({ rounds, lang }: { rounds: SummaryRound[]; lang?: string }) {
+  const name = (team: TeamIndex) => (
+    <span className="ec-chunky" style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 4, fontSize: 10.5 }}>
+      <TeamDot team={team} size={10} />
+      {teamTitle(team, lang)}
+    </span>
+  );
+  const points = (team: TeamIndex) =>
+    rounds.map((round, r) => (
+      <span key={r} className="ec-chunky" style={{ gridColumn: r + 1, padding: "1px 0", borderRadius: 6, background: TEAM_LOOK[team].soft }}>
+        {readTeamPoints(round?.teamPoints)?.[team] ?? "–"}
+      </span>
+    ));
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${Math.max(rounds.length, ROUND_CELLS)}, minmax(0, 1fr))`,
+        gap: "3px 2px",
+        margin: "0 10px 12px",
+        padding: "6px 8px",
+        border: "2px dashed var(--line-soft)",
+        borderRadius: 12,
+        fontSize: 10,
+        textAlign: "center",
+      }}
+    >
+      {name(0)}
+      {points(0)}
+      {rounds.map((round, r) => (
+        <span key={r} style={{ gridColumn: r + 1, fontWeight: 900, opacity: 0.55 }}>
+          {typeof round?.round === "number" ? round.round : r + 1}
+        </span>
+      ))}
+      {points(1)}
+      {name(1)}
+    </div>
+  );
+}
+
+/** The result of a team game: who won, each team's points over its players and their own right answers, then the rounds */
+function TeamResult({
+  teams,
+  players,
+  totals,
+  rounds,
+  cancelled,
+  meId,
+  lang,
+}: {
+  teams: [GameTeam, GameTeam];
+  players: Record<string, { name?: string; avatar?: string } | undefined>;
+  totals: Record<string, { correct?: number; total?: number } | undefined>;
+  rounds: SummaryRound[];
+  /** The host ended the game early: the points stand, but nobody is called the winner */
+  cancelled: boolean;
+  meId: string;
+  lang?: string;
+}) {
+  const winner = cancelled ? null : leadingTeam(teams);
+  const mine = teamOf(teams, meId);
+  return (
+    <>
+      {!cancelled && (
+        <div className="ec-chunky" style={{ padding: "8px 12px 0", fontSize: 16, textAlign: "center" }}>
+          {teamResultLine(teams, lang)}
+        </div>
+      )}
+      <div className="ec-podium" style={{ flexWrap: "nowrap", alignItems: "stretch", paddingTop: 18 }}>
+        {teams.map((team, i) => {
+          const index = i === 0 ? 0 : 1;
+          const members = [...team.memberIds].sort((a, b) => (totals[b]?.correct ?? 0) - (totals[a]?.correct ?? 0));
+          return (
+            <div
+              key={index}
+              className={`ec-podium-tile${index === winner ? " top" : ""}`}
+              style={{ flex: 1, minWidth: 0, alignItems: "stretch", gap: 5, padding: "12px 6px 9px" }}
+            >
+              {index === mine && <YourTeamTag lang={lang} />}
+              <div style={{ textAlign: "center" }}>
+                <TeamChip team={index} lang={lang} fontSize={11} />
+              </div>
+              <div
+                className="ec-chunky"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 24, lineHeight: 1.1 }}
+              >
+                {index === winner && <Icon name="g-crown" size={22} />}
+                {team.points}
+                <span style={{ fontFamily: "var(--round)", fontSize: 11, fontWeight: 900, opacity: 0.6 }}>{t("pts", lang)}</span>
+              </div>
+              {members.map((pid) => (
+                <div key={pid} style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                  {/* The viewer's own face has a yellow ring, which takes its room from the tile's padding */}
+                  <AvatarDisc
+                    id={players[pid]?.avatar ?? ""}
+                    size={20}
+                    border={2}
+                    shadow={false}
+                    style={pid === meId ? { marginRight: 3, boxShadow: "0 0 0 2px var(--yellow), 0 0 0 3.5px var(--ink)" } : undefined}
+                  />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: 900, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {players[pid]?.name ?? "?"}
+                  </span>
+                  <span className="ec-chunky" style={{ flex: "none", fontSize: 12 }}>
+                    {totals[pid]?.correct ?? 0}
+                    <span style={{ opacity: 0.5 }}>/{totals[pid]?.total ?? 0}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      {rounds.length > 0 && <TeamRounds rounds={rounds} lang={lang} />}
+    </>
   );
 }
 
@@ -467,6 +597,8 @@ export function MessageList({
                   // game_summary (Lost in Translation) — single game format
                   const playerIds = Object.keys(data.players ?? {});
                   const rounds = data.rounds?.length ?? 0;
+                  // A team game names its two teams. Without them this is the podium of an individual game
+                  const teams = readTeams(data.teams);
                   elements.push(
                     <SummaryCard
                       key={message._id}
@@ -475,15 +607,27 @@ export function MessageList({
                       title={`${t(data.gameType ?? "Game", lang)}${data.level ? ` — ${t("Level", lang)} ${data.level}` : ""}`}
                       subtitle={`${data.cancelled ? t("Game ended early", lang) : t("Game Complete", lang)} · ${rounds} ${plural(rounds, "round", "rounds", lang)}`}
                     >
-                      <Podium
-                        entries={playerIds.map((pid) => ({
-                          key: pid,
-                          name: data.players[pid]?.name ?? "?",
-                          avatar: data.players[pid]?.avatar ?? "",
-                          score: data.totals?.[pid]?.correct ?? 0,
-                          label: `${data.totals?.[pid]?.correct ?? 0}/${data.totals?.[pid]?.total ?? 0}`,
-                        }))}
-                      />
+                      {teams ? (
+                        <TeamResult
+                          teams={teams}
+                          players={data.players ?? {}}
+                          totals={data.totals ?? {}}
+                          rounds={Array.isArray(data.rounds) ? data.rounds : []}
+                          cancelled={!!data.cancelled}
+                          meId={currentParticipantId}
+                          lang={lang}
+                        />
+                      ) : (
+                        <Podium
+                          entries={playerIds.map((pid) => ({
+                            key: pid,
+                            name: data.players[pid]?.name ?? "?",
+                            avatar: data.players[pid]?.avatar ?? "",
+                            score: data.totals?.[pid]?.correct ?? 0,
+                            label: `${data.totals?.[pid]?.correct ?? 0}/${data.totals?.[pid]?.total ?? 0}`,
+                          }))}
+                        />
+                      )}
                     </SummaryCard>
                   );
                   return elements;

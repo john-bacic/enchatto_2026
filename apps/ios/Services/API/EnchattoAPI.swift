@@ -89,8 +89,15 @@ protocol EnchattoAPI {
     /// Cancel any active game in a room (host only)
     func cancelGame(roomId: String, participantId: String) async throws
 
-    /// Start a game in a room (host only)
-    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int, customPrompts: [[String: Any]]?) async throws -> String
+    /// Start a game in a room (host only). `teams` asks for a Lost in Translation team game; nil is individual play.
+    /// The server deals in who it finds in the room, so it may move or add players, or start an individual game
+    /// after all: the session it creates says what is played
+    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int, customPrompts: [[String: Any]]?, teams: GameTeamsRequest?) async throws -> String
+
+    /// Two teams for the game picker, dealt by the server from who a game started now would deal in (host only).
+    /// Nothing is stored. Given `previous`, the split on screen, the answer is another one. Throws on a server
+    /// from before teams, which has no such route
+    func dealTeams(roomId: String, participantId: String, previous: [[String]]?) async throws -> GameTeamDeal
 
     /// Submit a game step result. Returns what the reply says about a guess; nil when it says nothing
     /// (a drawing, a guess on a step the server had already closed)

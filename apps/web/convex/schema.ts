@@ -142,6 +142,12 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
     cancelled: v.optional(v.boolean()),
+    // Lost in Translation played in two teams: each team's players in the order they take the drawing. A team
+    // is known to clients by its place here, 0 or 1. Missing, with teamAway: everyone plays for themselves.
+    teams: v.optional(v.array(v.array(v.id("participants")))),
+    // Team game: the players whose last turn was not played, which is everyone before their first. A guess the
+    // server closes counts against the team of a player who is not in here. Brought up to date as each round ends.
+    teamAway: v.optional(v.array(v.id("participants"))),
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_status", ["roomId", "status"]),
@@ -318,6 +324,9 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("complete")),
     currentStepIndex: v.number(),
     maxSteps: v.number(),
+    // Team game, written once when the round ends: for each team, how many of its guessers count and how many
+    // of those were right. Missing on a round that has not ended, or that a Cancel closed.
+    teamRound: v.optional(v.array(v.object({ right: v.number(), counted: v.number() }))),
   })
     .index("by_gameSessionId", ["gameSessionId"]),
 

@@ -5,6 +5,7 @@ import { DrawingCanvas, type DrawingCanvasHandle } from "@/components/drawing-ca
 import { Icon } from "@/components/ui/icon";
 import { Confetti } from "@/components/ui/effects";
 import { t } from "@/lib/i18n";
+import { TEAM_LOOK, teamTitle, type TeamIndex } from "@/lib/game-teams";
 
 interface GameStep {
   _id: string;
@@ -32,6 +33,8 @@ interface GameTaskOverlayProps {
   /** Told which step was on screen: while a guess is held that is not the step the query holds */
   onQuit?: (stepId: string) => void;
   lang?: string;
+  /** A team game only: the team the caller plays in, read off the game session by the room page */
+  team?: TeamIndex | null;
 }
 
 interface GameTaskViewProps {
@@ -43,6 +46,7 @@ interface GameTaskViewProps {
   onRelease: (stepId: string) => void;
   onQuit?: () => void;
   lang?: string;
+  team?: TeamIndex | null;
 }
 
 /** A sent guess that stays on screen whatever the query says, and when it stops doing so at the latest */
@@ -85,7 +89,7 @@ const ANSWER_COLORS = ["var(--pink-soft)", "var(--yellow-soft)", "var(--mint-sof
  * update, so the guess is held on screen from the tap until its result has shown. The next step is mounted when the
  * hold ends, so a draw countdown starts when the canvas is on screen.
  */
-export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverlayProps) {
+export function GameTaskOverlay({ step, onSubmit, onQuit, lang, team }: GameTaskOverlayProps) {
   const [hold, setHold] = useState<Hold | null>(null);
   const holdStep = useCallback((guess: GameStep, ms: number) => setHold({ step: guess, until: Date.now() + ms }), []);
   const release = useCallback((stepId: string) => setHold((now) => (now?.step._id === stepId ? null : now)), []);
@@ -117,11 +121,12 @@ export function GameTaskOverlay({ step, onSubmit, onQuit, lang }: GameTaskOverla
         })
       }
       lang={lang}
+      team={team}
     />
   );
 }
 
-function GameTaskView({ step, held, onSubmit, onHold, onRelease, onQuit, lang }: GameTaskViewProps) {
+function GameTaskView({ step, held, onSubmit, onHold, onRelease, onQuit, lang, team }: GameTaskViewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -265,6 +270,29 @@ function GameTaskView({ step, held, onSubmit, onHold, onRelease, onQuit, lang }:
           "repeating-linear-gradient(-45deg, rgba(167, 123, 255, 0.09) 0 14px, transparent 14px 28px), var(--paper)",
       }}
     >
+      {/* The player's team, as a tab hanging from the top edge: it takes no room from the drawing */}
+      {(team === 0 || team === 1) && (
+        <span
+          className="ec-chunky"
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 0,
+            transform: "translateX(-50%)",
+            padding: "0 12px 2px",
+            border: "2.5px solid var(--ink)",
+            borderTop: 0,
+            borderRadius: "0 0 12px 12px",
+            background: TEAM_LOOK[team].color,
+            fontSize: 11,
+            lineHeight: "17px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {teamTitle(team, lang)}
+        </span>
+      )}
+
       {/* Header: quit + round segments */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px 8px" }}>
         {onQuit && (

@@ -5,13 +5,17 @@ struct GameReplayView: View {
     let lang: String
     let onDismiss: () -> Void
     var onNextLevel: ((Int) -> Void)?
+    /// How many players are here for the next level, as the host's screen counts them. A caller that does not
+    /// count the room leaves it out, and this game's own players are taken to be here still
+    var playersHere: Int
     @State private var timerSeconds: Int = 20
 
-    init(replay: GameReplay, lang: String, onDismiss: @escaping () -> Void, onNextLevel: ((Int) -> Void)? = nil) {
+    init(replay: GameReplay, lang: String, onDismiss: @escaping () -> Void, onNextLevel: ((Int) -> Void)? = nil, playersHere: Int? = nil) {
         self.replay = replay
         self.lang = lang
         self.onDismiss = onDismiss
         self.onNextLevel = onNextLevel
+        self.playersHere = playersHere ?? replay.session.playerIds.count
         self._timerSeconds = State(initialValue: replay.session.timerEnabled ?? 20)
     }
 
@@ -35,8 +39,10 @@ struct GameReplayView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    // Score summary
-                    if let scores = replay.scores, !scores.isEmpty {
+                    // Score summary: by team in a team game
+                    if let teams = replay.teamScores {
+                        teamSummary(teams, replay.scores ?? [:])
+                    } else if let scores = replay.scores, !scores.isEmpty {
                         scoreSummary(scores)
                     }
 
@@ -70,6 +76,14 @@ struct GameReplayView: View {
                         Text("\(L.t("Next Level", lang)) →")
                     }
                     .buttonStyle(.chunky(EC.pink))
+
+                    // The next level keeps this game's teams while enough players are here for teams; the game
+                    // picker is where they are reshuffled
+                    if LITTeams.keptForNextLevel(replay.session.teams, playersHere: playersHere) {
+                        Text(L.t("Same teams", lang))
+                            .font(.round(11.5, .bold))
+                            .foregroundStyle(EC.inkSoft)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -156,12 +170,117 @@ struct GameReplayView: View {
         }
     }
 
+    // MARK: - Team Summary
+
+    /// The team a player was on, in a team game
+    private func team(of participantId: String?) -> LITTeam? {
+        guard let participantId else { return nil }
+        return LITTeam(index: replay.teamScores?.firstIndex { $0.memberIds.contains(participantId) })
+    }
+
+    /// The team of a round's drawer or guesser, in front of them
+    @ViewBuilder
+    private func teamStripe(_ participantId: String?) -> some View {
+        if let team = team(of: participantId) {
+            LITTeamStripe(team: team, lang: lang)
+        }
+    }
+
+    /// The result by team: who won or that it is a draw, then each team's points, as the server sends them,
+    /// over its players' own scores
+    @ViewBuilder
+    private func teamSummary(_ teams: [GameTeamScore], _ scores: [String: ScoreInfo]) -> some View {
+        // A game ended early has points and names no winner. Equal points are a draw
+        let finished = replay.session.cancelled != true
+        let winner: LITTeam? = !finished || teams[0].points == teams[1].points ? nil : (teams[0].points > teams[1].points ? .mint : .grape)
+        let onTeams = Set(teams.flatMap(\.memberIds))
+        let others = scores.filter { !onTeams.contains($0.key) }
+
+        VStack(alignment: .leading, spacing: 12) {
+            if finished {
+                HStack(spacing: 8) {
+                    if winner != nil {
+                        PackIcon("g-crown", size: 26)
+                            .accessibilityHidden(true)
+                    }
+                    OutlinedText(
+                        winner?.winsLine(lang) ?? L.t("It's a draw!", lang),
+                        size: 20, fill: winner?.color ?? EC.yellow, outline: 2.5
+                    )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .combine)
+            }
+
+            ForEach(winner == .grape ? [LITTeam.grape, .mint] : [LITTeam.mint, .grape]) { team in
+                teamCard(team, teams[team.rawValue], scores, won: winner == team)
+            }
+
+            // Nobody is expected here: a player the server scored and put on neither team is still shown
+            if !others.isEmpty {
+                scoreSummary(others)
+            }
+        }
+    }
+
+    private func teamCard(_ team: LITTeam, _ score: GameTeamScore, _ scores: [String: ScoreInfo], won: Bool) -> some View {
+        let members = score.memberIds.enumerated().sorted {
+            let (a, b) = (scores[$0.element]?.correct ?? 0, scores[$1.element]?.correct ?? 0)
+            return a != b ? a > b : $0.offset < $1.offset
+        }.map(\.element)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if won { PackIcon("g-crown", size: 22).accessibilityHidden(true) }
+                LITTeamChip(team: team, lang: lang, size: 14)
+                Spacer()
+                Text("\(score.points)")
+                    .font(.chunky(22))
+                    .foregroundStyle(EC.ink)
+                Text(L.t("pts", lang))
+                    .font(.round(11, .bold))
+                    .foregroundStyle(EC.inkSoft)
+            }
+
+            ForEach(members, id: \.self) { pid in
+                let participant = replay.participants[pid]
+                HStack(spacing: 10) {
+                    AvatarDisc(avatarId: participant?.avatar.value ?? "", size: 28)
+                    Text(participant?.nickname ?? "?")
+                        .font(.round(14, .black))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(scores[pid]?.correct ?? 0)/\(scores[pid]?.total ?? 0)")
+                        .font(.chunky(14))
+                        .foregroundStyle(EC.ink)
+                    Text(L.t("correct", lang))
+                        .font(.round(11, .bold))
+                        .foregroundStyle(EC.inkSoft)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .ecOutline(fill: .white, radius: 12, border: 2)
+            }
+        }
+        .padding(12)
+        .ecCard(fill: team.soft, radius: 20, border: 3, shadow: won ? 6 : 4)
+        .rotationEffect(.degrees(won ? -1 : 0))
+    }
+
     // MARK: - Round View
 
     @ViewBuilder
     private func roundView(_ chain: GameChainReplay) -> some View {
         let drawStep = chain.steps.first(where: { $0.stepType == .draw && $0.status == .submitted })
-        let guessSteps = chain.steps.filter { $0.stepType == .guess && $0.status == .submitted }
+        let answered = chain.steps.filter { $0.stepType == .guess && $0.status == .submitted }
+        // In a team game a team's guessers stand together; an individual game keeps the server's order
+        let guessSteps = replay.teamScores == nil ? answered : answered.sorted {
+            let (a, b) = (team(of: $0.assignedParticipantId)?.rawValue ?? 2, team(of: $1.assignedParticipantId)?.rawValue ?? 2)
+            return a != b ? a < b : $0.stepIndex < $1.stepIndex
+        }
         let drawerPid = chain.drawerParticipantId
         let drawer = drawerPid.flatMap { replay.participants[$0] }
 
@@ -172,8 +291,18 @@ struct GameReplayView: View {
                 Spacer()
             }
 
+            // What the round gave each team. A round that gave neither team points says nothing
+            if let points = chain.roundPoints, replay.teamScores != nil {
+                HStack(spacing: 6) {
+                    ForEach(LITTeam.allCases) { team in
+                        LITTeamPoints(team: team, points: points[team.rawValue], lang: lang, gained: true)
+                    }
+                }
+            }
+
             // Drawer + prompt
             HStack(spacing: 8) {
+                teamStripe(drawerPid)
                 AvatarDisc(avatarId: drawer?.avatar.value ?? "", size: 28)
                 Text("\(drawer?.nickname ?? "?") \(L.t("drew", lang)):")
                     .font(.round(12, .bold))
@@ -226,6 +355,7 @@ struct GameReplayView: View {
         let correct = step.correct == true
 
         HStack(spacing: 8) {
+            teamStripe(step.assignedParticipantId)
             AvatarDisc(avatarId: participant?.avatar.value ?? "", size: 24)
 
             let name = participant?.nickname ?? "?"

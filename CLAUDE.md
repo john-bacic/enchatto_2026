@@ -24,8 +24,8 @@ npm run dev:web                 # Start Next.js dev server on :3000
 npm run dev:convex              # Start Convex dev watcher
 npm run build:web               # Production build of web app
 npm run lint                    # ESLint over the web app, Convex functions and tests
-npm run typecheck               # tsc over the web app, the Convex functions and the tests
-npm test                        # Convex function tests (vitest + convex-test), about 5 seconds, no network
+npm run typecheck               # tsc over the web app, the Convex functions and the tests (.ts and .tsx)
+npm test                        # Convex function tests (vitest + convex-test) and the web's component tests, about 5 seconds, no network
 node scripts/check-localization.mjs   # Duplicate keys in apps/ios/Localization.swift crash the app at launch
 ```
 
@@ -45,6 +45,7 @@ swift test                      # Japanese text code (casualizer, romaji) as a S
 ## Testing
 
 - **Convex tests** live in `apps/web/tests/convex/`, one file per area. They run the real schema and functions against an in-memory backend (`newBackend()` in `setup.ts`), including HTTP routes (`t.fetch`) and scheduled functions (fake timers). Node 22 is needed. `tests/no-network.ts` makes any real network call fail; a test that needs a model's answer stubs `fetch`
+- **Web tests** live in `apps/web/tests/web/` and run in the same `npm test`: the readers in `lib/game-teams.ts`, and the team screens of Lost in Translation rendered to static markup with `react-dom/server` (no DOM, so nothing is clicked and no effect runs). `vitest.config.mts` gives them the `@/` alias and JSX; `tests/tsconfig.json` type-checks them, a `.test.tsx` included, along with the components they render
 - **A test marked `test.fails` with a `DEFECT:` comment** states the correct behaviour for a known bug and passes only while the bug exists. Fixing the bug makes it report "Expect test to fail": remove `.fails` in the same change. `grep -rn "DEFECT:" apps/web/tests apps/ios/Tests` lists every known bug
 - **What the in-memory backend does not model:** stored files have no content type (tests set it by hand), there is no concurrency or write conflict, and crons do not run (tests call the cron functions directly)
 - **iOS text tests** live in `apps/ios/Tests/`. `apps/ios/Package.swift` compiles a few Foundation-only files from `Services/Processing` in place; it is not how the app is built. A known bug there is an `XCTExpectDefect` line
@@ -89,10 +90,10 @@ Two translators race on every text message, and whichever finishes first is what
 - **Convex React provider:** `lib/convex.tsx` wraps the app with `ConvexProvider`
 - **i18n:** Simple `t(key, lang)` function in `lib/i18n.ts` with hardcoded English/Japanese translations
 - **iOS ↔ Convex:** `ConvexHTTPClient` POSTs to HTTP action routes defined in `convex/http.ts`
-- **Games:** Three game types (Lost in Translation, Emoji Match, Truth or Dare) with their own Convex modules and UI components
+- **Games:** Three game types (Lost in Translation, Emoji Match, Truth or Dare) with their own Convex modules and UI components. From four players Lost in Translation can be played as two teams, which the server deals balanced by language (`games.dealTeams`, `/api/games/deal-teams`; it writes nothing); the host starts the game by passing `teams` to `games.startGame` (`"auto"`, or the split it was shown, kept where it still fits whoever is dealt in). Each round's result for the teams is stored on the round's chain when the round ends, and the points clients are sent are read from there, so they never move while a round is open. A start without `teams` is an individual game, which is what installed builds send
 - **Caller tokens, no accounts:** room access is by join code. A client makes a random token when it joins (`participants.joinRoom {token}`) or creates a room (`rooms.createRoom {hostToken}`); the server keeps it in `participantSecrets` and never returns it. Every mutation that acts for a participant takes an optional `token` (`callerToken` on `participants.setHostPushToken`, where `token` is the APNs device token) and checks it with `requireCaller` / `requireMember` / `requireHost` in `participants.ts`; what a failed check does depends on `AUTH_MODE`. The one exception is Emojifyr (the `*Emojifyr*` functions in `games.ts` and the `/api/emojifyr/*` routes): no current build offers it, and it takes no token and makes no check in either mode, so that installed iOS builds keep working. In HTTP bodies the token is `callerToken` (`hostToken` on `/api/rooms/create`, which registers it) and the caller is `callerId`, never `token` (on `/api/rooms/push-token` that is the APNs device token). The web wraps mutations in `useAuthedMutation` (`lib/convex.tsx`); iOS adds both fields in `ConvexHTTPClient`. Participants from before tokens have none and are accepted in both modes. Queries are not gated, except that with `LOST_IN_TRANSLATION_HIDE_ANSWER` on `games.getMyActiveStep` answers only a caller who proves to be that participant (`token` in its arguments, `callerToken` on the route; a participant with no token on record has nothing to prove)
 - **Limits:** `takeRateLimit` in `participants.ts` (table `rateLimits`) throttles sends, pictures, dictation and model calls. A refusal's message contains "rate limit", which `http.ts` answers with 503 so the iOS send queue retries
 
 ## Schema
 
-Core tables: `rooms`, `participants`, `messages`, `reactions`. Game tables: `gameSessions`, `gameChains`, `gameSteps`, `emojifyrRounds`, `emojifyrGuesses`, `emojiMatchGames`, `truthOrDareGames`, `truthOrDareTurns`. Schema defined in `apps/web/convex/schema.ts`.
+Core tables: `rooms`, `participants`, `messages`, `reactions`. Game tables: `gameSessions`, `gameChains`, `gameSteps`, `emojifyrRounds`, `emojifyrGuesses`, `emojiMatchGames`, `truthOrDareGames`, `truthOrDareTurns`. Schema defined in `apps/web/convex/schema.ts`. A team game of Lost in Translation is a session with `gameSessions.teams` (and `teamAway`), and keeps each round's result in `gameChains.teamRound`; an individual game has none of the three.

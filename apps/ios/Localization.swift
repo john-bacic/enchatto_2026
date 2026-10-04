@@ -205,6 +205,20 @@ enum L {
         "correct": ["ja": "正解"],
         "Couldn't send. Try again.": ["ja": "送信できませんでした。もう一度お試しください。"],
 
+        // Lost in Translation teams
+        "Teams": ["ja": "チーム戦"],
+        "Play as two teams. A right guess scores for your team.": ["ja": "2チームに分かれて対戦。正解するとチームの得点に！"],
+        "Reshuffle": ["ja": "シャッフル"],
+        "Teams unlock at 4 players": ["ja": "4人そろうとチーム戦ができます"],
+        "Dealing teams…": ["ja": "チーム分け中…"],
+        "Teams are dealt when the game starts": ["ja": "チームはゲーム開始時に決まります"],
+        "Team Mint": ["ja": "ミントチーム"],
+        "Team Grape": ["ja": "グレープチーム"],
+        "Your team": ["ja": "あなたのチーム"],
+        "Same teams": ["ja": "同じチームで"],
+        "{team} wins!": ["ja": "{team}の勝ち！"],
+        "It's a draw!": ["ja": "引き分け！"],
+
         // Emojifyr leftovers (shared strings)
         "Random": ["ja": "ランダム"],
         "I don't know": ["ja": "わからない"],

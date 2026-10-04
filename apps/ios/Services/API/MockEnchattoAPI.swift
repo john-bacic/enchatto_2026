@@ -251,8 +251,20 @@ class MockEnchattoAPI: EnchattoAPI {
         // Mock: no-op
     }
 
-    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int = 20, customPrompts: [[String: Any]]? = nil) async throws -> String {
+    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int = 20, customPrompts: [[String: Any]]? = nil, teams: GameTeamsRequest? = nil) async throws -> String {
         return UUID().uuidString
+    }
+
+    func dealTeams(roomId: String, participantId: String, previous: [[String]]?) async throws -> GameTeamDeal {
+        // Mock: every other participant. Asked for another split, the second and third change places
+        let playerIds = (participants[roomId] ?? []).map(\.id)
+        guard playerIds.count >= LITTeams.minPlayers else { return GameTeamDeal(playerIds: playerIds, teams: nil) }
+        var order = playerIds
+        if let previous, previous.contains(where: { $0.contains(order[0]) && $0.contains(order[2]) }) {
+            order.swapAt(1, 2)
+        }
+        let teams = [0, 1].map { team in order.enumerated().filter { $0.offset % 2 == team }.map(\.element) }
+        return GameTeamDeal(playerIds: playerIds, teams: teams)
     }
 
     func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {

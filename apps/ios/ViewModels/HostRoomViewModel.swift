@@ -684,7 +684,8 @@ class HostRoomViewModel: ObservableObject {
 
     // MARK: - Games
 
-    func startGame(gameType: String, level: Int = 1, timerSeconds: Int = 20) async {
+    /// `teams`: what a Lost in Translation team game is asked for, nil for individual play
+    func startGame(gameType: String, level: Int = 1, timerSeconds: Int = 20, teams: GameTeamsRequest? = nil) async {
         guard networkMonitor.isConnected else { return }
         do {
             // Cancel any lingering active game first
@@ -699,7 +700,7 @@ class HostRoomViewModel: ObservableObject {
                 return dict
             }
 
-            _ = try await api.startGame(roomId: roomId, participantId: hostId, gameType: gameType, level: level, timerSeconds: timerSeconds, customPrompts: customPrompts)
+            _ = try await api.startGame(roomId: roomId, participantId: hostId, gameType: gameType, level: level, timerSeconds: timerSeconds, customPrompts: customPrompts, teams: teams)
             await refresh()
         } catch {
             self.error = error.localizedDescription
@@ -753,6 +754,28 @@ class HostRoomViewModel: ObservableObject {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Who is here for a game, as this device sees the room: everyone online, and the host. The server decides
+    /// who a game deals in (games.startGame): this tells the picker whether to offer teams and when to ask for
+    /// a new deal, and gives it the names and faces for the split the server sends
+    var gamePlayers: [Participant] {
+        participants.filter { $0.online || $0.id == hostId }
+    }
+
+    /// Two teams for the game picker, dealt by the server. `previous` is the split on screen, to get another one.
+    /// Throws when there is no deal to show; `error` is not set, the picker says the teams are dealt at Start
+    func dealTeams(previous: [[String]]?) async throws -> GameTeamDeal {
+        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
+        return try await api.dealTeams(roomId: roomId, participantId: hostId, previous: previous)
+    }
+
+    /// The host's team (0 or 1) in the game the cover's step belongs to; nil in an individual game. The last
+    /// guess of a game is still on the cover when its session is no longer the active one
+    var presentedStepTeam: Int? {
+        guard let step = presentedStep else { return nil }
+        let session = [activeGameSession, latestGameSession].compactMap { $0 }.first { $0.id == step.gameSessionId }
+        return LITTeams.index(of: hostId, in: session?.teams)
     }
 
     /// Not while a guess is held: the replay waits until the game cover has let the last guess of the game go

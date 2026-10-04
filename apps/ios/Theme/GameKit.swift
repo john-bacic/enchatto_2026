@@ -432,6 +432,111 @@ struct GKStripePattern: View {
     }
 }
 
+// MARK: - Teams
+
+/// The two teams of a Lost in Translation team game, by their place in the session's `teams`.
+/// Not pink and blue: in this app those mean Japanese and English (LangBadge).
+enum LITTeam: Int, CaseIterable, Identifiable {
+    case mint, grape
+
+    /// nil for anything but 0 and 1
+    init?(index: Int?) {
+        guard let index, let team = LITTeam(rawValue: index) else { return nil }
+        self = team
+    }
+
+    var id: Int { rawValue }
+    var color: Color { self == .mint ? EC.mint : EC.violet }
+    var soft: Color { self == .mint ? EC.mintSoft : EC.violetSoft }
+
+    func name(_ lang: String) -> String {
+        L.t(self == .mint ? "Team Mint" : "Team Grape", lang)
+    }
+
+    /// "Team Mint wins!"
+    func winsLine(_ lang: String) -> String {
+        L.t("{team} wins!", lang).replacingOccurrences(of: "{team}", with: name(lang))
+    }
+}
+
+/// A team's name on its colour. Ink on both: it reads on mint and on violet, white only on violet
+struct LITTeamChip: View {
+    let team: LITTeam
+    let lang: String
+    var size: CGFloat = 12
+
+    var body: some View {
+        Text(team.name(lang))
+            .font(.round(size, .black))
+            .foregroundStyle(EC.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, size * 0.8)
+            .padding(.vertical, size * 0.33)
+            .background(Capsule().fill(team.color))
+            .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
+    }
+}
+
+/// A team's colour as a short bar in front of one of its players. Ink-outlined, so it shows on any fill:
+/// a right guess's row in the results is mintSoft
+struct LITTeamStripe: View {
+    let team: LITTeam
+    let lang: String
+
+    var body: some View {
+        Capsule()
+            .fill(team.color)
+            .frame(width: 7, height: 20)
+            .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 1.5))
+            .accessibilityLabel(team.name(lang))
+    }
+}
+
+/// A team's points on its colour, next to its name: the colour alone never says whose points they are.
+/// As wide as it is given, so that two of them share a row evenly
+struct LITTeamPoints: View {
+    let team: LITTeam
+    let points: Int
+    let lang: String
+    /// "+60": what one round gave the team, not its total
+    var gained = false
+    /// The team has the drawing this round
+    var isDrawing = false
+    /// Its drawing is in and the others are guessing: "drew" rather than "is drawing"
+    var drawingDone = false
+    /// The avatar of the player this device belongs to, on that player's team
+    var myAvatarId: String? = nil
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let myAvatarId {
+                AvatarDisc(avatarId: myAvatarId, size: 18)
+            }
+            Text(team.name(lang))
+                .font(.round(12, .black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            if isDrawing {
+                PackIcon("g-pencil", size: 16)
+            }
+            Spacer(minLength: 2)
+            Text(gained ? "+\(points)" : "\(points)")
+                .font(.chunky(13))
+                .lineLimit(1)
+        }
+        .foregroundStyle(EC.ink)
+        .padding(.leading, myAvatarId == nil ? 9 : 3)
+        .padding(.trailing, 9)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, minHeight: 26)
+        .background(Capsule().fill(team.color))
+        .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(team.name(lang))\(isDrawing ? " \(L.t(drawingDone ? "drew" : "is drawing", lang))" : ""): \(gained ? "+" : "")\(points) \(L.t("pts", lang))")
+    }
+}
+
 // MARK: - Flow layout
 
 /// Wrapping row of chips

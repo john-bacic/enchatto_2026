@@ -263,6 +263,13 @@ const translations: Record<string, Record<string, string>> = {
   },
   "correct": { ja: "正解" },
 
+  // Lost in Translation teams
+  "Team Mint": { ja: "ミントチーム" },
+  "Team Grape": { ja: "グレープチーム" },
+  "YOUR TEAM": { ja: "あなたのチーム" },
+  "{team} wins!": { ja: "{team}の勝ち！" },
+  "It's a draw!": { ja: "引き分け！" },
+
   // Emojifyr game
   "Emojifyr": { ja: "Emojifyr" },
   "Write something for Emojifyr": { ja: "Emojifyrに何か書こう" },

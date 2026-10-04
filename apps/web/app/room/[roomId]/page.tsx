@@ -27,6 +27,7 @@ import { Bunting, Confetti, CutIn, Rays, RoomBackground } from "@/components/ui/
 import { QUEUED_ID_PREFIX, avatarIconSrc, avatarTint, getAvatarById } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
+import { teamInSession } from "@/lib/game-teams";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
@@ -1481,7 +1482,7 @@ function RoomContent() {
       )}
 
       {/* Game status bar */}
-      {gameStatus && <GameStatusBar status={gameStatus} lang={lang} />}
+      {gameStatus && <GameStatusBar status={gameStatus} lang={lang} meId={participantId} />}
 
       {/* Messages + hype layers */}
       <div className="ec-stage">
@@ -1790,6 +1791,7 @@ function RoomContent() {
           }
         }}
         lang={lang}
+        team={teamInSession(latestGameSession?.teams, participantId)}
       />
 
       {/* Game picker modal */}
@@ -1823,6 +1825,7 @@ function RoomContent() {
         }}
         onClose={() => setShowGameReplay(false)}
         lang={lang}
+        meId={participantId}
       />
 
       {/* Leave confirmation */}

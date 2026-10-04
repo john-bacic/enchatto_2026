@@ -280,7 +280,7 @@ class RealEnchattoAPI: EnchattoAPI {
         ])
     }
 
-    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int = 20, customPrompts: [[String: Any]]? = nil) async throws -> String {
+    func startGame(roomId: String, participantId: String, gameType: String, level: Int, timerSeconds: Int = 20, customPrompts: [[String: Any]]? = nil, teams: GameTeamsRequest? = nil) async throws -> String {
         struct Response: Decodable { let sessionId: String }
         var body: [String: Any] = [
             "roomId": roomId,
@@ -292,8 +292,25 @@ class RealEnchattoAPI: EnchattoAPI {
         if let customPrompts {
             body["customPrompts"] = customPrompts
         }
+        // Left out for individual play, which is also what a server from before teams makes of it
+        switch teams {
+        case .auto: body["teams"] = "auto"
+        case .split(let split): body["teams"] = split
+        case nil: break
+        }
         let response: Response = try await client.post("/api/games/start", body: body)
         return response.sessionId
+    }
+
+    func dealTeams(roomId: String, participantId: String, previous: [[String]]?) async throws -> GameTeamDeal {
+        var body: [String: Any] = [
+            "roomId": roomId,
+            "participantId": participantId,
+        ]
+        if let previous {
+            body["previous"] = previous
+        }
+        return try await client.post("/api/games/deal-teams", body: body)
     }
 
     func submitGameStep(stepId: String, participantId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {

@@ -13,12 +13,15 @@ struct GameSession: Identifiable, Codable, Equatable {
     var level: Int?
     var timerEnabled: Int?
     var cancelled: Bool?
+    /// A team game's two teams, each in the order its members take the drawing; a team is known by its place
+    /// here, 0 or 1. nil in an individual game, and from a server that knows nothing of teams
+    var teams: [[String]]?
     let createdAt: Date
     var completedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case roomId, gameType, status, createdByParticipantId, playerIds, chainCount, level, timerEnabled, cancelled
+        case roomId, gameType, status, createdByParticipantId, playerIds, chainCount, level, timerEnabled, cancelled, teams
         case createdAt = "_creationTime"
         case completedAt
     }
@@ -41,6 +44,8 @@ struct GameSession: Identifiable, Codable, Equatable {
             timerEnabled = nil
         }
         cancelled = try container.decodeIfPresent(Bool.self, forKey: .cancelled)
+        // Never throws: a session that does not decode is taken for "no game" (RealEnchattoAPI.getActiveGameSession)
+        teams = LITTeams.pair(try? container.decodeIfPresent([[String]].self, forKey: .teams))
         let ts = try container.decode(Double.self, forKey: .createdAt)
         createdAt = Date(timeIntervalSince1970: ts / 1000)
         if let completedTs = try container.decodeIfPresent(Double.self, forKey: .completedAt) {
@@ -50,7 +55,7 @@ struct GameSession: Identifiable, Codable, Equatable {
         }
     }
 
-    init(id: String, roomId: String, gameType: String, status: GameSessionStatus, createdByParticipantId: String, playerIds: [String], chainCount: Int, level: Int? = nil, timerEnabled: Int? = nil, cancelled: Bool? = nil, createdAt: Date, completedAt: Date? = nil) {
+    init(id: String, roomId: String, gameType: String, status: GameSessionStatus, createdByParticipantId: String, playerIds: [String], chainCount: Int, level: Int? = nil, timerEnabled: Int? = nil, cancelled: Bool? = nil, teams: [[String]]? = nil, createdAt: Date, completedAt: Date? = nil) {
         self.id = id
         self.roomId = roomId
         self.gameType = gameType
@@ -61,6 +66,7 @@ struct GameSession: Identifiable, Codable, Equatable {
         self.level = level
         self.timerEnabled = timerEnabled
         self.cancelled = cancelled
+        self.teams = teams
         self.createdAt = createdAt
         self.completedAt = completedAt
     }
@@ -205,6 +211,11 @@ struct GameReplay: Codable {
     let participants: [String: GameParticipantInfo]
     var scores: [String: ScoreInfo]?
     var promptTranslations: [String: String]?
+    /// A team game's teams with their final points. Read it through `teamScores`
+    var teams: Lenient<[GameTeamScore]>?
+
+    /// The two teams and their points; nil for an individual game
+    var teamScores: [GameTeamScore]? { LITTeams.pair(teams?.value) }
 }
 
 struct ScoreInfo: Codable {
@@ -220,10 +231,16 @@ struct GameChainReplay: Identifiable, Codable {
     var drawerParticipantId: String?
     let status: String
     let steps: [GameStep]
+    /// What this round gave each team, in the order of the replay's `teams`. Read it through `roundPoints`
+    var teamPoints: Lenient<[Int]>?
+
+    /// The two teams' points for this round. nil in an individual game, and for a round that gave neither
+    /// team points: one with nobody to count on a team, with no drawing, or cut short
+    var roundPoints: [Int]? { LITTeams.pair(teamPoints?.value) }
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case chainIndex, originalPrompt, options, drawerParticipantId, status, steps
+        case chainIndex, originalPrompt, options, drawerParticipantId, status, steps, teamPoints
     }
 }
 
@@ -247,6 +264,20 @@ struct GameStatus: Codable {
     let scores: [String: GameStatusScore]
     let timerSeconds: Int?
     let drawStartedAt: Double? // ms timestamp
+    /// A team game's teams with their points so far: finished rounds only, so they do not move while a
+    /// round is open. Read it through `teamScores`
+    var teams: Lenient<[GameTeamScore]>?
+    /// Which of `teams` has the drawing this round. Read it through `drawingTeamIndex`
+    var drawingTeam: Lenient<Int>?
+
+    /// The two teams and their points; nil for an individual game
+    var teamScores: [GameTeamScore]? { LITTeams.pair(teams?.value) }
+
+    /// 0 or 1 in a team game whose round has a drawer, else nil
+    var drawingTeamIndex: Int? {
+        guard teamScores != nil, let index = drawingTeam?.value, index == 0 || index == 1 else { return nil }
+        return index
+    }
 }
 
 struct GameStatusScore: Codable {
@@ -254,4 +285,112 @@ struct GameStatusScore: Codable {
     let total: Int
     let nickname: String
     let avatar: AvatarConfig
+}
+
+// MARK: - Teams
+
+/// One team of a team game: who is on it, in the order they take the drawing, and its points. The server
+/// counts the points: a round gives a team the share of its counted guessers who were right, out of 60, and
+/// a team's points are the sum over its rounds. Nothing is added up here
+struct GameTeamScore: Codable, Equatable {
+    let memberIds: [String]
+    let points: Int
+}
+
+/// A field newer than the first builds that decode its parent. A value of another shape reads as nil
+/// instead of failing the parent: a session, status or replay that does not decode is taken for "no game"
+struct Lenient<Value: Codable>: Codable {
+    let value: Value?
+
+    init(_ value: Value?) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        value = try? Value(from: decoder)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try value.encode(to: encoder)
+    }
+}
+
+/// The server's deal for the game picker (/api/games/deal-teams): who a game started now would deal in,
+/// and their two teams
+struct GameTeamDeal: Decodable, Equatable {
+    let playerIds: [String]
+    /// Each team in the order its members take the drawing. nil with fewer than four players dealt in:
+    /// such a game is individual
+    let teams: [[String]]?
+
+    enum CodingKeys: String, CodingKey {
+        case playerIds, teams
+    }
+
+    init(playerIds: [String], teams: [[String]]?) {
+        self.playerIds = playerIds
+        self.teams = teams
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        playerIds = try container.decode([String].self, forKey: .playerIds)
+        teams = try container.decodeIfPresent([[String]].self, forKey: .teams)
+        // Anything but two teams is no deal. It throws, and the picker leaves the deal to Start
+        if let teams, teams.count != 2 {
+            throw DecodingError.dataCorruptedError(forKey: .teams, in: container, debugDescription: "Expected two teams, got \(teams.count)")
+        }
+    }
+}
+
+/// What Start asks for when the game is to be played in teams
+enum GameTeamsRequest: Equatable {
+    /// The server deals the teams as it starts the game
+    case auto
+    /// The split the picker showed. The server keeps it where it still fits who it deals in
+    case split([[String]])
+}
+
+/// Lost in Translation team play: from four players a room can play as two teams
+enum LITTeams {
+    /// A room with fewer players plays individually
+    static let minPlayers = 4
+
+    /// `teams` when it is exactly two teams, else nil. Every screen shows individual play on nil
+    static func pair<Team>(_ teams: [Team]?) -> [Team]? {
+        guard let teams, teams.count == 2 else { return nil }
+        return teams
+    }
+
+    /// Which team (0 or 1) a player is on
+    static func index(of playerId: String, in teams: [[String]]?) -> Int? {
+        pair(teams)?.firstIndex { $0.contains(playerId) }
+    }
+
+    /// Whether the level after a game is played by that game's `teams`: it was a team game, and `playersHere`
+    /// are enough for one. The server plays fewer than four individually whatever split it is sent
+    static func keptForNextLevel(_ teams: [[String]]?, playersHere: Int) -> Bool {
+        pair(teams) != nil && playersHere >= minPlayers
+    }
+
+    /// The teams of a game_summary message: {"teams":[{"memberIds":[…],"points":180},{…}]}. nil for a
+    /// summary without them or with anything else there, which is shown as an individual game
+    static func summaryTeams(_ summary: [String: Any]) -> [GameTeamScore]? {
+        guard let entries = pair(summary["teams"] as? [[String: Any]]) else { return nil }
+        let teams = entries.compactMap { entry -> GameTeamScore? in
+            guard let memberIds = entry["memberIds"] as? [String], let points = entry["points"] as? Int else { return nil }
+            return GameTeamScore(memberIds: memberIds, points: points)
+        }
+        return pair(teams)
+    }
+
+    /// What each round of a game_summary message gave the two teams: {"rounds":[{"round":1,"teamPoints":[60,30]},…]}.
+    /// A round that gave neither team points carries none and is left out
+    static func summaryRounds(_ summary: [String: Any]) -> [(round: Int, points: [Int])] {
+        let rounds = summary["rounds"] as? [[String: Any]] ?? []
+        return rounds.compactMap { entry in
+            guard let round = entry["round"] as? Int, let points = pair(entry["teamPoints"] as? [Int]) else { return nil }
+            return (round: round, points: points)
+        }
+    }
 }

@@ -215,6 +215,235 @@ function guessResult(
   return { correct: !!guess.correct, correctOption, selectedOption: guess.selectedOption };
 }
 
+// Four players or more can play as two teams. A session with `teams` is a team game; one without is an
+// individual game, and nothing a client is sent for it mentions teams. In a team game everyone but the drawer
+// guesses and each player has a score of their own: the teams' points are counted beside it.
+
+// Two teams of two is the smallest team game. With fewer players a game is individual whatever was asked for
+const MIN_TEAM_PLAYERS = 4;
+// What a team's share of a round is counted out of. 60 divides by every number of guessers up to six, so a team
+// of up to six players is never rounded: its points are its exact share. A team's total is the sum of its
+// rounds' points whatever its size, so the rounds a client shows always add up to the total.
+const TEAM_ROUND_POINTS = 60;
+
+/** The two teams of a game, each in the order its members take the drawing. The index is the team: 0 or 1 */
+type Teams = [Id<"participants">[], Id<"participants">[]];
+
+function teamsOf(session: Doc<"gameSessions">): Teams | null {
+  const teams = session.teams;
+  return teams && teams.length === 2 ? [teams[0], teams[1]] : null;
+}
+
+/** A player as the split sees them */
+type Seat = { id: Id<"participants">; japanese: boolean; away: boolean };
+
+/**
+ * The players dealt in, in the order a team's members take the drawing: the host, then the others as they
+ * joined. A language that starts with "ja" is Japanese, and every other one counts as the other language.
+ * Away is not here right now (isPresent). The host is the one asking, so is here whatever their last
+ * heartbeat said.
+ */
+function seatsFor(players: Doc<"participants">[], hostId: Id<"participants">, now: number): Seat[] {
+  return [...players.filter((p) => p._id === hostId), ...players.filter((p) => p._id !== hostId)].map((p) => ({
+    id: p._id,
+    japanese: p.preferredLanguage.startsWith("ja"),
+    away: p._id !== hostId && !isPresent(p, now),
+  }));
+}
+
+/**
+ * Two teams out of the players dealt in. A player `asked` lists stays on the team that lists them, the first
+ * mention winning, and an id that is not a player's is dropped. Its first two lists are the teams; with
+ * nothing in them this is a fresh deal.
+ *
+ * Everyone not on a team yet is seated one at a time: on the smaller team; between equal teams on the one with
+ * fewer speakers of their language; then, for someone away, on the one with fewer players away; and otherwise
+ * by chance. They come up one language after the other with those away in the middle of the line, next to each
+ * other, which is what shares them out like a language. A fresh deal therefore ends at most one apart in size, in
+ * the speakers of each language and in players away. All the chance is Math.random's.
+ *
+ * Players who were kept can leave the teams more than one apart: everyone listed on one side, or people who
+ * left after the split was shown. The larger team then gives up players, as few as it takes, so that four
+ * players or more always make two teams of at least two.
+ */
+function splitTeams(seats: Seat[], asked: string[][] = []): Teams {
+  const byId = new Map<string, Seat>(seats.map((seat) => [seat.id, seat]));
+  const teams: [Seat[], Seat[]] = [[], []];
+  const seated = new Set<Seat>();
+  for (const [team, ids] of asked.slice(0, 2).entries()) {
+    for (const id of ids) {
+      const seat = byId.get(id);
+      if (!seat || seated.has(seat)) continue;
+      teams[team].push(seat);
+      seated.add(seat);
+    }
+  }
+
+  const count = (team: number, is: (other: Seat) => boolean) => teams[team].filter(is).length;
+  const rest = seats.filter((seat) => !seated.has(seat));
+  const group = (japanese: boolean, away: boolean) =>
+    shuffleArray(rest.filter((seat) => seat.japanese === japanese && seat.away === away));
+  for (const seat of [...group(true, false), ...group(true, true), ...group(false, true), ...group(false, false)]) {
+    // How far team 0 is ahead of team 1 in what decides this seat
+    const ahead = (is: (other: Seat) => boolean) => count(0, is) - count(1, is);
+    const lead =
+      ahead(() => true) ||
+      ahead((other) => other.japanese === seat.japanese) ||
+      (seat.away ? ahead((other) => other.away) : 0);
+    teams[lead < 0 || (lead === 0 && Math.random() < 0.5) ? 0 : 1].push(seat);
+  }
+
+  while (Math.abs(teams[0].length - teams[1].length) > 1) {
+    const [larger, smaller] = teams[0].length > teams[1].length ? [0, 1] : [1, 0];
+    const excess = (is: (other: Seat) => boolean) => count(larger, is) - count(smaller, is);
+    // The one to cross speaks the language the larger team has most in excess; of those, is away if it has more
+    // players away; and of those, is the last in the drawing order
+    const [mover] = [...teams[larger]].sort(
+      (a, b) =>
+        excess((other) => other.japanese === b.japanese) - excess((other) => other.japanese === a.japanese) ||
+        (b.away ? excess((other) => other.away) : 0) - (a.away ? excess((other) => other.away) : 0) ||
+        seats.indexOf(b) - seats.indexOf(a)
+    );
+    teams[larger].splice(teams[larger].indexOf(mover), 1);
+    teams[smaller].push(mover);
+  }
+
+  const inOrder = (team: Seat[]) => seats.filter((seat) => team.includes(seat)).map((seat) => seat.id);
+  return [inOrder(teams[0]), inOrder(teams[1])];
+}
+
+/**
+ * Whether two splits put the same players together, whichever team is called 0. `other` is one a client sent:
+ * only the players of `teams` are looked at in it.
+ */
+function sameSides(teams: Teams, other: string[][]): boolean {
+  if (other.length !== 2) return false;
+  const playing = new Set<string>([...teams[0], ...teams[1]]);
+  const side = (ids: string[]) => [...new Set(ids)].filter((id) => playing.has(id)).sort().join();
+  const [a, b] = [side(teams[0]), side(teams[1])];
+  return (a === side(other[0]) && b === side(other[1])) || (a === side(other[1]) && b === side(other[0]));
+}
+
+// How many more times Reshuffle deals when chance comes back with the split on screen. Where another deal is as
+// even, each try misses it at most half the time, so forty leave no chance worth counting of missing it
+const DEAL_AGAIN_TRIES = 40;
+
+/**
+ * A fresh deal that is not the split `shown`. When chance deals that one again, it deals again, up to
+ * DEAL_AGAIN_TRIES times: every fresh deal is as even as the room allows, in players away too. Only when chance keeps dealing the split on
+ * screen, as it must when no other deal is as even, do two players change sides: of one language, so the teams
+ * stay as even as they were in size and language, and both here or both away where there is such a pair.
+ */
+function dealOtherTeams(seats: Seat[], shown: string[][]): Teams {
+  let teams = splitTeams(seats);
+  for (let tries = 0; tries < DEAL_AGAIN_TRIES && sameSides(teams, shown); tries++) teams = splitTeams(seats);
+  if (!sameSides(teams, shown)) return teams;
+  const [one, other] = teams.map((team) => seats.filter((seat) => team.includes(seat.id)));
+  const pairs = one.flatMap((a) => other.map((b) => [a, b] as const));
+  const ofOneLanguage = pairs.filter(([a, b]) => a.japanese === b.japanese);
+  const alike = ofOneLanguage.filter(([a, b]) => a.away === b.away);
+  const choices = alike.length > 0 ? alike : ofOneLanguage.length > 0 ? ofOneLanguage : pairs;
+  const [a, b] = choices[Math.floor(Math.random() * choices.length)];
+  // Asked for as a split to keep, which puts both teams back in drawing order
+  return splitTeams(seats, [
+    teams[0].map((id) => (id === a.id ? b.id : id)),
+    teams[1].map((id) => (id === b.id ? a.id : id)),
+  ]);
+}
+
+/**
+ * Who draws each round of a team game. The teams take the rounds in turn, the host's team first, and each goes
+ * through its members in order. The host is the first of their team, so round 1 is the host's: pressing Start
+ * proves they are here.
+ */
+function teamDrawers(teams: Teams, hostId: Id<"participants">, rounds: number): Id<"participants">[] {
+  const opening = teams[1].includes(hostId) ? 1 : 0;
+  return Array.from({ length: rounds }, (_, r) => {
+    const team = teams[(opening + r) % 2];
+    return team[Math.floor(r / 2) % team.length];
+  });
+}
+
+/** A round as it ended for one team: how many of its guessers count, and how many of those were right */
+type TeamRound = { right: number; counted: number };
+
+/**
+ * A round that has just ended, for each team. A guess that was answered counts, right or wrong. A guess the
+ * server closed counts as a wrong one for a player whose turn before it was played (a drawing they sent or a
+ * guess they answered): not answering is never better than guessing. It is left out for a player in `away`, whose
+ * last turn was not played either, or who has had none: a team is not marked down round after round for someone
+ * who is not there. `away` is brought up to date for the next round.
+ *
+ * `chainSteps` are the round's steps as its caller holds them. One still open there is being closed by the
+ * deadline, and is read as closed.
+ */
+function scoreTeamRound(teams: Teams, chainSteps: Doc<"gameSteps">[], away: Set<Id<"participants">>): TeamRound[] {
+  const result: TeamRound[] = teams.map(() => ({ right: 0, counted: 0 }));
+  for (const s of chainSteps) {
+    const player = s.assignedParticipantId;
+    const played = s.status === "submitted" && !s.timedOut;
+    const team = s.stepType === "guess" ? teams.findIndex((members) => members.includes(player)) : -1;
+    if (team >= 0 && (played || !away.has(player))) {
+      result[team].counted += 1;
+      if (played && s.correct) result[team].right += 1;
+    }
+    if (played) away.delete(player);
+    else away.add(player);
+  }
+  return result;
+}
+
+/**
+ * Both teams' points for a round, or null for a round that gives none. A team's points are the share of its
+ * counted guessers who were right, out of TEAM_ROUND_POINTS: a share, so that the bigger team gains nothing by
+ * having more guessers. A round in which either team had nobody counted is void and gives neither team
+ * anything, which a round nobody drew always is: it has no guesses. A round with no result stored gives none
+ * either: one still open, never reached, or cut short by a Cancel.
+ */
+function teamPointsOf(chain: Doc<"gameChains">): [number, number] | null {
+  const result = chain.teamRound;
+  if (!result || result.length !== 2 || result.some((team) => team.counted === 0)) return null;
+  const points = (team: TeamRound) => Math.round((TEAM_ROUND_POINTS * team.right) / team.counted);
+  return [points(result[0]), points(result[1])];
+}
+
+/** What clients are told of a team: its players in drawing order, and its points over the rounds that scored */
+type TeamView = { memberIds: Id<"participants">[]; points: number };
+
+/**
+ * How the teams of a game stand, or null in individual play. The points are read from the results stored as
+ * each round ended (finishRound), so they never move while a round is open: a total that rose with each right
+ * guess would tell the players still guessing how the others had done. Level totals are a draw; nothing
+ * breaks the tie.
+ */
+function teamStanding(session: Doc<"gameSessions">, chains: Doc<"gameChains">[]): TeamView[] | null {
+  const teams = teamsOf(session);
+  if (!teams) return null;
+  const total = (team: number) => chains.reduce((sum, chain) => sum + (teamPointsOf(chain)?.[team] ?? 0), 0);
+  return teams.map((memberIds, team) => ({ memberIds, points: total(team) }));
+}
+
+/**
+ * Who a game started now deals in: whoever has been here lately, plus the host who is pressing Start. There is
+ * no way to join later, so a phone that just dimmed still gets a seat; roundDeadline moves past anyone who does
+ * not come back.
+ */
+async function playersAround(
+  ctx: MutationCtx,
+  roomId: Id<"rooms">,
+  hostId: Id<"participants">,
+  now: number
+): Promise<Doc<"participants">[]> {
+  const allParticipants = await ctx.db
+    .query("participants")
+    .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+    .collect();
+  const players = allParticipants.filter((p) => isAround(p, now) || p._id === hostId);
+  if (players.length >= 2) return players;
+  // The host app enables Start on its own online count, so Start must not fail where it used to work
+  return allParticipants.filter((p) => (p.online && !p.departed) || p._id === hostId);
+}
+
 /** Schedule the next look at a chain's open draw or guess steps. Call once when those steps are created. */
 async function watchRound(
   ctx: MutationCtx,
@@ -226,17 +455,32 @@ async function watchRound(
   await ctx.scheduler.runAfter(delayMs, internal.games.roundDeadline, { chainId, phase, misses });
 }
 
+/** One round of the summary posted to the chat. `teamPoints` only in a team game, for a round that scored */
+type RoundResult = { round: number; prompt: string; results: Record<string, boolean>; teamPoints?: [number, number] };
+
 /**
  * The round is over: start the next one, or end the game and post its summary.
  * Reached from the last guess and from the server deadline, so it only acts on a chain that is still active.
+ * `chainSteps` are the round's steps, which both callers hold already.
  */
 async function finishRound(
   ctx: MutationCtx,
   session: Doc<"gameSessions">,
-  chain: Doc<"gameChains">
+  chain: Doc<"gameChains">,
+  chainSteps: Doc<"gameSteps">[]
 ): Promise<void> {
   if (chain.status !== "active") return;
   await ctx.db.patch(chain._id, { status: "complete" });
+
+  // A team game's round is scored here, once, and the result kept on the chain: a Cancel closes rounds too, and
+  // those give no points. It is scored from the round's own steps. Every guess step holds the drawing, so reading
+  // the session's steps for it would bring every drawing of the game into the mutation that takes a guess.
+  const teams = teamsOf(session);
+  if (teams) {
+    const away = new Set(session.teamAway);
+    await ctx.db.patch(chain._id, { teamRound: scoreTeamRound(teams, chainSteps, away) });
+    await ctx.db.patch(session._id, { teamAway: session.playerIds.filter((pid) => away.has(pid)) });
+  }
 
   // Find the next chain (next round)
   const allChains = await ctx.db
@@ -266,7 +510,7 @@ async function finishRound(
       .collect();
 
     // Build per-round, per-player results
-    const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
+    const roundResults: RoundResult[] = [];
     for (const ch of allChains) {
       const guessStepsForChain = allSteps.filter((s) => s.chainId === ch._id && isAnsweredGuess(s));
       if (guessStepsForChain.length === 0) continue;
@@ -274,7 +518,8 @@ async function finishRound(
       for (const gs of guessStepsForChain) {
         results[gs.assignedParticipantId] = !!gs.correct;
       }
-      roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results });
+      const teamPoints = teamPointsOf(ch);
+      roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results, ...(teamPoints ? { teamPoints } : {}) });
     }
 
     if (roundResults.length === 0) {
@@ -313,12 +558,15 @@ async function finishRound(
       }
     }
 
+    // `teams` comes last and only in a team game: `players` and `totals` hold players and nothing else
+    const standing = teamStanding(session, allChains);
     const summaryData = {
       gameType: "Lost in Translation",
       level: session.level ?? 1,
       players: playerMap,
       rounds: roundResults,
       totals,
+      ...(standing ? { teams: standing } : {}),
     };
 
     await ctx.db.insert("messages", {
@@ -363,6 +611,10 @@ export const startGame = mutation({
       hintJa: v.optional(v.string()),
     }))),
     token: v.optional(v.string()),
+    // Left out, as every build from before teams leaves it: individual play. "auto": two teams dealt here.
+    // Two lists of participant ids: the split the host was shown, kept where it still fits whoever is dealt in
+    // (splitTeams). The ids are plain strings, so that a stale one is dropped instead of refusing the Start.
+    teams: v.optional(v.union(v.literal("auto"), v.array(v.array(v.string())))),
   },
   handler: async (ctx, args) => {
     const level = args.level ?? 1;
@@ -398,19 +650,8 @@ export const startGame = mutation({
       .collect();
     if (activeGames.some((s) => s.gameType !== "emojifyr")) throw new Error("A game is already in progress");
 
-    // Deal in whoever has been here lately, plus the host who is pressing Start. There is no way to
-    // join later, so a phone that just dimmed still gets a seat; roundDeadline moves past anyone
-    // who does not come back.
-    const allParticipants = await ctx.db
-      .query("participants")
-      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
-      .collect();
     const now = Date.now();
-    let players = allParticipants.filter((p) => isAround(p, now) || p._id === args.participantId);
-    // The host app enables Start on its own online count, so Start must not fail where it used to work
-    if (players.length < 2) {
-      players = allParticipants.filter((p) => (p.online && !p.departed) || p._id === args.participantId);
-    }
+    const players = await playersAround(ctx, args.roomId, args.participantId, now);
     if (players.length < 2) throw new Error("Need at least 2 players");
     // Pressing Start proves the host is here. Record it, or a stale presence write would let the
     // first deadline check skip the host's own round-1 drawing.
@@ -420,6 +661,14 @@ export const startGame = mutation({
 
     const playerIds = players.map((p) => p._id);
     const playerCount = playerIds.length;
+
+    // Teams only where the host's client asked for them and there are players for two teams of two: a Start is
+    // never refused over its teams. They are settled here, from who is dealt in, and stay as they are all game.
+    const teams =
+      args.teams === undefined || playerCount < MIN_TEAM_PLAYERS
+        ? null
+        : splitTeams(seatsFor(players, args.participantId, now), args.teams === "auto" ? [] : args.teams);
+    const drawers = teams ? teamDrawers(teams, args.participantId, TOTAL_ROUNDS) : null;
 
     // Use custom prompts from iOS host if provided, otherwise fall back to hardcoded. A word bank too
     // small to fill the game is not played at all: the wrong options come from what is left of it once
@@ -482,6 +731,8 @@ export const startGame = mutation({
       timerEnabled: args.timerEnabled ?? 20,
       customPrompts: args.customPrompts,
       createdAt: Date.now(),
+      // Nobody has had a turn yet, so everyone is in teamAway. An individual game has neither key
+      ...(teams ? { teams, teamAway: playerIds } : {}),
     });
 
     // Create 10 chains (rounds), each with a unique prompt, options, and drawer
@@ -489,7 +740,7 @@ export const startGame = mutation({
       const promptData = correctPrompts[r];
       const prompt = promptData.text;
       const hint = promptData.hint;
-      const drawerId = playerIds[r % playerCount];
+      const drawerId = drawers ? drawers[r] : playerIds[r % playerCount];
 
       // Use pre-assigned unique distractors
       const options = shuffleArray([prompt, ...roundDistractors[r]]);
@@ -532,6 +783,45 @@ export const startGame = mutation({
     });
 
     return sessionId;
+  },
+});
+
+/**
+ * A team split for the host's picker to show before Start, and another one for its Reshuffle. Nothing is
+ * written: the picker sends the split it showed back with Start (startGame `teams`), which keeps it where it
+ * still fits whoever is here by then. `teams` is null with fewer than four players: that game is individual.
+ * A mutation, although it writes nothing, because every call deals anew.
+ */
+export const dealTeams = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    participantId: v.id("participants"),
+    /** The split on screen, so that Reshuffle comes back with other teams */
+    previous: v.optional(v.array(v.array(v.string()))),
+    token: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ playerIds: Id<"participants">[]; teams: Id<"participants">[][] | null }> => {
+    // What a Start is refused for is refused here in the same words
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
+    const participant = await ctx.db.get(args.participantId);
+    if (!participant) throw new Error("Participant not found");
+    if (participant.role !== "host") throw new Error("Only the host can start a game");
+    // "Host" above is any room's host; it has to be this room's, and has to prove it
+    await requireHost(ctx, args.roomId, args.participantId, args.token, "games.dealTeams");
+
+    // The same players a Start would deal in right now
+    const now = Date.now();
+    const players = await playersAround(ctx, args.roomId, args.participantId, now);
+    const playerIds = players.map((p) => p._id);
+    if (players.length < MIN_TEAM_PLAYERS) return { playerIds, teams: null };
+
+    const seats = seatsFor(players, args.participantId, now);
+    return { playerIds, teams: args.previous ? dealOtherTeams(seats, args.previous) : splitTeams(seats) };
   },
 });
 
@@ -664,7 +954,7 @@ export const submitGameStep = mutation({
     if (!allGuessesSubmitted) return result; // Wait for other guessers
 
     // All guesses in — complete this chain/round
-    await finishRound(ctx, session, chain);
+    await finishRound(ctx, session, chain, chainSteps);
     return result;
     } catch (err: any) {
       console.error("[submitGameStep] ERROR:", err.message ?? err);
@@ -759,7 +1049,7 @@ export const roundDeadline = internalMutation({
         await ctx.db.patch(drawer._id, { typingAction: undefined, drawingStartedAt: undefined });
       }
     }
-    await finishRound(ctx, session, chain);
+    await finishRound(ctx, session, chain, chainSteps);
     return null;
   },
 });
@@ -840,8 +1130,9 @@ export const cancelGame = mutation({
         continue;
       }
 
-      // Build per-round results
-      const roundResults: Array<{ round: number; prompt: string; results: Record<string, boolean> }> = [];
+      // Build per-round results. The round the Cancel cut short is listed with its answers, and gives the teams
+      // of a team game no points: its result was never stored
+      const roundResults: RoundResult[] = [];
       for (const ch of chains) {
         const guessesForChain = steps.filter((s) => s.chainId === ch._id && isAnsweredGuess(s));
         if (guessesForChain.length === 0) continue;
@@ -849,7 +1140,8 @@ export const cancelGame = mutation({
         for (const gs of guessesForChain) {
           results[gs.assignedParticipantId] = !!gs.correct;
         }
-        roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results });
+        const teamPoints = teamPointsOf(ch);
+        roundResults.push({ round: ch.chainIndex + 1, prompt: ch.originalPrompt, results, ...(teamPoints ? { teamPoints } : {}) });
       }
 
       // Build totals
@@ -872,6 +1164,7 @@ export const cancelGame = mutation({
         }
       }
 
+      const standing = teamStanding(session, chains);
       const summaryData = {
         gameType: "Lost in Translation",
         level: session.level ?? 1,
@@ -879,6 +1172,7 @@ export const cancelGame = mutation({
         players: playerMap,
         rounds: roundResults,
         totals,
+        ...(standing ? { teams: standing } : {}),
       };
 
       await ctx.db.insert("messages", {
@@ -1089,6 +1383,19 @@ export const getGameStatus = query({
       : (sessionTimer !== false ? 20 : 0);
     const drawStartedAt = activeDrawStep?.createdAt ?? null;
 
+    // Team game: how the teams stand after the rounds that have ended, and which team's member has the drawing
+    // this round. Both are keys of their own beside `scores`, which is a map of players only: installed iOS
+    // builds decode it as one fixed shape, and an entry of another shape would fail the whole status.
+    const teams = teamStanding(session, chains);
+    const drawingTeam: 0 | 1 | null =
+      !teams || !drawerId
+        ? null
+        : teams[0].memberIds.includes(drawerId)
+          ? 0
+          : teams[1].memberIds.includes(drawerId)
+            ? 1
+            : null;
+
     return {
       gameType: session.gameType,
       level: session.level ?? 1,
@@ -1102,6 +1409,7 @@ export const getGameStatus = query({
       scores,
       timerSeconds: timerSecs,
       drawStartedAt,
+      ...(teams ? { teams, drawingTeam } : {}),
     };
   },
 });
@@ -1142,6 +1450,8 @@ export const getGameReplay = query({
     const pidSet = new Set<string>();
     for (const s of allSteps) pidSet.add(s.assignedParticipantId);
     for (const c of chains) if (c.drawerParticipantId) pidSet.add(c.drawerParticipantId);
+    // A team is shown whole, with the members the game never reached
+    if (teamsOf(session)) for (const pid of session.playerIds) pidSet.add(pid);
     const participantIds = Array.from(pidSet);
     const participants: Record<string, { nickname: string; avatar: { type: string; value: string } }> = {};
     for (const pid of participantIds) {
@@ -1179,9 +1489,11 @@ export const getGameReplay = query({
         const steps = allSteps
           .filter((s) => s.chainId === chain._id && !s.timedOut)
           .sort((a, b) => a.stepIndex - b.stepIndex);
+        const teamPoints = teamPointsOf(chain);
         return {
           ...chain,
           steps,
+          ...(teamPoints ? { teamPoints } : {}),
         };
       })
       // Only include chains that were actually played (have a draw step with output). While the game
@@ -1209,7 +1521,8 @@ export const getGameReplay = query({
       }
     }
 
-    return { session, chains: chainData, participants, scores, promptTranslations };
+    const teams = teamStanding(session, chains);
+    return { session, chains: chainData, participants, scores, promptTranslations, ...(teams ? { teams } : {}) };
   },
 });
 
