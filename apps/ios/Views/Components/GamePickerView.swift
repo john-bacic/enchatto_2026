@@ -174,6 +174,8 @@ struct GamePickerView: View {
     @State private var todMode: String = "normal"
     @State private var wordRushPack: String = "mix"
     @State private var wordRushSayIt = true
+    /// How far the second line of a two-line tile title is drawn up into the first, growing with the text size
+    @ScaledMetric(relativeTo: .headline) private var tileTitleLineOverlap: CGFloat = 5
     /// The host's last choice, kept on this device. Teams are on until the host turns them off
     @AppStorage("enchatto_litTeams") private var teamsOn = true
     @StateObject private var teamOffer = LITTeamOffer()
@@ -257,13 +259,9 @@ struct GamePickerView: View {
         } label: {
             HStack(spacing: 8) {
                 PackIcon(tab.icon, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(tab == .lostInTranslation && lang == "ja" ? "ロスト・イン・\nトランスレーション" : L.t(tab.rawValue, lang))
-                        .font(.chunky(14, relativeTo: .headline))
-                        .foregroundStyle(EC.ink)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                        .multilineTextAlignment(.leading)
+                // The bold face leaves room under its letters, so the tagline is drawn up into it
+                VStack(alignment: .leading, spacing: -3) {
+                    gameTileTitle(tab)
                     Text(L.t(tab.tagline, lang))
                         .font(.round(10.5, .black))
                         .foregroundStyle(EC.ink.opacity(0.65))
@@ -278,6 +276,33 @@ struct GamePickerView: View {
         }
         .buttonStyle(.pressable)
         .accessibilityHint(L.t(tab.tagline, lang))
+    }
+
+    /// A tile's title. "Lost in Translation" does not fit a tile's one line in either language and is broken where
+    /// it reads best. Its lines are stacked and drawn closer than the bold face sets the lines of one text, which
+    /// would leave the title too tall for the tile
+    @ViewBuilder
+    private func gameTileTitle(_ tab: GamePickerTab) -> some View {
+        if tab == .lostInTranslation {
+            VStack(alignment: .leading, spacing: -tileTitleLineOverlap) {
+                ForEach(lang == "ja" ? ["ロスト・イン・", "トランスレーション"] : ["Lost in", "Translation"], id: \.self) { line in
+                    Text(line)
+                        .font(.chunky(14, relativeTo: .headline))
+                        .foregroundStyle(EC.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L.t(tab.rawValue, lang))
+        } else {
+            Text(L.t(tab.rawValue, lang))
+                .font(.chunky(14, relativeTo: .headline))
+                .foregroundStyle(EC.ink)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .multilineTextAlignment(.leading)
+        }
     }
 
     // MARK: - Expanded card
