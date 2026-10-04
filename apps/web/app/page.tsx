@@ -95,7 +95,9 @@ export default function HomePage() {
         onClick={toggleLang}
         aria-label={t("Switch language", lang)}
       >
-        あ/A
+        <span>
+          <b>あ</b>/A
+        </span>
       </button>
 
       <Logo tagline={t("CHAT ACROSS LANGUAGES", lang)} style={{ marginTop: 104 }} />

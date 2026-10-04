@@ -130,6 +130,12 @@
   font-family: var(--chunky);
   font-size: 12px;
 }
+/* The bold face's hiragana fills in at this size, so the あ takes the round face, a little larger */
+.ec-home-lang b {
+  font-family: var(--round);
+  font-weight: 900;
+  font-size: 16px;
+}
 .ec-code-wrap {
   position: relative;
 }
