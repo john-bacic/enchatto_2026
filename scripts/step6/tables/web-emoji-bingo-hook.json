@@ -1,0 +1,35 @@
+{
+  "about": "The room page's Emoji Bingo (its subscription, the id of the game the player put away, the ten mutations and the ten handlers) to hooks/games/use-emoji-bingo.ts. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-emoji-bingo-hook.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-emoji-bingo-hook.json --root <folder> --strict-indent, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 242e013 --allow scripts/step6/tables/web-emoji-bingo-hook.hooks.json --strict",
+  "base": "242e013dc9b873a690366deaf6390bd4bd9a46b8",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [70, 70], "to": "apps/web/hooks/games/use-emoji-bingo.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [89, 91], "to": "apps/web/hooks/games/use-emoji-bingo.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [198, 208], "to": "apps/web/hooks/games/use-emoji-bingo.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [210, 364], "to": "apps/web/hooks/games/use-emoji-bingo.ts" }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useEmojiBingo } from \"@/hooks/games/use-emoji-bingo\";",
+      "const { emojiBingoGame, dismissedEmojiBingoId, setDismissedEmojiBingoId, cancelEmojiBingo, handleCreateEmojiBingoLobby, handleJoinEmojiBingoLobby, handleLeaveEmojiBingoLobby, handleUpdateEmojiBingoSettings, handleStartEmojiBingo, handleRollEmojiBingo, handleMarkEmojiBingoCell, handleClaimEmojiBingo, handleCancelEmojiBingo, handlePlayAgainEmojiBingo } = useEmojiBingo({ roomId, participantId, setShowGamePicker });"
+    ],
+    "apps/web/hooks/games/use-emoji-bingo.ts": [
+      "\"use client\";",
+      "import { useCallback, useState, type Dispatch, type SetStateAction } from \"react\";",
+      "import { useQuery } from \"convex/react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { useAuthedMutation } from \"@/lib/convex\";",
+      "export function useEmojiBingo({",
+      "roomId,",
+      "participantId,",
+      "setShowGamePicker,",
+      "}: {",
+      "roomId: string;",
+      "participantId: string;",
+      "setShowGamePicker: Dispatch<SetStateAction<boolean>>;",
+      "}) {",
+      "return { emojiBingoGame, dismissedEmojiBingoId, setDismissedEmojiBingoId, cancelEmojiBingo, handleCreateEmojiBingoLobby, handleJoinEmojiBingoLobby, handleLeaveEmojiBingoLobby, handleUpdateEmojiBingoSettings, handleStartEmojiBingo, handleRollEmojiBingo, handleMarkEmojiBingoCell, handleClaimEmojiBingo, handleCancelEmojiBingo, handlePlayAgainEmojiBingo };",
+      "}"
+    ]
+  }
+}

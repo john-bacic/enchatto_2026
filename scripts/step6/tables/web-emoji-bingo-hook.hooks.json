@@ -1,0 +1,8 @@
+{
+  "moved": [
+    {
+      "entry": "useState dismissedEmojiBingoId",
+      "why": "The page declares the id of the Emoji Bingo game the player put away among its state at the top of its component; useEmojiBingo is called where the game's subscription stands, below the Lost in Translation, Word Rush and Emoji Match hooks, so that the eleven subscriptions are asked for in the order they were. The state is therefore created lower down. It starts from a constant, and between the two places stand one other state, the network status with its listeners, the room's and the messages' subscriptions, the three game hooks above and the line that says whether a Lost in Translation task is open: none reads it or its setter. Its first readers are the two handlers that clear it, lower in the hook, and the page's markup, below the call."
+    }
+  ]
+}
