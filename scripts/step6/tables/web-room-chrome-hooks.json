@@ -1,0 +1,43 @@
+{
+  "about": "The room page's theme-colour effect (the browser chrome takes the guest's tint) to hooks/use-theme-color.ts, and its three redirects (a removed guest to the join page, a link without its token to the join page, a closed room to the start page) to hooks/use-room-redirects.ts, in that order inside one hook. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-room-chrome-hooks.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-room-chrome-hooks.json --root <folder>, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 1787b7d --strict",
+  "base": "1787b7df4cbda113f819720fe410fb360a73e79c",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [205, 213], "to": "apps/web/hooks/use-theme-color.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [215, 234], "to": "apps/web/hooks/use-room-redirects.ts" }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useThemeColor } from \"@/hooks/use-theme-color\";",
+      "import { useRoomRedirects } from \"@/hooks/use-room-redirects\";",
+      "useThemeColor(meTint);",
+      "useRoomRedirects({ participantId, tokenMissing, roomState, me, router });"
+    ],
+    "apps/web/hooks/use-theme-color.ts": [
+      "\"use client\";",
+      "import { useEffect } from \"react\";",
+      "export function useThemeColor(meTint: string | undefined) {",
+      "}"
+    ],
+    "apps/web/hooks/use-room-redirects.ts": [
+      "\"use client\";",
+      "import { useEffect } from \"react\";",
+      "import type { useRouter } from \"next/navigation\";",
+      "import type { FunctionReturnType } from \"convex/server\";",
+      "import type { api } from \"@/convex/_generated/api\";",
+      "export function useRoomRedirects({",
+      "participantId,",
+      "tokenMissing,",
+      "roomState,",
+      "me,",
+      "router,",
+      "}: {",
+      "participantId: string;",
+      "tokenMissing: boolean;",
+      "roomState: FunctionReturnType<typeof api.rooms.getRoomState> | undefined;",
+      "me: NonNullable<FunctionReturnType<typeof api.rooms.getRoomState>>[\"participants\"][number] | undefined;",
+      "router: ReturnType<typeof useRouter>;",
+      "}) {",
+      "}"
+    ]
+  }
+}

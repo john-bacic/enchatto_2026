@@ -36,6 +36,8 @@ import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePresence } from "@/hooks/use-presence";
 import { useTypingAction } from "@/hooks/use-typing-action";
+import { useThemeColor } from "@/hooks/use-theme-color";
+import { useRoomRedirects } from "@/hooks/use-room-redirects";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
@@ -202,36 +204,9 @@ function RoomContent() {
 
   // A guest's header, input bar and browser chrome take a light tint of their avatar colour
   const meTint = me && me.role !== "host" ? avatarTint(me.avatar.value) : undefined;
-  useEffect(() => {
-    if (!meTint) return;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const prevMeta = meta?.content;
-    meta?.setAttribute("content", meTint);
-    return () => {
-      if (meta && prevMeta) meta.setAttribute("content", prevMeta);
-    };
-  }, [meTint]);
+  useThemeColor(meTint);
 
-  // Redirect to join screen if participant was removed (kicked)
-  useEffect(() => {
-    if (participantId && roomState && roomState.participants.length > 0 && !me) {
-      router.replace(`/join/${roomState.room.joinCode}`);
-    }
-  }, [participantId, roomState, me, router]);
-
-  // A visitor without the token goes on to the join screen; until it loads, the "Join Required" screen below shows
-  useEffect(() => {
-    if (tokenMissing && roomState && roomState.room.status !== "closed") {
-      router.replace(`/join/${roomState.room.joinCode}`);
-    }
-  }, [tokenMissing, roomState, router]);
-
-  // Redirect to home screen if room is closed
-  useEffect(() => {
-    if (roomState?.room.status === "closed") {
-      router.replace("/");
-    }
-  }, [roomState?.room.status, router]);
+  useRoomRedirects({ participantId, tokenMissing, roomState, me, router });
 
   const replyMessage = replyTo
     ? messageList.find((m) => m._id === replyTo)
