@@ -12,7 +12,7 @@ extension HostConversationView {
     }
 
     /// The drawing composer, the camera and the photo library, and the send of a picked photo
-    func attachmentCovers(_ content: some View) -> some View {
+    private func attachmentCovers(_ content: some View) -> some View {
         content
             .fullScreenCover(isPresented: $showDrawingComposer) {
                 DrawingComposerView(
