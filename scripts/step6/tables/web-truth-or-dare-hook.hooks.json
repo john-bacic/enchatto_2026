@@ -1,0 +1,8 @@
+{
+  "moved": [
+    {
+      "entry": "useState dismissedTruthOrDareId",
+      "why": "The page declares the id of the Truth or Dare game the player put away among its state at the top of its component; useTruthOrDare is called where the game's subscription and the trace of its changes stand, below the Lost in Translation, Word Rush, Emoji Match and Emoji Bingo hooks, so that the trace keeps its place among the effects, after the one that watches Emoji Match and ahead of the one that opens the replay. The state is therefore created lower down. It starts from a constant, and between the two places stand the network status with its listeners, the room's and the messages' subscriptions, the four game hooks above and the line that says whether a Lost in Translation task is open: none reads it or its setter. Its first readers are the handler that clears it when a game is created, lower in the hook, and the page's markup, below the call."
+    }
+  ]
+}

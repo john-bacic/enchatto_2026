@@ -1,0 +1,40 @@
+{
+  "about": "The room page's Truth or Dare (its subscription with the trace of its changes, the id of the game the player put away, the seven mutations and the seven handlers) to hooks/games/use-truth-or-dare.ts. One import line of the page is edited, the entry of \"changed\": the two trace helpers are read by the hook alone, so the page imports the debug panel only. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-truth-or-dare-hook.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-truth-or-dare-hook.json --root <folder> --strict-indent, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 1e67448 --allow scripts/step6/tables/web-truth-or-dare-hook.hooks.json --strict",
+  "base": "1e67448ad6786d2922aec5fc2931bae55f644937",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [71, 71], "to": "apps/web/hooks/games/use-truth-or-dare.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [91, 115], "to": "apps/web/hooks/games/use-truth-or-dare.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [196, 343], "to": "apps/web/hooks/games/use-truth-or-dare.ts" }
+  ],
+  "changed": [
+    { "file": "apps/web/app/room/[roomId]/page.tsx", "line": 19, "old": "import { TodDebugPanel, todTrace, tracedMutation } from \"@/components/tod-debug-panel\";", "new": "import { TodDebugPanel } from \"@/components/tod-debug-panel\";" }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useTruthOrDare } from \"@/hooks/games/use-truth-or-dare\";",
+      "const { truthOrDareGame, dismissedTruthOrDareId, setDismissedTruthOrDareId, endTruthOrDare, handleCreateTruthOrDare, handleSubmitTruthOrDareChoice, handleSubmitTruthOrDareResponse, handleAdvanceTruthOrDareTurn, handleSkipTruthOrDareTurn, handleEndTruthOrDare, handleSubmitTruthOrDareRating } = useTruthOrDare({ roomId, participantId, convexSiteUrl, setShowGamePicker });"
+    ],
+    "apps/web/hooks/games/use-truth-or-dare.ts": [
+      "\"use client\";",
+      "import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from \"react\";",
+      "import { useQuery } from \"convex/react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { todTrace, tracedMutation } from \"@/components/tod-debug-panel\";",
+      "import { tokenFor, useAuthedMutation } from \"@/lib/convex\";",
+      "export function useTruthOrDare({",
+      "roomId,",
+      "participantId,",
+      "convexSiteUrl,",
+      "setShowGamePicker,",
+      "}: {",
+      "roomId: string;",
+      "participantId: string;",
+      "convexSiteUrl: string;",
+      "setShowGamePicker: Dispatch<SetStateAction<boolean>>;",
+      "}) {",
+      "return { truthOrDareGame, dismissedTruthOrDareId, setDismissedTruthOrDareId, endTruthOrDare, handleCreateTruthOrDare, handleSubmitTruthOrDareChoice, handleSubmitTruthOrDareResponse, handleAdvanceTruthOrDareTurn, handleSkipTruthOrDareTurn, handleEndTruthOrDare, handleSubmitTruthOrDareRating };",
+      "}"
+    ]
+  }
+}
