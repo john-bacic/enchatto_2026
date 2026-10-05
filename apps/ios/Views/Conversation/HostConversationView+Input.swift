@@ -440,6 +440,28 @@ extension HostConversationView {
         .overlay(alignment: .top) { Rectangle().fill(EC.ink).frame(height: 3) }
     }
 
+    /// While the host dictates, the transcript is the message text; when dictation stops, the last transcript stays
+    func dictationHandlers(_ content: some View) -> some View {
+        content
+            .onChange(of: speechRecognizer.transcript, perform: { newTranscript in
+                if speechRecognizer.isRecording && !newTranscript.isEmpty {
+                    messageText = newTranscript
+                }
+            })
+            .onChange(of: speechRecognizer.isRecording, perform: { recording in
+                if !recording {
+                    micLongPressed = false
+                    // Ended without a send (interruption, recognizer gave up): nothing will claim the recording
+                    speechRecognizer.discardClip()
+                    // Apply final transcript then clear so it doesn't interfere with keyboard
+                    if !speechRecognizer.transcript.isEmpty {
+                        messageText = speechRecognizer.transcript
+                        speechRecognizer.transcript = ""
+                    }
+                }
+            })
+    }
+
     private var messageField: some View {
         TextEditor(text: $messageText)
             .focused($isTextEditorFocused)

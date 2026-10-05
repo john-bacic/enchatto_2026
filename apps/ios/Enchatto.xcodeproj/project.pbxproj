@@ -54,6 +54,7 @@
 		78F7CD033287AF598267B026 /* MeCabRomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4554BBB4C5A962AE91666D54 /* MeCabRomajiService.swift */; };
 		797CECA3D9D858A14248F705 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C59768529F53DC71560987B /* SpeechRecognizer.swift */; };
 		7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */; };
+		7FFA254ABE4C57A5E42B4D4A /* HostConversationView+Games.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20BA2EEE450CBE0082F402A /* HostConversationView+Games.swift */; };
 		8033E37E91F0B9ED5922B43C /* WordRushRevealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E05F204D949A288AF065D7A /* WordRushRevealView.swift */; };
 		818DC65713811E1B2AC4DF24 /* GameKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A9A785A94652F5B9906BBC /* GameKit.swift */; };
 		8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */; };
@@ -190,6 +191,7 @@
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
 		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
+		F20BA2EEE450CBE0082F402A /* HostConversationView+Games.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Games.swift"; sourceTree = "<group>"; };
 		F276BA0039A8F6CCD86D2EA1 /* HostRoomViewModel+EmojiMatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+EmojiMatch.swift"; sourceTree = "<group>"; };
 		F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+WordRush.swift"; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
@@ -302,6 +304,7 @@
 			children = (
 				031BC9C91ADF7C16A5205203 /* ConversationHeaderParts.swift */,
 				8110E3F4D4E66AED1A52ACC5 /* GameSummaryBanner.swift */,
+				F20BA2EEE450CBE0082F402A /* HostConversationView+Games.swift */,
 				01FF0C1D7C150819904768EA /* HostConversationView+Header.swift */,
 				C6259930981CC30D9654C2A6 /* HostConversationView+Input.swift */,
 				6773AC8E4BFE2AF15155D119 /* HostConversationView+MessageList.swift */,
@@ -553,6 +556,7 @@
 				C9389B0A45CCFFA71C58EF5C /* GameSummaryBanner.swift in Sources */,
 				388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */,
 				A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */,
+				7FFA254ABE4C57A5E42B4D4A /* HostConversationView+Games.swift in Sources */,
 				368DFF4A3BC39705BB22763D /* HostConversationView+Header.swift in Sources */,
 				75FAFD5B8836E37425055B45 /* HostConversationView+Input.swift in Sources */,
 				E2D67129E1C1D232B7BEE59F /* HostConversationView+MessageList.swift in Sources */,
