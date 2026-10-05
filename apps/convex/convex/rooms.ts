@@ -81,6 +81,8 @@ export const createRoom = mutation({
       hostId: "", // will be updated after host participant is created
       createdAt: now,
       background,
+      // Every reaction this room will have is written with the room's id (reactions.ts: addReaction)
+      reactionsByRoom: true,
     });
 
     // Create host participant

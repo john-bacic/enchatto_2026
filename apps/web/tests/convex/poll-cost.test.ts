@@ -14,14 +14,15 @@
 // No build calls it yet. It is measured beside them at each moment: its answer against theirs put together,
 // and what it reads against what they read.
 //
-// The last describe is a chat long enough to meet one of the limits Convex puts on a single function.
+// The last describe is a chat long enough to meet one of the limits Convex puts on a single function, in a
+// room whose reactions carry its id and in one from before they did.
 import { convexTest } from "convex-test";
 import { TransactionMetricsTracker } from "convex-test/dist/transactionMetrics.js";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import schema from "../../convex/schema";
-import { Backend, joinGuest, modules, tokenFor } from "./setup";
+import { Backend, joinGuest, modules, tokenFor, withoutReactionsByRoom } from "./setup";
 
 type PID = Id<"participants">;
 /** `players` in the order they came in: the host, then the guests. That is also the order a game deals them in */
@@ -406,6 +407,26 @@ async function snapshot(room: Room, sizes: Map<string, number>) {
 /** A request of the refresh and the most bytes its answer may have */
 type Ceiling = [path: string, bytes: number];
 
+/**
+ * What the reaction summaries may read in a room whose reactions carry its id, with 38 reactions in it. The
+ * length of the chat is not in these figures: no message is read.
+ */
+const SUMMARY_READS: Reads = {
+  // The room and its 38 reactions
+  documentsRead: 39,
+  // The room by its id, then the one range that holds its reactions
+  databaseQueries: 2,
+  // The room and the reactions, to answer with 4.7 KB about 25 messages
+  bytesRead: 9_000,
+};
+
+/** Every reaction of a room's summaries, one after another: the emoji, and which of the room's players gave it */
+function given(room: Room, summaries: Array<{ reactions: Array<{ emoji: string; participantIds: string[] }> }>): string[] {
+  return summaries.flatMap((summary) =>
+    summary.reactions.flatMap((reaction) => reaction.participantIds.map((id) => `${reaction.emoji} ${room.players.indexOf(id as PID)}`))
+  );
+}
+
 describe("an idle room: four people, 300 chat messages, 38 reactions on 25 of them", () => {
   let room: Room;
   let sizes: Map<string, number>;
@@ -474,9 +495,9 @@ describe("an idle room: four people, 300 chat messages, 38 reactions on 25 of th
     const together = await reads(() => snapshot(room, sizes));
     // The same queries, each run once
     expect(together).toEqual(apart);
-    // Nearly all of it is the chat read twice: for the messages, and again to look for each one's reactions
-    expect(together).toMatchObject({ documentsRead: 650, databaseQueries: 323 });
-    expect(together.bytesRead).toBeLessThanOrEqual(262_000);
+    // Nearly all of it is the chat, read once, for the messages. The reactions are read by the room's id
+    expect(together).toMatchObject({ documentsRead: 348, databaseQueries: 21 });
+    expect(together.bytesRead).toBeLessThanOrEqual(137_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -484,19 +505,37 @@ describe("an idle room: four people, 300 chat messages, 38 reactions on 25 of th
   });
 
   test("the reaction summaries are read within their ceilings", async () => {
+    const summaries = await within(SUMMARY_READS, () => room.t.query(api.reactions.getRoomReactionSummaries, { roomId: room.roomId }));
+    expect(summaries).toHaveLength(25);
+    expect(given(room, summaries)).toHaveLength(38);
+  });
+
+  // A room from before reactions carried their room has no range that holds its reactions. They are found
+  // through its messages, so every poll of such a room reads its whole chat a second time
+  test("the same chat in a room from before reactions carried their room: the same summaries, at the cost of every message", async () => {
+    const older = await idleRoom();
+    await withoutReactionsByRoom(older.t, older.roomId);
+    const ask = () => older.t.query(api.reactions.getRoomReactionSummaries, { roomId: older.roomId });
+
+    // Not within any one of the ceilings the room above keeps to
+    await expect(within({ documentsRead: SUMMARY_READS.documentsRead }, ask)).rejects.toThrow(/Scanned too many documents/);
+    await expect(within({ databaseQueries: SUMMARY_READS.databaseQueries }, ask)).rejects.toThrow(/Too many index ranges read/);
+    await expect(within({ bytesRead: SUMMARY_READS.bytesRead }, ask)).rejects.toThrow(/Read too much data/);
+
     const summaries = await within(
       {
-        // Every message of the room and the 38 reactions
-        documentsRead: 341,
-        // One for the messages, then one for each message's reactions
-        databaseQueries: 304,
+        // The room, every message of it and the 38 reactions
+        documentsRead: 342,
+        // One for the room, one for the messages, then one for each message's reactions
+        databaseQueries: 305,
         // The 303 messages whole, to answer with 4.7 KB about 25 of them
         bytesRead: 134_000,
       },
-      () => room.t.query(api.reactions.getRoomReactionSummaries, { roomId: room.roomId })
+      ask
     );
+    // Both chats were built alike: the same emoji from the same players, message after message
     expect(summaries).toHaveLength(25);
-    expect(summaries.flatMap((summary) => summary.reactions).reduce((sum, reaction) => sum + reaction.count, 0)).toBe(38);
+    expect(given(older, summaries)).toEqual(given(room, await room.t.query(api.reactions.getRoomReactionSummaries, { roomId: room.roomId })));
   });
 
   test("the message list is read within its ceilings", async () => {
@@ -566,10 +605,9 @@ describe("the same room after a finished game of Lost in Translation", () => {
     const apart = await reads(() => refresh(room, { replay: false }));
     const together = await reads(() => snapshot(room, sizes));
     expect(together).toEqual(apart);
-    expect(together).toMatchObject({ documentsRead: 675, databaseQueries: 335 });
-    // The chat twice over, with the guests' seven drawings in it: for the messages, and again on the way
-    // to the reactions
-    expect(together.bytesRead).toBeLessThanOrEqual(372_000);
+    expect(together).toMatchObject({ documentsRead: 361, databaseQueries: 21 });
+    // The chat once, for the messages, with the guests' seven drawings in it
+    expect(together.bytesRead).toBeLessThanOrEqual(194_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -613,18 +651,9 @@ describe("the same room after a finished game of Lost in Translation", () => {
     );
   });
 
+  // As before the game: its twelve messages and their drawings are not read on the way to the reactions
   test("the reaction summaries are read within their ceilings", async () => {
-    const summaries = await within(
-      {
-        // Every message of the room and the 38 reactions
-        documentsRead: 353,
-        // One for the messages, then one for each message's reactions
-        databaseQueries: 316,
-        // The guests' seven drawings with the rest, to answer with the same 4.7 KB as before the game
-        bytesRead: 187_000,
-      },
-      () => room.t.query(api.reactions.getRoomReactionSummaries, { roomId: room.roomId })
-    );
+    const summaries = await within(SUMMARY_READS, () => room.t.query(api.reactions.getRoomReactionSummaries, { roomId: room.roomId }));
     expect(summaries).toHaveLength(25);
   });
 });
@@ -677,10 +706,10 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
     const apart = await reads(() => refresh(room));
     const together = await reads(() => snapshot(room, sizes));
     expect(together).toEqual(apart);
-    expect(together).toMatchObject({ documentsRead: 757, databaseQueries: 352 });
-    // The chat with its sixteen drawings twice over, and every step of the running game twice as well: for
-    // the host's step, and again for the status. Only a guest's drawing is in those rows
-    expect(together.bytesRead).toBeLessThanOrEqual(685_000);
+    expect(together).toMatchObject({ documentsRead: 436, databaseQueries: 31 });
+    // The chat with its sixteen drawings once, and every step of the running game twice: for the host's
+    // step, and again for the status. Only a guest's drawing is in those rows
+    expect(together.bytesRead).toBeLessThanOrEqual(479_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -718,70 +747,112 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
   });
 });
 
-// The chat of this describe grows from one part to the next, so its parts run in the order they are written
-// in, even when the run is shuffled
+// The older room's chat grows from one part of this describe to the next, so its parts run in the order they
+// are written in, even when the run is shuffled
 describe("a long chat, on a backend with Convex's own limits", { shuffle: false }, () => {
+  /** A room as createRoom makes it, its reactions carrying its id: 4,100 chat messages, 38 reactions on 25 of them */
   let room: Room;
+  /** A room from before reactions carried their room, on a backend of its own, with nobody reacting */
+  let older: Room;
   beforeAll(async () => {
     room = await openRoom(convexTest({ schema, modules, transactionLimits: true }));
-    await chat(room, 4_000);
+    await react(room, await chat(room, 4_100), 25);
+    older = await openRoom(convexTest({ schema, modules, transactionLimits: true }));
+    await withoutReactionsByRoom(older.t, older.roomId);
+    await chat(older, 4_000);
   });
 
   /** One of the three requests every refresh starts with, as the room's host is answered */
-  async function ask(path: string) {
-    return await post(room, path, { roomId: room.roomId });
+  async function ask(of: Room, path: string) {
+    return await post(of, path, { roomId: of.roomId });
   }
 
   /** The snapshot, asked as the host app would ask it */
-  async function askSnapshot() {
-    return await post(room, "/api/rooms/snapshot", { roomId: room.roomId, participantId: room.hostId });
+  async function askSnapshot(of: Room) {
+    return await post(of, "/api/rooms/snapshot", { roomId: of.roomId, participantId: of.hostId });
   }
 
-  test("at 4,000 chat messages the room, its messages and its reaction summaries are answered", async () => {
-    expect((await ask("/api/rooms/state")).status).toBe(200);
-    expect((await ask("/api/messages/list")).status).toBe(200);
-    expect((await ask("/api/reactions/room-summaries")).status).toBe(200);
-    // And the snapshot, whole
-    expect(await askSnapshot()).toMatchObject({ status: 200, body: { messages: { length: 4_003 }, reactions: [], errors: [] } });
-  });
-
-  describe("at 4,100 chat messages", () => {
-    beforeAll(async () => {
-      await chat(room, 100);
-    });
-
+  describe("in a room whose reactions carry its id, at 4,100 chat messages", () => {
     test("the room and its messages are answered", async () => {
-      expect((await ask("/api/rooms/state")).status).toBe(200);
+      expect((await ask(room, "/api/rooms/state")).status).toBe(200);
       // The chat and the three join lines
-      expect(await ask("/api/messages/list")).toMatchObject({ status: 200, body: { length: 4_103 } });
+      expect(await ask(room, "/api/messages/list")).toMatchObject({ status: 200, body: { length: 4_103 } });
     });
 
-    // DEFECT: a chat that grows long enough takes the host's screen down with it. getRoomReactionSummaries
-    // reads the room's messages and then one index range of reactions for each of them (reactions.ts), and
-    // Convex allows one function 4,096 ranges. From the room's 4,096th message on the query is refused, with
-    // or without a single reaction in the room, and /api/reactions/room-summaries answers 400. The host app
-    // asks for the room, the messages and these summaries at the start of every refresh and shows none of
-    // them when one fails (HostRoomViewModel.refresh), so from then on its screen stops following the room:
-    // no new message appears, and no game. Guests are not affected: the web page asks for each message's
-    // reactions on their own.
-    // The assertion holds for any fix that still answers the route: for one, the room's reactions read
-    // through an index of their own.
-    test.fails("the reaction summaries are answered", async () => {
-      expect((await ask("/api/reactions/room-summaries")).status).toBe(200);
+    // One index range holds the room's reactions, so the length of its chat is nothing to their query: it
+    // reads what it reads in the idle room of 300 messages
+    test("the reaction summaries are answered, and no message is read for them", async () => {
+      const summaries = await ask(room, "/api/reactions/room-summaries");
+      expect(summaries.status).toBe(200);
+      expect(summaries.body).toHaveLength(25);
+      expect(given(room, summaries.body)).toHaveLength(38);
+
+      // Counted, not held to a ceiling: this backend's limits are Convex's own, which `within` does not lower
+      const read = await reads(() => ask(room, "/api/reactions/room-summaries"));
+      expect(read).toMatchObject({ documentsRead: SUMMARY_READS.documentsRead, databaseQueries: SUMMARY_READS.databaseQueries });
+      expect(read.bytesRead).toBeLessThanOrEqual(SUMMARY_READS.bytesRead);
     });
 
-    // The snapshot runs the same query and is refused the same summaries, but it does not let them take the
-    // room with them: the request is answered, with the summaries left out and named, so a host app that
-    // refreshes from it goes on following the room and only its reactions stand still. The limit is not a
-    // failure worth repeating, which would be a 503 for the whole request: asked again, it is met again.
-    test("the snapshot is answered with the room and its messages, and names the reaction summaries as refused", async () => {
-      const answer = await askSnapshot();
+    test("the snapshot is answered whole, with the reaction summaries as their route sends them", async () => {
+      const answer = await askSnapshot(room);
       expect(answer.status).toBe(200);
-      expect(answer.body.errors).toEqual(["reactions"]);
-      expect(answer.body).not.toHaveProperty("reactions");
+      expect(answer.body.errors).toEqual([]);
       expect(answer.body.room._id).toBe(room.roomId);
       expect(answer.body.participants).toHaveLength(4);
       expect(answer.body.messages).toHaveLength(4_103);
+      expect(answer.body.reactions).toEqual((await ask(room, "/api/reactions/room-summaries")).body);
+    });
+  });
+
+  describe("in a room from before reactions carried their room", () => {
+    test("at 4,000 chat messages the room, its messages and its reaction summaries are answered", async () => {
+      expect((await ask(older, "/api/rooms/state")).status).toBe(200);
+      expect((await ask(older, "/api/messages/list")).status).toBe(200);
+      expect((await ask(older, "/api/reactions/room-summaries")).status).toBe(200);
+      // And the snapshot, whole
+      expect(await askSnapshot(older)).toMatchObject({ status: 200, body: { messages: { length: 4_003 }, reactions: [], errors: [] } });
+    });
+
+    describe("at 4,100 chat messages", () => {
+      beforeAll(async () => {
+        await chat(older, 100);
+      });
+
+      test("the room and its messages are answered", async () => {
+        expect((await ask(older, "/api/rooms/state")).status).toBe(200);
+        // The chat and the three join lines
+        expect(await ask(older, "/api/messages/list")).toMatchObject({ status: 200, body: { length: 4_103 } });
+      });
+
+      // DEFECT: in a room from before reactions carried their room, a chat that grows long enough takes the
+      // host's screen down with it. Such a room has no reactionsByRoom, so getRoomReactionSummaries reads its
+      // messages and then one index range of reactions for each of them (reactions.ts), and Convex allows
+      // one function 4,096 ranges. From the room's 4,095th message on the query is refused, with or without
+      // a single reaction in the room, and /api/reactions/room-summaries answers 400. The host app asks for
+      // the room, the messages and these summaries at the start of every refresh and shows none of them
+      // when one fails (HostRoomViewModel.refresh), so from then on its screen stops following the room: no
+      // new message appears, and no game. Guests are not affected: the web page asks for each message's
+      // reactions on their own.
+      // The assertion holds for any fix that still answers the route: for one, such a room given the mark
+      // once each of its reactions has its roomId (reactions.fillReactionRoomIds).
+      test.fails("the reaction summaries are answered", async () => {
+        expect((await ask(older, "/api/reactions/room-summaries")).status).toBe(200);
+      });
+
+      // The snapshot runs the same query and is refused the same summaries, but it does not let them take
+      // the room with them: the request is answered, with the summaries left out and named, so a host app
+      // that refreshes from it goes on following the room and only its reactions stand still. The limit is
+      // not a failure worth repeating, which would be a 503 for the whole request: asked again, it is met
+      // again.
+      test("the snapshot is answered with the room and its messages, and names the reaction summaries as refused", async () => {
+        const answer = await askSnapshot(older);
+        expect(answer.status).toBe(200);
+        expect(answer.body.errors).toEqual(["reactions"]);
+        expect(answer.body).not.toHaveProperty("reactions");
+        expect(answer.body.room._id).toBe(older.roomId);
+        expect(answer.body.participants).toHaveLength(4);
+        expect(answer.body.messages).toHaveLength(4_103);
+      });
     });
   });
 });

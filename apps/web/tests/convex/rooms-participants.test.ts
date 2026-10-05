@@ -160,6 +160,31 @@ describe("createRoom", () => {
     });
   });
 
+  // The room document goes whole to every guest's page and to the host app, which reads the keys it knows
+  // (Room.swift) and passes over the rest
+  test("the room document is these fields and no other, on the row and in everything that sends it", async () => {
+    const t = newBackend();
+    const { roomId, hostId, joinCode } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    const room = {
+      _id: roomId,
+      _creationTime: expect.any(Number),
+      joinCode,
+      status: "waiting",
+      settings: { sourceLanguage: "ja", targetLanguage: "en", romajiEnabled: true, suggestionsEnabled: true, maxParticipants: 10 },
+      hostId,
+      createdAt: START,
+      background: 3,
+      // Every reaction the room will have is stored with its id (reactions.ts)
+      reactionsByRoom: true,
+    };
+
+    expect(await roomRow(t, roomId)).toStrictEqual(room);
+    expect((await t.query(api.rooms.getRoomState, { roomId }))?.room).toStrictEqual(room);
+    expect(await t.query(api.rooms.getRoomByJoinCode, { joinCode })).toStrictEqual(room);
+    expect((await post(t, "/api/rooms/state", { roomId })).body.room).toStrictEqual(room);
+    expect((await post(t, "/api/rooms/snapshot", { roomId, participantId: hostId })).body.room).toStrictEqual(room);
+  });
+
   test("gives a six-character join code with no 0, 1, I or O, and the code finds the room", async () => {
     const t = newBackend();
     // Not left to chance: these draws step through every position of the generator's alphabet, so a

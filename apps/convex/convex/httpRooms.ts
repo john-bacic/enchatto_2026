@@ -38,8 +38,9 @@ import { isTransient, jsonAction } from "./httpShared";
  * keep it asking at full speed a server that is asking for less.
  *
  * The reactions are not among the sections that fail the request, although the app today shows nothing of
- * a refresh whose reactions request failed. From a room's 4,096th message on their query is refused for
- * good (one index range for each message: poll-cost.test.ts), and here that costs the reactions, not the room.
+ * a refresh whose reactions request failed. In a room without `reactionsByRoom` their query is refused for
+ * good from the room's 4,095th message on (one index range for each message: reactions.ts,
+ * poll-cost.test.ts), and here that costs the reactions, not the room.
  *
  * The queries run one after another, in the order the app asks today, never together. The game's status
  * is only asked for when there is a session to have one. A host holds one query at a time today, and a

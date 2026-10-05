@@ -17,6 +17,8 @@ export default defineSchema({
     createdAt: v.number(),
     closedAt: v.optional(v.number()),
     background: v.optional(v.number()),
+    /** True on a room whose every reaction carries the room's id, so reactions.getRoomReactionSummaries reads them from reactions.by_roomId. Set when the room is created and never afterwards: a room without it may hold reactions that have no roomId. */
+    reactionsByRoom: v.optional(v.boolean()),
   })
     .index("by_joinCode", ["joinCode"])
     .index("by_status", ["status"])
@@ -121,9 +123,13 @@ export default defineSchema({
     participantId: v.id("participants"),
     emoji: v.string(),
     createdAt: v.number(),
+    /** The room of the message, written with the reaction (reactions.ts: addReaction). Rows from before this field have none. */
+    roomId: v.optional(v.id("rooms")),
   })
     .index("by_messageId", ["messageId"])
-    .index("by_messageId_participantId", ["messageId", "participantId"]),
+    .index("by_messageId_participantId", ["messageId", "participantId"])
+    // A room's reactions without reading its messages (reactions.ts: getRoomReactionSummaries), and the reactions that have no roomId (fillReactionRoomIds)
+    .index("by_roomId", ["roomId"]),
 
   gameSessions: defineTable({
     roomId: v.id("rooms"),

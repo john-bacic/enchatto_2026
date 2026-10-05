@@ -10,7 +10,7 @@ import { api, internal } from "../../convex/_generated/api";
 import { Doc, Id, TableNames } from "../../convex/_generated/dataModel";
 import crons from "../../convex/crons";
 import schema from "../../convex/schema";
-import { Backend, createRoom, joinGuest, modules, newBackend, tokenFor } from "./setup";
+import { Backend, createRoom, joinGuest, modules, newBackend, tokenFor, withoutReactionsByRoom } from "./setup";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -820,7 +820,7 @@ const BELONGS: { [T in TableNames]: (keyof Doc<T> & string) | null } = {
   participantSecrets: "participantId",
   // roomId (senderId is one of the room's participants, replyToId another of its messages)
   messages: "roomId",
-  // messageId -> messages.roomId
+  // messageId -> messages.roomId. A reaction's own roomId, where it has one, names that room too
   reactions: "messageId",
   // roomId: Lost in Translation and Emojifyr sessions
   gameSessions: "roomId",
@@ -1280,6 +1280,9 @@ describe("the fixture: a room with a row in every table a room can own", () => {
     expect(d.files).toHaveLength(7);
     const kinds = new Set(rowsOf(d, room.roomId).filter((p) => p.table === "messages").map((p) => p.row.kind));
     expect([...kinds].sort()).toEqual(["audio", "drawing", "image", "system", "text"]);
+    // Eight reactions, each stored with the room its message is in
+    const reactions = rowsOf(d, room.roomId).filter((p) => p.table === "reactions");
+    expect(reactions.map((p) => p.row.roomId)).toEqual(Array(8).fill(room.roomId));
   });
 });
 
@@ -1391,6 +1394,33 @@ describe("purgeClosedRooms with a retention of 30 days", () => {
     expect(orphans(after)).toEqual([]);
     // No row that is left names the room, its people, its messages, its games or its files, in any field
     expect(mentioning(after, ids, ROOM_TABLES)).toEqual([]);
+  });
+
+  // The purge finds a message's reactions by the message. It asks neither for the room's reactionsByRoom
+  // nor for a roomId on the reaction
+  test("a room from before reactions carried their room is purged with its reactions, those that have no roomId and one that has", async () => {
+    const t = limitedBackend();
+    const old = await buildRichRoom(t, 1);
+    const open = await buildRichRoom(t, 2);
+    await withoutReactionsByRoom(t, old.roomId);
+    // Given since, so stored with its roomId
+    await t.mutation(api.reactions.addReaction, { messageId: old.messages.reply, participantId: old.bob.id, emoji: "🔥", token: old.bob.token });
+    await closeRich(t, old);
+    vi.setSystemTime(T0 + 31 * DAY);
+    const before = await dump(t);
+    const reactionsOf = (d: Dump, roomId: string) => rowsOf(d, roomId).filter((placed) => placed.table === "reactions");
+    expect(before.byId.get(old.roomId)?.row.reactionsByRoom).toBeUndefined();
+    expect(reactionsOf(before, old.roomId).map((placed) => placed.row.roomId)).toEqual([...Array(8).fill(undefined), old.roomId]);
+
+    await runPurge(t);
+
+    const after = await dump(t);
+    expect(countByTable(rowsOf(after, old.roomId))).toEqual(Object.fromEntries(ROOM_TABLES.map((table) => [table, 0])));
+    expect(orphans(after)).toEqual([]);
+    // What is left in the table is the open room's eight, untouched
+    expect(after.rows.filter((placed) => placed.table === "reactions")).toEqual(reactionsOf(before, open.roomId));
+    expect(reactionsOf(after, open.roomId)).toHaveLength(8);
+    expect(mentioning(after, [old.roomId, ...Object.values(old.messages)], ["reactions"])).toEqual([]);
   });
 
   test("the purged room's stored files are deleted", async () => {

@@ -45,3 +45,18 @@ export async function joinGuest(
     token: options.token,
   });
 }
+
+/**
+ * Turns a room into what a room from before reactions carried their room is: no reactionsByRoom on it, and
+ * no roomId on the reactions it has. A reaction added afterwards is stored with its roomId, as in such a room.
+ */
+export async function withoutReactionsByRoom(t: Backend, roomId: Id<"rooms">) {
+  await t.run(async (ctx) => {
+    await ctx.db.patch(roomId, { reactionsByRoom: undefined });
+    const reactions = await ctx.db
+      .query("reactions")
+      .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+      .collect();
+    for (const reaction of reactions) await ctx.db.patch(reaction._id, { roomId: undefined });
+  });
+}

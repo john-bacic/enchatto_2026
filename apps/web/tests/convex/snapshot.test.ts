@@ -19,7 +19,7 @@ import { getRoomReactionSummaries } from "../../convex/reactions";
 import { getRoomState } from "../../convex/rooms";
 import { getActiveTruthOrDare } from "../../convex/truthOrDare";
 import { getState as getWordRushState } from "../../convex/wordRush";
-import { Backend, joinGuest, newBackend, tokenFor } from "./setup";
+import { Backend, joinGuest, newBackend, tokenFor, withoutReactionsByRoom } from "./setup";
 
 type PID = Id<"participants">;
 type RoomId = Id<"rooms">;
@@ -374,7 +374,13 @@ const STATES: State[] = [
     "a room just opened, with its host alone",
     () => openRoom({ guests: 0 }),
     // "waiting" until the first guest comes in
-    { room: { status: "waiting", background: 17 }, participants: [{ nickname: "Host", role: "host" }], messages: [], reactions: [], ...NO_GAME },
+    {
+      room: { status: "waiting", background: 17, reactionsByRoom: true },
+      participants: [{ nickname: "Host", role: "host" }],
+      messages: [],
+      reactions: [],
+      ...NO_GAME,
+    },
   ],
   [
     "a chat with reactions and no game",
@@ -392,6 +398,24 @@ const STATES: State[] = [
         { text: "hello", status: "processed", processing: { translatedText: "こんにちは" } },
         { text: "やあ", status: "pending" },
       ],
+      reactions: [
+        { reactions: [{ emoji: "👍", count: 2 }, { emoji: "❤️", count: 1 }] },
+        { reactions: [{ emoji: "😂", count: 1 }] },
+      ],
+      ...NO_GAME,
+    },
+  ],
+  [
+    // No reactionsByRoom on the room and no roomId on its reactions: they are found through the messages
+    "the same chat in a room from before reactions carried their room",
+    async () => {
+      const room = await openRoom();
+      await chat(room);
+      await withoutReactionsByRoom(room.t, room.roomId);
+      return room;
+    },
+    {
+      room: expect.not.objectContaining({ reactionsByRoom: expect.anything() }),
       reactions: [
         { reactions: [{ emoji: "👍", count: 2 }, { emoji: "❤️", count: 1 }] },
         { reactions: [{ emoji: "😂", count: 1 }] },

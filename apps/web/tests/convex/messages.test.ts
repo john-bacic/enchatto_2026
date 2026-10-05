@@ -6,11 +6,13 @@
 //   the Content-Type header, so `upload` writes the declared type onto the _storage row by hand. A file the
 //   send-drawing route stores therefore has no recorded type here, where a real deployment records image/png
 //   or image/jpeg.
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { FunctionArgs } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { Backend, createRoom, joinGuest, newBackend, tokenFor } from "./setup";
+import { Backend, createRoom, joinGuest, newBackend, tokenFor, withoutReactionsByRoom } from "./setup";
 
 const NOW = Date.UTC(2026, 0, 15, 12, 0, 0);
 const MB = 1024 * 1024;
@@ -2209,6 +2211,35 @@ describe("deleteMessage", () => {
     expect(await t.query(api.messages.getMessageById, { messageId: doomed })).toBeNull();
     const reactions = await t.run(async (ctx) => await ctx.db.query("reactions").collect());
     expect(reactions.map((r) => [r.messageId, r.emoji])).toEqual([[kept, "❤️"]]);
+    // The room's summaries are read by the room's id here, not through its messages: the deleted message's
+    // reactions are not in them either
+    expect(await t.query(api.reactions.getRoomReactionSummaries, { roomId })).toEqual([
+      { messageId: kept, reactions: [{ emoji: "❤️", count: 1, participantIds: [hostId] }] },
+    ]);
+  });
+
+  test("in a room from before reactions carried their room, it removes the reactions that have no roomId and the ones that have", async () => {
+    const { t, roomId, hostId, guestId } = await openRoom();
+    const doomed = await sendText(t, { roomId, senderId: guestId, text: "delete me" });
+    const kept = await sendText(t, { roomId, senderId: guestId, text: "keep me" });
+    await t.mutation(api.reactions.addReaction, { messageId: doomed, participantId: hostId, emoji: "👍" });
+    await t.mutation(api.reactions.addReaction, { messageId: kept, participantId: hostId, emoji: "❤️" });
+    await withoutReactionsByRoom(t, roomId);
+    await t.mutation(api.reactions.addReaction, { messageId: doomed, participantId: guestId, emoji: "🔥" });
+    const before = await t.run(async (ctx) => await ctx.db.query("reactions").collect());
+    expect(before.map((r) => [r.messageId, r.emoji, r.roomId])).toEqual([
+      [doomed, "👍", undefined],
+      [kept, "❤️", undefined],
+      [doomed, "🔥", roomId],
+    ]);
+
+    await t.mutation(api.messages.deleteMessage, { messageId: doomed });
+
+    const reactions = await t.run(async (ctx) => await ctx.db.query("reactions").collect());
+    expect(reactions.map((r) => [r.messageId, r.emoji])).toEqual([[kept, "❤️"]]);
+    expect(await t.query(api.reactions.getRoomReactionSummaries, { roomId })).toEqual([
+      { messageId: kept, reactions: [{ emoji: "❤️", count: 1, participantIds: [hostId] }] },
+    ]);
   });
 
   test("deleting a picture deletes its stored file", async () => {
@@ -2515,6 +2546,39 @@ describe("reactions", () => {
     expect(rows.every((r) => r.participantId === hostId && r.createdAt === NOW)).toBe(true);
   });
 
+  test("a reaction is stored with the room of its message, from the mutation and from the route", async () => {
+    const { t, roomId, hostId, guestId, messageId } = await roomWithMessage();
+    const other = await otherRoom(t);
+    const elsewhere = await sendText(t, { roomId: other.roomId, senderId: other.guestId });
+
+    const first = await t.mutation(api.reactions.addReaction, { messageId, participantId: hostId, emoji: "👍" });
+    const second = (await post(t, "/api/reactions/add", { messageId, participantId: guestId, emoji: "🔥" })).body;
+    const third = await t.mutation(api.reactions.addReaction, { messageId: elsewhere, participantId: other.hostId, emoji: "👍" });
+
+    const rows = await t.run(async (ctx) => await ctx.db.query("reactions").collect());
+    expect(rows.map((r) => [r._id, r.messageId, r.roomId])).toEqual([
+      [first, messageId, roomId],
+      [second, messageId, roomId],
+      [third, elsewhere, other.roomId],
+    ]);
+  });
+
+  // The room is the message's, whoever reacts. Without AUTH_MODE=enforce a participant of another room is
+  // let through with a warning, and the reaction is one of the message's room all the same
+  test("a reaction from a participant of another room is stored with the message's room, not the participant's", async () => {
+    const { t, roomId, messageId } = await roomWithMessage();
+    const other = await otherRoom(t);
+
+    await t.mutation(api.reactions.addReaction, { messageId, participantId: other.guestId, emoji: "😮" });
+
+    const rows = await t.run(async (ctx) => await ctx.db.query("reactions").collect());
+    expect(rows.map((r) => r.roomId)).toEqual([roomId]);
+    expect(await t.query(api.reactions.getRoomReactionSummaries, { roomId })).toEqual([
+      { messageId, reactions: [{ emoji: "😮", count: 1, participantIds: [other.guestId] }] },
+    ]);
+    expect(await t.query(api.reactions.getRoomReactionSummaries, { roomId: other.roomId })).toEqual([]);
+  });
+
   test("anything else is not a supported reaction and nothing is stored", async () => {
     const { t, hostId, messageId } = await roomWithMessage();
     for (const emoji of ["🎉", "👍👍", "thumbs up", ""]) {
@@ -2533,6 +2597,19 @@ describe("reactions", () => {
 
     expect(again).toBe(first);
     expect(await t.query(api.reactions.getReactionsForMessage, { messageId })).toHaveLength(1);
+  });
+
+  test("a second identical reaction to one stored without a roomId returns it and leaves it as it is", async () => {
+    const { t, roomId, hostId, messageId } = await roomWithMessage();
+    const first = await t.mutation(api.reactions.addReaction, { messageId, participantId: hostId, emoji: "👍" });
+    await withoutReactionsByRoom(t, roomId);
+    const before = await t.query(api.reactions.getReactionsForMessage, { messageId });
+    expect(before.map((r) => [r._id, r.roomId])).toEqual([[first, undefined]]);
+
+    vi.setSystemTime(NOW + 1000);
+    expect(await t.mutation(api.reactions.addReaction, { messageId, participantId: hostId, emoji: "👍" })).toBe(first);
+
+    expect(await t.query(api.reactions.getReactionsForMessage, { messageId })).toEqual(before);
   });
 
   test("a reaction to a message that no longer exists returns null and stores nothing", async () => {
@@ -2556,6 +2633,23 @@ describe("reactions", () => {
       [hostId, "🔥"],
       [guestId, "👍"],
     ]);
+  });
+
+  test("removing takes away a reaction stored without a roomId as it does one that has it", async () => {
+    const { t, roomId, hostId, guestId, messageId } = await roomWithMessage();
+    await t.mutation(api.reactions.addReaction, { messageId, participantId: hostId, emoji: "👍" });
+    await withoutReactionsByRoom(t, roomId);
+    await t.mutation(api.reactions.addReaction, { messageId, participantId: guestId, emoji: "👍" });
+    const stored = await t.query(api.reactions.getReactionsForMessage, { messageId });
+    expect(stored.map((r) => [r.participantId, r.roomId])).toEqual([
+      [hostId, undefined],
+      [guestId, roomId],
+    ]);
+
+    await t.mutation(api.reactions.removeReaction, { messageId, participantId: hostId, emoji: "👍" });
+    expect((await t.query(api.reactions.getReactionsForMessage, { messageId })).map((r) => r.participantId)).toEqual([guestId]);
+    await t.mutation(api.reactions.removeReaction, { messageId, participantId: guestId, emoji: "👍" });
+    expect(await t.run(async (ctx) => await ctx.db.query("reactions").collect())).toEqual([]);
   });
 
   test("removing a reaction that is not there changes nothing", async () => {
@@ -2652,6 +2746,392 @@ describe("reactions", () => {
     const late = await post(t, "/api/reactions/add", { messageId, participantId: hostId, emoji: "👍" });
     expect(late.status).toBe(200);
     expect(await t.run(async (ctx) => await ctx.db.query("reactions").collect())).toEqual([]);
+  });
+});
+
+// ─── A room's reactions, read by the room's id or through its messages ────────
+
+describe("the room's reaction summaries, in a room with reactionsByRoom and in one without", () => {
+  /** Who gave which emoji to which message, by the message's text and the giver's nickname */
+  type Told = Record<string, Record<string, { count: number; by: string[] }>>;
+
+  /**
+   * A room of three with a chat of five messages, reacted to in an order that is not the chat's: the third
+   * message gets the first reaction. One reaction is taken back, one is taken back and given again, one
+   * message is deleted with its reaction, and Ben is then removed by the host, which leaves his reactions
+   * where they are. Built the same way each time, so two rooms made by it hold the same chat.
+   */
+  async function reactedChat() {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const ben = await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    const names = new Map<string, string>([
+      [hostId, "Host"],
+      [ana, "Ana"],
+      [ben, "Ben"],
+    ]);
+    const say = async (senderId: Id<"participants">, text: string) => {
+      const messageId = await sendText(t, { roomId, senderId, text });
+      names.set(messageId, text);
+      return messageId;
+    };
+    let at = NOW;
+    const react = async (messageId: Id<"messages">, participantId: Id<"participants">, emoji: string) => {
+      vi.setSystemTime((at += 1000));
+      await t.mutation(api.reactions.addReaction, { messageId, participantId, emoji });
+    };
+    const one = await say(ana, "one");
+    const two = await say(hostId, "two");
+    const three = await say(ben, "three");
+    const gone = await say(ana, "gone");
+    await say(hostId, "quiet");
+
+    await react(three, ana, "🔥");
+    await react(one, hostId, "👍");
+    await react(gone, ben, "😂");
+    await react(three, hostId, "👍");
+    await react(one, ana, "❤️");
+    await react(one, ben, "👍");
+    await react(two, ben, "😮");
+    await react(three, ben, "🔥");
+    await t.mutation(api.reactions.removeReaction, { messageId: two, participantId: ben, emoji: "😮" });
+    await t.mutation(api.reactions.removeReaction, { messageId: one, participantId: hostId, emoji: "👍" });
+    await react(one, hostId, "👍");
+    await t.mutation(api.messages.deleteMessage, { messageId: gone });
+    await t.mutation(api.participants.kickParticipant, { roomId, participantId: ben });
+
+    const told = (summaries: Summaries): Told =>
+      Object.fromEntries(
+        summaries.map((summary) => [
+          names.get(summary.messageId),
+          Object.fromEntries(
+            summary.reactions.map((r) => [r.emoji, { count: r.count, by: r.participantIds.map((id) => names.get(id)) }])
+          ),
+        ])
+      );
+    const order = (summaries: Summaries) => summaries.map((summary) => names.get(summary.messageId));
+    return { t, roomId, hostId, ana, one, two, three, told, order };
+  }
+
+  type Summaries = Awaited<ReturnType<typeof summariesOf>>;
+  function summariesOf(t: Backend, roomId: Id<"rooms">) {
+    return t.query(api.reactions.getRoomReactionSummaries, { roomId });
+  }
+
+  /** What reactedChat leaves: the reaction that was given again comes after the ones given meanwhile */
+  const TOLD: Told = {
+    one: { "❤️": { count: 1, by: ["Ana"] }, "👍": { count: 2, by: ["Ben", "Host"] } },
+    three: { "🔥": { count: 2, by: ["Ana", "Ben"] }, "👍": { count: 1, by: ["Host"] } },
+  };
+
+  test("the same chat gives the same summaries in both: who gave which emoji to which message, and how many", async () => {
+    const marked = await reactedChat();
+    const unmarked = await reactedChat();
+    await withoutReactionsByRoom(unmarked.t, unmarked.roomId);
+    // The two rooms are what they are meant to be: every reaction of the one carries its room, none of the other's does
+    for (const [room, mark, roomIds] of [
+      [marked, true, [marked.roomId]],
+      [unmarked, undefined, [undefined]],
+    ] as const) {
+      const rows = await room.t.run(async (ctx) => ({
+        room: await ctx.db.get(room.roomId),
+        reactions: await ctx.db.query("reactions").collect(),
+      }));
+      expect(rows.room?.reactionsByRoom).toBe(mark);
+      expect(rows.reactions).toHaveLength(6);
+      expect([...new Set(rows.reactions.map((r) => r.roomId))]).toEqual(roomIds);
+    }
+
+    const byRoom = await summariesOf(marked.t, marked.roomId);
+    const byMessage = await summariesOf(unmarked.t, unmarked.roomId);
+
+    expect(marked.told(byRoom)).toEqual(TOLD);
+    expect(unmarked.told(byMessage)).toEqual(TOLD);
+    // One entry for a message, in the order of its oldest reaction in the one room and of the chat in the other
+    expect(marked.order(byRoom)).toEqual(["three", "one"]);
+    expect(unmarked.order(byMessage)).toEqual(["one", "three"]);
+    // Inside an entry the order is the same in both, and it is that of the message's own summary, which the web asks for
+    for (const [room, summaries] of [
+      [marked, byRoom],
+      [unmarked, byMessage],
+    ] as const) {
+      expect(summaries.map((summary) => summary.reactions.map((r) => r.emoji))).toEqual(
+        room.order(summaries).map((text) => Object.keys(TOLD[text!]))
+      );
+      for (const summary of summaries) {
+        const own = await room.t.query(api.reactions.getReactionSummary, { messageId: summary.messageId as Id<"messages"> });
+        expect(summary.reactions).toEqual(own);
+      }
+    }
+  });
+
+  test("a room without reactionsByRoom is answered in full: reactions that have no roomId, and ones given since that have", async () => {
+    const { t, roomId, hostId, ana, two, three, told, order } = await reactedChat();
+    await withoutReactionsByRoom(t, roomId);
+    vi.setSystemTime(NOW + 60_000);
+    await t.mutation(api.reactions.addReaction, { messageId: two, participantId: ana, emoji: "😢" });
+    await t.mutation(api.reactions.addReaction, { messageId: three, participantId: ana, emoji: "👍" });
+    const rows = await t.run(async (ctx) => await ctx.db.query("reactions").collect());
+    expect(rows.map((r) => r.roomId)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, roomId, roomId]);
+
+    const summaries = await summariesOf(t, roomId);
+    expect(told(summaries)).toEqual({
+      ...TOLD,
+      two: { "😢": { count: 1, by: ["Ana"] } },
+      three: { "🔥": { count: 2, by: ["Ana", "Ben"] }, "👍": { count: 2, by: ["Host", "Ana"] } },
+    });
+    expect(order(summaries)).toEqual(["one", "two", "three"]);
+    expect(summaries.find((summary) => summary.messageId === three)?.reactions[1].participantIds).toEqual([hostId, ana]);
+  });
+
+  // The mark says that none of the room's reactions lacks a roomId, and only createRoom sets it. Set by hand
+  // on a room it is not true of, it hides the reactions that have no roomId until fillReactionRoomIds has run
+  test("a room given reactionsByRoom while its reactions have no roomId answers [] until they are filled", async () => {
+    const { t, roomId, told } = await reactedChat();
+    await withoutReactionsByRoom(t, roomId);
+    expect(told(await summariesOf(t, roomId))).toEqual(TOLD);
+
+    await t.run(async (ctx) => await ctx.db.patch(roomId, { reactionsByRoom: true }));
+    expect(await summariesOf(t, roomId)).toEqual([]);
+
+    await t.mutation(internal.reactions.fillReactionRoomIds, {});
+    expect(told(await summariesOf(t, roomId))).toEqual(TOLD);
+  });
+
+  test.each(["with", "without"])("the route's body is the query's answer in a room %s reactionsByRoom", async (kind) => {
+    const { t, roomId } = await reactedChat();
+    if (kind === "without") await withoutReactionsByRoom(t, roomId);
+
+    const answer = await summariesOf(t, roomId);
+    expect(answer).toHaveLength(2);
+    expect(await post(t, "/api/reactions/room-summaries", { roomId })).toStrictEqual({ status: 200, body: answer });
+  });
+
+  test("a room with reactionsByRoom and no reactions, and one that does not exist, are answered []", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await sendText(t, { roomId, senderId: hostId });
+    expect(await summariesOf(t, roomId)).toEqual([]);
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(hostId);
+      await ctx.db.delete(roomId);
+    });
+    expect(await summariesOf(t, roomId)).toEqual([]);
+    expect(await post(t, "/api/reactions/room-summaries", { roomId })).toEqual({ status: 200, body: [] });
+  });
+});
+
+// ─── Reactions stored without a roomId ───────────────────────────────────────
+
+describe("fillReactionRoomIds", () => {
+  type World = Awaited<ReturnType<typeof twoRooms>>;
+
+  async function twoRooms() {
+    const first = await openRoom();
+    return { t: first.t, first, second: await otherRoom(first.t) };
+  }
+
+  /**
+   * `messages` more messages in each of the two rooms, and on every one a 👍 from the room's host and a 🔥
+   * from its guest, written without a roomId. Gives the room of each message. A step of the chain reads ten
+   * reactions, and each message here adds four.
+   */
+  async function reactWithoutRoomIds({ t, first, second }: World, messages: number) {
+    const roomOf = new Map<Id<"messages">, Id<"rooms">>();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < messages; i++) {
+        for (const room of [first, second]) {
+          const messageId = await ctx.db.insert("messages", {
+            roomId: room.roomId,
+            senderId: room.guestId,
+            kind: "text",
+            status: "processed",
+            text: `message ${i}`,
+            createdAt: NOW,
+          });
+          roomOf.set(messageId, room.roomId);
+          await ctx.db.insert("reactions", { messageId, participantId: room.hostId, emoji: "👍", createdAt: NOW });
+          await ctx.db.insert("reactions", { messageId, participantId: room.guestId, emoji: "🔥", createdAt: NOW });
+        }
+      }
+    });
+    return roomOf;
+  }
+
+  /** Every table the function could write to, as the database holds it */
+  async function rows(t: Backend) {
+    return await t.run(async (ctx) => ({
+      reactions: await ctx.db.query("reactions").collect(),
+      messages: await ctx.db.query("messages").collect(),
+      rooms: await ctx.db.query("rooms").collect(),
+    }));
+  }
+
+  /** The steps of the chain that are still to run */
+  async function pendingSteps(t: Backend) {
+    const jobs = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    return jobs.filter((job) => job.state.kind === "pending" && job.name.includes("fillReactionRoomIds"));
+  }
+
+  test("it gives every reaction that has no roomId the room of its message, ten to a step, and stops by itself", async () => {
+    const world = await twoRooms();
+    const { t } = world;
+    const roomOf = await reactWithoutRoomIds(world, 6);
+    expect((await rows(t)).reactions.map((r) => r.roomId)).toEqual(Array(24).fill(undefined));
+
+    expect(await t.mutation(internal.reactions.fillReactionRoomIds, {})).toBe(10);
+    expect((await rows(t)).reactions.filter((r) => r.roomId !== undefined)).toHaveLength(10);
+    expect(await pendingSteps(t)).toHaveLength(1);
+
+    await settle(t);
+    const { reactions } = await rows(t);
+    expect(reactions).toHaveLength(24);
+    for (const reaction of reactions) expect(reaction.roomId).toBe(roomOf.get(reaction.messageId));
+    expect(reactions.filter((r) => r.roomId === world.first.roomId)).toHaveLength(12);
+    expect(reactions.filter((r) => r.roomId === world.second.roomId)).toHaveLength(12);
+    expect(await pendingSteps(t)).toHaveLength(0);
+  });
+
+  test("it writes nothing but roomId, changes no reaction that has one, and marks no room", async () => {
+    const world = await twoRooms();
+    const { t, first, second } = world;
+    for (const room of [first, second]) await withoutReactionsByRoom(t, room.roomId);
+    const roomOf = await reactWithoutRoomIds(world, 3);
+    const [messageId] = [...roomOf].filter(([, roomId]) => roomId === first.roomId).map(([id]) => id);
+    // Two that have a roomId already: one as addReaction stores it, and one that names the other room, which
+    // no function writes and which is not this function's to put right
+    const given = await t.mutation(api.reactions.addReaction, { messageId, participantId: first.hostId, emoji: "❤️" });
+    const odd = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("reactions", { messageId, participantId: first.guestId, emoji: "😮", createdAt: NOW, roomId: second.roomId })
+    );
+    const before = await rows(t);
+    const had = (reaction: { _id: string }) => reaction._id === given || reaction._id === odd;
+    expect(before.reactions.filter(had).map((r) => r.roomId)).toEqual([first.roomId, second.roomId]);
+
+    await t.mutation(internal.reactions.fillReactionRoomIds, {});
+    await settle(t);
+
+    const after = await rows(t);
+    expect(after.rooms).toEqual(before.rooms);
+    expect(after.rooms.map((room) => room.reactionsByRoom)).toEqual([undefined, undefined]);
+    expect(after.messages).toEqual(before.messages);
+    expect(after.reactions.filter(had)).toEqual(before.reactions.filter(had));
+    const withoutRoomId = (list: typeof after.reactions) => list.map(({ roomId: _roomId, ...rest }) => rest);
+    expect(withoutRoomId(after.reactions)).toEqual(withoutRoomId(before.reactions));
+    for (const reaction of after.reactions.filter((r) => !had(r))) expect(reaction.roomId).toBe(roomOf.get(reaction.messageId));
+  });
+
+  test("a second run changes nothing and schedules nothing", async () => {
+    const world = await twoRooms();
+    const { t } = world;
+    await reactWithoutRoomIds(world, 6);
+    await t.mutation(internal.reactions.fillReactionRoomIds, {});
+    await settle(t);
+    const filled = await rows(t);
+
+    expect(await t.mutation(internal.reactions.fillReactionRoomIds, {})).toBe(0);
+    expect(await pendingSteps(t)).toHaveLength(0);
+    expect(await rows(t)).toEqual(filled);
+  });
+
+  test("a chain that is stopped after its first step is finished by a new start", async () => {
+    const world = await twoRooms();
+    const { t } = world;
+    const roomOf = await reactWithoutRoomIds(world, 6);
+    await t.mutation(internal.reactions.fillReactionRoomIds, {});
+    const [next] = await pendingSteps(t);
+    await t.run(async (ctx) => await ctx.scheduler.cancel(next._id));
+    await settle(t);
+    const stopped = (await rows(t)).reactions;
+    expect(stopped.filter((r) => r.roomId !== undefined)).toHaveLength(10);
+
+    // The fourteen that are left: ten, then four
+    expect(await t.mutation(internal.reactions.fillReactionRoomIds, {})).toBe(10);
+    await settle(t);
+
+    const { reactions } = await rows(t);
+    for (const reaction of reactions) expect(reaction.roomId).toBe(roomOf.get(reaction.messageId));
+    // The ten the first chain filled are as it left them
+    const first = new Set(stopped.filter((r) => r.roomId !== undefined).map((r) => r._id));
+    expect(reactions.filter((r) => first.has(r._id))).toEqual(stopped.filter((r) => first.has(r._id)));
+    expect(await pendingSteps(t)).toHaveLength(0);
+  });
+
+  test("two chains started one after the other give each reaction the same room, and both end", async () => {
+    const world = await twoRooms();
+    const { t } = world;
+    const roomOf = await reactWithoutRoomIds(world, 6);
+    await t.mutation(internal.reactions.fillReactionRoomIds, {});
+    await t.mutation(internal.reactions.fillReactionRoomIds, {});
+    expect(await pendingSteps(t)).toHaveLength(2);
+    await settle(t);
+
+    const { reactions } = await rows(t);
+    for (const reaction of reactions) expect(reaction.roomId).toBe(roomOf.get(reaction.messageId));
+    expect(await pendingSteps(t)).toHaveLength(0);
+  });
+
+  // No function leaves a reaction behind when its message goes (deleteMessage and the room purge delete them
+  // first), so these are written by hand. The chain must neither stop at them nor read them again and again
+  test("a reaction whose message is gone is left as it is, and the chain goes on past a whole step of them", async () => {
+    const world = await twoRooms();
+    const { t, first } = world;
+    // Twelve of them, written before any other reaction: the chain reads oldest first, so its first step is all theirs
+    const lost = await t.run(async (ctx) => {
+      const messageId = await ctx.db.insert("messages", {
+        roomId: first.roomId,
+        senderId: first.guestId,
+        kind: "text",
+        status: "processed",
+        text: "deleted from under its reactions",
+        createdAt: NOW,
+      });
+      const ids: Id<"reactions">[] = [];
+      for (let i = 0; i < 12; i++) {
+        ids.push(await ctx.db.insert("reactions", { messageId, participantId: first.hostId, emoji: "👍", createdAt: NOW }));
+      }
+      await ctx.db.delete(messageId);
+      return ids;
+    });
+    const roomOf = await reactWithoutRoomIds(world, 3);
+    const before = (await rows(t)).reactions;
+    expect(before.slice(0, 12).map((r) => r._id)).toEqual(lost);
+
+    expect(await t.mutation(internal.reactions.fillReactionRoomIds, {})).toBe(0);
+    expect(await pendingSteps(t)).toHaveLength(1);
+    await settle(t);
+
+    const { reactions } = await rows(t);
+    expect(reactions.slice(0, 12)).toEqual(before.slice(0, 12));
+    expect(reactions.slice(12)).toHaveLength(12);
+    for (const reaction of reactions.slice(12)) expect(reaction.roomId).toBe(roomOf.get(reaction.messageId));
+    expect(await pendingSteps(t)).toHaveLength(0);
+  });
+
+  test("with every reaction stored as addReaction stores it, it changes nothing and schedules nothing", async () => {
+    const { t, roomId, hostId, guestId } = await openRoom();
+    const messageId = await sendText(t, { roomId, senderId: guestId });
+    await t.mutation(api.reactions.addReaction, { messageId, participantId: hostId, emoji: "👍" });
+    const before = await rows(t);
+
+    expect(await t.mutation(internal.reactions.fillReactionRoomIds, {})).toBe(0);
+    expect(await pendingSteps(t)).toHaveLength(0);
+    expect(await rows(t)).toEqual(before);
+  });
+
+  // It is there to be run by hand. A cron, a route or another function that named it would run it unasked
+  test("nothing names it but its own next step", () => {
+    const folder = fileURLToPath(new URL("../../convex/", import.meta.url));
+    const naming = readdirSync(folder)
+      .filter((file) => file.endsWith(".ts"))
+      .flatMap((file) => {
+        const source = readFileSync(folder + file, "utf8");
+        return [...source.matchAll(/\b(?:api|internal)\.reactions\.fillReactionRoomIds\b/g)].map(() => file);
+      });
+    expect(naming).toEqual(["reactions.ts"]);
   });
 });
 
