@@ -1,0 +1,2046 @@
+{
+ "roomId": {
+  "range": [
+   62,
+   62
+  ],
+  "uses": {}
+ },
+ "hostId": {
+  "range": [
+   63,
+   63
+  ],
+  "uses": {}
+ },
+ "textureIndex": {
+  "range": [
+   65,
+   65
+  ],
+  "uses": {}
+ },
+ "dismiss": {
+  "range": [
+   67,
+   67
+  ],
+  "uses": {}
+ },
+ "scenePhase": {
+  "range": [
+   68,
+   68
+  ],
+  "uses": {}
+ },
+ "viewModel": {
+  "range": [
+   69,
+   69
+  ],
+  "uses": {}
+ },
+ "messageText": {
+  "range": [
+   70,
+   70
+  ],
+  "uses": {}
+ },
+ "isTextEditorFocused": {
+  "range": [
+   71,
+   71
+  ],
+  "uses": {}
+ },
+ "replyToId": {
+  "range": [
+   72,
+   72
+  ],
+  "uses": {}
+ },
+ "showCloseConfirmation": {
+  "range": [
+   73,
+   73
+  ],
+  "uses": {}
+ },
+ "showDrawingComposer": {
+  "range": [
+   74,
+   74
+  ],
+  "uses": {}
+ },
+ "showCamera": {
+  "range": [
+   75,
+   75
+  ],
+  "uses": {}
+ },
+ "showPhotoLibrary": {
+  "range": [
+   76,
+   76
+  ],
+  "uses": {}
+ },
+ "selectedPhotoItem": {
+  "range": [
+   77,
+   77
+  ],
+  "uses": {}
+ },
+ "showQRCode": {
+  "range": [
+   78,
+   78
+  ],
+  "uses": {}
+ },
+ "hostLanguage": {
+  "range": [
+   79,
+   79
+  ],
+  "uses": {}
+ },
+ "contextMenuMessageId": {
+  "range": [
+   80,
+   80
+  ],
+  "uses": {}
+ },
+ "messageFrames": {
+  "range": [
+   82,
+   82
+  ],
+  "uses": {}
+ },
+ "messageToDelete": {
+  "range": [
+   83,
+   83
+  ],
+  "uses": {}
+ },
+ "showEnglish": {
+  "range": [
+   84,
+   84
+  ],
+  "uses": {}
+ },
+ "showJapanese": {
+  "range": [
+   85,
+   85
+  ],
+  "uses": {}
+ },
+ "showRomaji": {
+  "range": [
+   86,
+   86
+  ],
+  "uses": {}
+ },
+ "chatTextSize": {
+  "range": [
+   87,
+   87
+  ],
+  "uses": {}
+ },
+ "showHostSettings": {
+  "range": [
+   88,
+   88
+  ],
+  "uses": {}
+ },
+ "showInRoom": {
+  "range": [
+   89,
+   89
+  ],
+  "uses": {}
+ },
+ "fullScreenImage": {
+  "range": [
+   90,
+   90
+  ],
+  "uses": {}
+ },
+ "showGamePicker": {
+  "range": [
+   91,
+   91
+  ],
+  "uses": {}
+ },
+ "showGameReplay": {
+  "range": [
+   92,
+   92
+  ],
+  "uses": {}
+ },
+ "showGameTask": {
+  "range": [
+   93,
+   93
+  ],
+  "uses": {}
+ },
+ "showQuitGameConfirm": {
+  "range": [
+   94,
+   94
+  ],
+  "uses": {}
+ },
+ "quitOnStepId": {
+  "range": [
+   97,
+   97
+  ],
+  "uses": {}
+ },
+ "showEndGameConfirm": {
+  "range": [
+   98,
+   98
+  ],
+  "uses": {}
+ },
+ "hiddenOfflineIds": {
+  "range": [
+   99,
+   99
+  ],
+  "uses": {}
+ },
+ "showWordRushGame": {
+  "range": [
+   100,
+   100
+  ],
+  "uses": {}
+ },
+ "showEmojiMatchGame": {
+  "range": [
+   101,
+   101
+  ],
+  "uses": {}
+ },
+ "showTruthOrDareGame": {
+  "range": [
+   102,
+   102
+  ],
+  "uses": {}
+ },
+ "minimizedTruthOrDareGameId": {
+  "range": [
+   103,
+   103
+  ],
+  "uses": {}
+ },
+ "minimizedEmojiMatchGameId": {
+  "range": [
+   104,
+   104
+  ],
+  "uses": {}
+ },
+ "minimizedEmojiBingoGameId": {
+  "range": [
+   105,
+   105
+  ],
+  "uses": {}
+ },
+ "minimizedWordRushGameId": {
+  "range": [
+   106,
+   106
+  ],
+  "uses": {}
+ },
+ "showEmojiBingoGame": {
+  "range": [
+   107,
+   107
+  ],
+  "uses": {}
+ },
+ "speechRecognizer": {
+  "range": [
+   108,
+   108
+  ],
+  "uses": {}
+ },
+ "voiceMode": {
+  "range": [
+   110,
+   110
+  ],
+  "uses": {}
+ },
+ "voiceModeHinted": {
+  "range": [
+   111,
+   111
+  ],
+  "uses": {}
+ },
+ "modeNudge": {
+  "range": [
+   112,
+   112
+  ],
+  "uses": {}
+ },
+ "micLongPressed": {
+  "range": [
+   113,
+   113
+  ],
+  "uses": {}
+ },
+ "init": {
+  "range": [
+   115,
+   120
+  ],
+  "uses": {
+   "roomId": [
+    116,
+    119
+   ],
+   "hostId": [
+    117,
+    119
+   ],
+   "textureIndex": [
+    118
+   ]
+  }
+ },
+ "shownTextureIndex": {
+  "range": [
+   123,
+   123
+  ],
+  "uses": {
+   "textureIndex": [
+    123
+   ],
+   "viewModel": [
+    123
+   ]
+  }
+ },
+ "body": {
+  "range": [
+   125,
+   222
+  ],
+  "uses": {
+   "headerView": [
+    127
+   ],
+   "gameStatusBarSection": [
+    129
+   ],
+   "viewModel": [
+    131,
+    135,
+    144,
+    152,
+    156,
+    166,
+    167,
+    169,
+    171,
+    175,
+    176,
+    178,
+    180,
+    182,
+    212
+   ],
+   "offlineBanner": [
+    132
+   ],
+   "hostLanguage": [
+    139,
+    203,
+    210,
+    216
+   ],
+   "emptyStateView": [
+    145
+   ],
+   "messageListView": [
+    147
+   ],
+   "replyToId": [
+    151
+   ],
+   "replyIndicator": [
+    153
+   ],
+   "inputView": [
+    157
+   ],
+   "closedBanner": [
+    159
+   ],
+   "shownTextureIndex": [
+    162,
+    221
+   ],
+   "offlineTranslatorBridge": [
+    165
+   ],
+   "scenePhase": [
+    168
+   ],
+   "updateHiddenOfflineIds": [
+    172
+   ],
+   "settingsSheet": [
+    183
+   ],
+   "showInRoom": [
+    185
+   ],
+   "inRoomSheet": [
+    186
+   ],
+   "hostSettingsOverlay": [
+    188
+   ],
+   "contextMenuOverlay": [
+    189
+   ],
+   "qrOverlay": [
+    190
+   ],
+   "vibeConfettiLayer": [
+    193
+   ],
+   "fullScreenImageOverlay": [
+    194
+   ],
+   "minimizedGameResumeButtons": [
+    197
+   ],
+   "messageToDelete": [
+    205,
+    206,
+    211
+   ]
+  }
+ },
+ "qrOverlay": {
+  "range": [
+   227,
+   231
+  ],
+  "uses": {
+   "viewModel": [
+    228
+   ],
+   "showQRCode": [
+    228,
+    229
+   ],
+   "hostLanguage": [
+    229
+   ]
+  }
+ },
+ "fullScreenImageOverlay": {
+  "range": [
+   236,
+   266
+  ],
+  "uses": {
+   "fullScreenImage": [
+    237,
+    242,
+    254
+   ],
+   "contextMenuMessageId": [
+    256
+   ]
+  }
+ },
+ "hostSettingsOverlay": {
+  "range": [
+   271,
+   330
+  ],
+  "uses": {
+   "showHostSettings": [
+    272,
+    278,
+    306
+   ],
+   "hostLanguage": [
+    284,
+    287,
+    290,
+    309
+   ],
+   "showEnglish": [
+    284,
+    321,
+    325
+   ],
+   "settingsToggle": [
+    284,
+    287,
+    290
+   ],
+   "showJapanese": [
+    287,
+    322,
+    324
+   ],
+   "showRomaji": [
+    290
+   ],
+   "chatTextSizePicker": [
+    299
+   ],
+   "viewModel": [
+    307
+   ]
+  }
+ },
+ "chatTextSizePicker": {
+  "range": [
+   332,
+   367
+  ],
+  "uses": {
+   "hostLanguage": [
+    334,
+    358
+   ],
+   "chatTextSize": [
+    344,
+    350,
+    359
+   ]
+  }
+ },
+ "settingsToggle": {
+  "range": [
+   369,
+   394
+  ],
+  "uses": {}
+ },
+ "contextMenuOverlay": {
+  "range": [
+   397,
+   462
+  ],
+  "uses": {
+   "contextMenuMessageId": [
+    399,
+    420,
+    421,
+    455
+   ],
+   "viewModel": [
+    400,
+    402,
+    403,
+    404,
+    412,
+    425,
+    427,
+    431
+   ],
+   "messageFrames": [
+    401
+   ],
+   "hostId": [
+    409,
+    413,
+    426,
+    429
+   ],
+   "hostLanguage": [
+    414
+   ],
+   "showEnglish": [
+    416
+   ],
+   "showJapanese": [
+    417
+   ],
+   "showRomaji": [
+    418
+   ],
+   "replyToId": [
+    436
+   ],
+   "messageToDelete": [
+    457
+   ]
+  }
+ },
+ "updateHiddenOfflineIds": {
+  "range": [
+   466,
+   483
+  ],
+  "uses": {
+   "hostId": [
+    468
+   ],
+   "hiddenOfflineIds": [
+    469,
+    475,
+    480
+   ],
+   "viewModel": [
+    472
+   ]
+  }
+ },
+ "gameStatusBarSection": {
+  "range": [
+   488,
+   492
+  ],
+  "uses": {
+   "viewModel": [
+    489,
+    490
+   ],
+   "hostId": [
+    490
+   ],
+   "hostLanguage": [
+    490
+   ]
+  }
+ },
+ "headerView": {
+  "range": [
+   496,
+   589
+  ],
+  "uses": {
+   "hostId": [
+    499
+   ],
+   "viewModel": [
+    499,
+    520,
+    529,
+    547,
+    551,
+    568,
+    573
+   ],
+   "showHostSettings": [
+    503
+   ],
+   "hostLanguage": [
+    510,
+    517,
+    539,
+    547,
+    555,
+    575
+   ],
+   "logoHop": [
+    519,
+    527
+   ],
+   "vibeHot": [
+    520,
+    576
+   ],
+   "latestDeliveredMessage": [
+    523,
+    525
+   ],
+   "screenOpenedAt": [
+    526
+   ],
+   "showQRCode": [
+    532
+   ],
+   "fireVibeConfetti": [
+    577
+   ],
+   "headerParticipants": [
+    580
+   ],
+   "headerOthers": [
+    582
+   ]
+  }
+ },
+ "latestDeliveredMessage": {
+  "range": [
+   593,
+   595
+  ],
+  "uses": {
+   "viewModel": [
+    594
+   ]
+  }
+ },
+ "headerOthers": {
+  "range": [
+   597,
+   599
+  ],
+  "uses": {
+   "hostId": [
+    598
+   ],
+   "viewModel": [
+    598
+   ],
+   "hiddenOfflineIds": [
+    598
+   ]
+  }
+ },
+ "headerParticipants": {
+  "range": [
+   603,
+   620
+  ],
+  "uses": {
+   "headerOthers": [
+    604
+   ],
+   "showInRoom": [
+    608
+   ],
+   "hostLanguage": [
+    617
+   ]
+  }
+ },
+ "connectionBannerKey": {
+  "range": [
+   625,
+   629
+  ],
+  "uses": {
+   "viewModel": [
+    626,
+    627
+   ]
+  }
+ },
+ "offlineBanner": {
+  "range": [
+   631,
+   655
+  ],
+  "uses": {
+   "viewModel": [
+    633,
+    637,
+    638,
+    652,
+    653,
+    654
+   ],
+   "hostLanguage": [
+    635,
+    638
+   ],
+   "connectionBannerKey": [
+    635
+   ]
+  }
+ },
+ "offlineTranslatorBridge": {
+  "range": [
+   660,
+   664
+  ],
+  "uses": {
+   "viewModel": [
+    662
+   ]
+  }
+ },
+ "emptyStateView": {
+  "range": [
+   668,
+   701
+  ],
+  "uses": {
+   "hostLanguage": [
+    673,
+    676
+   ],
+   "viewModel": [
+    685
+   ],
+   "showQRCode": [
+    687
+   ],
+   "isTextEditorFocused": [
+    699
+   ]
+  }
+ },
+ "translationFingerprint": {
+  "range": [
+   706,
+   712
+  ],
+  "uses": {
+   "viewModel": [
+    707
+   ]
+  }
+ },
+ "filteredMessages": {
+  "range": [
+   714,
+   719
+  ],
+  "uses": {
+   "viewModel": [
+    715
+   ]
+  }
+ },
+ "gameCompleteInsertBeforeId": {
+  "range": [
+   722,
+   725
+  ],
+  "uses": {
+   "viewModel": [
+    723
+   ],
+   "filteredMessages": [
+    724
+   ]
+  }
+ },
+ "messageListView": {
+  "range": [
+   727,
+   834
+  ],
+  "uses": {
+   "filteredMessages": [
+    731
+   ],
+   "viewModel": [
+    733,
+    746,
+    747,
+    748,
+    756,
+    770,
+    771,
+    772,
+    787,
+    792,
+    793,
+    808,
+    818
+   ],
+   "gameCompleteInsertBeforeId": [
+    734,
+    787
+   ],
+   "gameCompleteBubble": [
+    736,
+    788
+   ],
+   "hostLanguage": [
+    740,
+    743,
+    757,
+    793
+   ],
+   "hostId": [
+    753
+   ],
+   "replyToId": [
+    758
+   ],
+   "messageText": [
+    759
+   ],
+   "contextMenuMessageId": [
+    764,
+    809,
+    813,
+    819
+   ],
+   "showEnglish": [
+    766
+   ],
+   "showJapanese": [
+    767
+   ],
+   "showRomaji": [
+    768
+   ],
+   "fullScreenImage": [
+    769
+   ],
+   "messageFrames": [
+    805
+   ],
+   "scrollToNewest": [
+    807,
+    810
+   ],
+   "translationFingerprint": [
+    812
+   ],
+   "isTextEditorFocused": [
+    824
+   ]
+  }
+ },
+ "scrollToNewest": {
+  "range": [
+   839,
+   851
+  ],
+  "uses": {
+   "contextMenuMessageId": [
+    846
+   ]
+  }
+ },
+ "gameCompleteBubble": {
+  "range": [
+   855,
+   868
+  ],
+  "uses": {
+   "showGameReplay": [
+    857
+   ],
+   "hostLanguage": [
+    861
+   ]
+  }
+ },
+ "replyIndicator": {
+  "range": [
+   872,
+   904
+  ],
+  "uses": {
+   "viewModel": [
+    873
+   ],
+   "hostLanguage": [
+    882,
+    897
+   ],
+   "replyToId": [
+    892
+   ]
+  }
+ },
+ "showAttachMenu": {
+  "range": [
+   908,
+   908
+  ],
+  "uses": {}
+ },
+ "toolsOpen": {
+  "range": [
+   909,
+   909
+  ],
+  "uses": {}
+ },
+ "preVoiceText": {
+  "range": [
+   910,
+   910
+  ],
+  "uses": {}
+ },
+ "transcribingDictation": {
+  "range": [
+   911,
+   911
+  ],
+  "uses": {}
+ },
+ "vibeHot": {
+  "range": [
+   912,
+   912
+  ],
+  "uses": {}
+ },
+ "vibeConfetti": {
+  "range": [
+   913,
+   913
+  ],
+  "uses": {}
+ },
+ "logoHop": {
+  "range": [
+   914,
+   914
+  ],
+  "uses": {}
+ },
+ "screenOpenedAt": {
+  "range": [
+   915,
+   915
+  ],
+  "uses": {}
+ },
+ "knownParticipantIds": {
+  "range": [
+   916,
+   916
+  ],
+  "uses": {}
+ },
+ "fireVibeConfetti": {
+  "range": [
+   918,
+   921
+  ],
+  "uses": {
+   "vibeConfetti": [
+    920
+   ]
+  }
+ },
+ "confettiForNewArrivals": {
+  "range": [
+   924,
+   931
+  ],
+  "uses": {
+   "knownParticipantIds": [
+    925,
+    926,
+    927
+   ],
+   "hostId": [
+    928
+   ],
+   "vibeHot": [
+    928
+   ],
+   "fireVibeConfetti": [
+    929
+   ]
+  }
+ },
+ "vibeConfettiLayer": {
+  "range": [
+   933,
+   937
+  ],
+  "uses": {
+   "vibeConfetti": [
+    934
+   ],
+   "viewModel": [
+    936
+   ],
+   "confettiForNewArrivals": [
+    936
+   ]
+  }
+ },
+ "toolsCollapsed": {
+  "range": [
+   940,
+   942
+  ],
+  "uses": {
+   "messageText": [
+    941
+   ],
+   "isTextEditorFocused": [
+    941
+   ],
+   "toolsOpen": [
+    941
+   ]
+  }
+ },
+ "toolsToggle": {
+  "range": [
+   944,
+   961
+  ],
+  "uses": {
+   "toolsOpen": [
+    947
+   ],
+   "hostLanguage": [
+    960
+   ]
+  }
+ },
+ "toolButtons": {
+  "range": [
+   963,
+   1018
+  ],
+  "uses": {
+   "viewModel": [
+    966,
+    989
+   ],
+   "showEndGameConfirm": [
+    968
+   ],
+   "hostLanguage": [
+    974,
+    983,
+    994,
+    1001,
+    1006,
+    1016
+   ],
+   "showGamePicker": [
+    978
+   ],
+   "showDrawingComposer": [
+    988
+   ],
+   "showCamera": [
+    999
+   ],
+   "showPhotoLibrary": [
+    1004
+   ]
+  }
+ },
+ "trailingInputButton": {
+  "range": [
+   1020,
+   1044
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1022,
+    1024,
+    1043
+   ],
+   "sendingVoice": [
+    1024,
+    1026,
+    1029
+   ],
+   "messageText": [
+    1025,
+    1031,
+    1042
+   ],
+   "sendVoiceMessage": [
+    1026
+   ],
+   "sendCurrentMessage": [
+    1026,
+    1034
+   ],
+   "hostLanguage": [
+    1029
+   ],
+   "voiceMicButton": [
+    1038
+   ]
+  }
+ },
+ "voiceMicButton": {
+  "range": [
+   1047,
+   1067
+  ],
+  "uses": {
+   "micLongPressed": [
+    1050,
+    1051,
+    1061
+   ],
+   "voiceMode": [
+    1054
+   ],
+   "beginVoice": [
+    1054,
+    1062,
+    1066
+   ],
+   "hostLanguage": [
+    1065,
+    1066
+   ]
+  }
+ },
+ "sendingVoice": {
+  "range": [
+   1070,
+   1072
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1071
+   ],
+   "voiceMode": [
+    1071
+   ]
+  }
+ },
+ "beginVoice": {
+  "range": [
+   1074,
+   1090
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1075,
+    1084,
+    1085,
+    1088
+   ],
+   "voiceMode": [
+    1076
+   ],
+   "isTextEditorFocused": [
+    1081
+   ],
+   "messageText": [
+    1082
+   ],
+   "preVoiceText": [
+    1082
+   ],
+   "viewModel": [
+    1083
+   ],
+   "hostLanguage": [
+    1084
+   ]
+  }
+ },
+ "voiceModeSwitch": {
+  "range": [
+   1092,
+   1109
+  ],
+  "uses": {
+   "voiceModeButton": [
+    1094,
+    1095
+   ],
+   "modeNudge": [
+    1100,
+    1101,
+    1103,
+    1104
+   ],
+   "hostLanguage": [
+    1107
+   ]
+  }
+ },
+ "voiceModeButton": {
+  "range": [
+   1111,
+   1128
+  ],
+  "uses": {
+   "voiceMode": [
+    1112,
+    1116
+   ],
+   "hostLanguage": [
+    1126
+   ]
+  }
+ },
+ "nudgeModeSwitchIfNew": {
+  "range": [
+   1131,
+   1136
+  ],
+  "uses": {
+   "voiceModeHinted": [
+    1132,
+    1133
+   ],
+   "modeNudge": [
+    1134,
+    1135
+   ]
+  }
+ },
+ "sendVoiceMessage": {
+  "range": [
+   1139,
+   1157
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1140,
+    1142,
+    1143,
+    1146
+   ],
+   "messageText": [
+    1144,
+    1145
+   ],
+   "preVoiceText": [
+    1144
+   ],
+   "viewModel": [
+    1145,
+    1151,
+    1154
+   ],
+   "replyToId": [
+    1147,
+    1148
+   ]
+  }
+ },
+ "voicePill": {
+  "range": [
+   1160,
+   1218
+  ],
+  "uses": {
+   "cancelVoice": [
+    1162
+   ],
+   "hostLanguage": [
+    1171,
+    1177,
+    1189
+   ],
+   "speechRecognizer": [
+    1173,
+    1177,
+    1202,
+    1203,
+    1206,
+    1207,
+    1210,
+    1213
+   ],
+   "sendingVoice": [
+    1173,
+    1176,
+    1198,
+    1200,
+    1208
+   ],
+   "stopVoice": [
+    1180,
+    1211
+   ],
+   "sendVoiceMessage": [
+    1209
+   ]
+  }
+ },
+ "stopVoice": {
+  "range": [
+   1221,
+   1235
+  ],
+  "uses": {
+   "viewModel": [
+    1224,
+    1229
+   ],
+   "speechRecognizer": [
+    1225,
+    1234
+   ],
+   "audioOnlyDictation": [
+    1226
+   ],
+   "transcribingDictation": [
+    1227,
+    1230
+   ],
+   "messageText": [
+    1229
+   ]
+  }
+ },
+ "audioOnlyDictation": {
+  "range": [
+   1238,
+   1241
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1239,
+    1240
+   ]
+  }
+ },
+ "cancelVoice": {
+  "range": [
+   1244,
+   1253
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1247,
+    1248,
+    1250
+   ],
+   "messageText": [
+    1251,
+    1252
+   ],
+   "preVoiceText": [
+    1251
+   ],
+   "viewModel": [
+    1252
+   ]
+  }
+ },
+ "clearTextButton": {
+  "range": [
+   1256,
+   1283
+  ],
+  "uses": {
+   "messageText": [
+    1257,
+    1263
+   ],
+   "speechRecognizer": [
+    1260,
+    1261,
+    1262
+   ],
+   "hostLanguage": [
+    1280
+   ]
+  }
+ },
+ "voiceLiveLine": {
+  "range": [
+   1285,
+   1305
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1286,
+    1295,
+    1300,
+    1302,
+    1304
+   ],
+   "hostLanguage": [
+    1288
+   ],
+   "voiceModeSwitch": [
+    1296
+   ],
+   "nudgeModeSwitchIfNew": [
+    1304
+   ]
+  }
+ },
+ "inputBar": {
+  "range": [
+   1307,
+   1337
+  ],
+  "uses": {
+   "speechRecognizer": [
+    1309,
+    1313,
+    1329,
+    1334
+   ],
+   "voiceLiveLine": [
+    1310
+   ],
+   "voicePill": [
+    1314
+   ],
+   "toolsCollapsed": [
+    1317,
+    1328
+   ],
+   "toolsToggle": [
+    1318
+   ],
+   "toolButtons": [
+    1321
+   ],
+   "messageField": [
+    1324
+   ],
+   "trailingInputButton": [
+    1326
+   ]
+  }
+ },
+ "messageField": {
+  "range": [
+   1339,
+   1382
+  ],
+  "uses": {
+   "messageText": [
+    1340,
+    1348,
+    1359,
+    1363,
+    1366
+   ],
+   "isTextEditorFocused": [
+    1341,
+    1354,
+    1379,
+    1381
+   ],
+   "toolsOpen": [
+    1349,
+    1355
+   ],
+   "speechRecognizer": [
+    1350,
+    1356,
+    1357,
+    1358
+   ],
+   "viewModel": [
+    1351,
+    1359
+   ],
+   "hostLanguage": [
+    1367
+   ],
+   "transcribingDictation": [
+    1367
+   ],
+   "clearTextButton": [
+    1375
+   ]
+  }
+ },
+ "inputView": {
+  "range": [
+   1384,
+   1694
+  ],
+  "uses": {
+   "inputBar": [
+    1385
+   ],
+   "speechRecognizer": [
+    1386,
+    1387,
+    1391,
+    1395,
+    1397,
+    1398,
+    1399
+   ],
+   "messageText": [
+    1388,
+    1398
+   ],
+   "micLongPressed": [
+    1393
+   ],
+   "showDrawingComposer": [
+    1403,
+    1407,
+    1414
+   ],
+   "hostLanguage": [
+    1405,
+    1451,
+    1494,
+    1537,
+    1538,
+    1539,
+    1547,
+    1555,
+    1580,
+    1581,
+    1582,
+    1586,
+    1592,
+    1618,
+    1644,
+    1670
+   ],
+   "viewModel": [
+    1408,
+    1411,
+    1415,
+    1426,
+    1440,
+    1448,
+    1449,
+    1450,
+    1454,
+    1457,
+    1463,
+    1464,
+    1470,
+    1476,
+    1482,
+    1491,
+    1501,
+    1507,
+    1510,
+    1511,
+    1514,
+    1517,
+    1520,
+    1526,
+    1527,
+    1533,
+    1541,
+    1543,
+    1552,
+    1558,
+    1562,
+    1565,
+    1570,
+    1575,
+    1583,
+    1591,
+    1594,
+    1598,
+    1604,
+    1605,
+    1617,
+    1621,
+    1630,
+    1643,
+    1647,
+    1656,
+    1669,
+    1673,
+    1684
+   ],
+   "replyToId": [
+    1409,
+    1410,
+    1424,
+    1425,
+    1438,
+    1439
+   ],
+   "shownTextureIndex": [
+    1419,
+    1536,
+    1567,
+    1682
+   ],
+   "showCamera": [
+    1421,
+    1428
+   ],
+   "showPhotoLibrary": [
+    1432
+   ],
+   "selectedPhotoItem": [
+    1432,
+    1433,
+    1442
+   ],
+   "showGamePicker": [
+    1445,
+    1453,
+    1460,
+    1468,
+    1474,
+    1480,
+    1485
+   ],
+   "minimizedWordRushGameId": [
+    1461,
+    1598,
+    1606,
+    1611
+   ],
+   "showWordRushGame": [
+    1464,
+    1589,
+    1595,
+    1599,
+    1606,
+    1607,
+    1610
+   ],
+   "showGameTask": [
+    1490,
+    1507,
+    1511,
+    1527,
+    1540,
+    1573
+   ],
+   "showQuitGameConfirm": [
+    1531,
+    1537
+   ],
+   "quitOnStepId": [
+    1541,
+    1571,
+    1572
+   ],
+   "showGameReplay": [
+    1551,
+    1556,
+    1559,
+    1577
+   ],
+   "showEndGameConfirm": [
+    1580
+   ],
+   "showEmojiMatchGame": [
+    1615,
+    1619,
+    1624,
+    1632,
+    1633,
+    1636
+   ],
+   "minimizedEmojiMatchGameId": [
+    1622,
+    1632,
+    1637
+   ],
+   "showEmojiBingoGame": [
+    1641,
+    1645,
+    1650,
+    1658,
+    1659,
+    1662
+   ],
+   "minimizedEmojiBingoGameId": [
+    1648,
+    1658,
+    1663
+   ],
+   "showTruthOrDareGame": [
+    1667,
+    1671,
+    1676,
+    1686,
+    1687,
+    1690
+   ],
+   "minimizedTruthOrDareGameId": [
+    1674,
+    1686,
+    1691
+   ]
+  }
+ },
+ "minimizedGameResumeButtons": {
+  "range": [
+   1699,
+   1755
+  ],
+  "uses": {
+   "viewModel": [
+    1701,
+    1714,
+    1727,
+    1740
+   ],
+   "minimizedTruthOrDareGameId": [
+    1703,
+    1710
+   ],
+   "showTruthOrDareGame": [
+    1704,
+    1711
+   ],
+   "resumePill": [
+    1705,
+    1718,
+    1731,
+    1743
+   ],
+   "hostLanguage": [
+    1708,
+    1721,
+    1734,
+    1746
+   ],
+   "minimizedEmojiMatchGameId": [
+    1716,
+    1723
+   ],
+   "showEmojiMatchGame": [
+    1717,
+    1724
+   ],
+   "minimizedEmojiBingoGameId": [
+    1729,
+    1736
+   ],
+   "showEmojiBingoGame": [
+    1730,
+    1737
+   ],
+   "minimizedWordRushGameId": [
+    1741,
+    1748
+   ],
+   "showWordRushGame": [
+    1742,
+    1749
+   ]
+  }
+ },
+ "resumePill": {
+  "range": [
+   1757,
+   1784
+  ],
+  "uses": {
+   "hostLanguage": [
+    1767
+   ]
+  }
+ },
+ "closedBanner": {
+  "range": [
+   1788,
+   1807
+  ],
+  "uses": {
+   "hostLanguage": [
+    1793,
+    1797
+   ],
+   "dismiss": [
+    1798
+   ]
+  }
+ },
+ "personCard": {
+  "range": [
+   1812,
+   1858
+  ],
+  "uses": {
+   "hostLanguage": [
+    1832,
+    1841,
+    1844,
+    1848
+   ],
+   "hostId": [
+    1840
+   ]
+  }
+ },
+ "roomMembers": {
+  "range": [
+   1861,
+   1867
+  ],
+  "uses": {
+   "hostId": [
+    1863
+   ],
+   "viewModel": [
+    1866
+   ]
+  }
+ },
+ "inRoomSheet": {
+  "range": [
+   1870,
+   1921
+  ],
+  "uses": {
+   "hostLanguage": [
+    1874,
+    1879,
+    1895
+   ],
+   "viewModel": [
+    1877,
+    1901,
+    1903,
+    1911
+   ],
+   "roomMembers": [
+    1885,
+    1900
+   ],
+   "showInRoom": [
+    1888
+   ],
+   "personCard": [
+    1901
+   ],
+   "closeRoomButton": [
+    1912
+   ]
+  }
+ },
+ "closeRoomButton": {
+  "range": [
+   1925,
+   1943
+  ],
+  "uses": {
+   "showCloseConfirmation": [
+    1928,
+    1933
+   ],
+   "hostLanguage": [
+    1930,
+    1933,
+    1934,
+    1941
+   ],
+   "showInRoom": [
+    1936
+   ],
+   "viewModel": [
+    1937,
+    1938
+   ]
+  }
+ },
+ "settingsSheet": {
+  "range": [
+   1945,
+   2076
+  ],
+  "uses": {
+   "hostLanguage": [
+    1950,
+    1957,
+    1964,
+    1968,
+    1975,
+    1987,
+    2006,
+    2009,
+    2019,
+    2052,
+    2056
+   ],
+   "viewModel": [
+    1970,
+    1973,
+    1982,
+    1992,
+    1997,
+    1999,
+    2043,
+    2057,
+    2064,
+    2069,
+    2070,
+    2072,
+    2074
+   ],
+   "closeRoomButton": [
+    2044
+   ],
+   "shownTextureIndex": [
+    2050
+   ]
+  }
+ },
+ "sendCurrentMessage": {
+  "range": [
+   2080,
+   2121
+  ],
+  "uses": {
+   "isTextEditorFocused": [
+    2081
+   ],
+   "speechRecognizer": [
+    2082,
+    2084,
+    2092,
+    2107,
+    2116
+   ],
+   "audioOnlyDictation": [
+    2086
+   ],
+   "viewModel": [
+    2087,
+    2096,
+    2103,
+    2119,
+    2120
+   ],
+   "replyToId": [
+    2088,
+    2091,
+    2114,
+    2118
+   ],
+   "messageText": [
+    2089,
+    2093,
+    2100,
+    2108,
+    2117
+   ],
+   "transcribingDictation": [
+    2094,
+    2097
+   ]
+  }
+ }
+}

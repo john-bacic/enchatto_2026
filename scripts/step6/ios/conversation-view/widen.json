@@ -1,0 +1,861 @@
+{
+ "about": "Declarations of HostConversationView.swift that lose `private` when it is split, by line of the base file. A declaration is opened as soon as one of the stages in `opened_by` runs. Written by widen_list.py from what split.py does; verify.py holds a split against it.",
+ "base": {
+  "path": "apps/ios/Views/HostConversationView.swift",
+  "commit": "1b68a6f",
+  "git_blob": "86b22f399891407a47a5f05a022dd2f38ec8b692",
+  "sha256": "16833fd7d44439a44b1c271d264c2641eb83c0b2da9adaf4a9f4bcdb4021cd83",
+  "lines": 3694
+ },
+ "declarations": [
+  {
+   "line": 16,
+   "name": "MessageFrameStore",
+   "kind": "type",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "Conversation/HostConversationView+MessageList.swift",
+   "declaration": "private final class MessageFrameStore {"
+  },
+  {
+   "line": 67,
+   "name": "dismiss",
+   "kind": "property",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@Environment(\\.dismiss) private var dismiss"
+  },
+  {
+   "line": 69,
+   "name": "viewModel",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "Header",
+    "MessageList",
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@StateObject private var viewModel: HostRoomViewModel"
+  },
+  {
+   "line": 70,
+   "name": "messageText",
+   "kind": "property",
+   "opened_by": [
+    "MessageList",
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var messageText = \"\""
+  },
+  {
+   "line": 71,
+   "name": "isTextEditorFocused",
+   "kind": "property",
+   "opened_by": [
+    "MessageList",
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@FocusState private var isTextEditorFocused: Bool"
+  },
+  {
+   "line": 72,
+   "name": "replyToId",
+   "kind": "property",
+   "opened_by": [
+    "MessageList",
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var replyToId: String?"
+  },
+  {
+   "line": 73,
+   "name": "showCloseConfirmation",
+   "kind": "property",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showCloseConfirmation = false"
+  },
+  {
+   "line": 74,
+   "name": "showDrawingComposer",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showDrawingComposer = false"
+  },
+  {
+   "line": 75,
+   "name": "showCamera",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showCamera = false"
+  },
+  {
+   "line": 76,
+   "name": "showPhotoLibrary",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showPhotoLibrary = false"
+  },
+  {
+   "line": 77,
+   "name": "selectedPhotoItem",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var selectedPhotoItem: PhotosPickerItem?"
+  },
+  {
+   "line": 78,
+   "name": "showQRCode",
+   "kind": "property",
+   "opened_by": [
+    "Header",
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showQRCode = false"
+  },
+  {
+   "line": 79,
+   "name": "hostLanguage",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "Header",
+    "MessageList",
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var hostLanguage: String = UserDefaults.standard.string(forKey: \"enchatto_lastLanguage\") ?? \"en\""
+  },
+  {
+   "line": 80,
+   "name": "contextMenuMessageId",
+   "kind": "property",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var contextMenuMessageId: String?"
+  },
+  {
+   "line": 82,
+   "name": "messageFrames",
+   "kind": "property",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var messageFrames = MessageFrameStore()"
+  },
+  {
+   "line": 83,
+   "name": "messageToDelete",
+   "kind": "property",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var messageToDelete: String?"
+  },
+  {
+   "line": 84,
+   "name": "showEnglish",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@AppStorage(\"enchatto_showEnglish\") private var showEnglish = true"
+  },
+  {
+   "line": 85,
+   "name": "showJapanese",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@AppStorage(\"enchatto_showJapanese\") private var showJapanese = true"
+  },
+  {
+   "line": 86,
+   "name": "showRomaji",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@AppStorage(\"enchatto_showRomaji\") private var showRomaji = true"
+  },
+  {
+   "line": 87,
+   "name": "chatTextSize",
+   "kind": "property",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@AppStorage(ChatTextSize.storageKey) private var chatTextSize: ChatTextSize = .small"
+  },
+  {
+   "line": 88,
+   "name": "showHostSettings",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showHostSettings = false"
+  },
+  {
+   "line": 89,
+   "name": "showInRoom",
+   "kind": "property",
+   "opened_by": [
+    "Sheets",
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showInRoom = false"
+  },
+  {
+   "line": 90,
+   "name": "fullScreenImage",
+   "kind": "property",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var fullScreenImage: (url: String, messageId: String)?"
+  },
+  {
+   "line": 91,
+   "name": "showGamePicker",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showGamePicker = false"
+  },
+  {
+   "line": 92,
+   "name": "showGameReplay",
+   "kind": "property",
+   "opened_by": [
+    "MessageList",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showGameReplay = false"
+  },
+  {
+   "line": 93,
+   "name": "showGameTask",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showGameTask = false"
+  },
+  {
+   "line": 94,
+   "name": "showQuitGameConfirm",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showQuitGameConfirm = false"
+  },
+  {
+   "line": 97,
+   "name": "quitOnStepId",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var quitOnStepId: String?"
+  },
+  {
+   "line": 98,
+   "name": "showEndGameConfirm",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showEndGameConfirm = false"
+  },
+  {
+   "line": 99,
+   "name": "hiddenOfflineIds",
+   "kind": "property",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline"
+  },
+  {
+   "line": 100,
+   "name": "showWordRushGame",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showWordRushGame = false"
+  },
+  {
+   "line": 101,
+   "name": "showEmojiMatchGame",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showEmojiMatchGame = false"
+  },
+  {
+   "line": 102,
+   "name": "showTruthOrDareGame",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showTruthOrDareGame = false"
+  },
+  {
+   "line": 103,
+   "name": "minimizedTruthOrDareGameId",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var minimizedTruthOrDareGameId: String? = nil"
+  },
+  {
+   "line": 104,
+   "name": "minimizedEmojiMatchGameId",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var minimizedEmojiMatchGameId: String? = nil"
+  },
+  {
+   "line": 105,
+   "name": "minimizedEmojiBingoGameId",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var minimizedEmojiBingoGameId: String? = nil"
+  },
+  {
+   "line": 106,
+   "name": "minimizedWordRushGameId",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var minimizedWordRushGameId: String? = nil"
+  },
+  {
+   "line": 107,
+   "name": "showEmojiBingoGame",
+   "kind": "property",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var showEmojiBingoGame = false"
+  },
+  {
+   "line": 108,
+   "name": "speechRecognizer",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@StateObject private var speechRecognizer = SpeechRecognizer()"
+  },
+  {
+   "line": 110,
+   "name": "voiceMode",
+   "kind": "property",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@AppStorage(\"enchatto_voiceMode\") private var voiceMode = \"text\""
+  },
+  {
+   "line": 111,
+   "name": "voiceModeHinted",
+   "kind": "property",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@AppStorage(\"enchatto_voiceModeHinted\") private var voiceModeHinted = false"
+  },
+  {
+   "line": 112,
+   "name": "modeNudge",
+   "kind": "property",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var modeNudge = false"
+  },
+  {
+   "line": 113,
+   "name": "micLongPressed",
+   "kind": "property",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var micLongPressed = false"
+  },
+  {
+   "line": 123,
+   "name": "shownTextureIndex",
+   "kind": "member",
+   "opened_by": [
+    "Sheets",
+    "Presentations"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "private var shownTextureIndex: Int { viewModel.textureIndex ?? textureIndex }"
+  },
+  {
+   "line": 227,
+   "name": "qrOverlay",
+   "kind": "member",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "Conversation/HostConversationView+Header.swift",
+   "declaration": "private var qrOverlay: some View {"
+  },
+  {
+   "line": 236,
+   "name": "fullScreenImageOverlay",
+   "kind": "member",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "Conversation/HostConversationView+MessageList.swift",
+   "declaration": "private var fullScreenImageOverlay: some View {"
+  },
+  {
+   "line": 271,
+   "name": "hostSettingsOverlay",
+   "kind": "member",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "Conversation/HostConversationView+Sheets.swift",
+   "declaration": "private var hostSettingsOverlay: some View {"
+  },
+  {
+   "line": 397,
+   "name": "contextMenuOverlay",
+   "kind": "member",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "Conversation/HostConversationView+MessageList.swift",
+   "declaration": "private var contextMenuOverlay: some View {"
+  },
+  {
+   "line": 466,
+   "name": "updateHiddenOfflineIds",
+   "kind": "member",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "Conversation/HostConversationView+Header.swift",
+   "declaration": "private func updateHiddenOfflineIds(participants: [Participant]) {"
+  },
+  {
+   "line": 488,
+   "name": "gameStatusBarSection",
+   "kind": "member",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "Conversation/HostConversationView+Header.swift",
+   "declaration": "private var gameStatusBarSection: some View {"
+  },
+  {
+   "line": 496,
+   "name": "headerView",
+   "kind": "member",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "Conversation/HostConversationView+Header.swift",
+   "declaration": "private var headerView: some View {"
+  },
+  {
+   "line": 631,
+   "name": "offlineBanner",
+   "kind": "member",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "Conversation/HostConversationView+Header.swift",
+   "declaration": "private var offlineBanner: some View {"
+  },
+  {
+   "line": 668,
+   "name": "emptyStateView",
+   "kind": "member",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "Conversation/HostConversationView+MessageList.swift",
+   "declaration": "private var emptyStateView: some View {"
+  },
+  {
+   "line": 727,
+   "name": "messageListView",
+   "kind": "member",
+   "opened_by": [
+    "MessageList"
+   ],
+   "file": "Conversation/HostConversationView+MessageList.swift",
+   "declaration": "private var messageListView: some View {"
+  },
+  {
+   "line": 872,
+   "name": "replyIndicator",
+   "kind": "member",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "Conversation/HostConversationView+Input.swift",
+   "declaration": "private func replyIndicator(for message: Message) -> some View {"
+  },
+  {
+   "line": 909,
+   "name": "toolsOpen",
+   "kind": "property",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var toolsOpen = false"
+  },
+  {
+   "line": 910,
+   "name": "preVoiceText",
+   "kind": "property",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var preVoiceText = \"\""
+  },
+  {
+   "line": 911,
+   "name": "transcribingDictation",
+   "kind": "property",
+   "opened_by": [
+    "Input"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var transcribingDictation = false"
+  },
+  {
+   "line": 912,
+   "name": "vibeHot",
+   "kind": "property",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var vibeHot = false"
+  },
+  {
+   "line": 913,
+   "name": "vibeConfetti",
+   "kind": "property",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var vibeConfetti = 0"
+  },
+  {
+   "line": 914,
+   "name": "logoHop",
+   "kind": "property",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var logoHop = 0"
+  },
+  {
+   "line": 915,
+   "name": "screenOpenedAt",
+   "kind": "property",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var screenOpenedAt = Date()"
+  },
+  {
+   "line": 916,
+   "name": "knownParticipantIds",
+   "kind": "property",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "HostConversationView.swift",
+   "declaration": "@State private var knownParticipantIds: Set<String> = []"
+  },
+  {
+   "line": 933,
+   "name": "vibeConfettiLayer",
+   "kind": "member",
+   "opened_by": [
+    "Header"
+   ],
+   "file": "Conversation/HostConversationView+Header.swift",
+   "declaration": "private var vibeConfettiLayer: some View {"
+  },
+  {
+   "line": 1307,
+   "name": "inputBar",
+   "kind": "member",
+   "opened_by": [
+    "Input",
+    "Presentations"
+   ],
+   "file": "Conversation/HostConversationView+Input.swift",
+   "declaration": "private var inputBar: some View {"
+  },
+  {
+   "line": 1384,
+   "name": "inputView",
+   "kind": "member",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "Conversation/HostConversationView+Presentations.swift",
+   "declaration": "private var inputView: some View {"
+  },
+  {
+   "line": 1699,
+   "name": "minimizedGameResumeButtons",
+   "kind": "member",
+   "opened_by": [
+    "Presentations"
+   ],
+   "file": "Conversation/HostConversationView+Presentations.swift",
+   "declaration": "private var minimizedGameResumeButtons: some View {"
+  },
+  {
+   "line": 1788,
+   "name": "closedBanner",
+   "kind": "member",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "Conversation/HostConversationView+Sheets.swift",
+   "declaration": "private var closedBanner: some View {"
+  },
+  {
+   "line": 1870,
+   "name": "inRoomSheet",
+   "kind": "member",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "Conversation/HostConversationView+Sheets.swift",
+   "declaration": "private var inRoomSheet: some View {"
+  },
+  {
+   "line": 1945,
+   "name": "settingsSheet",
+   "kind": "member",
+   "opened_by": [
+    "Sheets"
+   ],
+   "file": "Conversation/HostConversationView+Sheets.swift",
+   "declaration": "private var settingsSheet: some View {"
+  },
+  {
+   "line": 2126,
+   "name": "SendButton",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/VoiceInputViews.swift",
+   "declaration": "private struct SendButton: View {"
+  },
+  {
+   "line": 2161,
+   "name": "GameSummaryBanner",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/GameSummaryBanner.swift",
+   "declaration": "private struct GameSummaryBanner: View {"
+  },
+  {
+   "line": 2866,
+   "name": "SystemMessageRow",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/SystemMessageRow.swift",
+   "declaration": "private struct SystemMessageRow: View {"
+  },
+  {
+   "line": 2968,
+   "name": "TypingBubble",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/TypingBubble.swift",
+   "declaration": "private struct TypingBubble: View {"
+  },
+  {
+   "line": 3126,
+   "name": "QRCodeFloatingPanel",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/QRCodeFloatingPanel.swift",
+   "declaration": "private struct QRCodeFloatingPanel: View {"
+  },
+  {
+   "line": 3236,
+   "name": "OfflineTranslator",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/OfflineTranslator.swift",
+   "declaration": "private struct OfflineTranslator: View {"
+  },
+  {
+   "line": 3314,
+   "name": "VibeScore",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/VibeMeter.swift",
+   "declaration": "private struct VibeScore {"
+  },
+  {
+   "line": 3363,
+   "name": "VibeBadge",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/VibeMeter.swift",
+   "declaration": "private struct VibeBadge: View {"
+  },
+  {
+   "line": 3541,
+   "name": "VoiceWaveform",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/VoiceInputViews.swift",
+   "declaration": "private struct VoiceWaveform: View {"
+  },
+  {
+   "line": 3572,
+   "name": "ClipTimer",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/VoiceInputViews.swift",
+   "declaration": "private struct ClipTimer: View {"
+  },
+  {
+   "line": 3602,
+   "name": "ParticipantStack",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/ConversationHeaderParts.swift",
+   "declaration": "private struct ParticipantStack: View {"
+  },
+  {
+   "line": 3632,
+   "name": "QRCodeIcon",
+   "kind": "type",
+   "opened_by": [
+    "types"
+   ],
+   "file": "Conversation/ConversationHeaderParts.swift",
+   "declaration": "private struct QRCodeIcon: View {"
+  }
+ ]
+}

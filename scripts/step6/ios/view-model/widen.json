@@ -1,0 +1,597 @@
+{
+ "about": "Declarations of HostRoomViewModel that lose `private` or `private(set)` when its groups become separate files, by line of the base file. `stage: games` is needed as soon as the five game groups are files; `stage: core` only once the other five are too. Written by widen_calc.py; split_batch1.py, split.py and verify_move.py read it.",
+ "base": {
+  "path": "apps/ios/ViewModels/HostRoomViewModel.swift",
+  "commit": "1b68a6f",
+  "git_blob": "72d258dd172443415d85b4979c9b569724ad7a96",
+  "sha256": "c68ccc30a76aecc1ada2a21715b76344297cd4bb4b859ed7fddd1ee0a6ba6b04",
+  "lines": 2106
+ },
+ "declarations": [
+  {
+   "line": 49,
+   "name": "wordRushSeenLiveIds",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "WordRush"
+   ],
+   "declaration": "private var wordRushSeenLiveIds: Set<String> = []"
+  },
+  {
+   "line": 50,
+   "name": "wordRushPollTask",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync",
+    "WordRush"
+   ],
+   "declaration": "private var wordRushPollTask: Task<Void, Never>?"
+  },
+  {
+   "line": 54,
+   "name": "emojiMatchPollTask",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "EmojiMatch"
+   ],
+   "declaration": "private var emojiMatchPollTask: Task<Void, Never>?"
+  },
+  {
+   "line": 57,
+   "name": "emojiMatchFlipsInFlight",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "EmojiMatch"
+   ],
+   "declaration": "private var emojiMatchFlipsInFlight: [UUID: ContinuousClock.Instant] = [:]"
+  },
+  {
+   "line": 60,
+   "name": "emojiMatchEpoch",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "EmojiMatch"
+   ],
+   "declaration": "private var emojiMatchEpoch = 0"
+  },
+  {
+   "line": 64,
+   "name": "emojiBingoPollTask",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "EmojiBingo",
+    "Sync"
+   ],
+   "declaration": "private var emojiBingoPollTask: Task<Void, Never>?"
+  },
+  {
+   "line": 69,
+   "name": "truthOrDarePollTask",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "TruthOrDare"
+   ],
+   "declaration": "private var truthOrDarePollTask: Task<Void, Never>?"
+  },
+  {
+   "line": 72,
+   "name": "drawCountdownTimer",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation"
+   ],
+   "declaration": "private var drawCountdownTimer: Timer?"
+  },
+  {
+   "line": 73,
+   "name": "trackedDrawStartMs",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation"
+   ],
+   "declaration": "private var trackedDrawStartMs: Double?"
+  },
+  {
+   "line": 75,
+   "name": "beepPlayer",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation"
+   ],
+   "declaration": "private var beepPlayer: AVAudioPlayer?"
+  },
+  {
+   "line": 79,
+   "name": "api",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "EmojiBingo",
+    "EmojiMatch",
+    "LostInTranslation",
+    "MessagePipeline",
+    "Messages",
+    "Room",
+    "SendQueue",
+    "Sync",
+    "TruthOrDare",
+    "WordRush"
+   ],
+   "declaration": "private let api: EnchattoAPI"
+  },
+  {
+   "line": 80,
+   "name": "processor",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "MessagePipeline"
+   ],
+   "declaration": "private let processor: MessageProcessor"
+  },
+  {
+   "line": 81,
+   "name": "pollTask",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private var pollTask: Task<Void, Never>?"
+  },
+  {
+   "line": 82,
+   "name": "processingTask",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private var processingTask: Task<Void, Never>?"
+  },
+  {
+   "line": 83,
+   "name": "heartbeatTask",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private var heartbeatTask: Task<Void, Never>?"
+  },
+  {
+   "line": 85,
+   "name": "sceneInBackground",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private var sceneInBackground = false"
+  },
+  {
+   "line": 87,
+   "name": "processingMessageIds",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "MessagePipeline"
+   ],
+   "declaration": "private var processingMessageIds: Set<String> = []"
+  },
+  {
+   "line": 92,
+   "name": "offlineQueue",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Messages",
+    "SendQueue",
+    "Sync"
+   ],
+   "declaration": "private var offlineQueue: [QueuedMessage] = []"
+  },
+  {
+   "line": 93,
+   "name": "isFlushing",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "SendQueue"
+   ],
+   "declaration": "private var isFlushing = false"
+  },
+  {
+   "line": 95,
+   "name": "flushTask",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Messages",
+    "SendQueue",
+    "Sync"
+   ],
+   "declaration": "private var flushTask: Task<Void, Never>?"
+  },
+  {
+   "line": 97,
+   "name": "sendingId",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Messages",
+    "SendQueue"
+   ],
+   "declaration": "private var sendingId: String?"
+  },
+  {
+   "line": 99,
+   "name": "sentIds",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Messages",
+    "SendQueue"
+   ],
+   "declaration": "private var sentIds: [String: String] = [:] {"
+  },
+  {
+   "line": 103,
+   "name": "deliveredIds",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Messages"
+   ],
+   "declaration": "private var deliveredIds = Set<String>()"
+  },
+  {
+   "line": 169,
+   "name": "pollIssue",
+   "loses": "private(set)",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "@Published private(set) var pollIssue: PollIssue?"
+  },
+  {
+   "line": 170,
+   "name": "consecutivePollFailures",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "SendQueue",
+    "Sync"
+   ],
+   "declaration": "private var consecutivePollFailures = 0"
+  },
+  {
+   "line": 172,
+   "name": "lastPollFailureLogged",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private var lastPollFailureLogged: String?"
+  },
+  {
+   "line": 220,
+   "name": "pushRegistered",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private var pushRegistered = false"
+  },
+  {
+   "line": 427,
+   "name": "processPendingMessages",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "MessagePipeline",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func processPendingMessages() async {"
+  },
+  {
+   "line": 578,
+   "name": "textureIndex",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "Room",
+   "used_from": [
+    "class body"
+   ],
+   "declaration": "private static func textureIndex(of room: Room?) -> Int? {"
+  },
+  {
+   "line": 583,
+   "name": "backgroundTask",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Room",
+    "Sync"
+   ],
+   "declaration": "private var backgroundTask: Task<Void, Never>?"
+  },
+  {
+   "line": 586,
+   "name": "backgroundEpoch",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Room",
+    "Sync"
+   ],
+   "declaration": "private var backgroundEpoch = 0"
+  },
+  {
+   "line": 630,
+   "name": "roomOnScreen",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "Room",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func roomOnScreen(_ server: Room, askedAt epoch: Int) -> Room {"
+  },
+  {
+   "line": 641,
+   "name": "hostLanguage",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Messages",
+    "Room"
+   ],
+   "declaration": "private var hostLanguage = UserDefaults.standard.string(forKey: \"enchatto_lastLanguage\") ?? \"en\""
+  },
+  {
+   "line": 642,
+   "name": "hostLanguageTask",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Room",
+    "Sync"
+   ],
+   "declaration": "private var hostLanguageTask: Task<Void, Never>?"
+  },
+  {
+   "line": 644,
+   "name": "hostLanguageRetryAfter",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Room"
+   ],
+   "declaration": "private var hostLanguageRetryAfter = Date.distantPast"
+  },
+  {
+   "line": 656,
+   "name": "syncHostLanguage",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "Room",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func syncHostLanguage() {"
+  },
+  {
+   "line": 806,
+   "name": "guessRefresh",
+   "loses": "private(set)",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation"
+   ],
+   "declaration": "private(set) var guessRefresh: Task<Void, Never>?"
+  },
+  {
+   "line": 864,
+   "name": "heldGuessStep",
+   "loses": "private(set)",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation"
+   ],
+   "declaration": "@Published private(set) var heldGuessStep: GameStep?"
+  },
+  {
+   "line": 866,
+   "name": "guessHoldTimer",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation"
+   ],
+   "declaration": "private var guessHoldTimer: Task<Void, Never>?"
+  },
+  {
+   "line": 868,
+   "name": "guessHoldAwaitsReply",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "class body",
+   "used_from": [
+    "LostInTranslation",
+    "Sync"
+   ],
+   "declaration": "private var guessHoldAwaitsReply = false"
+  },
+  {
+   "line": 898,
+   "name": "dropGuessHold",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "LostInTranslation",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func dropGuessHold() {"
+  },
+  {
+   "line": 948,
+   "name": "startWordRushFastPoll",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "WordRush",
+   "used_from": [
+    "class body"
+   ],
+   "declaration": "private func startWordRushFastPoll() {"
+  },
+  {
+   "line": 964,
+   "name": "stopWordRushFastPoll",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "WordRush",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func stopWordRushFastPoll() {"
+  },
+  {
+   "line": 1160,
+   "name": "enqueue",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "SendQueue",
+   "used_from": [
+    "Messages"
+   ],
+   "declaration": "private func enqueue(_ queued: QueuedMessage) {"
+  },
+  {
+   "line": 1172,
+   "name": "mergeQueueIntoMessages",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "SendQueue",
+   "used_from": [
+    "Messages",
+    "Sync"
+   ],
+   "declaration": "private func mergeQueueIntoMessages() {"
+  },
+  {
+   "line": 1257,
+   "name": "handleReconnect",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "SendQueue",
+   "used_from": [
+    "class body"
+   ],
+   "declaration": "private func handleReconnect() {"
+  },
+  {
+   "line": 1285,
+   "name": "kickFlush",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "SendQueue",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func kickFlush() {"
+  },
+  {
+   "line": 1452,
+   "name": "serverMessageId",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "Messages",
+   "used_from": [
+    "SendQueue"
+   ],
+   "declaration": "private func serverMessageId(_ id: String?) -> String? {"
+  },
+  {
+   "line": 1482,
+   "name": "lastTypingAction",
+   "loses": "private",
+   "stage": "core",
+   "declared_in": "class body",
+   "used_from": [
+    "Room"
+   ],
+   "declaration": "private var lastTypingAction: String?"
+  },
+  {
+   "line": 1496,
+   "name": "updateDrawCountdown",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "LostInTranslation",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func updateDrawCountdown() {"
+  },
+  {
+   "line": 1679,
+   "name": "stopEmojiMatchFastPoll",
+   "loses": "private",
+   "stage": "games",
+   "declared_in": "EmojiMatch",
+   "used_from": [
+    "Sync"
+   ],
+   "declaration": "private func stopEmojiMatchFastPoll() {"
+  }
+ ]
+}

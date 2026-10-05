@@ -1,0 +1,906 @@
+[
+ {
+  "name": "roomId",
+  "kind": "let",
+  "line": 62,
+  "text": "let roomId: String",
+  "start": 62,
+  "end": 62
+ },
+ {
+  "name": "hostId",
+  "kind": "let",
+  "line": 63,
+  "text": "let hostId: String",
+  "start": 63,
+  "end": 63
+ },
+ {
+  "name": "textureIndex",
+  "kind": "let",
+  "line": 65,
+  "text": "let textureIndex: Int",
+  "start": 64,
+  "end": 65
+ },
+ {
+  "name": "dismiss",
+  "kind": "var",
+  "line": 67,
+  "text": "@Environment(\\.dismiss) private var dismiss",
+  "start": 66,
+  "end": 67
+ },
+ {
+  "name": "scenePhase",
+  "kind": "var",
+  "line": 68,
+  "text": "@Environment(\\.scenePhase) private var scenePhase",
+  "start": 68,
+  "end": 68
+ },
+ {
+  "name": "viewModel",
+  "kind": "var",
+  "line": 69,
+  "text": "@StateObject private var viewModel: HostRoomViewModel",
+  "start": 69,
+  "end": 69
+ },
+ {
+  "name": "messageText",
+  "kind": "var",
+  "line": 70,
+  "text": "@State private var messageText = \"\"",
+  "start": 70,
+  "end": 70
+ },
+ {
+  "name": "isTextEditorFocused",
+  "kind": "var",
+  "line": 71,
+  "text": "@FocusState private var isTextEditorFocused: Bool",
+  "start": 71,
+  "end": 71
+ },
+ {
+  "name": "replyToId",
+  "kind": "var",
+  "line": 72,
+  "text": "@State private var replyToId: String?",
+  "start": 72,
+  "end": 72
+ },
+ {
+  "name": "showCloseConfirmation",
+  "kind": "var",
+  "line": 73,
+  "text": "@State private var showCloseConfirmation = false",
+  "start": 73,
+  "end": 73
+ },
+ {
+  "name": "showDrawingComposer",
+  "kind": "var",
+  "line": 74,
+  "text": "@State private var showDrawingComposer = false",
+  "start": 74,
+  "end": 74
+ },
+ {
+  "name": "showCamera",
+  "kind": "var",
+  "line": 75,
+  "text": "@State private var showCamera = false",
+  "start": 75,
+  "end": 75
+ },
+ {
+  "name": "showPhotoLibrary",
+  "kind": "var",
+  "line": 76,
+  "text": "@State private var showPhotoLibrary = false",
+  "start": 76,
+  "end": 76
+ },
+ {
+  "name": "selectedPhotoItem",
+  "kind": "var",
+  "line": 77,
+  "text": "@State private var selectedPhotoItem: PhotosPickerItem?",
+  "start": 77,
+  "end": 77
+ },
+ {
+  "name": "showQRCode",
+  "kind": "var",
+  "line": 78,
+  "text": "@State private var showQRCode = false",
+  "start": 78,
+  "end": 78
+ },
+ {
+  "name": "hostLanguage",
+  "kind": "var",
+  "line": 79,
+  "text": "@State private var hostLanguage: String = UserDefaults.standard.string(forKey: \"enchatto_lastLanguage\") ?? \"en\"",
+  "start": 79,
+  "end": 79
+ },
+ {
+  "name": "contextMenuMessageId",
+  "kind": "var",
+  "line": 80,
+  "text": "@State private var contextMenuMessageId: String?",
+  "start": 80,
+  "end": 80
+ },
+ {
+  "name": "messageFrames",
+  "kind": "var",
+  "line": 82,
+  "text": "@State private var messageFrames = MessageFrameStore()",
+  "start": 81,
+  "end": 82
+ },
+ {
+  "name": "messageToDelete",
+  "kind": "var",
+  "line": 83,
+  "text": "@State private var messageToDelete: String?",
+  "start": 83,
+  "end": 83
+ },
+ {
+  "name": "showEnglish",
+  "kind": "var",
+  "line": 84,
+  "text": "@AppStorage(\"enchatto_showEnglish\") private var showEnglish = true",
+  "start": 84,
+  "end": 84
+ },
+ {
+  "name": "showJapanese",
+  "kind": "var",
+  "line": 85,
+  "text": "@AppStorage(\"enchatto_showJapanese\") private var showJapanese = true",
+  "start": 85,
+  "end": 85
+ },
+ {
+  "name": "showRomaji",
+  "kind": "var",
+  "line": 86,
+  "text": "@AppStorage(\"enchatto_showRomaji\") private var showRomaji = true",
+  "start": 86,
+  "end": 86
+ },
+ {
+  "name": "chatTextSize",
+  "kind": "var",
+  "line": 87,
+  "text": "@AppStorage(ChatTextSize.storageKey) private var chatTextSize: ChatTextSize = .small",
+  "start": 87,
+  "end": 87
+ },
+ {
+  "name": "showHostSettings",
+  "kind": "var",
+  "line": 88,
+  "text": "@State private var showHostSettings = false",
+  "start": 88,
+  "end": 88
+ },
+ {
+  "name": "showInRoom",
+  "kind": "var",
+  "line": 89,
+  "text": "@State private var showInRoom = false",
+  "start": 89,
+  "end": 89
+ },
+ {
+  "name": "fullScreenImage",
+  "kind": "var",
+  "line": 90,
+  "text": "@State private var fullScreenImage: (url: String, messageId: String)?",
+  "start": 90,
+  "end": 90
+ },
+ {
+  "name": "showGamePicker",
+  "kind": "var",
+  "line": 91,
+  "text": "@State private var showGamePicker = false",
+  "start": 91,
+  "end": 91
+ },
+ {
+  "name": "showGameReplay",
+  "kind": "var",
+  "line": 92,
+  "text": "@State private var showGameReplay = false",
+  "start": 92,
+  "end": 92
+ },
+ {
+  "name": "showGameTask",
+  "kind": "var",
+  "line": 93,
+  "text": "@State private var showGameTask = false",
+  "start": 93,
+  "end": 93
+ },
+ {
+  "name": "showQuitGameConfirm",
+  "kind": "var",
+  "line": 94,
+  "text": "@State private var showQuitGameConfirm = false",
+  "start": 94,
+  "end": 94
+ },
+ {
+  "name": "quitOnStepId",
+  "kind": "var",
+  "line": 97,
+  "text": "@State private var quitOnStepId: String?",
+  "start": 95,
+  "end": 97
+ },
+ {
+  "name": "showEndGameConfirm",
+  "kind": "var",
+  "line": 98,
+  "text": "@State private var showEndGameConfirm = false",
+  "start": 98,
+  "end": 98
+ },
+ {
+  "name": "hiddenOfflineIds",
+  "kind": "var",
+  "line": 99,
+  "text": "@State private var hiddenOfflineIds: Set<String> = []  // participants hidden after 10s offline",
+  "start": 99,
+  "end": 99
+ },
+ {
+  "name": "showWordRushGame",
+  "kind": "var",
+  "line": 100,
+  "text": "@State private var showWordRushGame = false",
+  "start": 100,
+  "end": 100
+ },
+ {
+  "name": "showEmojiMatchGame",
+  "kind": "var",
+  "line": 101,
+  "text": "@State private var showEmojiMatchGame = false",
+  "start": 101,
+  "end": 101
+ },
+ {
+  "name": "showTruthOrDareGame",
+  "kind": "var",
+  "line": 102,
+  "text": "@State private var showTruthOrDareGame = false",
+  "start": 102,
+  "end": 102
+ },
+ {
+  "name": "minimizedTruthOrDareGameId",
+  "kind": "var",
+  "line": 103,
+  "text": "@State private var minimizedTruthOrDareGameId: String? = nil",
+  "start": 103,
+  "end": 103
+ },
+ {
+  "name": "minimizedEmojiMatchGameId",
+  "kind": "var",
+  "line": 104,
+  "text": "@State private var minimizedEmojiMatchGameId: String? = nil",
+  "start": 104,
+  "end": 104
+ },
+ {
+  "name": "minimizedEmojiBingoGameId",
+  "kind": "var",
+  "line": 105,
+  "text": "@State private var minimizedEmojiBingoGameId: String? = nil",
+  "start": 105,
+  "end": 105
+ },
+ {
+  "name": "minimizedWordRushGameId",
+  "kind": "var",
+  "line": 106,
+  "text": "@State private var minimizedWordRushGameId: String? = nil",
+  "start": 106,
+  "end": 106
+ },
+ {
+  "name": "showEmojiBingoGame",
+  "kind": "var",
+  "line": 107,
+  "text": "@State private var showEmojiBingoGame = false",
+  "start": 107,
+  "end": 107
+ },
+ {
+  "name": "speechRecognizer",
+  "kind": "var",
+  "line": 108,
+  "text": "@StateObject private var speechRecognizer = SpeechRecognizer()",
+  "start": 108,
+  "end": 108
+ },
+ {
+  "name": "voiceMode",
+  "kind": "var",
+  "line": 110,
+  "text": "@AppStorage(\"enchatto_voiceMode\") private var voiceMode = \"text\"",
+  "start": 109,
+  "end": 110
+ },
+ {
+  "name": "voiceModeHinted",
+  "kind": "var",
+  "line": 111,
+  "text": "@AppStorage(\"enchatto_voiceModeHinted\") private var voiceModeHinted = false",
+  "start": 111,
+  "end": 111
+ },
+ {
+  "name": "modeNudge",
+  "kind": "var",
+  "line": 112,
+  "text": "@State private var modeNudge = false",
+  "start": 112,
+  "end": 112
+ },
+ {
+  "name": "micLongPressed",
+  "kind": "var",
+  "line": 113,
+  "text": "@State private var micLongPressed = false",
+  "start": 113,
+  "end": 113
+ },
+ {
+  "name": "init",
+  "kind": "init",
+  "line": 115,
+  "text": "init(roomId: String, hostId: String, textureIndex: Int = 0) {",
+  "start": 114,
+  "end": 120
+ },
+ {
+  "name": "shownTextureIndex",
+  "kind": "var",
+  "line": 123,
+  "text": "private var shownTextureIndex: Int { viewModel.textureIndex ?? textureIndex }",
+  "start": 121,
+  "end": 123
+ },
+ {
+  "name": "body",
+  "kind": "var",
+  "line": 125,
+  "text": "var body: some View {",
+  "start": 124,
+  "end": 222
+ },
+ {
+  "name": "qrOverlay",
+  "kind": "var",
+  "line": 227,
+  "text": "private var qrOverlay: some View {",
+  "start": 223,
+  "end": 231
+ },
+ {
+  "name": "fullScreenImageOverlay",
+  "kind": "var",
+  "line": 236,
+  "text": "private var fullScreenImageOverlay: some View {",
+  "start": 232,
+  "end": 266
+ },
+ {
+  "name": "hostSettingsOverlay",
+  "kind": "var",
+  "line": 271,
+  "text": "private var hostSettingsOverlay: some View {",
+  "start": 267,
+  "end": 330
+ },
+ {
+  "name": "chatTextSizePicker",
+  "kind": "var",
+  "line": 332,
+  "text": "private var chatTextSizePicker: some View {",
+  "start": 331,
+  "end": 367
+ },
+ {
+  "name": "settingsToggle",
+  "kind": "func",
+  "line": 369,
+  "text": "private func settingsToggle<Badge: View>(_ title: String, isOn: Binding<Bool>, @ViewBuilder badge: () -> Badge) -> some View {",
+  "start": 368,
+  "end": 394
+ },
+ {
+  "name": "contextMenuOverlay",
+  "kind": "var",
+  "line": 397,
+  "text": "private var contextMenuOverlay: some View {",
+  "start": 395,
+  "end": 462
+ },
+ {
+  "name": "updateHiddenOfflineIds",
+  "kind": "func",
+  "line": 466,
+  "text": "private func updateHiddenOfflineIds(participants: [Participant]) {",
+  "start": 463,
+  "end": 483
+ },
+ {
+  "name": "gameStatusBarSection",
+  "kind": "var",
+  "line": 488,
+  "text": "private var gameStatusBarSection: some View {",
+  "start": 484,
+  "end": 492
+ },
+ {
+  "name": "headerView",
+  "kind": "var",
+  "line": 496,
+  "text": "private var headerView: some View {",
+  "start": 493,
+  "end": 589
+ },
+ {
+  "name": "latestDeliveredMessage",
+  "kind": "var",
+  "line": 593,
+  "text": "private var latestDeliveredMessage: Message? {",
+  "start": 590,
+  "end": 595
+ },
+ {
+  "name": "headerOthers",
+  "kind": "var",
+  "line": 597,
+  "text": "private var headerOthers: [Participant] {",
+  "start": 596,
+  "end": 599
+ },
+ {
+  "name": "headerParticipants",
+  "kind": "var",
+  "line": 603,
+  "text": "private var headerParticipants: some View {",
+  "start": 600,
+  "end": 620
+ },
+ {
+  "name": "connectionBannerKey",
+  "kind": "var",
+  "line": 625,
+  "text": "private var connectionBannerKey: String {",
+  "start": 621,
+  "end": 629
+ },
+ {
+  "name": "offlineBanner",
+  "kind": "var",
+  "line": 631,
+  "text": "private var offlineBanner: some View {",
+  "start": 630,
+  "end": 655
+ },
+ {
+  "name": "offlineTranslatorBridge",
+  "kind": "var",
+  "line": 660,
+  "text": "private var offlineTranslatorBridge: some View {",
+  "start": 656,
+  "end": 664
+ },
+ {
+  "name": "emptyStateView",
+  "kind": "var",
+  "line": 668,
+  "text": "private var emptyStateView: some View {",
+  "start": 665,
+  "end": 701
+ },
+ {
+  "name": "translationFingerprint",
+  "kind": "var",
+  "line": 706,
+  "text": "private var translationFingerprint: Int {",
+  "start": 702,
+  "end": 712
+ },
+ {
+  "name": "filteredMessages",
+  "kind": "var",
+  "line": 714,
+  "text": "private var filteredMessages: [Message] {",
+  "start": 713,
+  "end": 719
+ },
+ {
+  "name": "gameCompleteInsertBeforeId",
+  "kind": "var",
+  "line": 722,
+  "text": "private var gameCompleteInsertBeforeId: String? {",
+  "start": 720,
+  "end": 725
+ },
+ {
+  "name": "messageListView",
+  "kind": "var",
+  "line": 727,
+  "text": "private var messageListView: some View {",
+  "start": 726,
+  "end": 834
+ },
+ {
+  "name": "scrollToNewest",
+  "kind": "func",
+  "line": 839,
+  "text": "private func scrollToNewest(_ proxy: ScrollViewProxy, animated: Bool = true) {",
+  "start": 835,
+  "end": 851
+ },
+ {
+  "name": "gameCompleteBubble",
+  "kind": "var",
+  "line": 855,
+  "text": "private var gameCompleteBubble: some View {",
+  "start": 852,
+  "end": 868
+ },
+ {
+  "name": "replyIndicator",
+  "kind": "func",
+  "line": 872,
+  "text": "private func replyIndicator(for message: Message) -> some View {",
+  "start": 869,
+  "end": 904
+ },
+ {
+  "name": "showAttachMenu",
+  "kind": "var",
+  "line": 908,
+  "text": "@State private var showAttachMenu = false",
+  "start": 905,
+  "end": 908
+ },
+ {
+  "name": "toolsOpen",
+  "kind": "var",
+  "line": 909,
+  "text": "@State private var toolsOpen = false",
+  "start": 909,
+  "end": 909
+ },
+ {
+  "name": "preVoiceText",
+  "kind": "var",
+  "line": 910,
+  "text": "@State private var preVoiceText = \"\"",
+  "start": 910,
+  "end": 910
+ },
+ {
+  "name": "transcribingDictation",
+  "kind": "var",
+  "line": 911,
+  "text": "@State private var transcribingDictation = false",
+  "start": 911,
+  "end": 911
+ },
+ {
+  "name": "vibeHot",
+  "kind": "var",
+  "line": 912,
+  "text": "@State private var vibeHot = false",
+  "start": 912,
+  "end": 912
+ },
+ {
+  "name": "vibeConfetti",
+  "kind": "var",
+  "line": 913,
+  "text": "@State private var vibeConfetti = 0",
+  "start": 913,
+  "end": 913
+ },
+ {
+  "name": "logoHop",
+  "kind": "var",
+  "line": 914,
+  "text": "@State private var logoHop = 0",
+  "start": 914,
+  "end": 914
+ },
+ {
+  "name": "screenOpenedAt",
+  "kind": "var",
+  "line": 915,
+  "text": "@State private var screenOpenedAt = Date()",
+  "start": 915,
+  "end": 915
+ },
+ {
+  "name": "knownParticipantIds",
+  "kind": "var",
+  "line": 916,
+  "text": "@State private var knownParticipantIds: Set<String> = []",
+  "start": 916,
+  "end": 916
+ },
+ {
+  "name": "fireVibeConfetti",
+  "kind": "func",
+  "line": 918,
+  "text": "private func fireVibeConfetti() {",
+  "start": 917,
+  "end": 921
+ },
+ {
+  "name": "confettiForNewArrivals",
+  "kind": "func",
+  "line": 924,
+  "text": "private func confettiForNewArrivals(_ ids: [String]) {",
+  "start": 922,
+  "end": 931
+ },
+ {
+  "name": "vibeConfettiLayer",
+  "kind": "var",
+  "line": 933,
+  "text": "private var vibeConfettiLayer: some View {",
+  "start": 932,
+  "end": 937
+ },
+ {
+  "name": "toolsCollapsed",
+  "kind": "var",
+  "line": 940,
+  "text": "private var toolsCollapsed: Bool {",
+  "start": 938,
+  "end": 942
+ },
+ {
+  "name": "toolsToggle",
+  "kind": "var",
+  "line": 944,
+  "text": "private var toolsToggle: some View {",
+  "start": 943,
+  "end": 961
+ },
+ {
+  "name": "toolButtons",
+  "kind": "var",
+  "line": 963,
+  "text": "private var toolButtons: some View {",
+  "start": 962,
+  "end": 1018
+ },
+ {
+  "name": "trailingInputButton",
+  "kind": "var",
+  "line": 1020,
+  "text": "private var trailingInputButton: some View {",
+  "start": 1019,
+  "end": 1044
+ },
+ {
+  "name": "voiceMicButton",
+  "kind": "var",
+  "line": 1047,
+  "text": "private var voiceMicButton: some View {",
+  "start": 1045,
+  "end": 1067
+ },
+ {
+  "name": "sendingVoice",
+  "kind": "var",
+  "line": 1070,
+  "text": "private var sendingVoice: Bool {",
+  "start": 1068,
+  "end": 1072
+ },
+ {
+  "name": "beginVoice",
+  "kind": "func",
+  "line": 1074,
+  "text": "private func beginVoice(_ mode: String) {",
+  "start": 1073,
+  "end": 1090
+ },
+ {
+  "name": "voiceModeSwitch",
+  "kind": "var",
+  "line": 1092,
+  "text": "private var voiceModeSwitch: some View {",
+  "start": 1091,
+  "end": 1109
+ },
+ {
+  "name": "voiceModeButton",
+  "kind": "func",
+  "line": 1111,
+  "text": "private func voiceModeButton(_ mode: String, icon: String, label: String) -> some View {",
+  "start": 1110,
+  "end": 1128
+ },
+ {
+  "name": "nudgeModeSwitchIfNew",
+  "kind": "func",
+  "line": 1131,
+  "text": "private func nudgeModeSwitchIfNew(_ active: Bool) {",
+  "start": 1129,
+  "end": 1136
+ },
+ {
+  "name": "sendVoiceMessage",
+  "kind": "func",
+  "line": 1139,
+  "text": "private func sendVoiceMessage() {",
+  "start": 1137,
+  "end": 1157
+ },
+ {
+  "name": "voicePill",
+  "kind": "var",
+  "line": 1160,
+  "text": "private var voicePill: some View {",
+  "start": 1158,
+  "end": 1218
+ },
+ {
+  "name": "stopVoice",
+  "kind": "func",
+  "line": 1221,
+  "text": "private func stopVoice() {",
+  "start": 1219,
+  "end": 1235
+ },
+ {
+  "name": "audioOnlyDictation",
+  "kind": "func",
+  "line": 1238,
+  "text": "private func audioOnlyDictation() -> VoiceClipFile? {",
+  "start": 1236,
+  "end": 1241
+ },
+ {
+  "name": "cancelVoice",
+  "kind": "func",
+  "line": 1244,
+  "text": "private func cancelVoice() {",
+  "start": 1242,
+  "end": 1253
+ },
+ {
+  "name": "clearTextButton",
+  "kind": "var",
+  "line": 1256,
+  "text": "private var clearTextButton: some View {",
+  "start": 1254,
+  "end": 1283
+ },
+ {
+  "name": "voiceLiveLine",
+  "kind": "var",
+  "line": 1285,
+  "text": "private var voiceLiveLine: some View {",
+  "start": 1284,
+  "end": 1305
+ },
+ {
+  "name": "inputBar",
+  "kind": "var",
+  "line": 1307,
+  "text": "private var inputBar: some View {",
+  "start": 1306,
+  "end": 1337
+ },
+ {
+  "name": "messageField",
+  "kind": "var",
+  "line": 1339,
+  "text": "private var messageField: some View {",
+  "start": 1338,
+  "end": 1382
+ },
+ {
+  "name": "inputView",
+  "kind": "var",
+  "line": 1384,
+  "text": "private var inputView: some View {",
+  "start": 1383,
+  "end": 1694
+ },
+ {
+  "name": "minimizedGameResumeButtons",
+  "kind": "var",
+  "line": 1699,
+  "text": "private var minimizedGameResumeButtons: some View {",
+  "start": 1695,
+  "end": 1755
+ },
+ {
+  "name": "resumePill",
+  "kind": "func",
+  "line": 1757,
+  "text": "private func resumePill(",
+  "start": 1756,
+  "end": 1784
+ },
+ {
+  "name": "closedBanner",
+  "kind": "var",
+  "line": 1788,
+  "text": "private var closedBanner: some View {",
+  "start": 1785,
+  "end": 1807
+ },
+ {
+  "name": "personCard",
+  "kind": "func",
+  "line": 1812,
+  "text": "private func personCard(_ participant: Participant, onRemove: (() -> Void)? = nil) -> some View {",
+  "start": 1808,
+  "end": 1858
+ },
+ {
+  "name": "roomMembers",
+  "kind": "var",
+  "line": 1861,
+  "text": "private var roomMembers: [Participant] {",
+  "start": 1859,
+  "end": 1867
+ },
+ {
+  "name": "inRoomSheet",
+  "kind": "var",
+  "line": 1870,
+  "text": "private var inRoomSheet: some View {",
+  "start": 1868,
+  "end": 1921
+ },
+ {
+  "name": "closeRoomButton",
+  "kind": "var",
+  "line": 1925,
+  "text": "private var closeRoomButton: some View {",
+  "start": 1922,
+  "end": 1943
+ },
+ {
+  "name": "settingsSheet",
+  "kind": "var",
+  "line": 1945,
+  "text": "private var settingsSheet: some View {",
+  "start": 1944,
+  "end": 2076
+ },
+ {
+  "name": "sendCurrentMessage",
+  "kind": "func",
+  "line": 2080,
+  "text": "private func sendCurrentMessage() {",
+  "start": 2077,
+  "end": 2121
+ }
+]

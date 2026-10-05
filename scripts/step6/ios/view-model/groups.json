@@ -1,0 +1,34 @@
+{
+ "about": "Range table for regrouping and splitting HostRoomViewModel.swift. Every line number is a line of the base file below and of no other file. A group is one `extension HostRoomViewModel` block: its blocks are inclusive line ranges, written out in the order listed. Lines that belong to no group stay in the class body, in their own order. `stage` says which split takes a group out of the main file: `games` first, `core` after it. `imports` are the modules a group needs once it is a file of its own.",
+ "base": {
+  "path": "apps/ios/ViewModels/HostRoomViewModel.swift",
+  "commit": "1b68a6f",
+  "git_blob": "72d258dd172443415d85b4979c9b569724ad7a96",
+  "sha256": "c68ccc30a76aecc1ada2a21715b76344297cd4bb4b859ed7fddd1ee0a6ba6b04",
+  "lines": 2106
+ },
+ "type": "HostRoomViewModel",
+ "class_line": 11,
+ "groups": [
+  {"name": "Sync", "stage": "core", "imports": ["Foundation", "SwiftUI"],
+   "blocks": [[174, 216], [218, 218], [222, 423]]},
+  {"name": "Room", "stage": "core", "imports": ["Foundation"],
+   "blocks": [[564, 571], [680, 687], [573, 580], [588, 635], [637, 637], [646, 678], [1484, 1491]]},
+  {"name": "MessagePipeline", "stage": "core", "imports": ["Foundation"],
+   "blocks": [[425, 483]]},
+  {"name": "Messages", "stage": "core", "imports": ["Foundation", "UIKit"],
+   "blocks": [[485, 562], [689, 756], [1432, 1455]]},
+  {"name": "SendQueue", "stage": "core", "imports": ["Foundation", "NaturalLanguage", "Translation"],
+   "blocks": [[1158, 1158], [106, 109], [1160, 1424]]},
+  {"name": "LostInTranslation", "stage": "games", "imports": ["Foundation", "AVFoundation"],
+   "blocks": [[758, 803], [808, 857], [859, 859], [870, 903], [1493, 1597]]},
+  {"name": "WordRush", "stage": "games", "imports": ["Foundation"],
+   "blocks": [[905, 1156]]},
+  {"name": "EmojiMatch", "stage": "games", "imports": ["Foundation"],
+   "blocks": [[1599, 1691], [1800, 1879]]},
+  {"name": "EmojiBingo", "stage": "games", "imports": ["Foundation"],
+   "blocks": [[1693, 1798]]},
+  {"name": "TruthOrDare", "stage": "games", "imports": ["Foundation", "NaturalLanguage"],
+   "blocks": [[1881, 2105]]}
+ ]
+}

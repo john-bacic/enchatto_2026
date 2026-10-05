@@ -1,0 +1,58 @@
+{
+ "about": "sha256 of every file the layout tools write from their base files, by split and stage. selftest/run.py holds the tools to it, so a change to a tool or a table that changes one byte of output shows up there. The stages: view-model regroup (regroup.py), games (split_batch1.py), all (split.py); conversation-view types and all (split.py).",
+ "view-model": {
+  "regroup": {
+   "HostRoomViewModel.swift": "dab8b041667b1ddbdb49bc6ec1a8932e5621b9db322aaa0578b8565d969eda7d"
+  },
+  "games": {
+   "HostRoomViewModel+EmojiBingo.swift": "f9657d48a5ed7df214d8b39b8659794a6610ac5ca67007c5eb3474c3f7dda4a5",
+   "HostRoomViewModel+EmojiMatch.swift": "3239bd8842eca2af8dfcaf5fb90e2975bbc4a535e7a1fafd242750e44f8140dc",
+   "HostRoomViewModel+LostInTranslation.swift": "d1f77a3b401f0f233c03c4feb1cfccf097a0e5ffcfef1d180ec18f7e81cb03ce",
+   "HostRoomViewModel+TruthOrDare.swift": "318938db5d51f6bb342464f9fc73ad34cca9bcecf7ed40d396cc2efe143f8bf3",
+   "HostRoomViewModel+WordRush.swift": "0115c867ed7053805860b55bb8cf3ad919b918696c15a9c6797ad661b42eb9d3",
+   "HostRoomViewModel.swift": "8913f338e28dcda92cd67dc733a8db1b05fb6d231a26a9bb0368b8b3c4d6a840"
+  },
+  "all": {
+   "HostRoomViewModel+EmojiBingo.swift": "f9657d48a5ed7df214d8b39b8659794a6610ac5ca67007c5eb3474c3f7dda4a5",
+   "HostRoomViewModel+EmojiMatch.swift": "3239bd8842eca2af8dfcaf5fb90e2975bbc4a535e7a1fafd242750e44f8140dc",
+   "HostRoomViewModel+LostInTranslation.swift": "d1f77a3b401f0f233c03c4feb1cfccf097a0e5ffcfef1d180ec18f7e81cb03ce",
+   "HostRoomViewModel+MessagePipeline.swift": "7306ceb2a0607cb5b4ee1ec741e0d06a659c1bde657db84de083c8745c538531",
+   "HostRoomViewModel+Messages.swift": "5004e525b21c6484898e1cde5bc570c5c61cc2114d4a025afcc5761fdbc64863",
+   "HostRoomViewModel+Room.swift": "0fedf9f45f7880b5aa539e2e43d2ae7e04815016fe7381cdc20d7ab4411844b0",
+   "HostRoomViewModel+SendQueue.swift": "b9057f06722ed679c577e8cffad748ef8bb7d4ccf260c54b4f3120885baa3ebc",
+   "HostRoomViewModel+Sync.swift": "df1f4c3beba65922ae467984d8636b31e41c4e3019a07a36e1d2eeea7c8e4826",
+   "HostRoomViewModel+TruthOrDare.swift": "318938db5d51f6bb342464f9fc73ad34cca9bcecf7ed40d396cc2efe143f8bf3",
+   "HostRoomViewModel+WordRush.swift": "0115c867ed7053805860b55bb8cf3ad919b918696c15a9c6797ad661b42eb9d3",
+   "HostRoomViewModel.swift": "c518e65a43fab87f37f9a4f040985d7e9a11a4f8f8e74ddc911d84e05c7895f9"
+  }
+ },
+ "conversation-view": {
+  "types": {
+   "Conversation/ConversationHeaderParts.swift": "d3830dbefe50f9daa306d6f5e3445c420f3b33855a56d6b359c7360263662f85",
+   "Conversation/GameSummaryBanner.swift": "a5505ded586170feea7e38b7d567214f329cd11333e451685fd28e276cd5698c",
+   "Conversation/OfflineTranslator.swift": "0f2ba34e75a5cb4ebf67c263b1a5023d84a9c4f6308e7e40edade2bdb6f14fbf",
+   "Conversation/QRCodeFloatingPanel.swift": "9c169c08a3d61a67edb3de3ce2edd4926c4abd5895c6fcd104e5ad1312c49a99",
+   "Conversation/SystemMessageRow.swift": "e7a039af73dcd09c03ef3954f4e846d2c2149ef191d790caf01f2f48d47d5506",
+   "Conversation/TypingBubble.swift": "804cca52c99a9918fc952a796dbd674ac0a1366af6db02bdd852a37bcaaea8db",
+   "Conversation/VibeMeter.swift": "972c997ba2dc1ecf98ec7a68b61b09f794101abb6ea04fcd50ef451f518a4bbd",
+   "Conversation/VoiceInputViews.swift": "ccd1cb895670af4d860c16e4d4da7324b2dfd7663a40a5f1fe2dcfe30ac8a607",
+   "HostConversationView.swift": "d69f837c2b3e746a30a64e7f5092811aba6741f63d2009a485504d6a5c39787c"
+  },
+  "all": {
+   "Conversation/ConversationHeaderParts.swift": "d3830dbefe50f9daa306d6f5e3445c420f3b33855a56d6b359c7360263662f85",
+   "Conversation/GameSummaryBanner.swift": "a5505ded586170feea7e38b7d567214f329cd11333e451685fd28e276cd5698c",
+   "Conversation/HostConversationView+Header.swift": "3fec863d7129fc0c07872843bc4fea1a63a3ce4491a2808f470a01d10340da79",
+   "Conversation/HostConversationView+Input.swift": "c06a04c481c7e79d55616565809dd13368c5c7d5541ee5afa4bfc5679e712a8b",
+   "Conversation/HostConversationView+MessageList.swift": "b1a5d9e762d6c0400faf2a7b491848492eead18a11198941fce657a9d952446f",
+   "Conversation/HostConversationView+Presentations.swift": "1e37221b1aef78dd9e7f5936906e06376fed662cd784b1a93fb8e8ae973faff2",
+   "Conversation/HostConversationView+Sheets.swift": "5465b048ef1d399aa6c45fdfa2c533c7f48404607f6d4c76caa5f84f83247533",
+   "Conversation/OfflineTranslator.swift": "0f2ba34e75a5cb4ebf67c263b1a5023d84a9c4f6308e7e40edade2bdb6f14fbf",
+   "Conversation/QRCodeFloatingPanel.swift": "9c169c08a3d61a67edb3de3ce2edd4926c4abd5895c6fcd104e5ad1312c49a99",
+   "Conversation/SystemMessageRow.swift": "e7a039af73dcd09c03ef3954f4e846d2c2149ef191d790caf01f2f48d47d5506",
+   "Conversation/TypingBubble.swift": "804cca52c99a9918fc952a796dbd674ac0a1366af6db02bdd852a37bcaaea8db",
+   "Conversation/VibeMeter.swift": "972c997ba2dc1ecf98ec7a68b61b09f794101abb6ea04fcd50ef451f518a4bbd",
+   "Conversation/VoiceInputViews.swift": "ccd1cb895670af4d860c16e4d4da7324b2dfd7663a40a5f1fe2dcfe30ac8a607",
+   "HostConversationView.swift": "1bf857388cee5b284c28f32dfd79e08d3e2affc53c1181d1be458ad0b57bd996"
+  }
+ }
+}
