@@ -1,0 +1,8 @@
+{
+  "moved": [
+    {
+      "entry": "useRef lastTypingAction",
+      "why": "The ref holds the last typing signal sent. At the base it is created in the page below the three redirect effects. useTypingAction is called where its effect stands, above the theme-colour effect and the redirects, so that the effect keeps its place; the ref is therefore created four effects earlier. It starts from a constant, creating it does nothing else, and only handleTypingChange, which moves with it, reads or writes it."
+    }
+  ]
+}

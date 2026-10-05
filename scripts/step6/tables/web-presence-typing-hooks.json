@@ -1,0 +1,56 @@
+{
+  "about": "The room page's presence (mark online, the 15 s heartbeat, the leave beacon, away and back with the tab, and Leave) to hooks/use-presence.ts, and its typing signal (\"drawing\" on a draw step, and what the input bar reports) to hooks/use-typing-action.ts. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-presence-typing-hooks.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-presence-typing-hooks.json --root <folder>, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 15d3ef0 --allow scripts/step6/tables/web-presence-typing-hooks.hooks.json --strict",
+  "base": "15d3ef0326c4e5eea020783654cf675f973af907",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [183, 183], "to": "apps/web/hooks/use-presence.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [187, 241], "to": "apps/web/hooks/use-presence.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [245, 245], "to": "apps/web/hooks/use-typing-action.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [249, 265], "to": "apps/web/hooks/use-typing-action.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [495, 508], "to": "apps/web/hooks/use-typing-action.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [1241, 1250], "to": "apps/web/hooks/use-presence.ts" }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { usePresence } from \"@/hooks/use-presence\";",
+      "import { useTypingAction } from \"@/hooks/use-typing-action\";",
+      "const { handleLeave } = usePresence({ participantId, convexUrl, router });",
+      "const { setTypingAction, handleTypingChange } = useTypingAction({ participantId, myActiveStep });"
+    ],
+    "apps/web/hooks/use-presence.ts": [
+      "\"use client\";",
+      "import { useEffect } from \"react\";",
+      "import type { useRouter } from \"next/navigation\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { tokenFor, useAuthedMutation } from \"@/lib/convex\";",
+      "export function usePresence({",
+      "participantId,",
+      "convexUrl,",
+      "router,",
+      "}: {",
+      "participantId: string;",
+      "convexUrl: string;",
+      "router: ReturnType<typeof useRouter>;",
+      "}) {",
+      "return { handleLeave };",
+      "}"
+    ],
+    "apps/web/hooks/use-typing-action.ts": [
+      "\"use client\";",
+      "import { useCallback, useEffect, useRef } from \"react\";",
+      "import type { FunctionReturnType } from \"convex/server\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { useAuthedMutation } from \"@/lib/convex\";",
+      "export function useTypingAction({",
+      "participantId,",
+      "myActiveStep,",
+      "}: {",
+      "participantId: string;",
+      "myActiveStep: FunctionReturnType<typeof api.games.getMyActiveStep> | undefined;",
+      "}) {",
+      "return { setTypingAction, handleTypingChange };",
+      "}"
+    ]
+  }
+}

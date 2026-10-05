@@ -34,6 +34,8 @@ import { useGameOnScreen } from "@/lib/game-results";
 import { HYPE_AT, computeVibe, formatVibe, type VibeMessage } from "@/lib/vibe";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
+import { usePresence } from "@/hooks/use-presence";
+import { useTypingAction } from "@/hooks/use-typing-action";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
@@ -180,89 +182,17 @@ function RoomContent() {
   const generateUploadUrl = useAuthedMutation(api.messages.generateUploadUrl);
   const sendImageMessage = useAuthedMutation(api.messages.sendImageMessage);
   const sendAudioMessage = useAuthedMutation(api.messages.sendAudioMessage);
-  const setParticipantOnline = useAuthedMutation(api.participants.setParticipantOnline);
   const startGameMutation = useAuthedMutation(api.games.startGame);
   const submitGameStepMutation = useAuthedMutation(api.games.submitGameStep);
 
-  // Mark online on mount, heartbeat, offline on leave
-  useEffect(() => {
-    if (!participantId) return;
-    const pid = participantId as Id<"participants">;
-
-    // Mark online
-    setParticipantOnline({ participantId: pid, online: true, presence: "online" }).catch(() => {});
-
-    // Heartbeat every 15s to keep lastSeenAt fresh
-    const heartbeat = setInterval(() => {
-      if (!document.hidden) {
-        setParticipantOnline({ participantId: pid, online: true, presence: "online" }).catch(() => {});
-      }
-    }, 15_000);
-
-    // Fire-and-forget "away" on page close via sendBeacon + fetch keepalive
-    const markLeftBeacon = () => {
-      const url = `${convexUrl}/api/mutation`;
-      const body = JSON.stringify({
-        path: "participants:leaveRoom",
-        // Read now, not when the effect ran. JSON drops the field when this browser holds no token
-        args: { participantId, token: tokenFor(participantId) },
-      });
-      const blob = new Blob([body], { type: "application/json" });
-      navigator.sendBeacon(url, blob);
-      try {
-        fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-          keepalive: true,
-        }).catch(() => {});
-      } catch {}
-    };
-
-    // Mark away/online on tab visibility change
-    const handleVisibility = () => {
-      if (document.hidden) {
-        setParticipantOnline({ participantId: pid, online: true, presence: "away" }).catch(() => {});
-      } else {
-        setParticipantOnline({ participantId: pid, online: true, presence: "online" }).catch(() => {});
-      }
-    };
-
-    window.addEventListener("beforeunload", markLeftBeacon);
-    window.addEventListener("pagehide", markLeftBeacon);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      clearInterval(heartbeat);
-      window.removeEventListener("beforeunload", markLeftBeacon);
-      window.removeEventListener("pagehide", markLeftBeacon);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [participantId, setParticipantOnline, convexUrl]);
+  const { handleLeave } = usePresence({ participantId, convexUrl, router });
   const sendDrawingMessage = useAuthedMutation(api.messages.sendDrawingMessage);
   const addReaction = useAuthedMutation(api.reactions.addReaction);
   const removeReaction = useAuthedMutation(api.reactions.removeReaction);
-  const setTypingAction = useAuthedMutation(api.participants.setTypingAction);
 
   const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize } = useDisplayPrefs(participantId);
 
-  // Set typing action to "drawing" while on a draw step so other players see pencil indicator
-  useEffect(() => {
-    if (!participantId) return;
-    if (myActiveStep?.stepType === "draw") {
-      setTypingAction({
-        participantId: participantId as Id<"participants">,
-        action: "drawing",
-        drawingStartedAt: (typeof myActiveStep?.timerEnabled === "number" ? myActiveStep.timerEnabled > 0 : myActiveStep?.timerEnabled !== false) ? Date.now() : undefined,
-      }).catch(() => {});
-      return () => {
-        setTypingAction({
-          participantId: participantId as Id<"participants">,
-          action: undefined,
-        }).catch(() => {});
-      };
-    }
-  }, [myActiveStep?.stepType, myActiveStep?._id, participantId, setTypingAction]);
+  const { setTypingAction, handleTypingChange } = useTypingAction({ participantId, myActiveStep });
 
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
@@ -490,21 +420,6 @@ function RoomContent() {
       }
     },
     [sendDrawingMessage, roomId, participantId, replyTo, isOnline, enqueueMessage, convexSiteUrl]
-  );
-
-  const lastTypingAction = useRef<string | null>(null);
-  const handleTypingChange = useCallback(
-    (action: "typing" | "drawing" | "voicing" | null) => {
-      if (!participantId) return;
-      const key = action ?? "null";
-      if (lastTypingAction.current === key) return;
-      lastTypingAction.current = key;
-      setTypingAction({
-        participantId: participantId as Id<"participants">,
-        action: action ?? undefined,
-      }).catch(() => {});
-    },
-    [setTypingAction, participantId]
   );
 
   // Compute timer seconds from active game SESSION (not step — watchers don't have
@@ -1237,17 +1152,6 @@ function RoomContent() {
     const ids = new Set(items.map((i) => i.id));
     setTimeout(() => setFloaters((f) => f.filter((x) => !ids.has(x.id))), 1400);
   }, [messages, participantId, participants, roomState?.room?.hostId, langOf]);
-
-  const handleLeave = async () => {
-    if (!participantId) return;
-    try {
-      await setParticipantOnline({
-        participantId: participantId as Id<"participants">,
-        online: false,
-      });
-    } catch {}
-    router.push("/");
-  };
 
   // Loading state
   if (roomState === undefined || messages === undefined) {
