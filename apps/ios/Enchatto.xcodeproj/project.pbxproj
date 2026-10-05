@@ -14,13 +14,17 @@
 		1D92719769BB289CD81B2984 /* PromptGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996026AD576DE54C56501B21 /* PromptGenerator.swift */; };
 		2B747B43BF9C68A7A5D35769 /* Effects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3956F8FAEFF1BA88C2B26547 /* Effects.swift */; };
 		2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */; };
+		2FFF02A1B1C6FC49470444F6 /* TypingBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635DD1158B5BF0A030653324 /* TypingBubble.swift */; };
 		3014972D1B186998B00DFBFC /* WordRushResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE07E796E7A792BF49F5768 /* WordRushResultsView.swift */; };
 		350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */; };
+		376EEE56E4A888337A0C6F34 /* SystemMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */; };
 		388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */; };
+		3EC5135EDB3446E96B8D7C07 /* VoiceInputViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11FA38C5F1CF3E6A2D270B9 /* VoiceInputViews.swift */; };
 		4013F06BB9F4112C182D9134 /* WordRushMicView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CC953DD5D0CCE1335A75F1 /* WordRushMicView.swift */; };
 		41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */; };
 		435896B778BAA93A23E7E1D5 /* TruthOrDareGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7F3CC0A7B1B0C03234BA20 /* TruthOrDareGame.swift */; };
 		47B727BA9E193D247B044FCB /* ZenMaruGothic-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D48B720FB7353CAAFD592E8E /* ZenMaruGothic-Black.ttf */; };
+		4C36E03D49E9EC034D40A32B /* ConversationHeaderParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031BC9C91ADF7C16A5205203 /* ConversationHeaderParts.swift */; };
 		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		502560E4361ECD12FB5B8835 /* ZenMaruGothic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C4C83263DD333D3A24763D95 /* ZenMaruGothic-Bold.ttf */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
@@ -55,6 +59,7 @@
 		960FF4E2C06901B18594FA1E /* WordRushAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575FC39C531C3DA8A6BC487F /* WordRushAudio.swift */; };
 		9711E732A5357FD6818AB998 /* GameStatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805997E063B44F481ED0804E /* GameStatusBarView.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
+		A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */; };
 		A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395063 /* GitInfo.swift */; };
 		AEA58AFFB67457EE57CB00A6 /* RoomTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C82A06E68BE52F0761E6F96 /* RoomTexture.swift */; };
 		AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */; };
@@ -65,11 +70,14 @@
 		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
 		C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47566C0B30406CBDDDEAA04F /* Participant.swift */; };
 		C90602A074A2541D78B4D49E /* IconPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF756E413CA17E5688861E0 /* IconPack.swift */; };
+		C9389B0A45CCFFA71C58EF5C /* GameSummaryBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8110E3F4D4E66AED1A52ACC5 /* GameSummaryBanner.swift */; };
 		CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */; };
 		D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EF9BF8694735A0B284D54A /* StubTranslationService.swift */; };
 		D2125475124C862FAF863E64 /* DebugConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0C810A294050A01EBC75F5 /* DebugConsoleView.swift */; };
 		D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FEB11E5FF91BEBD77A223B /* TranslationService.swift */; };
 		D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */; };
+		D878161D76BF3222B1141ED2 /* VibeMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD81BA5B5FB79BB0F371DF04 /* VibeMeter.swift */; };
+		D95BEFE67672B4760E3DAF3D /* QRCodeFloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */; };
 		DAA475AB846CF28C659A87D4 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0373DCCC2C38FB107E44A1 /* Game.swift */; };
 		DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9108C84B71431E861972 /* HostMessageRow.swift */; };
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
@@ -82,14 +90,17 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		031BC9C91ADF7C16A5205203 /* ConversationHeaderParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationHeaderParts.swift; sourceTree = "<group>"; };
 		048A500F948FBFF3A696F580 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		048E186B7C0C18591A0D86D4 /* GameReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameReplayView.swift; sourceTree = "<group>"; };
 		0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
+		0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeFloatingPanel.swift; sourceTree = "<group>"; };
 		0D496EE877F3EEE3D55A79BD /* WordRushJudgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushJudgeView.swift; sourceTree = "<group>"; };
 		0DE07E796E7A792BF49F5768 /* WordRushResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushResultsView.swift; sourceTree = "<group>"; };
 		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
 		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
 		190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostQRCodeRoomView.swift; sourceTree = "<group>"; };
+		1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTranslator.swift; sourceTree = "<group>"; };
 		1DC00ADF95392C392B69EB66 /* RomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RomajiService.swift; sourceTree = "<group>"; };
 		20FEB11E5FF91BEBD77A223B /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
 		26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGameView.swift; sourceTree = "<group>"; };
@@ -113,11 +124,13 @@
 		5E11FCFFF6377C51AD234A05 /* EmojiBingoGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiBingoGameView.swift; sourceTree = "<group>"; };
 		5EE91A5BA76409C309044A18 /* EnchattoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoApp.swift; sourceTree = "<group>"; };
 		5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatchGameView.swift; sourceTree = "<group>"; };
+		635DD1158B5BF0A030653324 /* TypingBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingBubble.swift; sourceTree = "<group>"; };
 		6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingCanvasView.swift; sourceTree = "<group>"; };
 		6DC5730648DA4940B23C1BDF /* ZenMaruGothic-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ZenMaruGothic-Medium.ttf"; sourceTree = "<group>"; };
 		79D3B3EB6CCEA32C352D4464 /* EmojiBingoGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiBingoGame.swift; sourceTree = "<group>"; };
 		7D4143DC78BEF5E819A44A8A /* GamePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePickerView.swift; sourceTree = "<group>"; };
 		805997E063B44F481ED0804E /* GameStatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStatusBarView.swift; sourceTree = "<group>"; };
+		8110E3F4D4E66AED1A52ACC5 /* GameSummaryBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSummaryBanner.swift; sourceTree = "<group>"; };
 		82EF9BF8694735A0B284D54A /* StubTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTranslationService.swift; sourceTree = "<group>"; };
 		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
 		8B0373DCCC2C38FB107E44A1 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
@@ -133,6 +146,8 @@
 		A3C0A2E1624785B94728152B /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeCabCasualizer.swift; sourceTree = "<group>"; };
 		B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePickerView.swift; sourceTree = "<group>"; };
+		BD81BA5B5FB79BB0F371DF04 /* VibeMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeMeter.swift; sourceTree = "<group>"; };
+		C11FA38C5F1CF3E6A2D270B9 /* VoiceInputViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputViews.swift; sourceTree = "<group>"; };
 		C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostConversationView.swift; sourceTree = "<group>"; };
 		C4C83263DD333D3A24763D95 /* ZenMaruGothic-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ZenMaruGothic-Bold.ttf"; sourceTree = "<group>"; };
 		C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingComposerView.swift; sourceTree = "<group>"; };
@@ -150,6 +165,7 @@
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
 		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
+		F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageRow.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
 		FD28D1D718C250B9D6A4A8AF /* WordRushShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushShared.swift; sourceTree = "<group>"; };
 		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
@@ -251,6 +267,21 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		3D430DA8E7CA760D0850E570 /* Conversation */ = {
+			isa = PBXGroup;
+			children = (
+				031BC9C91ADF7C16A5205203 /* ConversationHeaderParts.swift */,
+				8110E3F4D4E66AED1A52ACC5 /* GameSummaryBanner.swift */,
+				1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */,
+				0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */,
+				F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */,
+				635DD1158B5BF0A030653324 /* TypingBubble.swift */,
+				BD81BA5B5FB79BB0F371DF04 /* VibeMeter.swift */,
+				C11FA38C5F1CF3E6A2D270B9 /* VoiceInputViews.swift */,
+			);
+			path = Conversation;
+			sourceTree = "<group>";
+		};
 		96010C2279DB14ADC7C19F4B /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -345,6 +376,7 @@
 				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
 				26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */,
 				B31B444E0CDA0E640973C616 /* Components */,
+				3D430DA8E7CA760D0850E570 /* Conversation */,
 				F964C2D67D9C221D41B87F96 /* WordRush */,
 			);
 			path = Views;
@@ -456,6 +488,7 @@
 			files = (
 				853BDB1B9E8AF2628FEC4299 /* AppConfig.swift in Sources */,
 				AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */,
+				4C36E03D49E9EC034D40A32B /* ConversationHeaderParts.swift in Sources */,
 				CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */,
 				D2125475124C862FAF863E64 /* DebugConsoleView.swift in Sources */,
 				7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */,
@@ -472,6 +505,7 @@
 				87DBB652730A51EF7C4DCA19 /* GamePickerView.swift in Sources */,
 				8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */,
 				9711E732A5357FD6818AB998 /* GameStatusBarView.swift in Sources */,
+				C9389B0A45CCFFA71C58EF5C /* GameSummaryBanner.swift in Sources */,
 				388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */,
 				A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
@@ -491,9 +525,11 @@
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
 				9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */,
+				A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */,
 				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
 				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,
 				1D92719769BB289CD81B2984 /* PromptGenerator.swift in Sources */,
+				D95BEFE67672B4760E3DAF3D /* QRCodeFloatingPanel.swift in Sources */,
 				350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */,
 				B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */,
 				1ACE8467557F73FF17F0F58C /* Room.swift in Sources */,
@@ -503,11 +539,15 @@
 				E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */,
 				D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */,
 				8BA0BE698453C835C3ADE54B /* SuggestionService.swift in Sources */,
+				376EEE56E4A888337A0C6F34 /* SystemMessageRow.swift in Sources */,
 				EEC913B0FD6A4A33F0C727D8 /* Theme.swift in Sources */,
 				92EE0C46879D83ED51272062 /* ThemeExtras.swift in Sources */,
 				D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */,
 				435896B778BAA93A23E7E1D5 /* TruthOrDareGame.swift in Sources */,
 				899461109CFE6CCCF787D27B /* TruthOrDareGameView.swift in Sources */,
+				2FFF02A1B1C6FC49470444F6 /* TypingBubble.swift in Sources */,
+				D878161D76BF3222B1141ED2 /* VibeMeter.swift in Sources */,
+				3EC5135EDB3446E96B8D7C07 /* VoiceInputViews.swift in Sources */,
 				960FF4E2C06901B18594FA1E /* WordRushAudio.swift in Sources */,
 				BD3F8FB2F9E2C27A772FBD88 /* WordRushCluesView.swift in Sources */,
 				F5FBB6549E3DE590A1731FA9 /* WordRushGame.swift in Sources */,
