@@ -1,0 +1,36 @@
+{
+  "about": "The helpers every HTTP route uses leave apps/web/convex/http.ts for httpShared.ts: the CORS headers, jsonAction with its error mapping, the two drawing checks and the comment that fixes the body's field names, with the two imports only they need. Four declarations gain `export`; http.ts imports them back. Run from the repo root. Where each line landed: node scripts/step6/web-move-check.mjs scripts/step6/tables/be-http-shared.ranges.json --strict-indent. Every line counted once: node scripts/step6/line-account.mjs --base 11df99dc022c80e2d581e20c6fcec23f6c72587e --old apps/web/convex/http.ts --allow scripts/step6/tables/be-http-shared.json apps/web/convex/http.ts apps/web/convex/httpShared.ts. Both read the tree they are run in, so they hold at the commit that made this move; later moves have their own tables. apps/convex/convex is the same files byte for byte: diff -r -x _generated -x tsconfig.json apps/web/convex apps/convex/convex.",
+  "base": "11df99dc022c80e2d581e20c6fcec23f6c72587e",
+  "ranges": [
+    { "from": "apps/web/convex/http.ts", "lines": [2, 2], "to": "apps/web/convex/httpShared.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [5, 5], "to": "apps/web/convex/httpShared.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [9, 80], "to": "apps/web/convex/httpShared.ts" }
+  ],
+  "changed": [
+    { "file": "apps/web/convex/http.ts", "line": 9, "old": "const corsHeaders = {", "new": "export const corsHeaders = {" },
+    {
+      "file": "apps/web/convex/http.ts",
+      "line": 17,
+      "old": "function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {",
+      "new": "export function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {"
+    },
+    {
+      "file": "apps/web/convex/http.ts",
+      "line": 46,
+      "old": "function checkDrawingBodySize(request: Request) {",
+      "new": "export function checkDrawingBodySize(request: Request) {"
+    },
+    {
+      "file": "apps/web/convex/http.ts",
+      "line": 57,
+      "old": "function decodeDrawing(dataUrl: unknown): Blob {",
+      "new": "export function decodeDrawing(dataUrl: unknown): Blob {"
+    }
+  ],
+  "glue": {
+    "apps/web/convex/http.ts": [
+      "import { httpAction } from \"./_generated/server\";",
+      "import { checkDrawingBodySize, corsHeaders, decodeDrawing, jsonAction } from \"./httpShared\";"
+    ]
+  }
+}

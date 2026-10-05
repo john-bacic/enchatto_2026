@@ -1,0 +1,15 @@
+{
+  "changed": [
+    { "old": "const corsHeaders = {", "new": "export const corsHeaders = {" },
+    {
+      "old": "function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {",
+      "new": "export function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {"
+    },
+    { "old": "function checkDrawingBodySize(request: Request) {", "new": "export function checkDrawingBodySize(request: Request) {" },
+    { "old": "function decodeDrawing(dataUrl: unknown): Blob {", "new": "export function decodeDrawing(dataUrl: unknown): Blob {" }
+  ],
+  "added": [
+    "import { httpAction } from \"./_generated/server\";",
+    "import { checkDrawingBodySize, corsHeaders, decodeDrawing, jsonAction } from \"./httpShared\";"
+  ]
+}

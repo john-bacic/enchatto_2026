@@ -13,6 +13,7 @@ import type * as emojiBingo from "../emojiBingo.js";
 import type * as emojiMatch from "../emojiMatch.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
+import type * as httpShared from "../httpShared.js";
 import type * as messages from "../messages.js";
 import type * as participants from "../participants.js";
 import type * as push from "../push.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   emojiMatch: typeof emojiMatch;
   games: typeof games;
   http: typeof http;
+  httpShared: typeof httpShared;
   messages: typeof messages;
   participants: typeof participants;
   push: typeof push;
