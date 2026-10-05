@@ -13,16 +13,20 @@ extension HostRoomViewModel {
     func pollEmojiBingoState() async {
         do {
             let game = try await api.getActiveEmojiBingo(roomId: roomId)
-            activeEmojiBingoGame = game
-            let needsFastPoll = game != nil &&
-                (game!.status == .active || game!.status == .won || game!.status == .lobby)
-            if needsFastPoll && emojiBingoPollTask == nil {
-                startEmojiBingoFastPoll()
-            } else if !needsFastPoll && emojiBingoPollTask != nil {
-                stopEmojiBingoFastPoll()
-            }
+            applyEmojiBingoState(game)
         } catch {
             DebugConsole.shared.trace(source: .network, action: "poll:emojiBingo:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    private func applyEmojiBingoState(_ game: EmojiBingoGame?) {
+        activeEmojiBingoGame = game
+        let needsFastPoll = game != nil &&
+            (game!.status == .active || game!.status == .won || game!.status == .lobby)
+        if needsFastPoll && emojiBingoPollTask == nil {
+            startEmojiBingoFastPoll()
+        } else if !needsFastPoll && emojiBingoPollTask != nil {
+            stopEmojiBingoFastPoll()
         }
     }
 

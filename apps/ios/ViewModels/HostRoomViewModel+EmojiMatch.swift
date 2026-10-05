@@ -40,21 +40,25 @@ extension HostRoomViewModel {
     func pollEmojiMatchState() async {
         do {
             let epoch = emojiMatchEpoch
-            // The board to show: the server's, except that one which may be missing a flip leaves face-up
-            // cards up, and one older than the screen's is not shown
-            let game = emojiMatchBoard(try await api.getActiveEmojiMatch(roomId: roomId), askedAt: epoch)
-            activeEmojiMatchGame = game
-
-            // Start or stop fast polling based on game state
-            let needsFastPoll = game != nil &&
-                (game!.status == .active || game!.status == .resolving || game!.status == .lobby)
-            if needsFastPoll && emojiMatchPollTask == nil {
-                startEmojiMatchFastPoll()
-            } else if !needsFastPoll && emojiMatchPollTask != nil {
-                stopEmojiMatchFastPoll()
-            }
+            applyEmojiMatchState(try await api.getActiveEmojiMatch(roomId: roomId), askedAt: epoch)
         } catch {
             DebugConsole.shared.trace(source: .network, action: "poll:emojiMatch:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    private func applyEmojiMatchState(_ server: EmojiMatchGame?, askedAt epoch: Int) {
+        // The board to show: the server's, except that one which may be missing a flip leaves face-up
+        // cards up, and one older than the screen's is not shown
+        let game = emojiMatchBoard(server, askedAt: epoch)
+        activeEmojiMatchGame = game
+
+        // Start or stop fast polling based on game state
+        let needsFastPoll = game != nil &&
+            (game!.status == .active || game!.status == .resolving || game!.status == .lobby)
+        if needsFastPoll && emojiMatchPollTask == nil {
+            startEmojiMatchFastPoll()
+        } else if !needsFastPoll && emojiMatchPollTask != nil {
+            stopEmojiMatchFastPoll()
         }
     }
 

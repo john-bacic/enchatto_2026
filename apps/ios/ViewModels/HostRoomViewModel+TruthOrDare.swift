@@ -7,27 +7,31 @@ extension HostRoomViewModel {
     func pollTruthOrDareState() async {
         do {
             let game = try await api.getActiveTruthOrDare(roomId: roomId)
-            activeTruthOrDareGame = game
-            let needsFastPoll = game != nil && game!.status == .active
-            if needsFastPoll && truthOrDarePollTask == nil {
-                startTruthOrDareFastPoll()
-            } else if !needsFastPoll && truthOrDarePollTask != nil {
-                stopTruthOrDareFastPoll()
-            }
-
-            // Auto-translate completed turn responses that lack a translation
-            if let turn = game?.currentTurn,
-               turn.status == .completed,
-               let text = turn.responseText,
-               !text.isEmpty,
-               text != "✅ Done!",
-               turn.translatedResponseText == nil {
-                Task {
-                    await translateTruthOrDareResponse(text: text, turnId: turn.id)
-                }
-            }
+            applyTruthOrDareState(game)
         } catch {
             DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    private func applyTruthOrDareState(_ game: TruthOrDareGame?) {
+        activeTruthOrDareGame = game
+        let needsFastPoll = game != nil && game!.status == .active
+        if needsFastPoll && truthOrDarePollTask == nil {
+            startTruthOrDareFastPoll()
+        } else if !needsFastPoll && truthOrDarePollTask != nil {
+            stopTruthOrDareFastPoll()
+        }
+
+        // Auto-translate completed turn responses that lack a translation
+        if let turn = game?.currentTurn,
+           turn.status == .completed,
+           let text = turn.responseText,
+           !text.isEmpty,
+           text != "✅ Done!",
+           turn.translatedResponseText == nil {
+            Task {
+                await translateTruthOrDareResponse(text: text, turnId: turn.id)
+            }
         }
     }
 
