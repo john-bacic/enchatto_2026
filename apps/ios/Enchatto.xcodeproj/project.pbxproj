@@ -13,12 +13,15 @@
 		186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */; };
 		1A6AADFD54D654F2A130E814 /* HostConversationView+Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE8A65E420080A4D962D1117 /* HostConversationView+Sheets.swift */; };
 		1ACE8467557F73FF17F0F58C /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8E05A49B6BA14F2CFC1285 /* Room.swift */; };
+		1C24176544FDA9D8A194257C /* HostRoomViewModel+Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB81AA41A28AEC5A7734BECE /* HostRoomViewModel+Room.swift */; };
 		1D92719769BB289CD81B2984 /* PromptGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996026AD576DE54C56501B21 /* PromptGenerator.swift */; };
+		200BCFBDBC03F2C0BD96DC31 /* HostRoomViewModel+MessagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA86F3B61BAAB4B8F25FC7C2 /* HostRoomViewModel+MessagePipeline.swift */; };
 		25F3865F32205B8D43036DBB /* HostConversationView+Presentations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED4D19D5BAB24799B0DD6A1 /* HostConversationView+Presentations.swift */; };
 		2B747B43BF9C68A7A5D35769 /* Effects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3956F8FAEFF1BA88C2B26547 /* Effects.swift */; };
 		2D8993B1B492AD800DD68A1E /* MessageContextMenuOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB6E85179788EB5ACBA564B /* MessageContextMenuOverlay.swift */; };
 		2FFF02A1B1C6FC49470444F6 /* TypingBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635DD1158B5BF0A030653324 /* TypingBubble.swift */; };
 		3014972D1B186998B00DFBFC /* WordRushResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE07E796E7A792BF49F5768 /* WordRushResultsView.swift */; };
+		308272F797C094BE0B51C846 /* HostRoomViewModel+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9E22737F11C2559A4DF261 /* HostRoomViewModel+Sync.swift */; };
 		350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */; };
 		368DFF4A3BC39705BB22763D /* HostConversationView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01FF0C1D7C150819904768EA /* HostConversationView+Header.swift */; };
 		376EEE56E4A888337A0C6F34 /* SystemMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */; };
@@ -40,6 +43,7 @@
 		5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */; };
 		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
 		62AE80F3A2CD3F95BCC78859 /* WordRushLobbyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1974F8E10FC018700C386 /* WordRushLobbyView.swift */; };
+		63AD8237908F065BB5486C1C /* HostRoomViewModel+Messages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0481D4AF64097ACC20059FA7 /* HostRoomViewModel+Messages.swift */; };
 		64DF9A8E52E5DF5AD5DCD6A5 /* Mecab-Swift in Frameworks */ = {isa = PBXBuildFile; productRef = 5AB41076CABAAB73BC39FC5F /* Mecab-Swift */; };
 		6558688F760440FCEE44468B /* ZenMaruGothic-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6DC5730648DA4940B23C1BDF /* ZenMaruGothic-Medium.ttf */; };
 		6A3AF186F02EE9FE0E0AB19E /* WordRushGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532136333239439C36B3487E /* WordRushGameView.swift */; };
@@ -88,6 +92,7 @@
 		DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9108C84B71431E861972 /* HostMessageRow.swift */; };
 		DF014C42CD7679839D745227 /* HostRoomViewModel+EmojiBingo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */; };
 		E2D67129E1C1D232B7BEE59F /* HostConversationView+MessageList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6773AC8E4BFE2AF15155D119 /* HostConversationView+MessageList.swift */; };
+		E582A5E2B95EACCCA54C192E /* HostRoomViewModel+SendQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9F6B3B23123E999C8550CB /* HostRoomViewModel+SendQueue.swift */; };
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
 		EACC18B87EAC260255161B57 /* EmojiBingoGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D3B3EB6CCEA32C352D4464 /* EmojiBingoGame.swift */; };
 		EBA523A4AFA8DE70996BAB3A /* WordRushVerdictView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C38074846A2F0BE26E5AA8 /* WordRushVerdictView.swift */; };
@@ -102,6 +107,7 @@
 /* Begin PBXFileReference section */
 		01FF0C1D7C150819904768EA /* HostConversationView+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Header.swift"; sourceTree = "<group>"; };
 		031BC9C91ADF7C16A5205203 /* ConversationHeaderParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationHeaderParts.swift; sourceTree = "<group>"; };
+		0481D4AF64097ACC20059FA7 /* HostRoomViewModel+Messages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+Messages.swift"; sourceTree = "<group>"; };
 		048A500F948FBFF3A696F580 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		048E186B7C0C18591A0D86D4 /* GameReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameReplayView.swift; sourceTree = "<group>"; };
 		049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+EmojiBingo.swift"; sourceTree = "<group>"; };
@@ -112,6 +118,7 @@
 		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
 		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
 		190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostQRCodeRoomView.swift; sourceTree = "<group>"; };
+		1B9E22737F11C2559A4DF261 /* HostRoomViewModel+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+Sync.swift"; sourceTree = "<group>"; };
 		1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTranslator.swift; sourceTree = "<group>"; };
 		1DC00ADF95392C392B69EB66 /* RomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RomajiService.swift; sourceTree = "<group>"; };
 		20FEB11E5FF91BEBD77A223B /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
@@ -172,6 +179,7 @@
 		D48B720FB7353CAAFD592E8E /* ZenMaruGothic-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ZenMaruGothic-Black.ttf"; sourceTree = "<group>"; };
 		D4FC9108C84B71431E861972 /* HostMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostMessageRow.swift; sourceTree = "<group>"; };
 		D84049D72180662ED722A668 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		DB81AA41A28AEC5A7734BECE /* HostRoomViewModel+Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+Room.swift"; sourceTree = "<group>"; };
 		DCF756E413CA17E5688861E0 /* IconPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPack.swift; sourceTree = "<group>"; };
 		DE8A65E420080A4D962D1117 /* HostConversationView+Sheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Sheets.swift"; sourceTree = "<group>"; };
 		E19A7168ABD0DB9C8276A0B3 /* HostRoomViewModel+TruthOrDare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+TruthOrDare.swift"; sourceTree = "<group>"; };
@@ -186,6 +194,8 @@
 		F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+WordRush.swift"; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageRow.swift; sourceTree = "<group>"; };
+		FA86F3B61BAAB4B8F25FC7C2 /* HostRoomViewModel+MessagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+MessagePipeline.swift"; sourceTree = "<group>"; };
+		FA9F6B3B23123E999C8550CB /* HostRoomViewModel+SendQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+SendQueue.swift"; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
 		FD28D1D718C250B9D6A4A8AF /* WordRushShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushShared.swift; sourceTree = "<group>"; };
 		FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageProcessor.swift; sourceTree = "<group>"; };
@@ -314,6 +324,11 @@
 				049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */,
 				F276BA0039A8F6CCD86D2EA1 /* HostRoomViewModel+EmojiMatch.swift */,
 				829AE038CC737105F9D60D99 /* HostRoomViewModel+LostInTranslation.swift */,
+				FA86F3B61BAAB4B8F25FC7C2 /* HostRoomViewModel+MessagePipeline.swift */,
+				0481D4AF64097ACC20059FA7 /* HostRoomViewModel+Messages.swift */,
+				DB81AA41A28AEC5A7734BECE /* HostRoomViewModel+Room.swift */,
+				FA9F6B3B23123E999C8550CB /* HostRoomViewModel+SendQueue.swift */,
+				1B9E22737F11C2559A4DF261 /* HostRoomViewModel+Sync.swift */,
 				E19A7168ABD0DB9C8276A0B3 /* HostRoomViewModel+TruthOrDare.swift */,
 				F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */,
 				56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */,
@@ -549,6 +564,11 @@
 				DF014C42CD7679839D745227 /* HostRoomViewModel+EmojiBingo.swift in Sources */,
 				D24475BE71F76DD4ECF769A3 /* HostRoomViewModel+EmojiMatch.swift in Sources */,
 				FC969E65AB4BD06E8B44615F /* HostRoomViewModel+LostInTranslation.swift in Sources */,
+				200BCFBDBC03F2C0BD96DC31 /* HostRoomViewModel+MessagePipeline.swift in Sources */,
+				63AD8237908F065BB5486C1C /* HostRoomViewModel+Messages.swift in Sources */,
+				1C24176544FDA9D8A194257C /* HostRoomViewModel+Room.swift in Sources */,
+				E582A5E2B95EACCCA54C192E /* HostRoomViewModel+SendQueue.swift in Sources */,
+				308272F797C094BE0B51C846 /* HostRoomViewModel+Sync.swift in Sources */,
 				0A194772BB37EEACBF7C9C1F /* HostRoomViewModel+TruthOrDare.swift in Sources */,
 				F2A9527EC09CFF76A632CAD0 /* HostRoomViewModel+WordRush.swift in Sources */,
 				8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */,
