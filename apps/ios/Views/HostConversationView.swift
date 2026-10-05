@@ -510,7 +510,8 @@ struct HostConversationView: View {
                         text: L.t("Enchatto", hostLanguage),
                         size: 22,
                         hopTrigger: logoHop,
-                        hot: vibeHot && viewModel.room?.status != .closed
+                        hot: vibeHot && viewModel.room?.status != .closed,
+                        hopOnTap: true
                     )
                     .onChange(of: latestDeliveredMessage?.id) { _ in
                         // Polls replace the whole list, so "new" means sent after this screen opened

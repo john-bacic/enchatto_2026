@@ -230,13 +230,17 @@ struct EnchattoLogo: View {
 
 /// Header-sized `EnchattoLogo` letters: same two-tone colors and alternating tilt, no burst.
 /// Still by default; each change of `hopTrigger` plays one hop wave, and `hot` keeps them hopping.
+/// With `hopOnTap` a tap on a letter plays one too, spreading from that letter to both sides.
 struct EnchattoWordmark: View {
     var text = "Enchatto"
     var size: CGFloat = 22
     var hopTrigger = 0
     var hot = false
+    var hopOnTap = false
 
     @State private var hopStart: Date?
+    /// Letter the wave in flight spreads from: the first for a message, the tapped one for a tap
+    @State private var hopOrigin = 0
 
     private let accents = logoAccents
     private static let period = 1.6
@@ -247,24 +251,45 @@ struct EnchattoWordmark: View {
         LoopClock(active: hot || hopStart != nil) { t in
             HStack(spacing: -size * 0.03) {
                 ForEach(letters.indices, id: \.self) { i in
-                    letter(i, String(letters[i]), phase: phase(of: i, t: t))
+                    let glyph = letter(i, String(letters[i]), phase: phase(of: i, t: t))
+                    if hopOnTap {
+                        glyph
+                            // The letter's own slot, wherever its hop draws it, and a fifth of its height above
+                            // and below. No wider: the next letter starts there, and a button follows the last
+                            .contentShape(Rectangle().scale(x: 1, y: 1.4))
+                            // The finger landing is the tap: a press of no length and not a tap gesture, so that
+                            // it neither waits for nor counts toward a triple tap the screen around it takes
+                            .onLongPressGesture(minimumDuration: 0) {
+                                Haptics.tap()
+                                startHop(from: i)
+                            }
+                    } else {
+                        glyph
+                    }
                 }
             }
         }
         .padding(.trailing, size * 0.12)
         .padding(.bottom, size * 0.14)
-        .onChange(of: hopTrigger) { _ in
-            // A wave already in flight absorbs back-to-back messages instead of restarting mid-hop
-            guard !hot, hopStart == nil else { return }
-            let start = Date()
-            hopStart = start
-            let length = Self.period * 0.55 + Self.stagger * Double(letters.count)
-            DispatchQueue.main.asyncAfter(deadline: .now() + length) {
-                if hopStart == start { hopStart = nil }
-            }
-        }
+        .onChange(of: hopTrigger) { _ in startHop(from: 0) }
+        // One element named by the word, also where its letters take a tap: the hop is a treat, not a control
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(text)
+    }
+
+    /// Plays one hop wave that starts at letter `origin` and reaches each other letter a stagger later per step
+    private func startHop(from origin: Int) {
+        // A wave already in flight absorbs back-to-back messages and taps instead of restarting mid-hop
+        guard !hot, hopStart == nil else { return }
+        let start = Date()
+        hopOrigin = origin
+        hopStart = start
+        // The clock runs until the letter farthest from the origin has landed
+        let farthest = max(origin, text.count - 1 - origin)
+        let length = Self.period * 0.55 + Self.stagger * Double(farthest + 1)
+        DispatchQueue.main.asyncAfter(deadline: .now() + length) {
+            if hopStart == start { hopStart = nil }
+        }
     }
 
     /// Seconds into the current hop for letter `i`, or nil while it rests
@@ -272,7 +297,7 @@ struct EnchattoWordmark: View {
         guard t > 0 else { return nil }
         if hot { return t + Double(i) * 0.18 }
         guard let hopStart else { return nil }
-        let elapsed = t - hopStart.timeIntervalSinceReferenceDate - Double(i) * Self.stagger
+        let elapsed = t - hopStart.timeIntervalSinceReferenceDate - Double(abs(i - hopOrigin)) * Self.stagger
         return elapsed >= 0 && elapsed < Self.period ? elapsed : nil
     }
 
