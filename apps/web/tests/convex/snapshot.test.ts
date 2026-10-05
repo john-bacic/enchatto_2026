@@ -587,6 +587,26 @@ const STATES: State[] = [
     },
     { room: { status: "closed" }, participants: [{}, {}, {}], ...NO_GAME },
   ],
+  [
+    // Closing a room ends none of its games: their routes go on answering with them, and so do their sections
+    "a closed room with its games still in it",
+    async () => {
+      const room = await openRoom();
+      await startLostInTranslation(room);
+      await emojiMatchStarted(room);
+      tick();
+      await room.t.mutation(api.rooms.closeRoom, { roomId: room.roomId, callerId: room.hostId, token: HOST });
+      return room;
+    },
+    {
+      room: { status: "closed" },
+      activeSession: { status: "active" },
+      gameStatus: { phase: "drawing" },
+      myActiveStep: { stepType: "draw" },
+      latestSession: { status: "active" },
+      emojiMatch: { status: "active" },
+    },
+  ],
 ];
 
 describe.each([undefined, "log", "enforce"])("with AUTH_MODE %j", (mode) => {
@@ -840,14 +860,16 @@ describe("a section whose query fails", () => {
     );
   });
 
-  test("two sections refused: both are named, in the order they are read", async () => {
+  test("three sections refused: each is named, in the order they are read", async () => {
     const room = await build();
     const ask = asHost(room);
-    const { reactions: _reactions, truthOrDare: _truthOrDare, ...rest } = await fromRoutes(room.t, ask);
-    failWith(getActiveTruthOrDare, REFUSAL);
+    const { reactions: _reactions, wordRush: _wordRush, emojiMatch: _emojiMatch, ...rest } = await fromRoutes(room.t, ask);
+    failWith(getActiveEmojiMatch, REFUSAL);
+    failWith(getWordRushState, REFUSAL);
     failWith(getRoomReactionSummaries, REFUSAL);
 
-    expect(await post(room.t, SNAPSHOT, ask)).toStrictEqual({ status: 200, body: { ...rest, errors: ["reactions", "truthOrDare"] } });
+    // Word Rush is read before Emoji Match: the order is the reading's, not the alphabet's
+    expect(await post(room.t, SNAPSHOT, ask)).toStrictEqual({ status: 200, body: { ...rest, errors: ["reactions", "wordRush", "emojiMatch"] } });
   });
 
   test("a refused section and one worth repeating: the request answers 503", async () => {
