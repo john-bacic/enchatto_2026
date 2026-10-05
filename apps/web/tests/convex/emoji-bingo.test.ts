@@ -1703,17 +1703,23 @@ describe("in a room with 300 chat messages since its last game", () => {
     expect((await summaries(t, roomId)).map((s) => s.data.gameType).sort()).toEqual(["Emoji Bingo", "Match Emoji"]);
   });
 
-  test("starting the game and writing its summary each read fewer than 40 documents", async () => {
+  test("starting the game and writing its summary each read no more than 8 documents, the room's four system messages among them", async () => {
     const { t, roomId, hostId, nextId } = await longChat();
     // The ceiling is in force on this backend: the chat itself cannot be read under it
     await expect(within(39, () => t.query(api.messages.getRoomMessages, { roomId }))).rejects.toThrow(
       /Scanned too many documents .*limit: 39\b/
     );
+    const messages = await t.query(api.messages.getRoomMessages, { roomId });
+    expect(messages.filter((m) => m.kind === "system")).toHaveLength(4);
 
-    await within(39, () => t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId }));
+    // Each ceiling is what the call reads. Here that is the four system messages and four other documents:
+    // the game, read and then written, the caller and the room
+    await within(8, () => t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId }));
     await fill(t, nextId, hostId, MIDDLE_ROW);
-    // In a game of one the first bingo ends the game, so this claim writes the summary
-    expect(await within(39, () => claim(t, nextId, hostId))).toEqual({ valid: true, placement: 1 });
+    // In a game of one the first bingo ends the game, so this claim writes the summary. It reads the four
+    // system messages and four other documents: the game, read and then written, the caller, and the summary
+    // message once more as it is written
+    expect(await within(8, () => claim(t, nextId, hostId))).toEqual({ valid: true, placement: 1 });
 
     expect(await startLines(t, roomId, "Emoji Bingo")).toHaveLength(1);
     const own = (await summaries(t, roomId)).filter((s) => s.data.gameType === "Emoji Bingo");

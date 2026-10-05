@@ -1572,18 +1572,23 @@ describe("in a room with 300 chat messages since its last game", () => {
     expect(summariesIn(lines).map((s) => s.gameType).sort()).toEqual(["Emoji Bingo", "Match Emoji"]);
   });
 
-  test("starting the game and writing its summary each read fewer than 40 documents", async () => {
+  test("starting the game reads no more than 9 documents and writing its summary no more than 8, the room's four system messages among them", async () => {
     const { t, roomId, hostId, nextId } = await longChat();
     // The ceiling is in force on this backend: the chat itself cannot be read under it
     await expect(within(39, () => t.query(api.messages.getRoomMessages, { roomId }))).rejects.toThrow(
       /Scanned too many documents .*limit: 39\b/
     );
+    expect(await chatLines(t, roomId)).toHaveLength(4);
 
-    await within(39, () => t.mutation(api.emojiMatch.startGame, { gameId: nextId, participantId: hostId }));
+    // Each ceiling is what the call reads. Here that is the four system messages and five other documents:
+    // the game, read and then written, the caller, the room and the player who opens
+    await within(9, () => t.mutation(api.emojiMatch.startGame, { gameId: nextId, participantId: hostId }));
     await takePairs(t, nextId, 7);
     const [[first, second]] = await openPairs(t, nextId);
     await flip(t, nextId, hostId, first);
-    expect(await within(39, () => flip(t, nextId, hostId, second))).toEqual({ action: "game_complete" });
+    // The four system messages and four other documents: the game, read and then written, the caller, and
+    // the summary message once more as it is written
+    expect(await within(8, () => flip(t, nextId, hostId, second))).toEqual({ action: "game_complete" });
 
     const lines = await chatLines(t, roomId);
     expect(lines.filter((line) => line === "game:Emoji Match")).toHaveLength(1);
