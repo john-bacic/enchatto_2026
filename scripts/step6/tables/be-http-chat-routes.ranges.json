@@ -1,0 +1,33 @@
+{
+  "about": "The room, participant and storage routes leave apps/web/convex/http.ts for httpRooms.ts, the message and reaction routes for httpMessages.ts. Each file wraps its routes, one level deeper and otherwise as they stand, in a function that registers them on the router it is handed; http.ts calls the two functions where the routes stood, so the registration order is the same. The import of `internal` goes with the message routes, the only ones left that use it. Run from the repo root. Where each line landed: node scripts/step6/web-move-check.mjs scripts/step6/tables/be-http-chat-routes.ranges.json --strict-indent. Every line counted once: node scripts/step6/line-account.mjs --base 6a3496ac9e4fba09d9e4abcdd6f637bb0be1f241 --old apps/web/convex/http.ts --allow scripts/step6/tables/be-http-chat-routes.json apps/web/convex/http.ts apps/web/convex/httpRooms.ts apps/web/convex/httpMessages.ts. The base is the commit before this move (pass --base to both if it has another name); both read the tree they are run in, so they hold at the commit that made this move. apps/convex/convex is the same files byte for byte: diff -r -x _generated -x tsconfig.json apps/web/convex apps/convex/convex.",
+  "base": "6a3496ac9e4fba09d9e4abcdd6f637bb0be1f241",
+  "ranges": [
+    { "from": "apps/web/convex/http.ts", "lines": [9, 137], "to": "apps/web/convex/httpRooms.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [3, 3], "to": "apps/web/convex/httpMessages.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [139, 359], "to": "apps/web/convex/httpMessages.ts" }
+  ],
+  "glue": {
+    "apps/web/convex/http.ts": [
+      "import { api } from \"./_generated/api\";",
+      "import { registerRoomRoutes } from \"./httpRooms\";",
+      "import { registerMessageRoutes } from \"./httpMessages\";",
+      "registerRoomRoutes(http);",
+      "registerMessageRoutes(http);"
+    ],
+    "apps/web/convex/httpRooms.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { api } from \"./_generated/api\";",
+      "import { jsonAction } from \"./httpShared\";",
+      "export function registerRoomRoutes(http: HttpRouter): void {",
+      "}"
+    ],
+    "apps/web/convex/httpMessages.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { httpAction } from \"./_generated/server\";",
+      "import { Id } from \"./_generated/dataModel\";",
+      "import { checkDrawingBodySize, corsHeaders, decodeDrawing, jsonAction } from \"./httpShared\";",
+      "export function registerMessageRoutes(http: HttpRouter): void {",
+      "}"
+    ]
+  }
+}

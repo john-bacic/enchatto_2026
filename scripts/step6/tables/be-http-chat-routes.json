@@ -1,0 +1,17 @@
+{
+  "added": [
+    { "line": "import { HttpRouter } from \"convex/server\";", "count": 2 },
+    { "line": "import { api } from \"./_generated/api\";", "count": 2 },
+    "import { httpAction } from \"./_generated/server\";",
+    "import { Id } from \"./_generated/dataModel\";",
+    "import { jsonAction } from \"./httpShared\";",
+    "import { checkDrawingBodySize, corsHeaders, decodeDrawing, jsonAction } from \"./httpShared\";",
+    "import { registerRoomRoutes } from \"./httpRooms\";",
+    "import { registerMessageRoutes } from \"./httpMessages\";",
+    "export function registerRoomRoutes(http: HttpRouter): void {",
+    "export function registerMessageRoutes(http: HttpRouter): void {",
+    { "line": "}", "count": 2 },
+    "registerRoomRoutes(http);",
+    "registerMessageRoutes(http);"
+  ]
+}
