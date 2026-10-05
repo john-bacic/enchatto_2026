@@ -10,8 +10,13 @@
 // report, and rounded up by less than one percent where it is a size (the room's own answer by more, as
 // its row says). A change that makes a poll cheaper lowers the ceilings it has earned, in the same commit.
 //
+// /api/rooms/snapshot answers in one request what a refresh asks for in all of its requests but the replay.
+// No build calls it yet. It is measured beside them at each moment: its answer against theirs put together,
+// and what it reads against what they read.
+//
 // The last describe is a chat long enough to meet one of the limits Convex puts on a single function.
 import { convexTest } from "convex-test";
+import { TransactionMetricsTracker } from "convex-test/dist/transactionMetrics.js";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -110,6 +115,28 @@ async function within<T>(ceilings: Partial<Reads>, call: () => Promise<T>): Prom
     delete limits.documentsRead;
     delete limits.databaseQueries;
     delete limits.bytesRead;
+  }
+}
+
+/**
+ * What `call` reads, added up over every function it runs. A ceiling holds one function call, and a route
+ * that runs several queries is as many calls, so a sum is taken where convex-test does its own counting:
+ * its tracker is told of every document and every index range a function reads. The second test below
+ * fails if it stops being told, or counts differently from the ceilings.
+ */
+async function reads(call: () => Promise<unknown>): Promise<Reads> {
+  const documents = vi.spyOn(TransactionMetricsTracker.prototype, "trackRead");
+  const ranges = vi.spyOn(TransactionMetricsTracker.prototype, "trackIndexRange");
+  try {
+    await call();
+    return {
+      documentsRead: documents.mock.calls.length,
+      databaseQueries: ranges.mock.calls.length,
+      bytesRead: documents.mock.calls.reduce((sum, [bytes]) => sum + bytes, 0),
+    };
+  } finally {
+    documents.mockRestore();
+    ranges.mockRestore();
   }
 }
 
@@ -307,12 +334,16 @@ async function roomInASecondGame(): Promise<Room> {
 
 // ─── The poll ────────────────────────────────────────────────────────────────
 
+/** The one request of a refresh that the snapshot does not stand for: the app goes on asking for it by itself */
+const REPLAY = "/api/games/replay";
+
 /**
  * The requests of one HostRoomViewModel.refresh(), in its order and on its conditions: the game's status
  * only while a game is running, the replay only once the latest game is complete. The answer to "nothing
- * here" is {"ok":true}. Gives the bytes of each answer by its path.
+ * here" is {"ok":true}. Gives the bytes of each answer by its path. `replay: false` leaves the replay
+ * out: what is left is what a snapshot stands for.
  */
-async function refresh(room: Room): Promise<Map<string, number>> {
+async function refresh(room: Room, options: { replay?: boolean } = {}): Promise<Map<string, number>> {
   const sizes = new Map<string, number>();
   const ask = async (path: string, body: Record<string, unknown>) => {
     const answer = await post(room, path, body);
@@ -328,7 +359,7 @@ async function refresh(room: Room): Promise<Map<string, number>> {
   if (active._id) await ask("/api/games/status", { roomId });
   await ask("/api/games/my-active-step", { participantId: room.hostId });
   const latest = await ask("/api/games/latest-session", { roomId });
-  if (latest.status === "complete") await ask("/api/games/replay", { gameSessionId: latest._id });
+  if (latest.status === "complete" && options.replay !== false) await ask(REPLAY, { gameSessionId: latest._id });
   await ask("/api/word-rush/state", { roomId });
   await ask("/api/emoji-match/active", { roomId });
   await ask("/api/emoji-bingo/active", { roomId });
@@ -348,6 +379,26 @@ async function pendingPoll(room: Room) {
 
 function total(sizes: Map<string, number>): number {
   return [...sizes.values()].reduce((sum, bytes) => sum + bytes, 0);
+}
+
+/**
+ * What the snapshot's answer spends on saying which section is which: a section goes out under its name,
+ * which a route's answer does not carry. 153 bytes in all, `v` and `errors` included, once the names the
+ * room and Word Rush routes send of their own are taken off.
+ */
+const NAMES = 153;
+
+/**
+ * The snapshot, asked as the host app would ask it: for the room, and for the host's own step. `extra` is
+ * how many bytes longer its answer is than the answers it stands for put together (`sizes`, less the
+ * replay): NAMES, less 7 for every {"ok":true} of a route that the snapshot says as null, and 4 more for
+ * the null it sends as the status when no game is running, where a refresh sends no request at all.
+ */
+async function snapshot(room: Room, sizes: Map<string, number>) {
+  const answer = await post(room, "/api/rooms/snapshot", { roomId: room.roomId, participantId: room.hostId });
+  expect(answer.status).toBe(200);
+  expect(answer.body.errors).toEqual([]);
+  return { ...answer, extra: answer.bytes - (total(sizes) - (sizes.get(REPLAY) ?? 0)) };
 }
 
 /** A request of the refresh and the most bytes its answer may have */
@@ -370,6 +421,15 @@ describe("an idle room: four people, 300 chat messages, 38 reactions on 25 of th
     expect((await within({ documentsRead: 5, databaseQueries: 2 }, state))?.participants).toHaveLength(4);
     expect(limits).toEqual({});
     expect((await state())?.participants).toHaveLength(4);
+  });
+
+  test("what a call reads is counted as its ceilings count it", async () => {
+    const state = () => room.t.query(api.rooms.getRoomState, { roomId: room.roomId });
+    const read = await reads(state);
+    expect(read).toMatchObject({ documentsRead: 5, databaseQueries: 2 });
+    // To the byte: the call stays within what was counted, and not within one byte less
+    expect((await within(read, state))?.participants).toHaveLength(4);
+    await expect(within({ bytesRead: read.bytesRead - 1 }, state)).rejects.toThrow(/Read too much data/);
   });
 
   const REFRESH: Ceiling[] = [
@@ -398,6 +458,23 @@ describe("an idle room: four people, 300 chat messages, 38 reactions on 25 of th
     expect([...sizes.keys()]).toEqual(REFRESH.map(([path]) => path));
     // What an idle room sends its host every 2 seconds
     expect(total(sizes)).toBeLessThanOrEqual(147_000);
+  });
+
+  test("the snapshot is those ten answers in one, at most 147,000 bytes", async () => {
+    const answer = await snapshot(room, sizes);
+    expect(answer.bytes).toBeLessThanOrEqual(147_000);
+    // The names, the status as null, and null for six of the seven answers with nothing to report
+    expect(answer.extra).toBe(NAMES + 4 - 6 * 7);
+  });
+
+  test("the snapshot reads what the ten requests read between them", async () => {
+    const apart = await reads(() => refresh(room));
+    const together = await reads(() => snapshot(room, sizes));
+    // The same queries, each run once
+    expect(together).toEqual(apart);
+    // Nearly all of it is the chat read twice: for the messages, and again to look for each one's reactions
+    expect(together).toMatchObject({ documentsRead: 650, databaseQueries: 323 });
+    expect(together.bytesRead).toBeLessThanOrEqual(262_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -471,6 +548,23 @@ describe("the same room after a finished game of Lost in Translation", () => {
     expect([...sizes.keys()]).toEqual(REFRESH.map(([path]) => path));
     // Sent every 2 seconds for as long as the finished game is the room's latest
     expect(total(sizes)).toBeLessThanOrEqual(4_525_000);
+  });
+
+  test("the snapshot is those answers in one but for the replay, at most 1,025,000 bytes", async () => {
+    const answer = await snapshot(room, sizes);
+    // The chat with the game's ten drawings in it. The replay is not part of a snapshot
+    expect(answer.bytes).toBeLessThanOrEqual(1_025_000);
+    // As in the idle room, but the latest session is there to send
+    expect(answer.extra).toBe(NAMES + 4 - 5 * 7);
+  });
+
+  test("the snapshot reads what the ten requests it stands for read between them", async () => {
+    const apart = await reads(() => refresh(room, { replay: false }));
+    const together = await reads(() => snapshot(room, sizes));
+    expect(together).toEqual(apart);
+    expect(together).toMatchObject({ documentsRead: 675, databaseQueries: 335 });
+    // The ten drawings twice over: in the messages, and again on the way to the reactions
+    expect(together.bytesRead).toBeLessThanOrEqual(2_010_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -562,6 +656,23 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
     expect(total(sizes)).toBeLessThanOrEqual(1_613_000);
   });
 
+  test("the snapshot is those eleven answers in one, at most 1,613,000 bytes", async () => {
+    const answer = await snapshot(room, sizes);
+    expect(answer.bytes).toBeLessThanOrEqual(1_613_000);
+    // The names, and null for the three games that are not being played
+    expect(answer.extra).toBe(NAMES - 3 * 7);
+  });
+
+  test("the snapshot reads what the eleven requests read between them", async () => {
+    const apart = await reads(() => refresh(room));
+    const together = await reads(() => snapshot(room, sizes));
+    expect(together).toEqual(apart);
+    expect(together).toMatchObject({ documentsRead: 757, databaseQueries: 352 });
+    // The chat with its sixteen drawings twice over, and every step of the running game twice as well: for
+    // the host's step, and again for the status
+    expect(together.bytesRead).toBeLessThanOrEqual(7_800_000);
+  });
+
   test("the pending loop's request answers [] and reads no message", async () => {
     expect(await pendingPoll(room)).toEqual({ status: 200, bytes: 2, body: [] });
   });
@@ -611,10 +722,17 @@ describe("a long chat, on a backend with Convex's own limits", { shuffle: false 
     return await post(room, path, { roomId: room.roomId });
   }
 
+  /** The snapshot, asked as the host app would ask it */
+  async function askSnapshot() {
+    return await post(room, "/api/rooms/snapshot", { roomId: room.roomId, participantId: room.hostId });
+  }
+
   test("at 4,000 chat messages the room, its messages and its reaction summaries are answered", async () => {
     expect((await ask("/api/rooms/state")).status).toBe(200);
     expect((await ask("/api/messages/list")).status).toBe(200);
     expect((await ask("/api/reactions/room-summaries")).status).toBe(200);
+    // And the snapshot, whole
+    expect(await askSnapshot()).toMatchObject({ status: 200, body: { messages: { length: 4_003 }, reactions: [], errors: [] } });
   });
 
   describe("at 4,100 chat messages", () => {
@@ -640,6 +758,20 @@ describe("a long chat, on a backend with Convex's own limits", { shuffle: false 
     // through an index of their own.
     test.fails("the reaction summaries are answered", async () => {
       expect((await ask("/api/reactions/room-summaries")).status).toBe(200);
+    });
+
+    // The snapshot runs the same query and is refused the same summaries, but it does not let them take the
+    // room with them: the request is answered, with the summaries left out and named, so a host app that
+    // refreshes from it goes on following the room and only its reactions stand still. The limit is not a
+    // failure worth repeating, which would be a 503 for the whole request: asked again, it is met again.
+    test("the snapshot is answered with the room and its messages, and names the reaction summaries as refused", async () => {
+      const answer = await askSnapshot();
+      expect(answer.status).toBe(200);
+      expect(answer.body.errors).toEqual(["reactions"]);
+      expect(answer.body).not.toHaveProperty("reactions");
+      expect(answer.body.room._id).toBe(room.roomId);
+      expect(answer.body.participants).toHaveLength(4);
+      expect(answer.body.messages).toHaveLength(4_103);
     });
   });
 });

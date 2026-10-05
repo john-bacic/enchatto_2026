@@ -77,6 +77,7 @@ const ROUTES = [
   "POST /api/rooms/close",
   "POST /api/rooms/create",
   "POST /api/rooms/push-token",
+  "POST /api/rooms/snapshot",
   "POST /api/rooms/state",
   "POST /api/storage/generate-upload-url",
   "POST /api/truth-or-dare/ack-round-break",

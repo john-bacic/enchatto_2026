@@ -7,6 +7,15 @@ export const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+/**
+ * Whether a failure with this message is worth repeating: a Convex write conflict (OCC), an overloaded
+ * backend, or a refused rate limit (takeRateLimit in participants.ts). jsonAction answers such a failure 503
+ * and any other 400. The room snapshot (httpRooms.ts) asks the same question of each of its sections.
+ */
+export function isTransient(message: string): boolean {
+  return message.includes("OCC") || message.includes("overloaded") || message.includes("rate limit");
+}
+
 // Helper: parse JSON body and call a mutation/query. ctx is typed so the compiler checks the
 // argument names each route passes: Convex refuses a call that carries an argument its function does not declare
 export function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {
@@ -25,9 +34,8 @@ export function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>)
       const message = e?.message ?? String(e);
       // Convex OCC / transient errors surface as system errors — return 503
       // so the iOS client can distinguish retryable from permanent failures.
-      const isTransient = message.includes("OCC") || message.includes("overloaded") || message.includes("rate limit");
       return new Response(JSON.stringify({ error: message }), {
-        status: isTransient ? 503 : 400,
+        status: isTransient(message) ? 503 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
