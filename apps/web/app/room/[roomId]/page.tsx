@@ -5,8 +5,6 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { ParticipantList } from "@/components/participant-list";
-import { VibeInfo } from "@/components/vibe-info";
 import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
 import { GamePickerModal } from "@/components/game-picker-modal";
@@ -16,20 +14,21 @@ import { GameStatusBar } from "@/components/game-status-bar";
 import { EmojiMatchGame } from "@/components/emoji-match-game";
 import { TruthOrDareGame } from "@/components/truth-or-dare-game";
 import { EmojiBingoGame } from "@/components/emoji-bingo-game";
-import { TodDebugPanel } from "@/components/tod-debug-panel";
 import { WordRushGame } from "@/components/word-rush-game";
-import { LoadingState } from "@/components/room/center-states";
+import { JoinRequired, LoadingState, RoomNotFound } from "@/components/room/center-states";
 import { MessageErrorBoundary } from "@/components/room/message-error-boundary";
-import { AvatarDisc } from "@/components/ui/avatar";
-import { Chatto } from "@/components/ui/chatto";
-import { Icon, LangBadge } from "@/components/ui/icon";
-import { Wordmark } from "@/components/ui/logo";
-import { Bunting, Confetti, CutIn, Rays, RoomBackground } from "@/components/ui/effects";
-import { avatarIconSrc, avatarTint, getAvatarById } from "@/lib/types";
+import { RoomHeader } from "@/components/room/room-header";
+import { OfflineBanner } from "@/components/room/offline-banner";
+import { HypeLayer } from "@/components/room/hype-layer";
+import { DisplaySettingsSheet } from "@/components/room/display-settings-sheet";
+import { LeaveConfirm } from "@/components/room/leave-confirm";
+import { JoinCutIn } from "@/components/room/join-cut-in";
+import { Icon } from "@/components/ui/icon";
+import { RoomBackground } from "@/components/ui/effects";
+import { avatarTint } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { teamInSession } from "@/lib/game-teams";
-import { HYPE_AT, formatVibe } from "@/lib/vibe";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePresence } from "@/hooks/use-presence";
@@ -191,19 +190,7 @@ function RoomContent() {
 
   // Room not found
   if (roomState === null) {
-    return (
-      <>
-        <RoomBackground />
-        <div className="ec-center-state">
-          <Chatto size={110} bob={false} wave={false} shadow />
-          <h1>{t("Room not found", lang)}</h1>
-          <p>{t("This room may have been closed.", lang)}</p>
-          <a href="/" className="ec-btn white sm" style={{ width: "auto", padding: "0 22px", textDecoration: "none" }}>
-            {t("Back home", lang)}
-          </a>
-        </div>
-      </>
-    );
+    return <RoomNotFound lang={lang} />;
   }
 
   const background = <RoomBackground texture={textureForRoom(roomState.room)} />;
@@ -211,19 +198,7 @@ function RoomContent() {
   // No participant ID — user needs to join first
   if (!participantId) {
     const joinCode = roomState.room.joinCode;
-    return (
-      <>
-        {background}
-        <div className="ec-center-state">
-          <Chatto size={110} shadow />
-          <h1>{t("Join Required", lang)}</h1>
-          <p>{t("You need to join this room first.", lang)}</p>
-          <a href={`/join/${joinCode}`} className="ec-btn pink" style={{ width: "auto", padding: "0 28px", textDecoration: "none" }}>
-            {t("Join Room", lang)}
-          </a>
-        </div>
-      </>
-    );
+    return <JoinRequired background={background} lang={lang} joinCode={joinCode} />;
   }
 
   const isClosed = roomState.room.status === "closed";
@@ -243,82 +218,11 @@ function RoomContent() {
       {background}
 
       {/* Header */}
-      <header className="ec-chat-head">
-        {me && (
-          <button
-            onClick={() => setShowDisplaySettings(true)}
-            aria-label={t("Display settings", lang)}
-            style={{ flex: "none", padding: 0, border: 0, background: "none", cursor: "pointer", borderRadius: "50%" }}
-          >
-            <AvatarDisc id={me.avatar.value} size={40} />
-          </button>
-        )}
-        <div className="ec-chat-title">
-          <h1>
-            <Wordmark text={t("Enchatto", lang)} size={22} hopKey={logoHop} hot={hype && !isClosed} />
-          </h1>
-          {isClosed ? (
-            <span style={{ color: "var(--red)", opacity: 1 }}>{t("Room closed", lang)}</span>
-          ) : (
-            <span>
-              <i className="ec-online-dot" />
-              {onlineCount} {t("online", lang)}{awayCount > 0 ? `, ${awayCount} ${t("away", lang)}` : ""}
-            </span>
-          )}
-        </div>
-        <button
-          ref={vibeRef}
-          type="button"
-          className={`ec-vibe${hype ? " hot" : ""}`}
-          onClick={() => setShowVibeInfo((v) => !v)}
-          aria-expanded={showVibeInfo}
-          aria-label={`VIBE ${vibe}`}
-        >
-          <small>VIBE</small>
-          <b key={vibe}>{formatVibe(vibe)}</b>
-        </button>
-        {showVibeInfo && (
-          <VibeInfo
-            vibe={formatVibe(vibe)}
-            score={vibe}
-            hypeAt={HYPE_AT}
-            messageCount={recentCount}
-            switches={switches}
-            mult={mult}
-            hype={hype}
-            lang={lang}
-            anchorRef={vibeRef}
-            onClose={closeVibeInfo}
-          />
-        )}
-        <ParticipantList
-          participants={participants}
-          currentParticipantId={participantId}
-          roomCode={roomState.room.joinCode}
-          onLeave={() => setShowLeaveConfirm(true)}
-          lang={lang}
-        />
-      </header>
+      <RoomHeader me={me} setShowDisplaySettings={setShowDisplaySettings} lang={lang} logoHop={logoHop} hype={hype} isClosed={isClosed} onlineCount={onlineCount} awayCount={awayCount} vibeRef={vibeRef} setShowVibeInfo={setShowVibeInfo} showVibeInfo={showVibeInfo} vibe={vibe} recentCount={recentCount} switches={switches} mult={mult} closeVibeInfo={closeVibeInfo} participants={participants} participantId={participantId} roomState={roomState} setShowLeaveConfirm={setShowLeaveConfirm} />
 
       {/* Offline banner */}
       {!isOnline && (
-        <div className="ec-banner red">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="1" y1="1" x2="23" y2="23" />
-            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
-            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
-            <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
-            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
-            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-            <line x1="12" y1="20" x2="12.01" y2="20" />
-          </svg>
-          <span>{t("You're offline", lang)}</span>
-          {offlineQueue.length > 0 && (
-            <span className="ec-chip" style={{ padding: "1px 8px", fontSize: 11 }}>
-              {offlineQueue.length} {t("queued", lang)}
-            </span>
-          )}
-        </div>
+        <OfflineBanner lang={lang} offlineQueue={offlineQueue} />
       )}
 
       {/* Game status bar */}
@@ -326,25 +230,7 @@ function RoomContent() {
 
       {/* Messages + hype layers */}
       <div className="ec-stage">
-        {hype && (
-          <div className="ec-hype-layer">
-            <Rays rainbow />
-            <div className="ec-crowd">
-              {crowd.map((p, i) => (
-                <img key={p._id} src={avatarIconSrc(p.avatar.value)} alt="" style={{ animationDelay: `${(i % 3) * 0.15}s` }} />
-              ))}
-            </div>
-          </div>
-        )}
-        {hype && <Bunting top={0} />}
-        {combo >= 3 && (
-          <div key={combo} className="ec-combo" aria-live="polite">
-            <b>×{combo}</b>
-            <small>{t("BACK & FORTH!", lang)}</small>
-            <em>VIBE ×{mult.toFixed(2)}</em>
-            <i style={{ width: `calc((100% - 12px) * ${Math.min(combo, 20) / 20})` }} />
-          </div>
-        )}
+        <HypeLayer hype={hype} crowd={crowd} combo={combo} lang={lang} mult={mult} />
 
         <MessageErrorBoundary lang={lang}>
           <MessageList
@@ -415,82 +301,7 @@ function RoomContent() {
 
       {/* Language display settings sheet */}
       {showDisplaySettings && (
-        <div className="ec-sheet-backdrop" style={{ zIndex: 100 }} onClick={() => setShowDisplaySettings(false)}>
-          <div className="ec-sheet" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
-            <div className="ec-sheet-grip" />
-            <div className="ec-sheet-head">
-              {me && <AvatarDisc id={me.avatar.value} size={40} />}
-              <h2 style={{ minWidth: 0, overflowWrap: "anywhere" }}>
-                {t("Display for", lang)} {me?.nickname ?? ""}
-              </h2>
-              <button className="ec-round-btn" onClick={() => setShowDisplaySettings(false)} aria-label={t("Close", lang)}>
-                ✕
-              </button>
-            </div>
-            <div className="ec-sheet-body">
-              <div>
-                {([
-                  { key: "en", label: t("English", lang), value: showEnglish, toggle: () => toggleDisplay("showEnglish") },
-                  { key: "ja", label: t("Japanese", lang), value: showJapanese, toggle: () => toggleDisplay("showJapanese") },
-                  { key: "romaji", label: t("Romaji", lang), value: showRomaji, toggle: () => toggleDisplay("showRomaji") },
-                ] as const).map((item) => (
-                  <label key={item.key} className="ec-toggle-row">
-                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {item.key === "romaji" ? (
-                        <span className="ec-lang-badge" style={{ width: 26, height: 26, fontSize: 12, background: "var(--pink-soft)" }}>Ro</span>
-                      ) : (
-                        <LangBadge lang={item.key} />
-                      )}
-                      {item.label}
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={item.value}
-                      onChange={item.toggle}
-                      style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
-                    />
-                    <span className={`ec-switch${item.value ? " on" : ""}`} aria-hidden />
-                  </label>
-                ))}
-                <div className="ec-toggle-row" style={{ cursor: "default" }}>
-                  <span>{t("Chat text size", lang)}</span>
-                  <div className="ec-size-picker" role="radiogroup" aria-label={t("Chat text size", lang)}>
-                    {CHAT_SIZES.map((s) => (
-                      <button
-                        key={s.key}
-                        role="radio"
-                        aria-checked={chatSize === s.key}
-                        aria-label={t(s.key === "s" ? "Small" : s.key === "m" ? "Medium" : "Large", lang)}
-                        className={chatSize === s.key ? "on" : undefined}
-                        style={{ fontSize: s.glyph }}
-                        onClick={() => pickChatSize(s.key)}
-                      >
-                        A
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                <button className="ec-btn red sm" style={{ flex: 1 }} onClick={() => { setShowDisplaySettings(false); setShowLeaveConfirm(true); }}>
-                  {t("Leave room", lang)}
-                </button>
-                <button className="ec-btn sm" style={{ flex: 1 }} onClick={() => setShowDisplaySettings(false)}>
-                  {t("Done", lang)}
-                </button>
-              </div>
-              <p className="ec-version" style={{ marginTop: 14 }}>
-                {convexUrl.replace("https://", "").replace(".convex.cloud", "")} · web v0.1.0
-                {process.env.NEXT_PUBLIC_GIT_SHA && process.env.NEXT_PUBLIC_GIT_SHA !== "dev" ? (<><br />github: {process.env.NEXT_PUBLIC_GIT_SHA}</>) : null}
-                {process.env.NEXT_PUBLIC_VERCEL_URL ? (<><br />vercel: {process.env.NEXT_PUBLIC_VERCEL_URL}</>) : null}
-              </p>
-              {/* Game debug panel */}
-              <div style={{ marginTop: 12, borderTop: "2.5px dashed var(--line-soft)", paddingTop: 12 }}>
-                <TodDebugPanel roomId={roomId} embedded />
-              </div>
-            </div>
-          </div>
-        </div>
+        <DisplaySettingsSheet setShowDisplaySettings={setShowDisplaySettings} me={me} lang={lang} showEnglish={showEnglish} toggleDisplay={toggleDisplay} showJapanese={showJapanese} showRomaji={showRomaji} chatSize={chatSize} pickChatSize={pickChatSize} setShowLeaveConfirm={setShowLeaveConfirm} convexUrl={convexUrl} roomId={roomId} />
       )}
 
       {/* Word Rush (lobby, game and results manage their own visibility) */}
@@ -670,38 +481,10 @@ function RoomContent() {
 
       {/* Leave confirmation */}
       {showLeaveConfirm && (
-        <div className="ec-modal-backdrop" style={{ zIndex: 210 }} onClick={() => setShowLeaveConfirm(false)}>
-          <div className="ec-card ec-modal" onClick={(e) => e.stopPropagation()}>
-            <Chatto size={84} bob={false} wave={false} style={{ margin: "0 auto 8px" }} />
-            <h2 className="ec-chunky" style={{ fontSize: 22, marginBottom: 6 }}>
-              {t("Leave room?", lang)}
-            </h2>
-            <p style={{ fontSize: 13, opacity: 0.7, marginBottom: 18 }}>
-              {t("You can rejoin later with the same room code.", lang)}
-            </p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="ec-btn white sm" style={{ flex: 1 }} onClick={() => setShowLeaveConfirm(false)}>
-                {t("Stay", lang)}
-              </button>
-              <button className="ec-btn red sm" style={{ flex: 1 }} onClick={handleLeave}>
-                {t("Leave", lang)}
-              </button>
-            </div>
-          </div>
-        </div>
+        <LeaveConfirm setShowLeaveConfirm={setShowLeaveConfirm} lang={lang} handleLeave={handleLeave} />
       )}
 
-      {cutIn && (
-        <CutIn burstKey={cutIn.key}>
-          {cutIn.avatar && (
-            <span className="ec-cutin-av" style={{ background: getAvatarById(cutIn.avatar).color }}>
-              <img src={avatarIconSrc(cutIn.avatar)} alt="" />
-            </span>
-          )}
-          {lang === "ja" ? t("{name} JOINED!", lang).replace("{name}", cutIn.name) : t("{name} JOINED!", lang).replace("{name}", cutIn.name).toUpperCase()}
-        </CutIn>
-      )}
-      {confettiKey && <Confetti burstKey={confettiKey} count={50} />}
+      <JoinCutIn cutIn={cutIn} lang={lang} confettiKey={confettiKey} />
     </div>
   );
 }
