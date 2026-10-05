@@ -103,11 +103,6 @@ class HostRoomViewModel: ObservableObject {
     private var deliveredIds = Set<String>()
     private var cancellables = Set<AnyCancellable>()
 
-    /// Messages waiting to go out. One the server refused is not waiting: it says so on its bubble
-    var pendingQueueCount: Int { offlineQueue.filter(\.isWaiting).count }
-    /// A waiting message has already failed once: sending is held up although the phone reports a connection
-    var isSendDelayed: Bool { offlineQueue.contains { $0.isWaiting && $0.attempts > 0 } }
-
     /// Incremented when a text message is going to wait in the queue (offline, or a send failed
     /// and will be retried), so the OfflineTranslator view can call `invalidate()` on its configs.
     @Published var offlineQueueVersion = 0
@@ -171,6 +166,71 @@ class HostRoomViewModel: ObservableObject {
     /// Last poll failure written to the debug console, so one that repeats is logged once
     private var lastPollFailureLogged: String?
 
+    private var pushRegistered = false
+
+    /// Sends the background the host picked in Settings, and then whatever the host has picked meanwhile
+    private var backgroundTask: Task<Void, Never>?
+    /// Goes up when a background is sent and again when the request is answered or fails. A state asked for
+    /// before either may be from before the server took the change
+    private var backgroundEpoch = 0
+
+    /// Language picked on this device. The server's copy sets the host's Word Rush direction, the language of
+    /// Lost in Translation prompts and of the join push, and the badge guests see.
+    private var hostLanguage = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
+    private var hostLanguageTask: Task<Void, Never>?
+    /// Earliest next send: never again after a server that refused (one without the route), 30 s after any other failure
+    private var hostLanguageRetryAfter = Date.distantPast
+
+    /// The refresh the last `commitGuess` started: the one that moves `myActiveStep` on from that guess
+    private(set) var guessRefresh: Task<Void, Never>?
+
+    /// A guess the host has sent whose Correct! / Wrong! has yet to be seen. The server closes a guess step as it
+    /// takes the guess, so the next poll finds no step, or the host's next drawing; the game cover goes on showing
+    /// this one. Presentation only: `myActiveStep` and the polls are what they are without it
+    @Published private(set) var heldGuessStep: GameStep?
+    /// Ends the hold when nothing else has: every hold has a deadline
+    private var guessHoldTimer: Task<Void, Never>?
+    /// The guess is on its way and its reply is not in yet
+    private var guessHoldAwaitsReply = false
+
+    // MARK: - Helpers
+
+    func participant(for id: String) -> Participant? {
+        participants.first { $0.id == id }
+    }
+
+    var onlineCount: Int {
+        participants.filter { $0.online && !$0.isAway }.count
+    }
+
+    var awayCount: Int {
+        participants.filter(\.isAway).count
+    }
+
+    var guestParticipants: [Participant] {
+        participants.filter { $0.role != .host }
+    }
+
+    var isClosed: Bool {
+        room?.status == .closed
+    }
+
+    var isProcessing: Bool {
+        processingCount > 0
+    }
+
+    /// Participants (other than host) who are currently typing or drawing
+    var typingParticipants: [Participant] {
+        participants.filter { $0.id != hostId && $0.typingAction != nil }
+    }
+
+    private var lastTypingAction: String?
+
+}
+
+// MARK: - Sync
+
+extension HostRoomViewModel {
     /// 2 s normally and after one failure, then 4, 8 and 10 s
     private var pollDelayNanoseconds: UInt64 {
         let doublings = min(max(consecutivePollFailures - 1, 0), 3)
@@ -216,8 +276,6 @@ class HostRoomViewModel: ObservableObject {
     }
 
     // MARK: - Observation
-
-    private var pushRegistered = false
 
     private func registerForPushIfNeeded() {
         guard !pushRegistered else { return }
@@ -421,7 +479,136 @@ class HostRoomViewModel: ObservableObject {
             isLoading = false
         }
     }
+}
 
+// MARK: - Room
+
+extension HostRoomViewModel {
+    func closeRoom() async {
+        do {
+            try await api.closeRoom(roomId: roomId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func kickParticipant(_ participantId: String) async {
+        do {
+            try await api.kickParticipant(participantId: participantId, roomId: roomId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    // MARK: - Background
+
+    /// Index into RoomTexture.all the room is drawn on; nil until the room's state is here
+    var textureIndex: Int? { Self.textureIndex(of: room) }
+
+    private static func textureIndex(of room: Room?) -> Int? {
+        room.map { RoomTexture.index(background: $0.background, joinCode: $0.joinCode) }
+    }
+
+    /// Gives the room another background, picked at random, for everyone in it. It is drawn here at once
+    func randomizeBackground() {
+        guard let current = textureIndex, !isClosed else { return }
+        let before = room?.background
+        room?.background = RoomTexture.randomIndex(not: current)
+        guard backgroundTask == nil else { return }
+        // No request was out, so the background the room had until this tap is the one the server has
+        backgroundTask = Task { [weak self] in
+            await self?.sendBackground(onServer: before)
+        }
+    }
+
+    /// One request at a time, until the server has the background on screen. A pick made while a request is out
+    /// is not sent on its own: the next request carries the latest. No state changes the background while this
+    /// runs (see roomOnScreen), so the room's is the latest pick. `onServer` is the background the server has,
+    /// kept up with its answers: the one that comes back when a request fails
+    private func sendBackground(onServer: Int?) async {
+        var onServer = onServer
+        defer { backgroundTask = nil }
+        while let picked = room?.background, picked != onServer {
+            backgroundEpoch += 1
+            defer { backgroundEpoch += 1 }
+            do {
+                try Task.checkCancellation()
+                try await api.setRoomBackground(roomId: roomId, background: picked)
+                onServer = picked
+            } catch {
+                // The host has left the room. Whether the server took the pick is not known here; the next
+                // state says what the room has
+                if Task.isCancelled || error.isCancellation { return }
+                // The background the server has comes back, whatever was picked meanwhile
+                room?.background = onServer
+                self.error = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    /// The server's room as it is shown. A state asked for at `epoch` is the server's word on the background only
+    /// if no pick has been sent or answered since and none is waiting: any other may be from before the server
+    /// took a pick, and showing it as it is would put an earlier background back until the next state. So such
+    /// a state leaves the background on screen; the rest of it is shown
+    private func roomOnScreen(_ server: Room, askedAt epoch: Int) -> Room {
+        guard backgroundTask != nil || epoch != backgroundEpoch, let shown = room else { return server }
+        var room = server
+        room.background = shown.background
+        return room
+    }
+
+    // MARK: - Host language
+
+    /// Called when the host switches language in Settings; the switch has already applied on this device
+    func setHostLanguage(_ language: String) {
+        guard language != hostLanguage else { return }
+        hostLanguage = language
+        hostLanguageRetryAfter = .distantPast
+        syncHostLanguage()
+    }
+
+    /// Sends this device's language when the server's copy differs. Runs after every poll, so a room made on a server
+    /// that ignored the language at creation, or a switch made offline, catches up on its own.
+    private func syncHostLanguage() {
+        let wanted = hostLanguage
+        guard hostLanguageTask == nil, Date() >= hostLanguageRetryAfter,
+              networkMonitor.isConnected, !isClosed,
+              let host = participant(for: hostId), host.preferredLanguage != wanted else { return }
+        let api = self.api
+        let hostId = self.hostId
+        hostLanguageTask = Task { [weak self] in
+            var failure: Error?
+            do {
+                try await api.setParticipantLanguage(participantId: hostId, language: wanted)
+            } catch {
+                failure = error
+            }
+            guard let self else { return }
+            self.hostLanguageTask = nil
+            // Cancelled, or another language was picked meanwhile: the next poll starts over
+            guard let failure, !Task.isCancelled, !failure.isCancellation, self.hostLanguage == wanted else { return }
+            // Giving up for good takes the server's own refusal; an error that never reached it says nothing about the route
+            self.hostLanguageRetryAfter = failure.isServerRefusal ? .distantFuture : Date().addingTimeInterval(30)
+            DebugConsole.shared.trace(source: .network, action: "setLanguage:error", detail: failure.localizedDescription, ok: false)
+        }
+    }
+
+    func setTypingAction(_ action: String?, drawingStartedAt: Double? = nil) {
+        let key = action ?? "nil"
+        guard key != lastTypingAction else { return }
+        lastTypingAction = key
+        Task {
+            try? await api.setTypingAction(participantId: hostId, action: action, drawingStartedAt: drawingStartedAt)
+        }
+    }
+}
+
+// MARK: - MessagePipeline
+
+extension HostRoomViewModel {
     // MARK: - Processing loop
 
     private func processPendingMessages() async {
@@ -481,7 +668,11 @@ class HostRoomViewModel: ObservableObject {
         // Refresh to show updated state
         await refresh()
     }
+}
 
+// MARK: - Messages
+
+extension HostRoomViewModel {
     // MARK: - Actions
 
     /// Queues a text message and starts sending. The bubble is in `messages` when this returns
@@ -561,131 +752,6 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
-    func closeRoom() async {
-        do {
-            try await api.closeRoom(roomId: roomId)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    // MARK: - Background
-
-    /// Index into RoomTexture.all the room is drawn on; nil until the room's state is here
-    var textureIndex: Int? { Self.textureIndex(of: room) }
-
-    private static func textureIndex(of room: Room?) -> Int? {
-        room.map { RoomTexture.index(background: $0.background, joinCode: $0.joinCode) }
-    }
-
-    /// Sends the background the host picked in Settings, and then whatever the host has picked meanwhile
-    private var backgroundTask: Task<Void, Never>?
-    /// Goes up when a background is sent and again when the request is answered or fails. A state asked for
-    /// before either may be from before the server took the change
-    private var backgroundEpoch = 0
-
-    /// Gives the room another background, picked at random, for everyone in it. It is drawn here at once
-    func randomizeBackground() {
-        guard let current = textureIndex, !isClosed else { return }
-        let before = room?.background
-        room?.background = RoomTexture.randomIndex(not: current)
-        guard backgroundTask == nil else { return }
-        // No request was out, so the background the room had until this tap is the one the server has
-        backgroundTask = Task { [weak self] in
-            await self?.sendBackground(onServer: before)
-        }
-    }
-
-    /// One request at a time, until the server has the background on screen. A pick made while a request is out
-    /// is not sent on its own: the next request carries the latest. No state changes the background while this
-    /// runs (see roomOnScreen), so the room's is the latest pick. `onServer` is the background the server has,
-    /// kept up with its answers: the one that comes back when a request fails
-    private func sendBackground(onServer: Int?) async {
-        var onServer = onServer
-        defer { backgroundTask = nil }
-        while let picked = room?.background, picked != onServer {
-            backgroundEpoch += 1
-            defer { backgroundEpoch += 1 }
-            do {
-                try Task.checkCancellation()
-                try await api.setRoomBackground(roomId: roomId, background: picked)
-                onServer = picked
-            } catch {
-                // The host has left the room. Whether the server took the pick is not known here; the next
-                // state says what the room has
-                if Task.isCancelled || error.isCancellation { return }
-                // The background the server has comes back, whatever was picked meanwhile
-                room?.background = onServer
-                self.error = error.localizedDescription
-                return
-            }
-        }
-    }
-
-    /// The server's room as it is shown. A state asked for at `epoch` is the server's word on the background only
-    /// if no pick has been sent or answered since and none is waiting: any other may be from before the server
-    /// took a pick, and showing it as it is would put an earlier background back until the next state. So such
-    /// a state leaves the background on screen; the rest of it is shown
-    private func roomOnScreen(_ server: Room, askedAt epoch: Int) -> Room {
-        guard backgroundTask != nil || epoch != backgroundEpoch, let shown = room else { return server }
-        var room = server
-        room.background = shown.background
-        return room
-    }
-
-    // MARK: - Host language
-
-    /// Language picked on this device. The server's copy sets the host's Word Rush direction, the language of
-    /// Lost in Translation prompts and of the join push, and the badge guests see.
-    private var hostLanguage = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
-    private var hostLanguageTask: Task<Void, Never>?
-    /// Earliest next send: never again after a server that refused (one without the route), 30 s after any other failure
-    private var hostLanguageRetryAfter = Date.distantPast
-
-    /// Called when the host switches language in Settings; the switch has already applied on this device
-    func setHostLanguage(_ language: String) {
-        guard language != hostLanguage else { return }
-        hostLanguage = language
-        hostLanguageRetryAfter = .distantPast
-        syncHostLanguage()
-    }
-
-    /// Sends this device's language when the server's copy differs. Runs after every poll, so a room made on a server
-    /// that ignored the language at creation, or a switch made offline, catches up on its own.
-    private func syncHostLanguage() {
-        let wanted = hostLanguage
-        guard hostLanguageTask == nil, Date() >= hostLanguageRetryAfter,
-              networkMonitor.isConnected, !isClosed,
-              let host = participant(for: hostId), host.preferredLanguage != wanted else { return }
-        let api = self.api
-        let hostId = self.hostId
-        hostLanguageTask = Task { [weak self] in
-            var failure: Error?
-            do {
-                try await api.setParticipantLanguage(participantId: hostId, language: wanted)
-            } catch {
-                failure = error
-            }
-            guard let self else { return }
-            self.hostLanguageTask = nil
-            // Cancelled, or another language was picked meanwhile: the next poll starts over
-            guard let failure, !Task.isCancelled, !failure.isCancellation, self.hostLanguage == wanted else { return }
-            // Giving up for good takes the server's own refusal; an error that never reached it says nothing about the route
-            self.hostLanguageRetryAfter = failure.isServerRefusal ? .distantFuture : Date().addingTimeInterval(30)
-            DebugConsole.shared.trace(source: .network, action: "setLanguage:error", detail: failure.localizedDescription, ok: false)
-        }
-    }
-
-    func kickParticipant(_ participantId: String) async {
-        do {
-            try await api.kickParticipant(participantId: participantId, roomId: roomId)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
     func sendImage(_ image: UIImage, replyToId: String? = nil) {
         guard let data = image.jpegData(compressionQuality: 0.7) else { return }
         let base64 = data.base64EncodedString()
@@ -755,407 +821,41 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Games
-
-    /// `teams`: what a Lost in Translation team game is asked for, nil for individual play
-    func startGame(gameType: String, level: Int = 1, timerSeconds: Int = 20, teams: GameTeamsRequest? = nil) async {
-        guard networkMonitor.isConnected else { return }
-        do {
-            // Cancel any lingering active game first
-            try? await api.cancelGame(roomId: roomId, participantId: hostId)
-
-            // Generate unique prompts from word banks on the iOS device
-            let generated = PromptGenerator.generate(count: 40, level: level)
-            let customPrompts: [[String: Any]] = generated.map { p in
-                var dict: [String: Any] = ["text": p.text, "ja": p.ja]
-                if let hint = p.hint { dict["hint"] = hint }
-                if let hintJa = p.hintJa { dict["hintJa"] = hintJa }
-                return dict
-            }
-
-            _ = try await api.startGame(roomId: roomId, participantId: hostId, gameType: gameType, level: level, timerSeconds: timerSeconds, customPrompts: customPrompts, teams: teams)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
+    func replyTarget(for message: Message) -> Message? {
+        guard let replyToId = message.replyToId else { return nil }
+        return self.message(withId: replyToId)
     }
 
-    /// Sends the host's drawing or guess. Returns once the server has answered 200: it took the
-    /// answer, or it had already closed the step (a late answer is dropped without an error).
-    /// Throws when the answer did not get through; the overlay retries or shows it, so `error`
-    /// is not set here.
-    func submitGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String? = nil) async throws {
-        try await sendGameStep(stepId: stepId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
-        // In its own task: the caller is the overlay's task, which is cancelled as soon as this
-        // refresh makes the overlay go away, and a cancelled refresh would skip clearing the
-        // "drawing" indicator.
-        await Task { await self.refresh() }.value
+    /// A message by id; a local "queued-…" id still resolves after the server's copy has replaced the placeholder
+    func message(withId id: String) -> Message? {
+        if let found = messages.first(where: { $0.id == id }) { return found }
+        guard let sent = sentIds[id] else { return nil }
+        return messages.first { $0.id == sent }
     }
 
-    /// Sends the host's guess on a step that does not say which option is right, and returns what the
-    /// reply says about the guess: nil when it says nothing. Returns and throws as `submitGameStep` does,
-    /// but does not wait for the refresh: the overlay stamps the answer at once, and the step is held on
-    /// screen meanwhile (see "Guess hold").
-    func commitGuess(stepId: String, selectedOption: String) async throws -> GameGuessAnswer? {
-        let answer = try await sendGameStep(stepId: stepId, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
-        guessRefresh = Task { await self.refresh() }
-        return answer
+    /// Whether the server's copy of a message replaced a placeholder that was already on this screen. Known from
+    /// the send's own answer, so it does not depend on the server echoing the clientId (one from before
+    /// clientId existed does not)
+    func wasSentFromThisDevice(_ messageId: String) -> Bool {
+        deliveredIds.contains(messageId)
     }
 
-    /// The refresh the last `commitGuess` started: the one that moves `myActiveStep` on from that guess
-    private(set) var guessRefresh: Task<Void, Never>?
-
-    /// The request behind both. A guess returns what the reply says about it
-    @discardableResult
-    private func sendGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {
-        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
-        do {
-            return try await api.submitGameStep(stepId: stepId, participantId: hostId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
-        } catch {
-            DebugConsole.shared.trace(source: .network, action: "submitGameStep:error", detail: error.localizedDescription, ok: false)
-            throw error
-        }
+    /// The id the server knows a message by; nil for one that has not been delivered. A local id is never sent to the server
+    private func serverMessageId(_ id: String?) -> String? {
+        guard let id, id.hasPrefix("queued-") else { return id }
+        return sentIds[id]
     }
+}
 
-    func cancelGame() async {
-        // The game is being ended from this device: a held guess has nothing left to wait for
-        dropGuessHold()
-        guard networkMonitor.isConnected else { return }
-        do {
-            try await api.cancelGame(roomId: roomId, participantId: hostId)
-            await refresh()
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
+// MARK: - SendQueue
 
-    /// Who is here for a game, as this device sees the room: everyone online, and the host. The server decides
-    /// who a game deals in (games.startGame): this tells the picker whether to offer teams and when to ask for
-    /// a new deal, and gives it the names and faces for the split the server sends
-    var gamePlayers: [Participant] {
-        participants.filter { $0.online || $0.id == hostId }
-    }
-
-    /// Two teams for the game picker, dealt by the server. `previous` is the split on screen, to get another one.
-    /// Throws when there is no deal to show; `error` is not set, the picker says the teams are dealt at Start
-    func dealTeams(previous: [[String]]?) async throws -> GameTeamDeal {
-        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
-        return try await api.dealTeams(roomId: roomId, participantId: hostId, previous: previous)
-    }
-
-    /// The host's team (0 or 1) in the game the cover's step belongs to; nil in an individual game. The last
-    /// guess of a game is still on the cover when its session is no longer the active one
-    var presentedStepTeam: Int? {
-        guard let step = presentedStep else { return nil }
-        let session = [activeGameSession, latestGameSession].compactMap { $0 }.first { $0.id == step.gameSessionId }
-        return LITTeams.index(of: hostId, in: session?.teams)
-    }
-
-    /// Not while a guess is held: the replay waits until the game cover has let the last guess of the game go
-    var isGameComplete: Bool {
-        latestGameSession?.status == .complete && activeGameSession == nil && heldGuessStep == nil
-    }
-
-    // MARK: - Guess hold
-
-    /// A guess the host has sent whose Correct! / Wrong! has yet to be seen. The server closes a guess step as it
-    /// takes the guess, so the next poll finds no step, or the host's next drawing; the game cover goes on showing
-    /// this one. Presentation only: `myActiveStep` and the polls are what they are without it
-    @Published private(set) var heldGuessStep: GameStep?
-    /// Ends the hold when nothing else has: every hold has a deadline
-    private var guessHoldTimer: Task<Void, Never>?
-    /// The guess is on its way and its reply is not in yet
-    private var guessHoldAwaitsReply = false
-
-    /// The step the game cover shows
-    var presentedStep: GameStep? { heldGuessStep ?? myActiveStep }
-
-    /// Keeps `step` on the game cover for `seconds` from now, whatever the polls say. A hold already on gets this
-    /// deadline in place of its own, except that a try of the guess (`awaitingReply`) does not extend a hold once a
-    /// poll has shown the server moved on from the step. Only the step the cover is showing can be held: one it has
-    /// left is not brought back.
-    func holdGuessStep(_ step: GameStep, for seconds: TimeInterval, awaitingReply: Bool) {
-        guard presentedStep?.id == step.id else { return }
-        // Once a poll has shown the server moved on from this guess, a retry does not buy the hold more time
-        if awaitingReply, heldGuessStep?.id == step.id, myActiveStep?.id != step.id { return }
-        if heldGuessStep?.id != step.id { heldGuessStep = step }
-        guessHoldAwaitsReply = awaitingReply
-        guessHoldTimer?.cancel()
-        let stepId = step.id
-        guessHoldTimer = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            self?.releaseGuessHold(stepId: stepId)
-        }
-    }
-
-    /// Lets the game cover show `myActiveStep` again. Does nothing unless `stepId` is the step that is held
-    func releaseGuessHold(stepId: String) {
-        guard heldGuessStep?.id == stepId else { return }
-        dropGuessHold()
-    }
-
-    private func dropGuessHold() {
-        guessHoldTimer?.cancel()
-        guessHoldTimer = nil
-        guessHoldAwaitsReply = false
-        if heldGuessStep != nil { heldGuessStep = nil }
-    }
-
-    // MARK: - Word Rush
-
-    struct WordRushResult: Equatable {
-        let correct: Bool
-        let points: Int
-    }
-
-    /// This app only ever runs as the room host, and the server lets the room host start, skip and end
-    /// any Word Rush game in its room, whoever the game host is.
-    var canControlWordRush: Bool { true }
-
-    /// Word Rush game the full-screen cover should show: a live game, or a finished one this
-    /// device watched live, played in, and hasn't closed yet.
-    var presentableWordRushGame: WordRushGame? {
-        guard let game = activeWordRushGame else { return nil }
-        if game.isLive { return game }
-        if game.status == .completed,
-           wordRushSeenLiveIds.contains(game.id),
-           game.player(hostId) != nil,
-           wordRushDismissedId != game.id {
-            return game
-        }
-        return nil
-    }
-
-    func pollWordRushState() async {
-        do {
-            applyWordRushState(try await api.getWordRushState(roomId: roomId))
-        } catch {
-            DebugConsole.shared.trace(source: .network, action: "poll:wordRush:error", detail: error.localizedDescription, ok: false)
-        }
-    }
-
-    private func applyWordRushState(_ game: WordRushGame?) {
-        if let game, game.isLive { wordRushSeenLiveIds.insert(game.id) }
-        if game != activeWordRushGame { activeWordRushGame = game }
-        if wordRushNeedsFastPoll { startWordRushFastPoll() }
-    }
-
-    private var wordRushNeedsFastPoll: Bool {
-        wordRushCoverOpen || activeWordRushGame?.isLive == true
-    }
-
-    private func startWordRushFastPoll() {
-        guard wordRushPollTask == nil else { return }
-        wordRushPollTask = Task { [weak self] in
-            while let self, !Task.isCancelled, self.wordRushNeedsFastPoll {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                guard !Task.isCancelled else { break }
-                do {
-                    self.applyWordRushState(try await self.api.getWordRushState(roomId: self.roomId))
-                } catch {
-                    // keep polling through transient errors
-                }
-            }
-            self?.wordRushPollTask = nil
-        }
-    }
-
-    private func stopWordRushFastPoll() {
-        wordRushPollTask?.cancel()
-        wordRushPollTask = nil
-    }
-
-    private func wordRushFail(_ error: Error, _ action: String) {
-        let message = Self.cleanConvexError(error)
-        wordRushError = message
-        DebugConsole.shared.trace(source: .client, action: "wordRush:\(action):error", detail: message, ok: false)
-        Haptics.error()
-    }
-
-    /// Convex errors arrive as "[CONVEX M(...)] [Request ID: …] Server Error\nUncaught Error: Already answered\n at …"
-    static func cleanConvexError(_ error: Error) -> String {
-        var text = (error as? APIError).flatMap { err -> String? in
-            switch err {
-            case .serverError(let msg), .http(_, let msg): return msg
-            default: return nil
-            }
-        } ?? error.localizedDescription
-        if let range = text.range(of: "Uncaught Error: ") {
-            text = String(text[range.upperBound...])
-        }
-        if let newline = text.firstIndex(of: "\n") {
-            text = String(text[..<newline])
-        }
-        return text.trimmingCharacters(in: .whitespaces)
-    }
-
-    func createWordRushLobby(pack: String, sayIt: Bool) async {
-        do {
-            _ = try await api.createWordRushLobby(roomId: roomId, hostParticipantId: hostId, pack: pack, sayIt: sayIt)
-            wordRushDismissedId = nil
-        } catch {
-            wordRushFail(error, "createLobby")
-        }
-        await pollWordRushState()
-    }
-
-    func joinWordRush() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.joinWordRush(gameId: game.id, participantId: hostId)
-            Haptics.tap()
-        } catch { wordRushFail(error, "join") }
-        await pollWordRushState()
-    }
-
-    func leaveWordRush() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.leaveWordRush(gameId: game.id, participantId: hostId)
-        } catch { wordRushFail(error, "leave") }
-        await pollWordRushState()
-    }
-
-    func updateWordRushSettings(pack: String? = nil, sayIt: Bool? = nil) async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.updateWordRushSettings(gameId: game.id, participantId: hostId, pack: pack, sayIt: sayIt)
-        } catch { wordRushFail(error, "settings") }
-        await pollWordRushState()
-    }
-
-    func startWordRush() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.startWordRush(gameId: game.id, participantId: hostId)
-            Haptics.thump()
-        } catch { wordRushFail(error, "start") }
-        await pollWordRushState()
-    }
-
-    func answerWordRush(choiceIndex: Int) async {
-        guard let game = activeWordRushGame, game.phase == .clues else { return }
-        let key = game.cardKey
-        guard wordRushMyChoices[key] == nil else { return }
-        wordRushMyChoices[key] = choiceIndex
-        Haptics.thump()
-        do {
-            let result = try await api.answerWordRush(gameId: game.id, participantId: hostId, choiceIndex: choiceIndex)
-            wordRushMyResults[key] = WordRushResult(correct: result.correct, points: result.points)
-        } catch {
-            if !Self.cleanConvexError(error).contains("Already answered") {
-                wordRushMyChoices[key] = nil
-            }
-            wordRushFail(error, "answer")
-        }
-        await pollWordRushState()
-    }
-
-    func takeWordRushHint() async {
-        guard let game = activeWordRushGame, game.phase == .clues else { return }
-        let key = game.cardKey
-        guard wordRushHints[key] == nil else { return }
-        do {
-            wordRushHints[key] = try await api.wordRushHint(gameId: game.id, participantId: hostId)
-            Haptics.tap()
-        } catch { wordRushFail(error, "hint") }
-    }
-
-    private func uploadWordRushAudio(_ fileURL: URL) async throws -> String {
-        let data = try Data(contentsOf: fileURL)
-        let uploadUrl = try await api.generateUploadUrl()
-        return try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
-    }
-
-    /// Uploads the performer's take and moves the game to judging. Returns false on failure.
-    @discardableResult
-    func submitWordRushClip(_ fileURL: URL) async -> Bool {
-        guard let game = activeWordRushGame else { return false }
-        do {
-            let storageId = try await uploadWordRushAudio(fileURL)
-            try await api.submitWordRushClip(gameId: game.id, participantId: hostId, storageId: storageId)
-            Haptics.success()
-            await pollWordRushState()
-            return true
-        } catch {
-            wordRushFail(error, "submitClip")
-            return false
-        }
-    }
-
-    func skipWordRushMic() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.skipWordRushMic(gameId: game.id, participantId: hostId)
-        } catch { wordRushFail(error, "skipMic") }
-        await pollWordRushState()
-    }
-
-    func voteWordRush(_ vote: WordRushVote) async {
-        guard let game = activeWordRushGame, game.phase == .judging else { return }
-        let key = game.phaseKey
-        guard wordRushMyVotes[key] == nil else { return }
-        wordRushMyVotes[key] = vote
-        Haptics.thump()
-        do {
-            try await api.voteWordRush(gameId: game.id, participantId: hostId, vote: vote.rawValue)
-        } catch {
-            if !Self.cleanConvexError(error).contains("Already voted") {
-                wordRushMyVotes[key] = nil
-            }
-            wordRushFail(error, "vote")
-        }
-        await pollWordRushState()
-    }
-
-    @discardableResult
-    func submitWordRushTeachClip(_ fileURL: URL) async -> Bool {
-        guard let game = activeWordRushGame else { return false }
-        do {
-            let storageId = try await uploadWordRushAudio(fileURL)
-            try await api.submitWordRushTeachClip(gameId: game.id, participantId: hostId, storageId: storageId)
-            Haptics.success()
-            await pollWordRushState()
-            return true
-        } catch {
-            wordRushFail(error, "teach")
-            return false
-        }
-    }
-
-    func skipWordRushPhase() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.skipWordRushPhase(gameId: game.id, participantId: hostId, phaseSeq: game.phaseSeq)
-        } catch { wordRushFail(error, "skip") }
-        await pollWordRushState()
-    }
-
-    func cancelWordRush() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            try await api.cancelWordRush(gameId: game.id, participantId: hostId)
-            wordRushDismissedId = game.id
-        } catch { wordRushFail(error, "cancel") }
-        await pollWordRushState()
-    }
-
-    func playAgainWordRush() async {
-        guard let game = activeWordRushGame else { return }
-        do {
-            _ = try await api.playAgainWordRush(gameId: game.id, participantId: hostId)
-            Haptics.thump()
-        } catch { wordRushFail(error, "playAgain") }
-        await pollWordRushState()
-    }
-
-    /// Close the results screen for good
-    func dismissWordRushResults() {
-        wordRushDismissedId = activeWordRushGame?.id
-    }
-
+extension HostRoomViewModel {
     // MARK: - Offline queue
+
+    /// Messages waiting to go out. One the server refused is not waiting: it says so on its bubble
+    var pendingQueueCount: Int { offlineQueue.filter(\.isWaiting).count }
+    /// A waiting message has already failed once: sending is held up although the phone reports a connection
+    var isSendDelayed: Bool { offlineQueue.contains { $0.isWaiting && $0.attempts > 0 } }
 
     private func enqueue(_ queued: QueuedMessage) {
         offlineQueue.append(queued)
@@ -1422,72 +1122,144 @@ class HostRoomViewModel: ObservableObject {
         mergeQueueIntoMessages()
         kickFlush()
     }
+}
 
-    // MARK: - Helpers
+// MARK: - LostInTranslation
 
-    func participant(for id: String) -> Participant? {
-        participants.first { $0.id == id }
-    }
+extension HostRoomViewModel {
+    // MARK: - Games
 
-    func replyTarget(for message: Message) -> Message? {
-        guard let replyToId = message.replyToId else { return nil }
-        return self.message(withId: replyToId)
-    }
+    /// `teams`: what a Lost in Translation team game is asked for, nil for individual play
+    func startGame(gameType: String, level: Int = 1, timerSeconds: Int = 20, teams: GameTeamsRequest? = nil) async {
+        guard networkMonitor.isConnected else { return }
+        do {
+            // Cancel any lingering active game first
+            try? await api.cancelGame(roomId: roomId, participantId: hostId)
 
-    /// A message by id; a local "queued-…" id still resolves after the server's copy has replaced the placeholder
-    func message(withId id: String) -> Message? {
-        if let found = messages.first(where: { $0.id == id }) { return found }
-        guard let sent = sentIds[id] else { return nil }
-        return messages.first { $0.id == sent }
-    }
+            // Generate unique prompts from word banks on the iOS device
+            let generated = PromptGenerator.generate(count: 40, level: level)
+            let customPrompts: [[String: Any]] = generated.map { p in
+                var dict: [String: Any] = ["text": p.text, "ja": p.ja]
+                if let hint = p.hint { dict["hint"] = hint }
+                if let hintJa = p.hintJa { dict["hintJa"] = hintJa }
+                return dict
+            }
 
-    /// Whether the server's copy of a message replaced a placeholder that was already on this screen. Known from
-    /// the send's own answer, so it does not depend on the server echoing the clientId (one from before
-    /// clientId existed does not)
-    func wasSentFromThisDevice(_ messageId: String) -> Bool {
-        deliveredIds.contains(messageId)
-    }
-
-    /// The id the server knows a message by; nil for one that has not been delivered. A local id is never sent to the server
-    private func serverMessageId(_ id: String?) -> String? {
-        guard let id, id.hasPrefix("queued-") else { return id }
-        return sentIds[id]
-    }
-
-    var onlineCount: Int {
-        participants.filter { $0.online && !$0.isAway }.count
-    }
-
-    var awayCount: Int {
-        participants.filter(\.isAway).count
-    }
-
-    var guestParticipants: [Participant] {
-        participants.filter { $0.role != .host }
-    }
-
-    var isClosed: Bool {
-        room?.status == .closed
-    }
-
-    var isProcessing: Bool {
-        processingCount > 0
-    }
-
-    /// Participants (other than host) who are currently typing or drawing
-    var typingParticipants: [Participant] {
-        participants.filter { $0.id != hostId && $0.typingAction != nil }
-    }
-
-    private var lastTypingAction: String?
-
-    func setTypingAction(_ action: String?, drawingStartedAt: Double? = nil) {
-        let key = action ?? "nil"
-        guard key != lastTypingAction else { return }
-        lastTypingAction = key
-        Task {
-            try? await api.setTypingAction(participantId: hostId, action: action, drawingStartedAt: drawingStartedAt)
+            _ = try await api.startGame(roomId: roomId, participantId: hostId, gameType: gameType, level: level, timerSeconds: timerSeconds, customPrompts: customPrompts, teams: teams)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
         }
+    }
+
+    /// Sends the host's drawing or guess. Returns once the server has answered 200: it took the
+    /// answer, or it had already closed the step (a late answer is dropped without an error).
+    /// Throws when the answer did not get through; the overlay retries or shows it, so `error`
+    /// is not set here.
+    func submitGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String? = nil) async throws {
+        try await sendGameStep(stepId: stepId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
+        // In its own task: the caller is the overlay's task, which is cancelled as soon as this
+        // refresh makes the overlay go away, and a cancelled refresh would skip clearing the
+        // "drawing" indicator.
+        await Task { await self.refresh() }.value
+    }
+
+    /// Sends the host's guess on a step that does not say which option is right, and returns what the
+    /// reply says about the guess: nil when it says nothing. Returns and throws as `submitGameStep` does,
+    /// but does not wait for the refresh: the overlay stamps the answer at once, and the step is held on
+    /// screen meanwhile (see "Guess hold").
+    func commitGuess(stepId: String, selectedOption: String) async throws -> GameGuessAnswer? {
+        let answer = try await sendGameStep(stepId: stepId, outputText: selectedOption, outputDrawingUrl: nil, selectedOption: selectedOption)
+        guessRefresh = Task { await self.refresh() }
+        return answer
+    }
+
+    /// The request behind both. A guess returns what the reply says about it
+    @discardableResult
+    private func sendGameStep(stepId: String, outputText: String?, outputDrawingUrl: String?, selectedOption: String?) async throws -> GameGuessAnswer? {
+        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
+        do {
+            return try await api.submitGameStep(stepId: stepId, participantId: hostId, outputText: outputText, outputDrawingUrl: outputDrawingUrl, selectedOption: selectedOption)
+        } catch {
+            DebugConsole.shared.trace(source: .network, action: "submitGameStep:error", detail: error.localizedDescription, ok: false)
+            throw error
+        }
+    }
+
+    func cancelGame() async {
+        // The game is being ended from this device: a held guess has nothing left to wait for
+        dropGuessHold()
+        guard networkMonitor.isConnected else { return }
+        do {
+            try await api.cancelGame(roomId: roomId, participantId: hostId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Who is here for a game, as this device sees the room: everyone online, and the host. The server decides
+    /// who a game deals in (games.startGame): this tells the picker whether to offer teams and when to ask for
+    /// a new deal, and gives it the names and faces for the split the server sends
+    var gamePlayers: [Participant] {
+        participants.filter { $0.online || $0.id == hostId }
+    }
+
+    /// Two teams for the game picker, dealt by the server. `previous` is the split on screen, to get another one.
+    /// Throws when there is no deal to show; `error` is not set, the picker says the teams are dealt at Start
+    func dealTeams(previous: [[String]]?) async throws -> GameTeamDeal {
+        guard networkMonitor.isConnected else { throw URLError(.notConnectedToInternet) }
+        return try await api.dealTeams(roomId: roomId, participantId: hostId, previous: previous)
+    }
+
+    /// The host's team (0 or 1) in the game the cover's step belongs to; nil in an individual game. The last
+    /// guess of a game is still on the cover when its session is no longer the active one
+    var presentedStepTeam: Int? {
+        guard let step = presentedStep else { return nil }
+        let session = [activeGameSession, latestGameSession].compactMap { $0 }.first { $0.id == step.gameSessionId }
+        return LITTeams.index(of: hostId, in: session?.teams)
+    }
+
+    /// Not while a guess is held: the replay waits until the game cover has let the last guess of the game go
+    var isGameComplete: Bool {
+        latestGameSession?.status == .complete && activeGameSession == nil && heldGuessStep == nil
+    }
+
+    // MARK: - Guess hold
+
+    /// The step the game cover shows
+    var presentedStep: GameStep? { heldGuessStep ?? myActiveStep }
+
+    /// Keeps `step` on the game cover for `seconds` from now, whatever the polls say. A hold already on gets this
+    /// deadline in place of its own, except that a try of the guess (`awaitingReply`) does not extend a hold once a
+    /// poll has shown the server moved on from the step. Only the step the cover is showing can be held: one it has
+    /// left is not brought back.
+    func holdGuessStep(_ step: GameStep, for seconds: TimeInterval, awaitingReply: Bool) {
+        guard presentedStep?.id == step.id else { return }
+        // Once a poll has shown the server moved on from this guess, a retry does not buy the hold more time
+        if awaitingReply, heldGuessStep?.id == step.id, myActiveStep?.id != step.id { return }
+        if heldGuessStep?.id != step.id { heldGuessStep = step }
+        guessHoldAwaitsReply = awaitingReply
+        guessHoldTimer?.cancel()
+        let stepId = step.id
+        guessHoldTimer = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.releaseGuessHold(stepId: stepId)
+        }
+    }
+
+    /// Lets the game cover show `myActiveStep` again. Does nothing unless `stepId` is the step that is held
+    func releaseGuessHold(stepId: String) {
+        guard heldGuessStep?.id == stepId else { return }
+        dropGuessHold()
+    }
+
+    private func dropGuessHold() {
+        guessHoldTimer?.cancel()
+        guessHoldTimer = nil
+        guessHoldAwaitsReply = false
+        if heldGuessStep != nil { heldGuessStep = nil }
     }
 
     // MARK: - Draw countdown beeps
@@ -1595,7 +1367,268 @@ class HostRoomViewModel: ObservableObject {
         drawCountdownTimeLeft = -1
         trackedDrawStartMs = nil
     }
+}
 
+// MARK: - WordRush
+
+extension HostRoomViewModel {
+    // MARK: - Word Rush
+
+    struct WordRushResult: Equatable {
+        let correct: Bool
+        let points: Int
+    }
+
+    /// This app only ever runs as the room host, and the server lets the room host start, skip and end
+    /// any Word Rush game in its room, whoever the game host is.
+    var canControlWordRush: Bool { true }
+
+    /// Word Rush game the full-screen cover should show: a live game, or a finished one this
+    /// device watched live, played in, and hasn't closed yet.
+    var presentableWordRushGame: WordRushGame? {
+        guard let game = activeWordRushGame else { return nil }
+        if game.isLive { return game }
+        if game.status == .completed,
+           wordRushSeenLiveIds.contains(game.id),
+           game.player(hostId) != nil,
+           wordRushDismissedId != game.id {
+            return game
+        }
+        return nil
+    }
+
+    func pollWordRushState() async {
+        do {
+            applyWordRushState(try await api.getWordRushState(roomId: roomId))
+        } catch {
+            DebugConsole.shared.trace(source: .network, action: "poll:wordRush:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    private func applyWordRushState(_ game: WordRushGame?) {
+        if let game, game.isLive { wordRushSeenLiveIds.insert(game.id) }
+        if game != activeWordRushGame { activeWordRushGame = game }
+        if wordRushNeedsFastPoll { startWordRushFastPoll() }
+    }
+
+    private var wordRushNeedsFastPoll: Bool {
+        wordRushCoverOpen || activeWordRushGame?.isLive == true
+    }
+
+    private func startWordRushFastPoll() {
+        guard wordRushPollTask == nil else { return }
+        wordRushPollTask = Task { [weak self] in
+            while let self, !Task.isCancelled, self.wordRushNeedsFastPoll {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled else { break }
+                do {
+                    self.applyWordRushState(try await self.api.getWordRushState(roomId: self.roomId))
+                } catch {
+                    // keep polling through transient errors
+                }
+            }
+            self?.wordRushPollTask = nil
+        }
+    }
+
+    private func stopWordRushFastPoll() {
+        wordRushPollTask?.cancel()
+        wordRushPollTask = nil
+    }
+
+    private func wordRushFail(_ error: Error, _ action: String) {
+        let message = Self.cleanConvexError(error)
+        wordRushError = message
+        DebugConsole.shared.trace(source: .client, action: "wordRush:\(action):error", detail: message, ok: false)
+        Haptics.error()
+    }
+
+    /// Convex errors arrive as "[CONVEX M(...)] [Request ID: …] Server Error\nUncaught Error: Already answered\n at …"
+    static func cleanConvexError(_ error: Error) -> String {
+        var text = (error as? APIError).flatMap { err -> String? in
+            switch err {
+            case .serverError(let msg), .http(_, let msg): return msg
+            default: return nil
+            }
+        } ?? error.localizedDescription
+        if let range = text.range(of: "Uncaught Error: ") {
+            text = String(text[range.upperBound...])
+        }
+        if let newline = text.firstIndex(of: "\n") {
+            text = String(text[..<newline])
+        }
+        return text.trimmingCharacters(in: .whitespaces)
+    }
+
+    func createWordRushLobby(pack: String, sayIt: Bool) async {
+        do {
+            _ = try await api.createWordRushLobby(roomId: roomId, hostParticipantId: hostId, pack: pack, sayIt: sayIt)
+            wordRushDismissedId = nil
+        } catch {
+            wordRushFail(error, "createLobby")
+        }
+        await pollWordRushState()
+    }
+
+    func joinWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.joinWordRush(gameId: game.id, participantId: hostId)
+            Haptics.tap()
+        } catch { wordRushFail(error, "join") }
+        await pollWordRushState()
+    }
+
+    func leaveWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.leaveWordRush(gameId: game.id, participantId: hostId)
+        } catch { wordRushFail(error, "leave") }
+        await pollWordRushState()
+    }
+
+    func updateWordRushSettings(pack: String? = nil, sayIt: Bool? = nil) async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.updateWordRushSettings(gameId: game.id, participantId: hostId, pack: pack, sayIt: sayIt)
+        } catch { wordRushFail(error, "settings") }
+        await pollWordRushState()
+    }
+
+    func startWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.startWordRush(gameId: game.id, participantId: hostId)
+            Haptics.thump()
+        } catch { wordRushFail(error, "start") }
+        await pollWordRushState()
+    }
+
+    func answerWordRush(choiceIndex: Int) async {
+        guard let game = activeWordRushGame, game.phase == .clues else { return }
+        let key = game.cardKey
+        guard wordRushMyChoices[key] == nil else { return }
+        wordRushMyChoices[key] = choiceIndex
+        Haptics.thump()
+        do {
+            let result = try await api.answerWordRush(gameId: game.id, participantId: hostId, choiceIndex: choiceIndex)
+            wordRushMyResults[key] = WordRushResult(correct: result.correct, points: result.points)
+        } catch {
+            if !Self.cleanConvexError(error).contains("Already answered") {
+                wordRushMyChoices[key] = nil
+            }
+            wordRushFail(error, "answer")
+        }
+        await pollWordRushState()
+    }
+
+    func takeWordRushHint() async {
+        guard let game = activeWordRushGame, game.phase == .clues else { return }
+        let key = game.cardKey
+        guard wordRushHints[key] == nil else { return }
+        do {
+            wordRushHints[key] = try await api.wordRushHint(gameId: game.id, participantId: hostId)
+            Haptics.tap()
+        } catch { wordRushFail(error, "hint") }
+    }
+
+    private func uploadWordRushAudio(_ fileURL: URL) async throws -> String {
+        let data = try Data(contentsOf: fileURL)
+        let uploadUrl = try await api.generateUploadUrl()
+        return try await api.uploadData(data, to: uploadUrl, contentType: "audio/mp4")
+    }
+
+    /// Uploads the performer's take and moves the game to judging. Returns false on failure.
+    @discardableResult
+    func submitWordRushClip(_ fileURL: URL) async -> Bool {
+        guard let game = activeWordRushGame else { return false }
+        do {
+            let storageId = try await uploadWordRushAudio(fileURL)
+            try await api.submitWordRushClip(gameId: game.id, participantId: hostId, storageId: storageId)
+            Haptics.success()
+            await pollWordRushState()
+            return true
+        } catch {
+            wordRushFail(error, "submitClip")
+            return false
+        }
+    }
+
+    func skipWordRushMic() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.skipWordRushMic(gameId: game.id, participantId: hostId)
+        } catch { wordRushFail(error, "skipMic") }
+        await pollWordRushState()
+    }
+
+    func voteWordRush(_ vote: WordRushVote) async {
+        guard let game = activeWordRushGame, game.phase == .judging else { return }
+        let key = game.phaseKey
+        guard wordRushMyVotes[key] == nil else { return }
+        wordRushMyVotes[key] = vote
+        Haptics.thump()
+        do {
+            try await api.voteWordRush(gameId: game.id, participantId: hostId, vote: vote.rawValue)
+        } catch {
+            if !Self.cleanConvexError(error).contains("Already voted") {
+                wordRushMyVotes[key] = nil
+            }
+            wordRushFail(error, "vote")
+        }
+        await pollWordRushState()
+    }
+
+    @discardableResult
+    func submitWordRushTeachClip(_ fileURL: URL) async -> Bool {
+        guard let game = activeWordRushGame else { return false }
+        do {
+            let storageId = try await uploadWordRushAudio(fileURL)
+            try await api.submitWordRushTeachClip(gameId: game.id, participantId: hostId, storageId: storageId)
+            Haptics.success()
+            await pollWordRushState()
+            return true
+        } catch {
+            wordRushFail(error, "teach")
+            return false
+        }
+    }
+
+    func skipWordRushPhase() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.skipWordRushPhase(gameId: game.id, participantId: hostId, phaseSeq: game.phaseSeq)
+        } catch { wordRushFail(error, "skip") }
+        await pollWordRushState()
+    }
+
+    func cancelWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            try await api.cancelWordRush(gameId: game.id, participantId: hostId)
+            wordRushDismissedId = game.id
+        } catch { wordRushFail(error, "cancel") }
+        await pollWordRushState()
+    }
+
+    func playAgainWordRush() async {
+        guard let game = activeWordRushGame else { return }
+        do {
+            _ = try await api.playAgainWordRush(gameId: game.id, participantId: hostId)
+            Haptics.thump()
+        } catch { wordRushFail(error, "playAgain") }
+        await pollWordRushState()
+    }
+
+    /// Close the results screen for good
+    func dismissWordRushResults() {
+        wordRushDismissedId = activeWordRushGame?.id
+    }
+}
+
+// MARK: - EmojiMatch
+
+extension HostRoomViewModel {
     // MARK: - Emoji Match
 
     /// Whether a board that was asked for at `epoch` is sure to hold every flip the host has made. One asked for
@@ -1690,6 +1723,91 @@ class HostRoomViewModel: ObservableObject {
         }
     }
 
+    func joinEmojiMatchLobby() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.joinEmojiMatchLobby(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:joinLobby:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    func leaveEmojiMatchLobby() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.leaveEmojiMatchLobby(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:leaveLobby:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    func startEmojiMatch() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.startEmojiMatch(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:start:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    func flipEmojiMatchCard(cardId: String) async {
+        guard var game = activeEmojiMatchGame else { return }
+        let gameId = game.id
+
+        // Optimistic update: immediately reveal the card locally for instant feedback, when its face is
+        // here to show. A server that hides face-down cards sends them with an empty content value, and
+        // turning one over now would draw a blank face: that card is turned by the first board that has it,
+        // which brings its face in the same answer.
+        if let idx = game.board.firstIndex(where: { $0.cardId == cardId }), !game.board[idx].content.value.isEmpty {
+            game.board[idx].isRevealed = true
+            activeEmojiMatchGame = game
+        }
+
+        // While this flip is unanswered, for two seconds at most, no board turns a face-up card back:
+        // see emojiMatchBoard
+        let flip = UUID()
+        emojiMatchFlipsInFlight[flip] = .now
+        emojiMatchEpoch += 1
+        do {
+            try await api.flipEmojiMatchCard(gameId: gameId, participantId: hostId, cardId: cardId)
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:flip:error", detail: error.localizedDescription, ok: false)
+        }
+        emojiMatchFlipsInFlight[flip] = nil
+        emojiMatchEpoch += 1
+        // The flip has been answered, or has failed without an answer. The next current board is the
+        // server's as it is, so a refused card turns back, and a miss turns back when the server sets
+        // isRevealed to false. That board is this poll's unless another flip is unanswered or the poll fails
+        await pollEmojiMatchState()
+    }
+
+    func cancelEmojiMatch() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            try await api.cancelEmojiMatch(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:cancel:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+
+    func playAgainEmojiMatch() async {
+        guard let game = activeEmojiMatchGame else { return }
+        do {
+            _ = try await api.playAgainEmojiMatch(gameId: game.id, participantId: hostId)
+            await pollEmojiMatchState()
+        } catch {
+            DebugConsole.shared.trace(source: .client, action: "emojiMatch:playAgain:error", detail: error.localizedDescription, ok: false)
+        }
+    }
+}
+
+// MARK: - EmojiBingo
+
+extension HostRoomViewModel {
     func createEmojiBingoLobby() async {
         do {
             _ = try await api.createEmojiBingoLobby(roomId: roomId, hostParticipantId: hostId)
@@ -1796,88 +1914,11 @@ class HostRoomViewModel: ObservableObject {
             DebugConsole.shared.trace(source: .client, action: "emojiBingo:playAgain:error", detail: error.localizedDescription, ok: false)
         }
     }
+}
 
-    func joinEmojiMatchLobby() async {
-        guard let game = activeEmojiMatchGame else { return }
-        do {
-            try await api.joinEmojiMatchLobby(gameId: game.id, participantId: hostId)
-            await pollEmojiMatchState()
-        } catch {
-            DebugConsole.shared.trace(source: .client, action: "emojiMatch:joinLobby:error", detail: error.localizedDescription, ok: false)
-        }
-    }
+// MARK: - TruthOrDare
 
-    func leaveEmojiMatchLobby() async {
-        guard let game = activeEmojiMatchGame else { return }
-        do {
-            try await api.leaveEmojiMatchLobby(gameId: game.id, participantId: hostId)
-            await pollEmojiMatchState()
-        } catch {
-            DebugConsole.shared.trace(source: .client, action: "emojiMatch:leaveLobby:error", detail: error.localizedDescription, ok: false)
-        }
-    }
-
-    func startEmojiMatch() async {
-        guard let game = activeEmojiMatchGame else { return }
-        do {
-            try await api.startEmojiMatch(gameId: game.id, participantId: hostId)
-            await pollEmojiMatchState()
-        } catch {
-            DebugConsole.shared.trace(source: .client, action: "emojiMatch:start:error", detail: error.localizedDescription, ok: false)
-        }
-    }
-
-    func flipEmojiMatchCard(cardId: String) async {
-        guard var game = activeEmojiMatchGame else { return }
-        let gameId = game.id
-
-        // Optimistic update: immediately reveal the card locally for instant feedback, when its face is
-        // here to show. A server that hides face-down cards sends them with an empty content value, and
-        // turning one over now would draw a blank face: that card is turned by the first board that has it,
-        // which brings its face in the same answer.
-        if let idx = game.board.firstIndex(where: { $0.cardId == cardId }), !game.board[idx].content.value.isEmpty {
-            game.board[idx].isRevealed = true
-            activeEmojiMatchGame = game
-        }
-
-        // While this flip is unanswered, for two seconds at most, no board turns a face-up card back:
-        // see emojiMatchBoard
-        let flip = UUID()
-        emojiMatchFlipsInFlight[flip] = .now
-        emojiMatchEpoch += 1
-        do {
-            try await api.flipEmojiMatchCard(gameId: gameId, participantId: hostId, cardId: cardId)
-        } catch {
-            DebugConsole.shared.trace(source: .client, action: "emojiMatch:flip:error", detail: error.localizedDescription, ok: false)
-        }
-        emojiMatchFlipsInFlight[flip] = nil
-        emojiMatchEpoch += 1
-        // The flip has been answered, or has failed without an answer. The next current board is the
-        // server's as it is, so a refused card turns back, and a miss turns back when the server sets
-        // isRevealed to false. That board is this poll's unless another flip is unanswered or the poll fails
-        await pollEmojiMatchState()
-    }
-
-    func cancelEmojiMatch() async {
-        guard let game = activeEmojiMatchGame else { return }
-        do {
-            try await api.cancelEmojiMatch(gameId: game.id, participantId: hostId)
-            await pollEmojiMatchState()
-        } catch {
-            DebugConsole.shared.trace(source: .client, action: "emojiMatch:cancel:error", detail: error.localizedDescription, ok: false)
-        }
-    }
-
-    func playAgainEmojiMatch() async {
-        guard let game = activeEmojiMatchGame else { return }
-        do {
-            _ = try await api.playAgainEmojiMatch(gameId: game.id, participantId: hostId)
-            await pollEmojiMatchState()
-        } catch {
-            DebugConsole.shared.trace(source: .client, action: "emojiMatch:playAgain:error", detail: error.localizedDescription, ok: false)
-        }
-    }
-
+extension HostRoomViewModel {
     // MARK: - Truth or Dare
 
     func pollTruthOrDareState() async {

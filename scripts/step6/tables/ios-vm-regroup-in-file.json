@@ -1,0 +1,16 @@
+{
+  "added": [
+    "// MARK: - Sync",
+    "// MARK: - Room",
+    "// MARK: - MessagePipeline",
+    "// MARK: - Messages",
+    "// MARK: - SendQueue",
+    "// MARK: - LostInTranslation",
+    "// MARK: - WordRush",
+    "// MARK: - EmojiMatch",
+    "// MARK: - EmojiBingo",
+    "// MARK: - TruthOrDare",
+    { "line": "extension HostRoomViewModel {", "count": 10 },
+    { "line": "}", "count": 10 }
+  ]
+}
