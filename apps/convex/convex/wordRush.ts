@@ -268,6 +268,26 @@ async function finish(ctx: MutationCtx, game: Game) {
   await upsertSummary(ctx, game.roomId, game.hostParticipantId, round);
 }
 
+const SUMMARY_PREFIX = "emoji_match_summary:";
+const SUMMARY_GAME_TYPE = "Word Rush";
+
+/**
+ * The data of this game's summary message, or null for anything else. Emoji Match and Emoji Bingo post
+ * their summaries under the same prefix and are told apart by gameType, which is read from the parsed
+ * data, not searched for in the text, where a player's nickname could stand in for it.
+ */
+function ownSummaryData(message: { kind: string; text?: string }): any | null {
+  if (message.kind !== "system" || !message.text?.startsWith(SUMMARY_PREFIX)) return null;
+  try {
+    const data = JSON.parse(message.text.slice(SUMMARY_PREFIX.length));
+    if (!data || typeof data !== "object") return null;
+    return data.gameType === SUMMARY_GAME_TYPE ? data : null;
+  } catch {
+    // Not a summary this game can add a round to
+    return null;
+  }
+}
+
 // Same `emoji_match_summary:` format the web + iOS renderers already understand.
 async function upsertSummary(
   ctx: MutationCtx,
@@ -284,18 +304,13 @@ async function upsertSummary(
     .withIndex("by_roomId_createdAt", (q) => q.eq("roomId", roomId))
     .order("desc")
     .take(200);
-  const existing = recent.find(
-    (m) =>
-      m.kind === "system" &&
-      m.text?.startsWith("emoji_match_summary:") &&
-      m.text.includes('"Word Rush"')
-  );
-  if (existing?.text) {
+  const existing = recent.find((m) => ownSummaryData(m) !== null);
+  if (existing) {
     try {
-      const old = JSON.parse(existing.text.slice("emoji_match_summary:".length));
+      const old = ownSummaryData(existing);
       const games = [...(old.games ?? []), round];
       await ctx.db.patch(existing._id, {
-        text: `emoji_match_summary:${JSON.stringify({ gameType: "Word Rush", games })}`,
+        text: `${SUMMARY_PREFIX}${JSON.stringify({ gameType: SUMMARY_GAME_TYPE, games })}`,
         createdAt: Date.now(),
       });
       return;
@@ -308,7 +323,7 @@ async function upsertSummary(
     senderId,
     kind: "system",
     status: "processed",
-    text: `emoji_match_summary:${JSON.stringify({ gameType: "Word Rush", games: [round] })}`,
+    text: `${SUMMARY_PREFIX}${JSON.stringify({ gameType: SUMMARY_GAME_TYPE, games: [round] })}`,
     createdAt: Date.now(),
   });
 }

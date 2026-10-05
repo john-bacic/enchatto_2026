@@ -167,6 +167,14 @@ async function systemTexts(t: Backend, roomId: RoomId): Promise<string[]> {
   });
 }
 
+/** Fixture: a system line written straight into the room's chat, such as another game's summary */
+async function postSystemLine(t: Backend, roomId: RoomId, senderId: PlayerId, text: string) {
+  return await t.run(
+    async (ctx) =>
+      await ctx.db.insert("messages", { roomId, senderId, kind: "system", status: "processed", text, createdAt: Date.now() })
+  );
+}
+
 type Summary = {
   gameType: string;
   games: Array<{
@@ -1950,6 +1958,53 @@ describe("the end of a game", () => {
     expect((await t.run(async (ctx) => await ctx.db.get(messageId)))?.text).toBe(fake);
     const [summary] = await summaries(t, roomId);
     expect(summary.games).toHaveLength(1);
+  });
+
+  // Emoji Match and Emoji Bingo post their summaries under the same prefix. The fixtures are texts as
+  // emojiMatch.ts and emojiBingo.ts write them; a player's name is no gameType, whatever it says
+  test.each([
+    ["an Emoji Match summary", { gameType: "Match Emoji" }],
+    ["an Emoji Match summary from before gameType existed", {}],
+    ["an Emoji Bingo summary", { gameType: "Emoji Bingo" }],
+  ])("%s is left alone, also when one of its players is called Word Rush: the game posts its own", async (_whose, head) => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await startGame(t, { sayIt: false });
+    const otherText = `emoji_match_summary:${JSON.stringify({
+      ...head,
+      games: [{ players: [{ name: "Word Rush", avatar: "default", score: 3, isWinner: true }], totalPairs: 8, isTie: false }],
+    })}`;
+    const otherId = await postSystemLine(t, roomId, hostId, otherText);
+    const other = await t.run(async (ctx) => await ctx.db.get(otherId));
+    expect(other?.text).toBe(otherText);
+    await tick(t, 1000);
+    await answer(t, gameId, hostId);
+    await playToEnd(t, gameId, hostId);
+
+    // The same text, at the same place in the chat
+    expect(await t.run(async (ctx) => await ctx.db.get(otherId))).toEqual(other);
+    const own = (await summaries(t, roomId)).filter((s) => s.gameType === "Word Rush");
+    expect(own).toHaveLength(1);
+    expect(own[0].games).toMatchObject([{ players: [{ name: "Host", score: 300, isWinner: true }], totalPairs: 10, isTie: false }]);
+    expect(await summaries(t, roomId)).toHaveLength(2);
+  });
+
+  // No function writes such a line. The fixture is a summary of this game cut short
+  test("a system line under the summary prefix whose text is not JSON is passed over: the game ends and posts its summary", async () => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await startGame(t, { sayIt: false });
+    const cutShort = 'emoji_match_summary:{"gameType":"Word Rush","games":[';
+    const lineId = await postSystemLine(t, roomId, hostId, cutShort);
+    const line = await t.run(async (ctx) => await ctx.db.get(lineId));
+    await tick(t, 1000);
+
+    expect((await playToEnd(t, gameId, hostId)).status).toBe("completed");
+
+    expect(await t.run(async (ctx) => await ctx.db.get(lineId))).toEqual(line);
+    const posted = (await systemTexts(t, roomId)).filter((text) => text.startsWith("emoji_match_summary:") && text !== cutShort);
+    expect(posted.map((text) => JSON.parse(text.slice("emoji_match_summary:".length)))).toMatchObject([
+      { gameType: "Word Rush", games: [{ players: [{ name: "Host", score: 0 }], totalPairs: 10 }] },
+    ]);
+    expect(posted).toHaveLength(1);
   });
 
   test("a game that ends on a Say it round deletes its clips and shows no performer, clip or verdict", async () => {

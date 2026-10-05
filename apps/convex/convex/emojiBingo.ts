@@ -140,6 +140,30 @@ interface BingoRound {
   winPattern: string;
 }
 
+const SUMMARY_PREFIX = "emoji_match_summary:";
+const OLD_SUMMARY_PREFIX = "emoji_bingo_summary:";
+const SUMMARY_GAME_TYPE = "Emoji Bingo";
+
+/**
+ * The data of this game's summary message, or null for anything else. Emoji Match and Word Rush post
+ * their summaries under the same prefix and are told apart by gameType, which is read from the parsed
+ * data, not searched for in the text, where a player's nickname could stand in for it. No other game's
+ * summary has the old emoji_bingo_summary: prefix, so one under it is this game's whatever its gameType.
+ */
+function ownSummaryData(message: { kind: string; text?: string }): any | null {
+  if (message.kind !== "system" || !message.text) return null;
+  const old = message.text.startsWith(OLD_SUMMARY_PREFIX);
+  if (!old && !message.text.startsWith(SUMMARY_PREFIX)) return null;
+  try {
+    const data = JSON.parse(message.text.slice((old ? OLD_SUMMARY_PREFIX : SUMMARY_PREFIX).length));
+    if (!data || typeof data !== "object") return null;
+    return old || data.gameType === SUMMARY_GAME_TYPE ? data : null;
+  } catch {
+    // Not a summary this game can add a round to
+    return null;
+  }
+}
+
 async function upsertBingoSummary(
   ctx: any,
   roomId: Id<"rooms">,
@@ -169,22 +193,16 @@ async function upsertBingoSummary(
     .collect();
 
   // Look for existing emoji_match_summary with gameType "Emoji Bingo", OR old emoji_bingo_summary
-  const existing = systemMessages.find(
-    (m: any) => m.kind === "system" && (
-      (m.text?.startsWith("emoji_match_summary:") && m.text?.includes('"Emoji Bingo"')) ||
-      m.text?.startsWith("emoji_bingo_summary:")
-    )
-  );
+  const existing = systemMessages.find((m: any) => ownSummaryData(m) !== null);
 
   if (existing) {
     try {
-      const prefix = existing.text.startsWith("emoji_match_summary:") ? "emoji_match_summary:" : "emoji_bingo_summary:";
-      const oldData = JSON.parse(existing.text.slice(prefix.length));
+      const oldData = ownSummaryData(existing);
       const games = oldData.games ?? [];
       games.push(convertedRound);
-      const summaryData = { gameType: "Emoji Bingo", cancelled, games };
+      const summaryData = { gameType: SUMMARY_GAME_TYPE, cancelled, games };
       await ctx.db.patch(existing._id, {
-        text: `emoji_match_summary:${JSON.stringify(summaryData)}`,
+        text: `${SUMMARY_PREFIX}${JSON.stringify(summaryData)}`,
         createdAt: Date.now(),
       });
       return;
@@ -193,13 +211,13 @@ async function upsertBingoSummary(
     }
   }
 
-  const summaryData = { gameType: "Emoji Bingo", cancelled, games: [convertedRound] };
+  const summaryData = { gameType: SUMMARY_GAME_TYPE, cancelled, games: [convertedRound] };
   await ctx.db.insert("messages", {
     roomId,
     senderId,
     kind: "system",
     status: "processed",
-    text: `emoji_match_summary:${JSON.stringify(summaryData)}`,
+    text: `${SUMMARY_PREFIX}${JSON.stringify(summaryData)}`,
     createdAt: Date.now(),
   });
 }

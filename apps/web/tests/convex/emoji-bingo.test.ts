@@ -197,6 +197,14 @@ async function summaries(t: Backend, roomId: RoomId) {
     .map((message) => ({ message, data: JSON.parse(message.text!.slice(SUMMARY_PREFIX.length)) as Summary }));
 }
 
+/** Fixture: a system line written straight into the room's chat, such as another game's summary */
+async function postSystemLine(t: Backend, roomId: RoomId, senderId: PlayerId, text: string) {
+  return await t.run(
+    async (ctx) =>
+      await ctx.db.insert("messages", { roomId, senderId, kind: "system", status: "processed", text, createdAt: Date.now() })
+  );
+}
+
 async function post(t: Backend, route: string, body: Record<string, unknown>) {
   const res = await t.fetch(`/api/emoji-bingo/${route}`, { method: "POST", body: JSON.stringify(body) });
   return { status: res.status, body: (await res.json()) as Record<string, any> };
@@ -1526,6 +1534,65 @@ describe("the summary in the chat", () => {
     const bingo = all.find((s) => s.data.gameType === "Emoji Bingo")!;
     expect(bingo.data.games).toHaveLength(1);
     expect(bingo.data.games[0].totalPairs).toBe(25);
+  });
+
+  // Emoji Match and Word Rush post their summaries under the same prefix. The fixtures are texts as
+  // emojiMatch.ts and wordRush.ts write them; a player's name is no gameType, whatever it says
+  test.each([
+    ["an Emoji Match summary", { gameType: "Match Emoji" }],
+    ["an Emoji Match summary from before gameType existed", {}],
+    ["a Word Rush summary", { gameType: "Word Rush" }],
+  ])("%s is left alone too, also when one of its players is called Emoji Bingo", async (_whose, head) => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await startedGame(t, []);
+    const otherText =
+      SUMMARY_PREFIX +
+      JSON.stringify({
+        ...head,
+        games: [{ players: [{ name: "Emoji Bingo", avatar: "default", score: 3, isWinner: true }], totalPairs: 8, isTie: false }],
+      });
+    const otherId = await postSystemLine(t, roomId, hostId, otherText);
+    const other = await t.query(api.messages.getMessageById, { messageId: otherId });
+    expect(other?.text).toBe(otherText);
+    vi.advanceTimersByTime(1_000);
+    await win(t, gameId, hostId);
+
+    // The same text, at the same place in the chat
+    expect(await t.query(api.messages.getMessageById, { messageId: otherId })).toEqual(other);
+    const own = (await summaries(t, roomId)).filter((s) => s.message._id !== otherId);
+    expect(own.map((s) => s.data)).toEqual([
+      {
+        gameType: "Emoji Bingo",
+        games: [{ players: [{ name: "Host", avatar: "default", score: 5, isWinner: true }], totalPairs: 25, isTie: false }],
+      },
+    ]);
+    expect(own[0].message.createdAt).toBe(Date.now());
+  });
+
+  // No function writes such a line. The fixtures are summaries of this game cut short
+  test.each([
+    ["the summary prefix", `${SUMMARY_PREFIX}{"gameType":"Emoji Bingo","games":[`],
+    ["the old emoji_bingo_summary prefix", 'emoji_bingo_summary:{"games":['],
+  ])("a system line under %s whose text is not JSON is passed over: the game ends and posts its summary", async (_prefix, cutShort) => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await startedGame(t, []);
+    const lineId = await postSystemLine(t, roomId, hostId, cutShort);
+    const line = await t.query(api.messages.getMessageById, { messageId: lineId });
+    vi.advanceTimersByTime(1_000);
+
+    expect(await win(t, gameId, hostId)).toEqual({ valid: true, placement: 1 });
+
+    expect((await gameOf(t, gameId)).status).toBe("completed");
+    expect(await t.query(api.messages.getMessageById, { messageId: lineId })).toEqual(line);
+    const posted = (await t.query(api.messages.getRoomMessages, { roomId })).filter(
+      (m) => m._id !== lineId && m.text?.startsWith(SUMMARY_PREFIX)
+    );
+    expect(posted.map((m) => JSON.parse(m.text!.slice(SUMMARY_PREFIX.length)))).toEqual([
+      {
+        gameType: "Emoji Bingo",
+        games: [{ players: [{ name: "Host", avatar: "default", score: 5, isWinner: true }], totalPairs: 25, isTie: false }],
+      },
+    ]);
   });
 
   // The other direction, which is convex/emojiMatch.ts's to keep: it takes only a "Match Emoji" summary as its own
