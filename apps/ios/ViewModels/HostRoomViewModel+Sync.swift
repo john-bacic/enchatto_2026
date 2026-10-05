@@ -114,9 +114,17 @@ extension HostRoomViewModel {
         backgroundTask?.cancel()
         // The pass clears isFlushing itself when it unwinds
         flushTask?.cancel()
-        stopEmojiMatchFastPoll()
-        stopWordRushFastPoll()
+        stopGameFastPolls()
         dropGuessHold()
+    }
+
+    /// Stops the fast poll of each of the four games. A refresh polls each game that has none running, and that
+    /// poll starts the game's fast poll again when its answer calls for one
+    private func stopGameFastPolls() {
+        stopWordRushFastPoll()
+        stopEmojiMatchFastPoll()
+        stopEmojiBingoFastPoll()
+        stopTruthOrDareFastPoll()
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
@@ -144,6 +152,8 @@ extension HostRoomViewModel {
             pollTask = nil
             processingTask?.cancel()
             processingTask = nil
+            // The games' fast polls stop too: the first refresh after the return starts them again
+            stopGameFastPolls()
         default:
             break
         }

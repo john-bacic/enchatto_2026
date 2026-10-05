@@ -49,7 +49,7 @@ extension HostRoomViewModel {
         }
     }
 
-    private func stopEmojiBingoFastPoll() {
+    func stopEmojiBingoFastPoll() {
         emojiBingoPollTask?.cancel()
         emojiBingoPollTask = nil
     }

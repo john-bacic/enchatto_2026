@@ -58,7 +58,7 @@ extension HostRoomViewModel {
         }
     }
 
-    private func stopTruthOrDareFastPoll() {
+    func stopTruthOrDareFastPoll() {
         truthOrDarePollTask?.cancel()
         truthOrDarePollTask = nil
     }
