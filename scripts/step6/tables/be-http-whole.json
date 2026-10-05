@@ -1,0 +1,55 @@
+{
+  "changed": [
+    {
+      "old": "const corsHeaders = {",
+      "new": "export const corsHeaders = {"
+    },
+    {
+      "old": "function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {",
+      "new": "export function jsonAction(handler: (ctx: ActionCtx, body: any) => Promise<any>) {"
+    },
+    {
+      "old": "function checkDrawingBodySize(request: Request) {",
+      "new": "export function checkDrawingBodySize(request: Request) {"
+    },
+    {
+      "old": "function decodeDrawing(dataUrl: unknown): Blob {",
+      "new": "export function decodeDrawing(dataUrl: unknown): Blob {"
+    }
+  ],
+  "added": [
+    { "line": "import { HttpRouter } from \"convex/server\";", "count": 8 },
+    { "line": "import { httpAction } from \"./_generated/server\";", "count": 2 },
+    { "line": "import { api } from \"./_generated/api\";", "count": 7 },
+    "import { Id } from \"./_generated/dataModel\";",
+    { "line": "import { jsonAction } from \"./httpShared\";", "count": 6 },
+    { "line": "import { checkDrawingBodySize, corsHeaders, decodeDrawing, jsonAction } from \"./httpShared\";", "count": 2 },
+    "import { registerRoomRoutes } from \"./httpRooms\";",
+    "import { registerMessageRoutes } from \"./httpMessages\";",
+    "import { registerGameRoutes } from \"./httpGames\";",
+    "import { registerEmojifyrRoutes } from \"./httpEmojifyr\";",
+    "import { registerEmojiMatchRoutes } from \"./httpEmojiMatch\";",
+    "import { registerTruthOrDareRoutes } from \"./httpTruthOrDare\";",
+    "import { registerEmojiBingoRoutes } from \"./httpEmojiBingo\";",
+    "import { registerWordRushRoutes } from \"./httpWordRush\";",
+    "export function registerRoomRoutes(http: HttpRouter): void {",
+    "export function registerMessageRoutes(http: HttpRouter): void {",
+    "export function registerGameRoutes(http: HttpRouter): void {",
+    "export function registerEmojifyrRoutes(http: HttpRouter): void {",
+    "export function registerEmojiMatchRoutes(http: HttpRouter): void {",
+    "export function registerTruthOrDareRoutes(http: HttpRouter): void {",
+    "export function registerEmojiBingoRoutes(http: HttpRouter): void {",
+    "export function registerWordRushRoutes(http: HttpRouter): void {",
+    { "line": "}", "count": 8 },
+    "// Each area's routes live in its own http*.ts file; this file only puts them on the one router.",
+    "// Convex takes the router from this file's default export.",
+    "registerRoomRoutes(http);",
+    "registerMessageRoutes(http);",
+    "registerGameRoutes(http);",
+    "registerEmojifyrRoutes(http);",
+    "registerEmojiMatchRoutes(http);",
+    "registerTruthOrDareRoutes(http);",
+    "registerEmojiBingoRoutes(http);",
+    "registerWordRushRoutes(http);"
+  ]
+}

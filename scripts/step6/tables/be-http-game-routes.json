@@ -1,0 +1,28 @@
+{
+  "added": [
+    { "line": "import { HttpRouter } from \"convex/server\";", "count": 6 },
+    { "line": "import { api } from \"./_generated/api\";", "count": 5 },
+    { "line": "import { jsonAction } from \"./httpShared\";", "count": 5 },
+    "import { registerGameRoutes } from \"./httpGames\";",
+    "import { registerEmojifyrRoutes } from \"./httpEmojifyr\";",
+    "import { registerEmojiMatchRoutes } from \"./httpEmojiMatch\";",
+    "import { registerTruthOrDareRoutes } from \"./httpTruthOrDare\";",
+    "import { registerEmojiBingoRoutes } from \"./httpEmojiBingo\";",
+    "import { registerWordRushRoutes } from \"./httpWordRush\";",
+    "export function registerGameRoutes(http: HttpRouter): void {",
+    "export function registerEmojifyrRoutes(http: HttpRouter): void {",
+    "export function registerEmojiMatchRoutes(http: HttpRouter): void {",
+    "export function registerTruthOrDareRoutes(http: HttpRouter): void {",
+    "export function registerEmojiBingoRoutes(http: HttpRouter): void {",
+    "export function registerWordRushRoutes(http: HttpRouter): void {",
+    { "line": "}", "count": 6 },
+    "// Each area's routes live in its own http*.ts file; this file only puts them on the one router.",
+    "// Convex takes the router from this file's default export.",
+    "registerGameRoutes(http);",
+    "registerEmojifyrRoutes(http);",
+    "registerEmojiMatchRoutes(http);",
+    "registerTruthOrDareRoutes(http);",
+    "registerEmojiBingoRoutes(http);",
+    "registerWordRushRoutes(http);"
+  ]
+}

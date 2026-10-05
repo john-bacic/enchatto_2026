@@ -1,0 +1,74 @@
+{
+  "about": "The six games' routes leave apps/web/convex/http.ts, one file per game: Lost in Translation to httpGames.ts, Emojifyr to httpEmojifyr.ts, Emoji Match to httpEmojiMatch.ts, Truth or Dare to httpTruthOrDare.ts, Emoji Bingo to httpEmojiBingo.ts and Word Rush to httpWordRush.ts. Each file wraps its routes, one level deeper and otherwise as they stand, in a function that registers them on the router it is handed; teamSplit and the Word Rush table stay at the top level of their files. http.ts keeps the router, calls the eight functions in the order the routes stood in, and default-exports the router. The imports the hand-written Truth or Dare route needs go with it. Run from the repo root. Where each line landed: node scripts/step6/web-move-check.mjs scripts/step6/tables/be-http-game-routes.ranges.json --strict-indent. Every line counted once: node scripts/step6/line-account.mjs --base 9edabe5de82210319a6b68ddfe0d6a5422b61207 --old apps/web/convex/http.ts --allow scripts/step6/tables/be-http-game-routes.json apps/web/convex/http.ts apps/web/convex/httpGames.ts apps/web/convex/httpEmojifyr.ts apps/web/convex/httpEmojiMatch.ts apps/web/convex/httpTruthOrDare.ts apps/web/convex/httpEmojiBingo.ts apps/web/convex/httpWordRush.ts. The base is the commit before this move (pass --base to both if it has another name). be-http-whole.ranges.json holds the same proof for the three moves together, against the one file they started from. apps/convex/convex is the same files byte for byte: diff -r -x _generated -x tsconfig.json apps/web/convex apps/convex/convex.",
+  "base": "9edabe5de82210319a6b68ddfe0d6a5422b61207",
+  "ranges": [
+    { "from": "apps/web/convex/http.ts", "lines": [14, 20], "to": "apps/web/convex/httpGames.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [22, 134], "to": "apps/web/convex/httpGames.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [136, 274], "to": "apps/web/convex/httpEmojifyr.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [276, 409], "to": "apps/web/convex/httpEmojiMatch.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [2, 4], "to": "apps/web/convex/httpTruthOrDare.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [7, 7], "to": "apps/web/convex/httpTruthOrDare.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [411, 581], "to": "apps/web/convex/httpTruthOrDare.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [583, 715], "to": "apps/web/convex/httpEmojiBingo.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [717, 819], "to": "apps/web/convex/httpWordRush.ts" },
+    { "from": "apps/web/convex/http.ts", "lines": [821, 823], "to": "apps/web/convex/httpWordRush.ts" }
+  ],
+  "glue": {
+    "apps/web/convex/http.ts": [
+      "import { registerGameRoutes } from \"./httpGames\";",
+      "import { registerEmojifyrRoutes } from \"./httpEmojifyr\";",
+      "import { registerEmojiMatchRoutes } from \"./httpEmojiMatch\";",
+      "import { registerTruthOrDareRoutes } from \"./httpTruthOrDare\";",
+      "import { registerEmojiBingoRoutes } from \"./httpEmojiBingo\";",
+      "import { registerWordRushRoutes } from \"./httpWordRush\";",
+      "// Each area's routes live in its own http*.ts file; this file only puts them on the one router.",
+      "// Convex takes the router from this file's default export.",
+      "registerGameRoutes(http);",
+      "registerEmojifyrRoutes(http);",
+      "registerEmojiMatchRoutes(http);",
+      "registerTruthOrDareRoutes(http);",
+      "registerEmojiBingoRoutes(http);",
+      "registerWordRushRoutes(http);"
+    ],
+    "apps/web/convex/httpGames.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { api } from \"./_generated/api\";",
+      "import { jsonAction } from \"./httpShared\";",
+      "export function registerGameRoutes(http: HttpRouter): void {",
+      "}"
+    ],
+    "apps/web/convex/httpEmojifyr.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { api } from \"./_generated/api\";",
+      "import { jsonAction } from \"./httpShared\";",
+      "export function registerEmojifyrRoutes(http: HttpRouter): void {",
+      "}"
+    ],
+    "apps/web/convex/httpEmojiMatch.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { api } from \"./_generated/api\";",
+      "import { jsonAction } from \"./httpShared\";",
+      "export function registerEmojiMatchRoutes(http: HttpRouter): void {",
+      "}"
+    ],
+    "apps/web/convex/httpTruthOrDare.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "export function registerTruthOrDareRoutes(http: HttpRouter): void {",
+      "}"
+    ],
+    "apps/web/convex/httpEmojiBingo.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { api } from \"./_generated/api\";",
+      "import { jsonAction } from \"./httpShared\";",
+      "export function registerEmojiBingoRoutes(http: HttpRouter): void {",
+      "}"
+    ],
+    "apps/web/convex/httpWordRush.ts": [
+      "import { HttpRouter } from \"convex/server\";",
+      "import { api } from \"./_generated/api\";",
+      "import { jsonAction } from \"./httpShared\";",
+      "export function registerWordRushRoutes(http: HttpRouter): void {",
+      "}"
+    ]
+  }
+}
