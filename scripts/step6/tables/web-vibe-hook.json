@@ -1,0 +1,51 @@
+{
+  "about": "The room page's VIBE meter (the 5-second clock, the language a message counts as, the score with its combo and hype, the card that explains it, and the one effect that answers a new message with the logo hop, the join cut-in, confetti and the floating points) to hooks/use-vibe.ts. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-vibe-hook.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-vibe-hook.json --root <folder> --strict-indent, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 07a97f1 --strict",
+  "base": "07a97f1b1142bc610da64f81c349d8b60c972135",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [45, 49], "to": "apps/web/hooks/use-vibe.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [822, 885], "to": "apps/web/hooks/use-vibe.ts" }
+  ],
+  "changed": [
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 21,
+      "old": "import { isJapaneseText } from \"@/components/message-item\";",
+      "new": null
+    },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 34,
+      "old": "import { HYPE_AT, computeVibe, formatVibe, type VibeMessage } from \"@/lib/vibe\";",
+      "new": "import { HYPE_AT, formatVibe } from \"@/lib/vibe\";"
+    }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useVibe } from \"@/hooks/use-vibe\";",
+      "const { vibe, combo, mult, hype, recentCount, switches, showVibeInfo, setShowVibeInfo, vibeRef, closeVibeInfo, floaters, cutIn, confettiKey, logoHop } = useVibe({ messages, messageList, participants, participantId, roomState });"
+    ],
+    "apps/web/hooks/use-vibe.ts": [
+      "\"use client\";",
+      "import { useCallback, useEffect, useRef, useState } from \"react\";",
+      "import type { FunctionReturnType } from \"convex/server\";",
+      "import type { api } from \"@/convex/_generated/api\";",
+      "import { isJapaneseText } from \"@/components/message-item\";",
+      "import { computeVibe, type VibeMessage } from \"@/lib/vibe\";",
+      "export function useVibe({",
+      "messages,",
+      "messageList,",
+      "participants,",
+      "participantId,",
+      "roomState,",
+      "}: {",
+      "messages: FunctionReturnType<typeof api.messages.getRoomMessages> | undefined;",
+      "messageList: FunctionReturnType<typeof api.messages.getRoomMessages>;",
+      "participants: NonNullable<FunctionReturnType<typeof api.rooms.getRoomState>>[\"participants\"];",
+      "participantId: string;",
+      "roomState: FunctionReturnType<typeof api.rooms.getRoomState> | undefined;",
+      "}) {",
+      "return { vibe, combo, mult, hype, recentCount, switches, showVibeInfo, setShowVibeInfo, vibeRef, closeVibeInfo, floaters, cutIn, confettiKey, logoHop };",
+      "}"
+    ]
+  }
+}

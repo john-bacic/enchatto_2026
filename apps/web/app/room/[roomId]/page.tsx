@@ -18,7 +18,6 @@ import { TruthOrDareGame } from "@/components/truth-or-dare-game";
 import { EmojiBingoGame } from "@/components/emoji-bingo-game";
 import { TodDebugPanel, todTrace, tracedMutation } from "@/components/tod-debug-panel";
 import { WordRushGame } from "@/components/word-rush-game";
-import { isJapaneseText } from "@/components/message-item";
 import { LoadingState } from "@/components/room/center-states";
 import { MessageErrorBoundary } from "@/components/room/message-error-boundary";
 import { AvatarDisc } from "@/components/ui/avatar";
@@ -31,7 +30,7 @@ import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { teamInSession } from "@/lib/game-teams";
 import { useGameOnScreen } from "@/lib/game-results";
-import { HYPE_AT, computeVibe, formatVibe, type VibeMessage } from "@/lib/vibe";
+import { HYPE_AT, formatVibe } from "@/lib/vibe";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePresence } from "@/hooks/use-presence";
@@ -39,14 +38,9 @@ import { useTypingAction } from "@/hooks/use-typing-action";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { useRoomRedirects } from "@/hooks/use-room-redirects";
 import { useOutbox } from "@/hooks/use-outbox";
+import { useVibe } from "@/hooks/use-vibe";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
-
-interface Floater {
-  id: number;
-  text: string;
-  left: number;
-}
 
 function RoomContent() {
   const params = useParams();
@@ -819,70 +813,7 @@ function RoomContent() {
   });
 
   // ─── Vibe / hype ──────────────────────────────────────────────────────────
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 5000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const langOf = useCallback(
-    (m: VibeMessage) => {
-      if (m.kind === "text" && m.text) return isJapaneseText(m.text) ? "ja" : "en";
-      return participants.find((p) => p._id === m.senderId)?.preferredLanguage ?? "en";
-    },
-    [participants]
-  );
-  const { vibe, combo, mult, hype, recentCount, switches } = computeVibe(
-    messageList,
-    langOf,
-    Math.max(now, messageList[messageList.length - 1]?.createdAt ?? 0),
-  );
-  const [showVibeInfo, setShowVibeInfo] = useState(false);
-  const vibeRef = useRef<HTMLButtonElement>(null);
-  const closeVibeInfo = useCallback(() => setShowVibeInfo(false), []);
-
-  const [floaters, setFloaters] = useState<Floater[]>([]);
-  const [cutIn, setCutIn] = useState<{ key: string; name: string; avatar: string } | null>(null);
-  const [confettiKey, setConfettiKey] = useState<string | null>(null);
-  const [logoHop, setLogoHop] = useState(0);
-  const seenIdsRef = useRef<Set<string> | null>(null);
-  const hypeRef = useRef(hype);
-  hypeRef.current = hype;
-
-  useEffect(() => {
-    if (!messages) return;
-    if (!seenIdsRef.current) {
-      seenIdsRef.current = new Set(messages.map((m) => m._id));
-      return;
-    }
-    const seen = seenIdsRef.current;
-    const fresh = messages.filter((m) => !seen.has(m._id));
-    if (fresh.length === 0) return;
-    fresh.forEach((m) => seen.add(m._id));
-    if (fresh.some((m) => m.kind !== "system")) setLogoHop((n) => n + 1);
-
-    for (const m of fresh) {
-      if (m.kind !== "system" || !m.text?.startsWith("join:")) continue;
-      if (m.senderId === participantId || m.senderId === roomState?.room?.hostId) continue;
-      const joiner = participants.find((p) => p._id === m.senderId);
-      setCutIn({ key: m._id, name: m.text.slice("join:".length), avatar: joiner?.avatar.value ?? "" });
-      if (hypeRef.current) setConfettiKey(m._id);
-    }
-
-    if (!hypeRef.current) return;
-    const real = messages.filter((m) => m.kind !== "system");
-    const added = fresh.filter((m) => m.kind !== "system");
-    const items = added.map((m) => {
-      const idx = real.findIndex((r) => r._id === m._id);
-      const prev = idx > 0 ? real[idx - 1] : undefined;
-      const switched = !!prev && langOf(prev) !== langOf(m);
-      return { id: m.createdAt + Math.random(), text: switched ? "+32" : "+12", left: 18 + Math.random() * 64 };
-    });
-    if (items.length === 0) return;
-    setFloaters((f) => [...f, ...items]);
-    const ids = new Set(items.map((i) => i.id));
-    setTimeout(() => setFloaters((f) => f.filter((x) => !ids.has(x.id))), 1400);
-  }, [messages, participantId, participants, roomState?.room?.hostId, langOf]);
+  const { vibe, combo, mult, hype, recentCount, switches, showVibeInfo, setShowVibeInfo, vibeRef, closeVibeInfo, floaters, cutIn, confettiKey, logoHop } = useVibe({ messages, messageList, participants, participantId, roomState });
 
   // Loading state
   if (roomState === undefined || messages === undefined) {
