@@ -1,6 +1,5 @@
 import SwiftUI
 import PhotosUI
-import CoreImage.CIFilterBuiltins
 
 struct HostConversationView: View {
     let roomId: String
@@ -55,7 +54,6 @@ struct HostConversationView: View {
     @AppStorage("enchatto_voiceModeHinted") var voiceModeHinted = false
     @State var modeNudge = false
     @State var micLongPressed = false
-    @State private var showAttachMenu = false
     @State var toolsOpen = false
     @State var preVoiceText = ""
     @State var transcribingDictation = false
