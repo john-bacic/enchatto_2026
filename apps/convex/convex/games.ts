@@ -1421,6 +1421,16 @@ export const getLatestGameSession = query({
   },
 });
 
+/**
+ * A step as the replay sends it: without inputDrawingUrl. A guess step is stored with that copy of its
+ * round's drawing, the picture its player was shown. Both replay UIs draw a round's picture from its draw
+ * step, so a round goes out with its drawing once, not once more for every guesser.
+ */
+function forReplay(step: Doc<"gameSteps">) {
+  const { inputDrawingUrl: _inputDrawingUrl, ...rest } = step;
+  return rest;
+}
+
 export const getGameReplay = query({
   args: { gameSessionId: v.id("gameSessions") },
   handler: async (ctx, args) => {
@@ -1480,7 +1490,8 @@ export const getGameReplay = query({
         // Steps the server closed unanswered are left out: both replay UIs would draw them as a wrong pick
         const steps = allSteps
           .filter((s) => s.chainId === chain._id && !s.timedOut)
-          .sort((a, b) => a.stepIndex - b.stepIndex);
+          .sort((a, b) => a.stepIndex - b.stepIndex)
+          .map(forReplay);
         const teamPoints = teamPointsOf(chain);
         return {
           ...chain,

@@ -1661,6 +1661,39 @@ describe("the queries clients poll", () => {
     expect(replay!.chains.map((c) => c.originalPrompt)).toEqual([chains[0].originalPrompt, chains[1].originalPrompt]);
   });
 
+  // A guess step is stored with a copy of its round's drawing, which neither replay screen reads
+  test("the replay holds a round's drawing once, on its draw step, while the game runs and once it is cancelled", async () => {
+    const t = newBackend();
+    const { roomId, hostId, guestIds: [ann, ben] } = await room(t, ["Ann", "Ben"]);
+    const sessionId = await start(t, roomId, hostId);
+    await draw(t, hostId);
+    await guess(t, ann, "right");
+    await guess(t, ben, "wrong");
+    await draw(t, ann, { url: JPEG });
+    await guess(t, hostId, "right");
+    // Round 1 is over. Round 2 is drawn and the host has guessed at it; Ben has not
+
+    /** Each round's steps in an answer, and how often its text holds round 1's drawing, round 2's, and the copy's name */
+    async function replayed() {
+      const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+      const times = (text: string) => JSON.stringify(replay).split(text).length - 1;
+      return {
+        steps: replay!.chains.map((chain) => chain.steps.map((s) => [s.stepType, s.assignedParticipantId])),
+        held: { round1: times(PNG), round2: times(JPEG), copies: times("inputDrawingUrl") },
+      };
+    }
+    const round1 = [["draw", hostId], ["guess", ann], ["guess", ben]];
+
+    expect(await replayed()).toEqual({ steps: [round1], held: { round1: 1, round2: 0, copies: 0 } });
+
+    await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+    // Round 2 comes with the one guess that was answered: Ben's, closed by the Cancel, is left out
+    expect(await replayed()).toEqual({
+      steps: [round1, [["draw", ann], ["guess", hostId]]],
+      held: { round1: 1, round2: 1, copies: 0 },
+    });
+  });
+
   // The rule looks at the session, so a game that ended without its rounds being closed keeps its replay
   test("the replay of a finished game shows a drawn round whatever state the round itself was left in", async () => {
     const t = newBackend();
@@ -3762,6 +3795,96 @@ describe("teams", () => {
       [g3]: { correct: 3, total: 8 },
     });
   });
+
+  // A guess step is stored with the drawing its player was shown, a copy of the one on the round's draw step.
+  // Both replay screens draw a round's picture from the draw step
+  test.each(["an individual game", "a team game"])(
+    "the replay of %s of four sends each round's drawing once, on its draw step, and all else as it is stored",
+    async (kind) => {
+      const t = newBackend();
+      const { roomId, hostId, guestIds: [g1, g2, g3], players } = await teamRoom(t, ["ja", "en", "ja"]);
+      const inTeams = kind === "a team game";
+      const words = bank(40);
+      const sessionId = inTeams
+        ? await startTeams(t, roomId, hostId, [[hostId, g2], [g1, g3]], { customPrompts: words })
+        : await start(t, roomId, hostId, { customPrompts: words });
+      // The drawing goes Host, G1, G2, G3, and round again, a PNG and a JPEG in turn. The host and G2 always
+      // guess right, G1 and G3 in the first four rounds only
+      const drawingOf = (round: number) => (round % 2 === 0 ? PNG : JPEG);
+      for (const [r, chain] of (await chainsOf(t, sessionId)).entries()) {
+        const drawer = chain.drawerParticipantId!;
+        await draw(t, drawer, { url: drawingOf(r) });
+        for (const guesser of players.filter((p) => p !== drawer)) {
+          await guess(t, guesser, r < 4 || guesser === hostId || guesser === g2 ? "right" : "wrong");
+        }
+      }
+
+      const stored = { session: await sessionDoc(t, sessionId), chains: await chainsOf(t, sessionId), steps: await stepsOf(t, sessionId) };
+      expect(stored.session.status).toBe("complete");
+      const stepsOfRound = (r: number) =>
+        stored.steps.filter((s) => s.chainId === stored.chains[r]._id).sort((a, b) => a.stepIndex - b.stepIndex);
+      // What is stored keeps the copies: the round's drawing on its draw step, and again on each of its guess steps
+      for (const r of stored.chains.keys()) {
+        expect(stepsOfRound(r).map((s) => [s.stepType, s.outputDrawingUrl, s.inputDrawingUrl])).toEqual([
+          ["draw", drawingOf(r), undefined],
+          ["guess", undefined, drawingOf(r)],
+          ["guess", undefined, drawingOf(r)],
+          ["guess", undefined, drawingOf(r)],
+        ]);
+      }
+
+      // The whole answer with every step as it is stored: the session, the ten rounds in the order they were
+      // played with their four steps in step order, the names, the scores, the Japanese of every word on offer
+      // and, in a team game, the teams' points and each round's
+      const offered = new Set(stored.chains.flatMap((chain) => [chain.originalPrompt, ...chain.options!]));
+      const whole = {
+        session: stored.session,
+        chains: stored.chains.map((chain, r) => ({
+          ...chain,
+          steps: stepsOfRound(r),
+          ...(inTeams ? { teamPoints: [60, r < 4 ? 60 : 0] } : {}),
+        })),
+        participants: {
+          [hostId]: { nickname: "Host", avatar: { type: "preset", value: "default" } },
+          [g1]: { nickname: "G1", avatar: { type: "preset", value: "fox" } },
+          [g2]: { nickname: "G2", avatar: { type: "preset", value: "cat" } },
+          [g3]: { nickname: "G3", avatar: { type: "preset", value: "owl" } },
+        },
+        scores: {
+          [hostId]: { correct: 7, total: 7 },
+          [g1]: { correct: 3, total: 7 },
+          [g2]: { correct: 8, total: 8 },
+          [g3]: { correct: 3, total: 8 },
+        },
+        promptTranslations: Object.fromEntries(words.filter((word) => offered.has(word.text)).map((word) => [word.text, word.ja])),
+        ...(inTeams
+          ? {
+              teams: [
+                { memberIds: [hostId, g2], points: 600 },
+                { memberIds: [g1, g3], points: 240 },
+              ],
+            }
+          : {}),
+      };
+      // What is sent is that with one key gone from its steps: the thirty guess steps' copies
+      const withoutCopy = (step: object) => Object.fromEntries(Object.entries(step).filter(([key]) => key !== "inputDrawingUrl"));
+      const sent = { ...whole, chains: whole.chains.map((chain) => ({ ...chain, steps: chain.steps.map(withoutCopy) })) };
+
+      expect(await t.query(api.games.getGameReplay, { gameSessionId: sessionId })).toStrictEqual(sent);
+      // The route the host app asks answers with the same replay
+      const route = await post(t, "/api/games/replay", { gameSessionId: sessionId });
+      expect(route.status).toBe(200);
+      expect(route.body).toStrictEqual(sent);
+      // Its text holds each of the two pictures five times, once for every round drawn with it, and never names the copy
+      const times = (text: string) => JSON.stringify(route.body).split(text).length - 1;
+      expect({ png: times(PNG), jpeg: times(JPEG), drawSteps: times('"outputDrawingUrl"'), copies: times("inputDrawingUrl") }).toEqual({
+        png: 5,
+        jpeg: 5,
+        drawSteps: 10,
+        copies: 0,
+      });
+    }
+  );
 
   test("teams level on points are a draw: nothing breaks the tie and nothing names a winner", async () => {
     const t = newBackend();

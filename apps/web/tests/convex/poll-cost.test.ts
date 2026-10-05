@@ -531,9 +531,9 @@ describe("the same room after a finished game of Lost in Translation", () => {
     ["/api/games/my-active-step", 11],
     // The finished session, which carries the 40 prompts of its word bank
     ["/api/games/latest-session", 3_520],
-    // The ten rounds with all four steps of each, whole: a round's drawing is on its draw step and again
-    // on each of its three guess steps
-    ["/api/games/replay", 3_500_000],
+    // The ten rounds with all four steps of each. A round's drawing goes out once, on its draw step: the
+    // three guess steps are sent without the copy each of them stores
+    ["/api/games/replay", 893_000],
     ["/api/word-rush/state", 13],
     ["/api/emoji-match/active", 11],
     ["/api/emoji-bingo/active", 11],
@@ -544,10 +544,10 @@ describe("the same room after a finished game of Lost in Translation", () => {
     expect(sizes.get(path)).toBeLessThanOrEqual(ceiling);
   });
 
-  test("one refresh is those eleven requests, and at most 4,525,000 bytes in all", () => {
+  test("one refresh is those eleven requests, and at most 1,918,000 bytes in all", () => {
     expect([...sizes.keys()]).toEqual(REFRESH.map(([path]) => path));
     // Sent every 2 seconds for as long as the finished game is the room's latest
-    expect(total(sizes)).toBeLessThanOrEqual(4_525_000);
+    expect(total(sizes)).toBeLessThanOrEqual(1_918_000);
   });
 
   test("the snapshot is those answers in one but for the replay, at most 1,025,000 bytes", async () => {
@@ -579,7 +579,8 @@ describe("the same room after a finished game of Lost in Translation", () => {
         documentsRead: 55,
         // The session, the rounds, the steps, and each player by id
         databaseQueries: 7,
-        // Each drawing four times over: three rounds drawn by the host, seven by guests
+        // Each drawing four times over, as the steps hold it, to answer with it once: three rounds drawn by
+        // the host, seven by guests
         bytesRead: 3_500_000,
       },
       () => room.t.query(api.games.getGameReplay, { gameSessionId: session._id })

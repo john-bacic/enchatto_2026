@@ -834,8 +834,8 @@ describe("Lost in Translation", () => {
           maxSteps: 3,
           steps: [
             { ...played, _id: "step1" as Id<"gameSteps">, stepIndex: 0, stepType: "draw", assignedParticipantId: HOST, inputText: "Cat", outputDrawingUrl: file("round-1"), submittedAt: ago(100) },
-            { ...played, _id: "step2" as Id<"gameSteps">, stepIndex: 1, stepType: "guess", assignedParticipantId: YUKI, inputDrawingUrl: file("round-1"), outputText: "猫", selectedOption: "猫", correct: true, submittedAt: ago(90) },
-            { ...played, _id: "step3" as Id<"gameSteps">, stepIndex: 2, stepType: "guess", assignedParticipantId: SAM, inputDrawingUrl: file("round-1"), outputText: "Star", selectedOption: "Star", correct: false, submittedAt: ago(85) },
+            { ...played, _id: "step2" as Id<"gameSteps">, stepIndex: 1, stepType: "guess", assignedParticipantId: YUKI, outputText: "猫", selectedOption: "猫", correct: true, submittedAt: ago(90) },
+            { ...played, _id: "step3" as Id<"gameSteps">, stepIndex: 2, stepType: "guess", assignedParticipantId: SAM, outputText: "Star", selectedOption: "Star", correct: false, submittedAt: ago(85) },
           ],
         },
       ],
