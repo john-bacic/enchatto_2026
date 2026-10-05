@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { submitStoredDrawing, takesStoredDrawing } from "../../convex/games";
 import { callerProof } from "../../convex/participants";
 import schema from "../../convex/schema";
 import { Backend, joinGuest, modules, newBackend, tokenFor } from "./setup";
@@ -267,6 +268,18 @@ async function summariesIn(t: Backend, roomId: RoomId): Promise<Summary[]> {
 async function post(t: Backend, path: string, body: Record<string, unknown>) {
   const res = await t.fetch(path, { method: "POST", body: JSON.stringify(body) });
   return { status: res.status, body: await res.json() };
+}
+
+/** The ids of the stored files, oldest first */
+async function filesIn(t: Backend): Promise<Id<"_storage">[]> {
+  return await t.run(async (ctx) => (await ctx.db.system.query("_storage").collect()).map((file) => file._id));
+}
+
+/** The URL clients are given for a stored file */
+async function urlOf(t: Backend, storageId: Id<"_storage">): Promise<string> {
+  const url = await t.run(async (ctx) => await ctx.storage.getUrl(storageId));
+  if (!url) throw new Error("File not found");
+  return url;
 }
 
 // ─── Lost in Translation ─────────────────────────────────────────────────────
@@ -2595,7 +2608,10 @@ describe("the routes the host app calls", () => {
 
     const drawn = await post(t, "/api/games/submit-step", { stepId: drawStep._id, participantId: hostId, outputDrawingUrl: PNG });
     expect(drawn).toEqual({ status: 200, body: { ok: true } });
-    expect(await stepDoc(t, drawStep._id)).toMatchObject({ status: "submitted", outputDrawingUrl: PNG });
+    // The route stores the drawing as a file, and the step holds the file's URL
+    const [file] = await filesIn(t);
+    const stored = await urlOf(t, file);
+    expect(await stepDoc(t, drawStep._id)).toMatchObject({ status: "submitted", outputDrawingUrl: stored });
 
     await guess(t, ann, "right");
     await draw(t, ann);
@@ -2614,7 +2630,7 @@ describe("the routes the host app calls", () => {
     // The overlay retries a submit until it gets a 200, so a dropped late answer must be one
     const late = await post(t, "/api/games/submit-step", { stepId: drawStep._id, participantId: hostId, outputDrawingUrl: JPEG });
     expect(late.status).toBe(200);
-    expect((await stepDoc(t, drawStep._id)).outputDrawingUrl).toBe(PNG);
+    expect((await stepDoc(t, drawStep._id)).outputDrawingUrl).toBe(stored);
   });
 
   test("cancel ends the game, and the replay route then returns what the replay screen decodes", async () => {
@@ -2639,6 +2655,639 @@ describe("the routes the host app calls", () => {
       expect.arrayContaining(["_id", "chainIndex", "originalPrompt", "status", "steps"])
     );
     expect(Object.keys(replay.body.chains[0].steps[0])).toEqual(expect.arrayContaining(STEP_FIELDS));
+  });
+});
+
+// ─── A drawing stored as a file ──────────────────────────────────────────────
+// The host app posts its drawing to /api/games/submit-step as a PNG data URL of 50 to 270 KB. Kept in the rows, that
+// text is in the draw step, in every guess step and in a chat message, and every poll of every client carries each
+// copy. The route stores the drawing as a file and the rows hold the file's URL. The web page calls the mutation
+// with a small JPEG, which stays in the rows.
+
+describe("a drawing sent through the submit-step route", () => {
+  const SUBMIT = "/api/games/submit-step";
+  const HOST_TOKEN = tokenFor(1);
+  const ANN_TOKEN = tokenFor(2);
+  const BEN_TOKEN = tokenFor(3);
+  const OK = { status: 200, body: { ok: true } };
+  type Handler = { _handler: () => Promise<boolean> };
+
+  /** The bytes of the image inside a data URL */
+  function bytesOf(dataUrl: string): number[] {
+    return Array.from(atob(dataUrl.slice(dataUrl.indexOf(",") + 1)), (c) => c.charCodeAt(0));
+  }
+
+  /** A file in storage that no row names, as the route leaves one before it hands it to the step */
+  async function storeDrawing(t: Backend): Promise<Id<"_storage">> {
+    return await t.run(async (ctx) => await ctx.storage.store(new Blob([new Uint8Array(bytesOf(PNG))], { type: "image/png" })));
+  }
+
+  /** The runs of the mutation the route hands a stored file to. The route stores a file just before each, and at no other time */
+  function handovers() {
+    return vi.spyOn(submitStoredDrawing as unknown as Handler, "_handler");
+  }
+
+  /**
+   * Makes the route's question come back yes whatever the step's state. That is what the route holds for a step
+   * that closes just after it asked: the question and the step's own check are two transactions.
+   */
+  function toldYes() {
+    return vi.spyOn(takesStoredDrawing as unknown as Handler, "_handler").mockResolvedValue(true);
+  }
+
+  /**
+   * A game of the host, Ann and Ben in which the host's drawing step is open, and the request the host app sends
+   * for it. `tokens`: each of them registered one, as current builds do.
+   */
+  async function drawingStep(t: Backend, tokens = false) {
+    const { roomId, hostId } = await room(t, [], { token: tokens ? HOST_TOKEN : undefined });
+    const ann = await joinGuest(t, roomId, "Ann", { token: tokens ? ANN_TOKEN : undefined });
+    const ben = await joinGuest(t, roomId, "Ben", { token: tokens ? BEN_TOKEN : undefined, avatar: "cat" });
+    const sessionId = await start(t, roomId, hostId, { token: tokens ? HOST_TOKEN : undefined });
+    const [chain] = await chainsOf(t, sessionId);
+    const [step] = await stepsOf(t, sessionId);
+    const body = { stepId: step._id, participantId: hostId, outputDrawingUrl: PNG };
+    return { roomId, hostId, ann, ben, sessionId, chain, stepId: step._id, body };
+  }
+
+  /**
+   * Everything the room's clients can ask for: each query, the body of each route the host app polls, and the
+   * snapshot. `players` are asked for as themselves, with their tokens.
+   */
+  async function everythingSent(
+    t: Backend,
+    game: { roomId: RoomId; sessionId: SessionId },
+    players: Array<[PID, string | undefined]>
+  ): Promise<unknown[]> {
+    const { roomId, sessionId } = game;
+    const sent: unknown[] = [
+      await t.query(api.rooms.getRoomState, { roomId }),
+      await t.query(api.messages.getRoomMessages, { roomId }),
+      await t.query(api.games.getActiveGameSession, { roomId }),
+      await t.query(api.games.getLatestGameSession, { roomId }),
+      await t.query(api.games.getGameStatus, { roomId }),
+      await t.query(api.games.getGameReplay, { gameSessionId: sessionId }),
+    ];
+    for (const path of ["/api/rooms/state", "/api/messages/list", "/api/games/active-session", "/api/games/latest-session", "/api/games/status"]) {
+      sent.push((await post(t, path, { roomId })).body);
+    }
+    sent.push((await post(t, "/api/games/replay", { gameSessionId: sessionId })).body);
+    for (const [participantId, token] of players) {
+      sent.push(await t.query(api.games.getMyActiveStep, { participantId, token }));
+      sent.push((await post(t, "/api/games/my-active-step", { participantId, callerToken: token })).body);
+      sent.push((await post(t, "/api/rooms/snapshot", { roomId, participantId, callerToken: token })).body);
+    }
+    return sent;
+  }
+
+  // ── Where the drawing is kept ──
+
+  test.each([
+    ["a PNG, which the host app sends,", PNG],
+    ["a JPEG", JPEG],
+  ])("%s is stored as one file, and the step, every guess step and the chat line hold the file's URL", async (_what, drawing) => {
+    const t = newBackend();
+    const { roomId, hostId, ann, ben, sessionId, stepId } = await drawingStep(t);
+
+    expect(await post(t, SUBMIT, { stepId, participantId: hostId, outputDrawingUrl: drawing })).toEqual(OK);
+
+    const [file, ...more] = await filesIn(t);
+    expect(more).toEqual([]);
+    const stored = await t.run(async (ctx) => Array.from(new Uint8Array(await (await ctx.storage.get(file))!.arrayBuffer())));
+    expect(stored).toEqual(bytesOf(drawing));
+    const url = await urlOf(t, file);
+    expect(url).toMatch(/^https:\/\//);
+
+    expect(await stepDoc(t, stepId)).toMatchObject({
+      status: "submitted",
+      outputDrawingUrl: url,
+      outputDrawingStorageId: file,
+      submittedAt: Date.now(),
+    });
+    const guesses = (await stepsOf(t, sessionId)).filter((s) => s.stepType === "guess");
+    expect(guesses.map((s) => s.assignedParticipantId).sort()).toEqual([ann, ben].sort());
+    for (const g of guesses) {
+      expect(g).toMatchObject({ status: "active", inputDrawingUrl: url });
+      // Only the draw step names the file
+      expect(g).not.toHaveProperty("outputDrawingStorageId");
+    }
+    const drawings = (await chatOf(t, roomId)).filter((m) => m.kind === "drawing");
+    expect(drawings).toHaveLength(1);
+    expect(drawings[0]).toMatchObject({ senderId: hostId, status: "processed", mediaUrl: url });
+    // A message that names a file takes the file with it when it is deleted
+    expect(drawings[0]).not.toHaveProperty("mediaStorageId");
+    // No row holds the drawing itself
+    expect(JSON.stringify([await stepsOf(t, sessionId), await chatOf(t, roomId)])).not.toContain("data:image");
+    expect(await myStep(t, hostId)).toBeNull();
+    expect(await myStep(t, ann)).toMatchObject({ stepType: "guess", inputDrawingUrl: url });
+  });
+
+  test.each(["the mutation the web page calls", "the public action"])(
+    "%s keeps a drawing in the rows as the data URL it was sent, and stores no file",
+    async (entrance) => {
+      const t = newBackend();
+      const { roomId, hostId, ann, stepId } = await drawingStep(t);
+      const args = { stepId, participantId: hostId, outputDrawingUrl: JPEG };
+
+      if (entrance === "the public action") await t.action(api.games.submitGameStepWithTranslation, args);
+      else await t.mutation(api.games.submitGameStep, args);
+
+      expect(await filesIn(t)).toEqual([]);
+      const step = await stepDoc(t, stepId);
+      expect(step).toMatchObject({ status: "submitted", outputDrawingUrl: JPEG });
+      expect(step).not.toHaveProperty("outputDrawingStorageId");
+      expect(await myStep(t, ann)).toMatchObject({ stepType: "guess", inputDrawingUrl: JPEG });
+      const [drawing] = (await chatOf(t, roomId)).filter((m) => m.kind === "drawing");
+      expect(drawing.mediaUrl).toBe(JPEG);
+      expect(drawing).not.toHaveProperty("mediaStorageId");
+    }
+  );
+
+  // Were a file's id an argument of a function anyone can call, any stored file whose id a caller knew could be
+  // passed off as a drawing: shown to the room, and deleted with the room's game
+  test.each(["storageId", "outputDrawingStorageId"])(
+    "neither the public mutation nor the public action takes a file by its id: %s is refused",
+    async (field) => {
+      const t = newBackend();
+      const { hostId, stepId } = await drawingStep(t);
+      const file = await storeDrawing(t);
+      const refused = new RegExp(`Unexpected field \`${field}\``);
+
+      for (const args of [
+        { stepId, participantId: hostId, [field]: file },
+        { stepId, participantId: hostId, outputDrawingUrl: PNG, [field]: file },
+      ]) {
+        await expect(t.mutation(api.games.submitGameStep, args as any)).rejects.toThrow(refused);
+        await expect(t.action(api.games.submitGameStepWithTranslation, args as any)).rejects.toThrow(refused);
+      }
+      expect((await stepDoc(t, stepId)).status).toBe("active");
+      expect(await filesIn(t)).toEqual([file]);
+    }
+  );
+
+  test("the mutation behind the route says whether the step took the file, and deletes no file itself", async () => {
+    const t = newBackend();
+    const { hostId, ann, stepId } = await drawingStep(t);
+    const [first, second, third] = [await storeDrawing(t), await storeDrawing(t), await storeDrawing(t)];
+    // convex-test keeps no content type, so the one a real upload records is written by hand
+    await t.run(async (ctx) => await ctx.db.patch(third as any, { contentType: "audio/mp4" } as any));
+    const submit = (participantId: PID, storageId: Id<"_storage">) =>
+      t.mutation(internal.games.submitStoredDrawing, { stepId, participantId, storageId });
+
+    // Refused: the file is left for the route, whose delete a refusal cannot undo
+    await expect(submit(ann, first)).rejects.toThrow(/Not your step/);
+    // A file that is not a drawing reached storage some other way
+    await expect(submit(hostId, third)).rejects.toThrow(/Unsupported drawing/);
+    expect((await stepDoc(t, stepId)).status).toBe("active");
+
+    expect(await submit(hostId, first)).toBe(true);
+    // The step is closed now: a second file is not taken, and not refused either
+    expect(await submit(hostId, second)).toBe(false);
+
+    expect(await stepDoc(t, stepId)).toMatchObject({ outputDrawingStorageId: first, outputDrawingUrl: await urlOf(t, first) });
+    expect(await filesIn(t)).toEqual([first, second, third]);
+  });
+
+  // ── What is not stored ──
+
+  type Request = { body: Record<string, unknown>; answer: unknown };
+  const refusal = (words: RegExp) => ({ status: 400, body: { error: expect.stringMatching(words) } });
+
+  /**
+   * Requests the route does not store a file for. Each is passed on as it came, and `answer` is what the step
+   * says to it. `stepDeclines`: the request carries a drawing that could be stored, and it is the drawing step
+   * itself that drops or refuses it.
+   */
+  const NOT_STORED: Array<{ what: string; stepDeclines?: true; build: (t: Backend) => Promise<Request> }> = [
+    {
+      what: "a drawing for a step that already has its drawing",
+      stepDeclines: true,
+      build: async (t) => {
+        const { hostId, stepId, body } = await drawingStep(t);
+        await t.mutation(api.games.submitGameStep, { stepId, participantId: hostId, outputDrawingUrl: JPEG });
+        return { body, answer: OK };
+      },
+    },
+    {
+      what: "a drawing for a step the deadline has closed",
+      stepDeclines: true,
+      build: async (t) => {
+        const { hostId, ann, ben, stepId, body } = await drawingStep(t);
+        await goAway(t, hostId, ann, ben);
+        await pass(t, ABSENT_MS);
+        expect(await stepDoc(t, stepId)).toMatchObject({ status: "submitted", timedOut: true });
+        return { body, answer: OK };
+      },
+    },
+    {
+      what: "a drawing for a step a Cancel has closed",
+      stepDeclines: true,
+      build: async (t) => {
+        const { roomId, hostId, body } = await drawingStep(t);
+        await t.mutation(api.games.cancelGame, { roomId, participantId: hostId });
+        return { body, answer: OK };
+      },
+    },
+    {
+      what: "a drawing for a step that is gone",
+      stepDeclines: true,
+      build: async (t) => {
+        const { stepId, body } = await drawingStep(t);
+        await t.run(async (ctx) => await ctx.db.delete(stepId));
+        return { body, answer: refusal(/Step not found/) };
+      },
+    },
+    {
+      what: "a drawing for someone else's step",
+      stepDeclines: true,
+      build: async (t) => {
+        const { ann, body } = await drawingStep(t);
+        return { body: { ...body, participantId: ann }, answer: refusal(/Not your step/) };
+      },
+    },
+    {
+      what: "a drawing without its player's token, when tokens are enforced",
+      stepDeclines: true,
+      build: async (t) => {
+        const { body } = await drawingStep(t, true);
+        vi.stubEnv("AUTH_MODE", "enforce");
+        return { body, answer: refusal(/Not authorised/) };
+      },
+    },
+    {
+      what: "a drawing with another player's token, when tokens are enforced",
+      stepDeclines: true,
+      build: async (t) => {
+        const { body } = await drawingStep(t, true);
+        vi.stubEnv("AUTH_MODE", "enforce");
+        return { body: { ...body, callerToken: ANN_TOKEN }, answer: refusal(/Not authorised/) };
+      },
+    },
+    {
+      // The step takes it as a guess with no pick, which is a wrong answer. A step never changes its kind, so the
+      // route's question is all that stands between a guess and the mutation that answers a drawing
+      what: "a drawing for a guess step",
+      build: async (t) => {
+        const { hostId, ann, chain, stepId } = await drawingStep(t);
+        await t.mutation(api.games.submitGameStep, { stepId, participantId: hostId, outputDrawingUrl: JPEG });
+        const guessStep = await openStep(t, ann, "guess");
+        return {
+          body: { stepId: guessStep._id, participantId: ann, outputDrawingUrl: PNG },
+          answer: { status: 200, body: { correct: false, correctOption: chain.originalPrompt } },
+        };
+      },
+    },
+    {
+      what: "no drawing",
+      build: async (t) => {
+        const { hostId, stepId } = await drawingStep(t);
+        return { body: { stepId, participantId: hostId }, answer: refusal(/Drawing is missing/) };
+      },
+    },
+    {
+      what: "a link",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, outputDrawingUrl: "https://example.com/drawing.png" }, answer: refusal(/Unsupported drawing/) };
+      },
+    },
+    {
+      what: "an SVG data URL",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, outputDrawingUrl: "data:image/svg+xml;base64,PHN2Zy8+" }, answer: refusal(/Unsupported drawing/) };
+      },
+    },
+    {
+      // The mutation keeps a drawing in a row, which holds 1 MiB, and the route stores nothing the mutation would refuse
+      what: "a PNG data URL over 1 MiB",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, outputDrawingUrl: "data:image/png;base64," + "A".repeat(1024 * 1024) }, answer: refusal(/Unsupported drawing/) };
+      },
+    },
+    {
+      what: "a drawing that is not text",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, outputDrawingUrl: 5 }, answer: refusal(/Expected `string`/) };
+      },
+    },
+    {
+      what: "a drawing beside an answer that is not text",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, outputText: 7 }, answer: refusal(/Expected `string`/) };
+      },
+    },
+    {
+      what: "a drawing for a step id that is none",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, stepId: "nonsense" }, answer: refusal(/Expected ID for table "gameSteps"/) };
+      },
+    },
+    {
+      what: "a drawing for a participant id that is none",
+      build: async (t) => {
+        const { body } = await drawingStep(t);
+        return { body: { ...body, participantId: "nobody" }, answer: refusal(/Expected ID for table "participants"/) };
+      },
+    },
+  ];
+
+  test.each(NOT_STORED.map((request) => [request.what, request.build] as const))(
+    "%s is answered by the step, and no file is stored for it",
+    async (_what, build) => {
+      const t = newBackend();
+      const { body, answer } = await build(t);
+      const handedOver = handovers();
+      const decoded = vi.spyOn(globalThis, "atob");
+
+      expect(await post(t, SUBMIT, body)).toEqual(answer);
+
+      // The route decodes a drawing only to store it, and stores it only to hand it over
+      expect(decoded).not.toHaveBeenCalled();
+      expect(handedOver).not.toHaveBeenCalled();
+      expect(await filesIn(t)).toEqual([]);
+    }
+  );
+
+  // A step can close between the route's question and the step's own check: the deadline, a Cancel, the same
+  // drawing sent twice. The file is in storage by then. The other requests cannot change in between, and are held
+  // to the same: whatever the route was told, a drawing the step does not take leaves no file
+  test.each(NOT_STORED.filter((request) => request.stepDeclines).map((request) => [request.what, request.build] as const))(
+    "%s, when the route was told the step would take it: the file it stored is deleted, and the answer is the same",
+    async (_what, build) => {
+      const t = newBackend();
+      const { body, answer } = await build(t);
+      toldYes();
+      const handedOver = handovers();
+
+      expect(await post(t, SUBMIT, body)).toEqual(answer);
+
+      expect(handedOver).toHaveBeenCalledTimes(1);
+      expect(await filesIn(t)).toEqual([]);
+    }
+  );
+
+  // Its base64 is read only by the route, to store the image. The mutation checks the header and the length
+  test("a PNG data URL whose base64 does not decode is kept in the rows as it came, as the mutation keeps it", async () => {
+    const t = newBackend();
+    const { stepId, body } = await drawingStep(t);
+    const undecodable = "data:image/png;base64,***";
+
+    expect(await post(t, SUBMIT, { ...body, outputDrawingUrl: undecodable })).toEqual(OK);
+
+    expect(await filesIn(t)).toEqual([]);
+    expect(await stepDoc(t, stepId)).toMatchObject({ status: "submitted", outputDrawingUrl: undecodable });
+  });
+
+  // The step refuses this one after the file is in storage: nothing the route asks beforehand looks at the answer
+  test("a drawing beside an answer of over 500 characters is refused in the step's words, and the file stored for it is deleted", async () => {
+    const t = newBackend();
+    const { stepId, body } = await drawingStep(t);
+    const handedOver = handovers();
+
+    expect(await post(t, SUBMIT, { ...body, outputText: "x".repeat(501) })).toEqual(refusal(/Answer too long/));
+
+    expect(handedOver).toHaveBeenCalledTimes(1);
+    expect(await filesIn(t)).toEqual([]);
+    expect((await stepDoc(t, stepId)).status).toBe("active");
+    // The step is still there to be drawn
+    expect(await post(t, SUBMIT, body)).toEqual(OK);
+    expect(await filesIn(t)).toHaveLength(1);
+  });
+
+  // The host app sends its drawing again when the answer to the first send was lost
+  test("the same drawing sent again after it was taken is answered ok, changes nothing and leaves the one file", async () => {
+    const t = newBackend();
+    const { roomId, sessionId, body } = await drawingStep(t);
+    expect(await post(t, SUBMIT, body)).toEqual(OK);
+    const files = await filesIn(t);
+    expect(files).toHaveLength(1);
+    const before = { steps: await stepsOf(t, sessionId), chat: await chatOf(t, roomId) };
+    const handedOver = handovers();
+
+    expect(await post(t, SUBMIT, body)).toEqual(OK);
+    expect(await post(t, SUBMIT, { ...body, outputDrawingUrl: JPEG })).toEqual(OK);
+    expect(handedOver).not.toHaveBeenCalled();
+    // And when the two sends cross, so that the second is stored before the first is taken
+    toldYes();
+    expect(await post(t, SUBMIT, body)).toEqual(OK);
+    expect(handedOver).toHaveBeenCalledTimes(1);
+
+    expect(await filesIn(t)).toEqual(files);
+    expect(await stepsOf(t, sessionId)).toEqual(before.steps);
+    expect(await chatOf(t, roomId)).toEqual(before.chat);
+  });
+
+  // ── Who may send it ──
+
+  test("by default a drawing without its player's token is taken, and the missing token is logged once", async () => {
+    const t = newBackend();
+    const { stepId, body } = await drawingStep(t, true);
+    consoleWarn.mockClear();
+
+    expect(await post(t, SUBMIT, body)).toEqual(OK);
+
+    expect(await filesIn(t)).toHaveLength(1);
+    expect((await stepDoc(t, stepId)).status).toBe("submitted");
+    // The route's question logs nothing: the line is the step's own, under the name it always had
+    expect(consoleWarn.mock.calls.map(([line]) => line)).toEqual(["auth: games.submitGameStep no token"]);
+  });
+
+  test("when tokens are enforced, a drawing with its player's token is stored and taken", async () => {
+    const t = newBackend();
+    const { stepId, body } = await drawingStep(t, true);
+    vi.stubEnv("AUTH_MODE", "enforce");
+
+    expect(await post(t, SUBMIT, { ...body, callerToken: HOST_TOKEN })).toEqual(OK);
+
+    const [file] = await filesIn(t);
+    expect(await stepDoc(t, stepId)).toMatchObject({ status: "submitted", outputDrawingStorageId: file });
+  });
+
+  // ── The game itself ──
+
+  test.each([undefined, "on"])(
+    "with LOST_IN_TRANSLATION_HIDE_ANSWER %j, a game whose host draws through the route is scored, reported and replayed as any other",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv("LOST_IN_TRANSLATION_HIDE_ANSWER", value);
+      const t = newBackend();
+      const { roomId, hostId } = await room(t, [], { token: HOST_TOKEN });
+      const ann = await joinGuest(t, roomId, "Ann", { token: ANN_TOKEN });
+      const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, level: 2 });
+      const chains = await chainsOf(t, sessionId);
+      const stepFor = async (participantId: PID, token: string) => (await t.query(api.games.getMyActiveStep, { participantId, token }))!;
+
+      // The host draws the odd rounds through the route and guesses the even ones through it; Ann is on the web page.
+      // Ann guesses right every time, the host in round 2 only
+      for (const [i, chain] of chains.entries()) {
+        const right = chain.originalPrompt;
+        if (i % 2 === 0) {
+          const step = await stepFor(hostId, HOST_TOKEN);
+          expect(await post(t, SUBMIT, { stepId: step._id, participantId: hostId, outputDrawingUrl: PNG, callerId: hostId, callerToken: HOST_TOKEN })).toEqual(OK);
+          const guessStep = await stepFor(ann, ANN_TOKEN);
+          expect(guessStep).toMatchObject({ stepType: "guess", round: i + 1, inputDrawingUrl: await urlOf(t, (await filesIn(t)).at(-1)!) });
+          expect(
+            await t.mutation(api.games.submitGameStep, { stepId: guessStep._id, participantId: ann, selectedOption: right, token: ANN_TOKEN })
+          ).toEqual({ correct: true, correctOption: right, selectedOption: right });
+        } else {
+          const step = await stepFor(ann, ANN_TOKEN);
+          await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId: ann, outputDrawingUrl: JPEG, token: ANN_TOKEN });
+          const guessStep = await stepFor(hostId, HOST_TOKEN);
+          const pick = i === 1 ? right : chain.options!.find((o) => o !== right)!;
+          expect(
+            await post(t, SUBMIT, { stepId: guessStep._id, participantId: hostId, outputText: pick, selectedOption: pick, callerId: hostId, callerToken: HOST_TOKEN })
+          ).toEqual({ status: 200, body: { correct: i === 1, correctOption: right, selectedOption: pick } });
+        }
+        if (i === 0) {
+          // A round counts once it has a drawing, and a file's URL is one
+          expect(await t.query(api.games.getGameStatus, { roomId })).toMatchObject({
+            currentRound: 2,
+            phase: "drawing",
+            scores: { [hostId]: { correct: 0, total: 0 }, [ann]: { correct: 1, total: 1 } },
+          });
+        }
+      }
+
+      expect((await sessionDoc(t, sessionId)).status).toBe("complete");
+      const files = await filesIn(t);
+      expect(files).toHaveLength(5);
+      const totals = { [hostId]: { correct: 1, total: 5 }, [ann]: { correct: 5, total: 5 } };
+      const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+      expect(replay!.chains.map((c) => c.steps.map((s) => s.stepType))).toEqual(Array(10).fill(["draw", "guess"]));
+      for (const [i, chain] of replay!.chains.entries()) {
+        expect(chain.steps[0].outputDrawingUrl).toBe(i % 2 === 0 ? await urlOf(t, files[i / 2]) : JPEG);
+      }
+      expect(replay!.scores).toEqual(totals);
+      const [summary, ...more] = await summariesIn(t, roomId);
+      expect(more).toEqual([]);
+      expect(summary.rounds.map((r) => r.round)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      expect(summary.totals).toEqual(totals);
+      const drawings = (await chatOf(t, roomId)).filter((m) => m.kind === "drawing");
+      expect(drawings.map((m) => m.mediaUrl?.slice(0, 5))).toEqual(Array(5).fill(["https", "data:"]).flat());
+    }
+  );
+
+  // ── The file's id stays on the server ──
+
+  // A client that held the id could name the file to a function that attaches a file to a row of the caller's
+  // own, and deleting that row deletes the file
+  test.each([undefined, "on"])(
+    "with LOST_IN_TRANSLATION_HIDE_ANSWER %j, nothing a client is sent names the file, while the game runs or after it",
+    async (value) => {
+      if (value !== undefined) vi.stubEnv("LOST_IN_TRANSLATION_HIDE_ANSWER", value);
+      const t = newBackend();
+      const game = await drawingStep(t, true);
+      const { roomId, hostId, ann, ben, sessionId, chain } = game;
+      const players: Array<[PID, string]> = [[hostId, HOST_TOKEN], [ann, ANN_TOKEN], [ben, BEN_TOKEN]];
+      expect(await post(t, SUBMIT, { ...game.body, callerToken: HOST_TOKEN })).toEqual(OK);
+      const [file] = await filesIn(t);
+      const url = await urlOf(t, file);
+
+      /** What everyone is sent right now, held to naming the file by its URL only */
+      async function sent(): Promise<string> {
+        const text = JSON.stringify(await everythingSent(t, game, players));
+        expect(text).toContain(url);
+        expect(text).not.toContain("outputDrawingStorageId");
+        expect(text).not.toContain(file);
+        return text;
+      }
+
+      // Round 1 is being guessed: the guessers' steps and the chat line show the drawing
+      expect(await sent()).toContain('"stepType":"guess"');
+
+      for (const [participantId, token] of players.slice(1)) {
+        const step = (await t.query(api.games.getMyActiveStep, { participantId, token }))!;
+        await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId, selectedOption: chain.originalPrompt, token });
+      }
+      // Round 1 is over and in the replay, with its draw step, which is the row that names the file
+      const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+      expect(replay!.chains.map((c) => c.steps[0])).toMatchObject([{ _id: game.stepId, stepType: "draw", outputDrawingUrl: url }]);
+      await sent();
+
+      // No function leaves a step that is open and names a file. One that did would go out without the name too
+      const annStep = (await t.query(api.games.getMyActiveStep, { participantId: ann, token: ANN_TOKEN }))!;
+      expect(annStep.stepType).toBe("draw");
+      await t.run(async (ctx) => await ctx.db.patch(annStep._id, { outputDrawingStorageId: file }));
+      expect(await t.query(api.games.getMyActiveStep, { participantId: ann, token: ANN_TOKEN })).toStrictEqual(annStep);
+      expect(await sent()).toContain(annStep._id);
+
+      await t.mutation(api.games.cancelGame, { roomId, participantId: hostId, token: HOST_TOKEN });
+      expect((await sessionDoc(t, sessionId)).status).toBe("complete");
+      await sent();
+    }
+  );
+
+  test("deleting the drawing's chat line leaves the file: the guesses still open and the replay go on showing it", async () => {
+    const t = newBackend();
+    const { roomId, hostId, ann, ben, sessionId, body } = await drawingStep(t);
+    await post(t, SUBMIT, body);
+    const [file] = await filesIn(t);
+    const url = await urlOf(t, file);
+    const [line] = (await chatOf(t, roomId)).filter((m) => m.kind === "drawing");
+
+    expect(await post(t, "/api/messages/delete", { messageId: line._id, callerId: hostId })).toEqual(OK);
+
+    expect((await chatOf(t, roomId)).filter((m) => m.kind === "drawing")).toEqual([]);
+    expect(await filesIn(t)).toEqual([file]);
+    expect(await myStep(t, ann)).toMatchObject({ stepType: "guess", inputDrawingUrl: url });
+    await guess(t, ann, "right");
+    await guess(t, ben, "wrong");
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.chains[0].steps[0]).toMatchObject({ stepType: "draw", outputDrawingUrl: url });
+    expect(await urlOf(t, file)).toBe(url);
+  });
+
+  // By default a missing or wrong token is only logged, so a guest's call to a function meant for the host goes through
+  test("a guest cannot make the file disappear with anything they are sent", async () => {
+    const t = newBackend();
+    const game = await drawingStep(t, true);
+    const { roomId, hostId, ann, ben, sessionId, chain } = game;
+    const players: Array<[PID, string]> = [[hostId, HOST_TOKEN], [ann, ANN_TOKEN], [ben, BEN_TOKEN]];
+    await post(t, SUBMIT, { ...game.body, callerToken: HOST_TOKEN });
+    const [file] = await filesIn(t);
+    const url = await urlOf(t, file);
+    for (const [participantId, token] of players.slice(1)) {
+      const step = (await t.query(api.games.getMyActiveStep, { participantId, token }))!;
+      await t.mutation(api.games.submitGameStep, { stepId: step._id, participantId, selectedOption: chain.originalPrompt, token });
+    }
+
+    // Every text in what the room's clients are sent, whole and in its parts: ids, names, the URL and its segments
+    const known = new Set<string>();
+    const collect = (value: unknown) => {
+      if (typeof value === "string") for (const text of [value, ...value.split(/[/?&=:;]/)]) known.add(text);
+      else if (value && typeof value === "object") for (const entry of Object.entries(value)) entry.forEach(collect);
+    };
+    collect(await everythingSent(t, game, players));
+    expect(known).toContain(url);
+    expect(known).toContain(game.stepId);
+
+    // Ben offers each of them as the id of a file to the functions that take one from a guest: a picture, a
+    // drawing or a voice message of his own, which he then deletes, and a dictation, which deletes its clip
+    const asBen = { roomId, senderId: ben, token: BEN_TOKEN };
+    for (const text of known) {
+      const storageId = text as Id<"_storage">;
+      const mine = [
+        await t.mutation(api.messages.sendImageMessage, { ...asBen, storageId }).catch(() => null),
+        await t.mutation(api.messages.sendDrawingMessage, { ...asBen, storageId }).catch(() => null),
+        await t.mutation(api.messages.sendAudioMessage, { ...asBen, storageId, durationMs: 1000, waveform: [] }).catch(() => null),
+      ];
+      for (const messageId of mine) {
+        if (messageId) await t.mutation(api.messages.deleteMessage, { messageId, callerId: ben, token: BEN_TOKEN });
+      }
+      await post(t, "/api/messages/transcribe", { roomId, senderId: ben, storageId, callerToken: BEN_TOKEN });
+    }
+    // And he deletes the drawing's own chat line
+    const [line] = (await t.query(api.messages.getRoomMessages, { roomId })).filter((m) => m.kind === "drawing");
+    await t.mutation(api.messages.deleteMessage, { messageId: line._id, callerId: ben, token: BEN_TOKEN });
+    expect((await chatOf(t, roomId)).filter((m) => m.kind === "drawing")).toEqual([]);
+
+    expect(await filesIn(t)).toEqual([file]);
+    const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
+    expect(replay!.chains[0].steps[0].outputDrawingUrl).toBe(url);
   });
 });
 

@@ -1,8 +1,18 @@
 import { v } from "convex/values";
-import { action, internalMutation, mutation, query, ActionCtx, MutationCtx } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query, ActionCtx, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { callerProof, isAround, isInlineDrawing, isPresent, requireCaller, requireHost, takeRateLimit } from "./participants";
+import {
+  authMode,
+  callerProof,
+  isAround,
+  isInlineDrawing,
+  isPresent,
+  requireCaller,
+  requireHost,
+  storedDrawingUrl,
+  takeRateLimit,
+} from "./participants";
 import { shuffleArray } from "./gameShared";
 
 // Leveled prompts — level 1 has single words with hints, higher levels get progressively harder
@@ -465,8 +475,9 @@ async function finishRound(
   await ctx.db.patch(chain._id, { status: "complete" });
 
   // A team game's round is scored here, once, and the result kept on the chain: a Cancel closes rounds too, and
-  // those give no points. It is scored from the round's own steps. Every guess step holds the drawing, so reading
-  // the session's steps for it would bring every drawing of the game into the mutation that takes a guess.
+  // those give no points. It is scored from the round's own steps. A guess step holds its round's drawing whenever
+  // that is a data URL, so reading the session's steps for it would bring every such drawing of the game into the
+  // mutation that takes a guess.
   const teams = teamsOf(session);
   if (teams) {
     const away = new Set(session.teamAway);
@@ -817,19 +828,26 @@ export const dealTeams = mutation({
   },
 });
 
-export const submitGameStep = mutation({
-  args: {
-    stepId: v.id("gameSteps"),
-    participantId: v.id("participants"),
-    outputText: v.optional(v.string()),
-    translatedOutputText: v.optional(v.string()),
-    outputDrawingUrl: v.optional(v.string()),
-    selectedOption: v.optional(v.string()),
-    token: v.optional(v.string()),
-  },
-  handler: async (ctx, args): Promise<GuessResult | null> => {
-    console.log("[submitGameStep] called with stepId:", args.stepId);
-    try {
+/** What a player sends for a step: a drawing for a drawing step, a pick for a guess */
+type StepAnswer = {
+  stepId: Id<"gameSteps">;
+  participantId: Id<"participants">;
+  outputText?: string;
+  selectedOption?: string;
+  token?: string;
+  /** The drawing as a PNG or JPEG data URL, which is kept as it is */
+  outputDrawingUrl?: string;
+  /** The drawing as a file the submit-step route stored, which is kept as the file's URL */
+  storageId?: Id<"_storage">;
+};
+
+/**
+ * Takes a player's answer to their step and moves the round on. submitGameStep and submitStoredDrawing are its
+ * two entrances and differ only in how a drawing arrives. Answers a guess with its result, anything else with null.
+ */
+async function takeStep(ctx: MutationCtx, args: StepAnswer): Promise<GuessResult | null> {
+  console.log("[submitGameStep] called with stepId:", args.stepId);
+  try {
     const caller = await requireCaller(ctx, args.participantId, args.token, "games.submitGameStep");
     // requireCaller lets a missing or wrong token through unless AUTH_MODE is "enforce", so it decides whether
     // the guess is taken. Whether the call is told how the guess came out goes by this proof in both modes:
@@ -838,7 +856,8 @@ export const submitGameStep = mutation({
     const step = await ctx.db.get(args.stepId);
     if (!step) throw new Error("Step not found");
     if (step.assignedParticipantId !== args.participantId) throw new Error("Not your step");
-    // Kept in the step and in a chat message as a data URL: both iOS game views decode nothing else. Never a link.
+    // A drawing sent as a data URL stays one, in the step and in the chat. A link is refused: stored as a
+    // drawing, every viewer's device would fetch it.
     if (args.outputDrawingUrl && !isInlineDrawing(args.outputDrawingUrl)) throw new Error("Unsupported drawing");
     if ((args.selectedOption ?? args.outputText ?? "").length > 500) throw new Error("Answer too long");
     // Already answered, or closed by the server deadline. Not an error: clients show anything
@@ -867,25 +886,32 @@ export const submitGameStep = mutation({
 
     // === DRAW STEP SUBMITTED ===
     if (step.stepType === "draw") {
+      // What the step, the chat message and every guess step are given: the data URL itself, or the URL of
+      // the stored file, which is a few dozen characters whatever the drawing weighs
+      const drawingUrl = args.storageId ? await storedDrawingUrl(ctx, args.storageId) : args.outputDrawingUrl;
       // Both apps always attach the canvas image. Without one the others would be asked to guess at
       // nothing, in a round the summary counts and the scores and the replay leave out.
-      if (!args.outputDrawingUrl) throw new Error("Drawing is missing");
+      if (!drawingUrl) throw new Error("Drawing is missing");
 
       // Save the drawing
       await ctx.db.patch(args.stepId, {
-        outputDrawingUrl: args.outputDrawingUrl,
+        outputDrawingUrl: drawingUrl,
+        // Kept next to the URL so the room purge can delete the file, and here only
+        outputDrawingStorageId: args.storageId,
         status: "submitted",
         submittedAt: Date.now(),
       });
 
       // Post drawing to room timeline
-      if (args.outputDrawingUrl) {
+      if (drawingUrl) {
         await ctx.db.insert("messages", {
           roomId: session.roomId,
           senderId: args.participantId,
           kind: "drawing",
           status: "processed",
-          mediaUrl: args.outputDrawingUrl,
+          // Without mediaStorageId, also when the drawing is a stored file: deleting a message deletes the
+          // file it names, and this file is the one the replay and the guesses still open show
+          mediaUrl: drawingUrl,
           createdAt: Date.now(),
         });
       }
@@ -900,7 +926,7 @@ export const submitGameStep = mutation({
           stepIndex: 1 + i,
           stepType: "guess",
           assignedParticipantId: guessers[i],
-          inputDrawingUrl: args.outputDrawingUrl,
+          inputDrawingUrl: drawingUrl,
           status: "active",
           createdAt: Date.now(),
         });
@@ -948,10 +974,67 @@ export const submitGameStep = mutation({
     // All guesses in — complete this chain/round
     await finishRound(ctx, session, chain, chainSteps);
     return result;
-    } catch (err: any) {
-      console.error("[submitGameStep] ERROR:", err.message ?? err);
-      throw err;
+  } catch (err: any) {
+    console.error("[submitGameStep] ERROR:", err.message ?? err);
+    throw err;
+  }
+}
+
+export const submitGameStep = mutation({
+  args: {
+    stepId: v.id("gameSteps"),
+    participantId: v.id("participants"),
+    outputText: v.optional(v.string()),
+    translatedOutputText: v.optional(v.string()),
+    outputDrawingUrl: v.optional(v.string()),
+    selectedOption: v.optional(v.string()),
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<GuessResult | null> => await takeStep(ctx, args),
+});
+
+/**
+ * submitGameStep for a drawing the submit-step route has stored as a file, and called by that route alone: a
+ * storage id is no argument of a public function. Returns whether the drawing was taken. It never deletes
+ * the file: the route that stored it does, when the drawing was not taken or when this call was refused,
+ * which would have undone a delete made here.
+ */
+export const submitStoredDrawing = internalMutation({
+  args: {
+    stepId: v.id("gameSteps"),
+    participantId: v.id("participants"),
+    storageId: v.id("_storage"),
+    outputText: v.optional(v.string()),
+    selectedOption: v.optional(v.string()),
+    token: v.optional(v.string()),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    await takeStep(ctx, args);
+    // A step that took the drawing names its file. One that was closed already, or is a guess, does not
+    return (await ctx.db.get(args.stepId))?.outputDrawingStorageId === args.storageId;
+  },
+});
+
+/**
+ * Asked by the submit-step route before it stores a drawing as a file: whether submitStoredDrawing would take
+ * one for this step from this caller. That is an open drawing step dealt to this participant, and with
+ * AUTH_MODE "enforce" a caller who has shown to be that participant. Anything else is answered false, never
+ * refused and never logged: the route then passes the request on as it came, and submitGameStep answers it.
+ */
+export const takesStoredDrawing = internalQuery({
+  // Strings, not ids: what is not an id is one more thing for submitGameStep to refuse
+  args: { stepId: v.string(), participantId: v.string(), token: v.optional(v.string()) },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const stepId = ctx.db.normalizeId("gameSteps", args.stepId);
+    const participantId = ctx.db.normalizeId("participants", args.participantId);
+    if (!stepId || !participantId) return false;
+    const step = await ctx.db.get(stepId);
+    if (!step || step.stepType !== "draw" || step.status !== "active" || step.assignedParticipantId !== participantId) {
+      return false;
     }
+    return authMode() !== "enforce" || (await callerProof(ctx, participantId, args.token)) !== "none";
   },
 });
 
@@ -1192,6 +1275,15 @@ export const getActiveGameSession = query({
   },
 });
 
+/**
+ * A step as any client is sent it. outputDrawingStorageId is the server's handle for deleting a drawing's
+ * file. Clients only use the URL, and a handle they held could be passed back to a function that deletes files.
+ */
+function forClient(step: Doc<"gameSteps">) {
+  const { outputDrawingStorageId: _outputDrawingStorageId, ...rest } = step;
+  return rest;
+}
+
 export const getMyActiveStep = query({
   // `token` is read only with LOST_IN_TRANSLATION_HIDE_ANSWER on
   args: { participantId: v.id("participants"), token: v.optional(v.string()) },
@@ -1255,7 +1347,7 @@ export const getMyActiveStep = query({
       : chain?.originalPrompt;
 
     return {
-      ...step,
+      ...forClient(step),
       inputText,
       hintText,
       chainMaxSteps: chain?.maxSteps ?? 0,
@@ -1427,7 +1519,7 @@ export const getLatestGameSession = query({
  * step, so a round goes out with its drawing once, not once more for every guesser.
  */
 function forReplay(step: Doc<"gameSteps">) {
-  const { inputDrawingUrl: _inputDrawingUrl, ...rest } = step;
+  const { inputDrawingUrl: _inputDrawingUrl, ...rest } = forClient(step);
   return rest;
 }
 

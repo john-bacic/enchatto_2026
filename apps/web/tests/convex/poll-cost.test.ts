@@ -43,7 +43,9 @@ function drawing(type: "png" | "jpeg", bytes: number): string {
 }
 
 // Stand-ins of an assumed size, not a measured one: the host app sends its canvas as a PNG, the web page as
-// a JPEG. Nearly all a game costs is its drawings, so the figures of the two game states scale with these
+// a JPEG. The host's goes to the route that stores it as a file, so a poll carries its URL whatever it
+// weighs. A guest's stays in the rows as it was sent, in the draw step, each guess step and the chat, and
+// most of what a game costs a poll is those copies: the figures of the two game states scale with it
 const HOST_DRAWING = drawing("png", 200 * KB);
 const GUEST_DRAWING = drawing("jpeg", 5 * KB);
 
@@ -524,16 +526,18 @@ describe("the same room after a finished game of Lost in Translation", () => {
   // Rows without a comment are as in the idle room
   const REFRESH: Ceiling[] = [
     ["/api/rooms/state", 1_800],
-    // 315 messages: the game put its start line, its ten drawings as data URLs and its summary in the chat
-    ["/api/messages/list", 1_015_000],
+    // 315 messages: the game put its start line, its ten drawings and its summary in the chat. The host's
+    // three drawings are the URLs of their files, the guests' seven are data URLs
+    ["/api/messages/list", 195_000],
     ["/api/reactions/room-summaries", 4_700],
     ["/api/games/active-session", 11],
     ["/api/games/my-active-step", 11],
     // The finished session, which carries the 40 prompts of its word bank
     ["/api/games/latest-session", 3_520],
-    // The ten rounds with all four steps of each. A round's drawing goes out once, on its draw step: the
-    // three guess steps are sent without the copy each of them stores
-    ["/api/games/replay", 893_000],
+    // The ten rounds with all four steps of each. A round's drawing goes out once, on its draw step, as
+    // the URL of its file or as the data URL it is kept as: the three guess steps are sent without the
+    // copy each of them stores
+    ["/api/games/replay", 73_000],
     ["/api/word-rush/state", 13],
     ["/api/emoji-match/active", 11],
     ["/api/emoji-bingo/active", 11],
@@ -544,16 +548,16 @@ describe("the same room after a finished game of Lost in Translation", () => {
     expect(sizes.get(path)).toBeLessThanOrEqual(ceiling);
   });
 
-  test("one refresh is those eleven requests, and at most 1,918,000 bytes in all", () => {
+  test("one refresh is those eleven requests, and at most 278,000 bytes in all", () => {
     expect([...sizes.keys()]).toEqual(REFRESH.map(([path]) => path));
     // Sent every 2 seconds for as long as the finished game is the room's latest
-    expect(total(sizes)).toBeLessThanOrEqual(1_918_000);
+    expect(total(sizes)).toBeLessThanOrEqual(278_000);
   });
 
-  test("the snapshot is those answers in one but for the replay, at most 1,025,000 bytes", async () => {
+  test("the snapshot is those answers in one but for the replay, at most 205,000 bytes", async () => {
     const answer = await snapshot(room, sizes);
     // The chat with the game's ten drawings in it. The replay is not part of a snapshot
-    expect(answer.bytes).toBeLessThanOrEqual(1_025_000);
+    expect(answer.bytes).toBeLessThanOrEqual(205_000);
     // As in the idle room, but the latest session is there to send
     expect(answer.extra).toBe(NAMES + 4 - 5 * 7);
   });
@@ -563,8 +567,9 @@ describe("the same room after a finished game of Lost in Translation", () => {
     const together = await reads(() => snapshot(room, sizes));
     expect(together).toEqual(apart);
     expect(together).toMatchObject({ documentsRead: 675, databaseQueries: 335 });
-    // The ten drawings twice over: in the messages, and again on the way to the reactions
-    expect(together.bytesRead).toBeLessThanOrEqual(2_010_000);
+    // The chat twice over, with the guests' seven drawings in it: for the messages, and again on the way
+    // to the reactions
+    expect(together.bytesRead).toBeLessThanOrEqual(372_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -579,9 +584,9 @@ describe("the same room after a finished game of Lost in Translation", () => {
         documentsRead: 55,
         // The session, the rounds, the steps, and each player by id
         databaseQueries: 7,
-        // Each drawing four times over, as the steps hold it, to answer with it once: three rounds drawn by
-        // the host, seven by guests
-        bytesRead: 3_500_000,
+        // Each of the guests' seven drawings four times over, as the steps hold it, to answer with it once.
+        // The host's three are files: their steps hold a URL
+        bytesRead: 216_000,
       },
       () => room.t.query(api.games.getGameReplay, { gameSessionId: session._id })
     );
@@ -596,12 +601,16 @@ describe("the same room after a finished game of Lost in Translation", () => {
         documentsRead: 315,
         // All of them from one index range
         databaseQueries: 1,
-        // The chat as before, and the ten drawings
-        bytesRead: 1_000_000,
+        // The chat as before, the guests' seven drawings and the URLs of the host's three
+        bytesRead: 180_000,
       },
       () => room.t.query(api.messages.getRoomMessages, { roomId: room.roomId })
     );
-    expect(messages.filter((message) => message.kind === "drawing")).toHaveLength(10);
+    const drawings = messages.filter((message) => message.kind === "drawing");
+    expect(drawings.map((message) => message.mediaUrl?.startsWith("https://"))).toEqual(
+      // The host drew rounds 1, 5 and 9
+      [true, false, false, false, true, false, false, false, true, false]
+    );
   });
 
   test("the reaction summaries are read within their ceilings", async () => {
@@ -611,8 +620,8 @@ describe("the same room after a finished game of Lost in Translation", () => {
         documentsRead: 353,
         // One for the messages, then one for each message's reactions
         databaseQueries: 316,
-        // The ten drawings with the rest, to answer with the same 4.7 KB as before the game
-        bytesRead: 1_010_000,
+        // The guests' seven drawings with the rest, to answer with the same 4.7 KB as before the game
+        bytesRead: 187_000,
       },
       () => room.t.query(api.reactions.getRoomReactionSummaries, { roomId: room.roomId })
     );
@@ -631,8 +640,8 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
   // Rows without a comment are as in the idle room
   const REFRESH: Ceiling[] = [
     ["/api/rooms/state", 1_800],
-    // 322 messages: the first game's ten drawings and six of the second's
-    ["/api/messages/list", 1_592_000],
+    // 322 messages: the first game's ten drawings and six of the second's, eleven of them a guest's
+    ["/api/messages/list", 224_000],
     ["/api/reactions/room-summaries", 4_700],
     // The running session with its word bank. A refresh is sent it twice, as the active session and as the latest
     ["/api/games/active-session", 3_490],
@@ -651,15 +660,15 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
     expect(sizes.get(path)).toBeLessThanOrEqual(ceiling);
   });
 
-  test("one refresh is those eleven requests, and at most 1,613,000 bytes in all", () => {
+  test("one refresh is those eleven requests, and at most 246,000 bytes in all", () => {
     expect([...sizes.keys()]).toEqual(REFRESH.map(([path]) => path));
     // Sent every 2 seconds while the game is played
-    expect(total(sizes)).toBeLessThanOrEqual(1_613_000);
+    expect(total(sizes)).toBeLessThanOrEqual(246_000);
   });
 
-  test("the snapshot is those eleven answers in one, at most 1,613,000 bytes", async () => {
+  test("the snapshot is those eleven answers in one, at most 246,000 bytes", async () => {
     const answer = await snapshot(room, sizes);
-    expect(answer.bytes).toBeLessThanOrEqual(1_613_000);
+    expect(answer.bytes).toBeLessThanOrEqual(246_000);
     // The names, and null for the three games that are not being played
     expect(answer.extra).toBe(NAMES - 3 * 7);
   });
@@ -670,8 +679,8 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
     expect(together).toEqual(apart);
     expect(together).toMatchObject({ documentsRead: 757, databaseQueries: 352 });
     // The chat with its sixteen drawings twice over, and every step of the running game twice as well: for
-    // the host's step, and again for the status
-    expect(together.bytesRead).toBeLessThanOrEqual(7_800_000);
+    // the host's step, and again for the status. Only a guest's drawing is in those rows
+    expect(together.bytesRead).toBeLessThanOrEqual(685_000);
   });
 
   test("the pending loop's request answers [] and reads no message", async () => {
@@ -685,8 +694,8 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
         documentsRead: 27,
         // One for each of those four
         databaseQueries: 4,
-        // Every drawing of the game four times over, two of the six the host's, to answer with one step
-        bytesRead: 2_310_000,
+        // The four drawings by guests four times over, to answer with one step. The host's two are files
+        bytesRead: 123_000,
       },
       () => stepOf(room, room.hostId)
     );
@@ -700,8 +709,8 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
         documentsRead: 40,
         // The session, the rounds, the steps, and five participants by id
         databaseQueries: 8,
-        // Every drawing again, to answer with 0.7 KB that holds none
-        bytesRead: 2_315_000,
+        // Those drawings again, to answer with 0.7 KB that holds none
+        bytesRead: 127_000,
       },
       () => room.t.query(api.games.getGameStatus, { roomId: room.roomId })
     );

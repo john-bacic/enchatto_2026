@@ -344,6 +344,8 @@ export default defineSchema({
     outputText: v.optional(v.string()),
     translatedOutputText: v.optional(v.string()),
     outputDrawingUrl: v.optional(v.string()),
+    /** The stored file behind outputDrawingUrl when the submit-step route stored the drawing, kept so the room purge can delete it. A drawing sent to the mutation is a data URL and has no file. Never sent to clients. */
+    outputDrawingStorageId: v.optional(v.id("_storage")),
     selectedOption: v.optional(v.string()),
     correct: v.optional(v.boolean()),
     // Closed by the server with nobody answering. The status is still "submitted" because

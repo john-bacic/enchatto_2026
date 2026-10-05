@@ -840,7 +840,8 @@ const BELONGS: { [T in TableNames]: (keyof Doc<T> & string) | null } = {
   todTrace: "gameId",
   // gameSessionId -> gameSessions.roomId
   gameChains: "gameSessionId",
-  // gameSessionId -> gameSessions.roomId (chainId points at a chain of the same session)
+  // gameSessionId -> gameSessions.roomId (chainId points at a chain of the same session). A drawing the
+  // submit-step route stored is a file (outputDrawingStorageId)
   gameSteps: "gameSessionId",
   // roomId. Its clips are stored files (storageIds, clipStorageId, teachClip.storageId)
   wordRushGames: "roomId",
@@ -1008,28 +1009,48 @@ async function buildRichRoom(t: Backend, seed: number) {
   await react(text, dave, "🔥");
   await t.mutation(api.participants.kickParticipant, { roomId, participantId: dave.id, callerId: host.id, token: host.token });
 
-  // Lost in Translation: a session, its chains and steps, with a drawing kept inline in a step
+  // Lost in Translation: a session, its chains and steps, a round and a half into the game. The host's drawing
+  // goes to the route the app posts it to, which stores it as a file; a guest's goes to the mutation the web
+  // page calls, which keeps it inline in the steps
   const lost = await t.mutation(api.games.startGame, {
     roomId,
     participantId: host.id,
     gameType: "lost_in_translation",
     token: host.token,
   });
-  const drawStep = must(
-    await t.run(
-      async (ctx) =>
-        await ctx.db
-          .query("gameSteps")
-          .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", lost))
-          .first()
-    ),
-    "draw step"
-  );
-  await t.mutation(api.games.submitGameStep, {
-    stepId: drawStep._id,
-    participantId: drawStep.assignedParticipantId,
+  const openSteps = async (stepType: "draw" | "guess") =>
+    (
+      await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("gameSteps")
+            .withIndex("by_gameSessionId", (q) => q.eq("gameSessionId", lost))
+            .collect()
+      )
+    ).filter((step) => step.stepType === stepType && step.status === "active");
+  const [hostDraws] = await openSteps("draw");
+  if (must(hostDraws, "draw step").assignedParticipantId !== host.id) throw new Error("fixture: round 1 is not the host's to draw");
+  const hostDrew = await post(t, "/api/games/submit-step", {
+    stepId: hostDraws._id,
+    participantId: host.id,
     outputDrawingUrl: PNG,
-    token: tokenOf(drawStep.assignedParticipantId),
+    callerToken: host.token,
+  });
+  if (hostDrew.status !== 200) throw new Error(`fixture: game drawing refused: ${hostDrew.body.error}`);
+  for (const step of await openSteps("guess")) {
+    await t.mutation(api.games.submitGameStep, {
+      stepId: step._id,
+      participantId: step.assignedParticipantId,
+      selectedOption: "a guess",
+      token: tokenOf(step.assignedParticipantId),
+    });
+  }
+  const [guestDraws] = await openSteps("draw");
+  await t.mutation(api.games.submitGameStep, {
+    stepId: must(guestDraws, "second draw step")._id,
+    participantId: guestDraws.assignedParticipantId,
+    outputDrawingUrl: PNG,
+    token: tokenOf(guestDraws.assignedParticipantId),
   });
   await t.mutation(api.games.cancelGame, { roomId, participantId: host.id, token: host.token });
 
@@ -1208,8 +1229,8 @@ async function closedRoomWith(t: Backend, count: number, mediaUrl?: string) {
 const messageCount = async (t: Backend, roomId: Id<"rooms">) => (await t.query(api.messages.getRoomMessages, { roomId })).length;
 
 /**
- * A room with a voice message and eighteen drawings kept inline at a million characters each, as Lost in
- * Translation rounds and the web's offline queue leave them: 18 MB, more than a transaction may read.
+ * A room with a voice message and eighteen drawings kept inline at a million characters each, as the web's
+ * Lost in Translation rounds and its offline queue leave them: 18 MB, more than a transaction may read.
  * Closed, and the audio purge that the close schedules has run.
  */
 async function roomOver16MiB(t: Backend) {
@@ -1253,9 +1274,10 @@ describe("the fixture: a room with a row in every table a room can own", () => {
     expect(Object.entries(counts).filter(([, count]) => count === 0)).toEqual([]);
     expect(counts.participantSecrets).toBe(3); // host, Alice and Bob. Carol is from before tokens; Dave's went when he was kicked
     expect(orphans(d)).toEqual([]);
-    // A picture, a stored drawing, a voice clip, a Truth or Dare drawing, a Word Rush clip and a teaching clip
-    expect(filesOf(d, room.roomId)).toHaveLength(6);
-    expect(d.files).toHaveLength(6);
+    // A picture, a stored drawing, a voice clip, the host's Lost in Translation drawing, a Truth or Dare
+    // drawing, a Word Rush clip and a teaching clip
+    expect(filesOf(d, room.roomId)).toHaveLength(7);
+    expect(d.files).toHaveLength(7);
     const kinds = new Set(rowsOf(d, room.roomId).filter((p) => p.table === "messages").map((p) => p.row.kind));
     expect([...kinds].sort()).toEqual(["audio", "drawing", "image", "system", "text"]);
   });
@@ -1376,18 +1398,39 @@ describe("purgeClosedRooms with a retention of 30 days", () => {
     const { old } = await fourRooms(t);
     const before = await dump(t);
     const files = filesOf(before, old.roomId);
-    expect(files).toHaveLength(6);
+    expect(files).toHaveLength(7);
     expect(files).toContain(old.imageFile);
 
     await runPurge(t);
 
     const after = await dump(t);
     expect(files.filter((file) => after.files.includes(file))).toEqual([]);
-    // The other three rooms keep their six each
-    expect(after.files).toHaveLength(18);
+    // The other three rooms keep their seven each
+    expect(after.files).toHaveLength(21);
     for (const file of files) {
       expect(await t.run(async (ctx) => await ctx.storage.getUrl(file as Id<"_storage">))).toBeNull();
     }
+  });
+
+  test("a Lost in Translation drawing stored as a file is deleted with its draw step, and one kept inline goes with its rows", async () => {
+    const t = limitedBackend();
+    const room = await buildRichRoom(t, 1);
+    const steps = () => t.run(async (ctx) => await ctx.db.query("gameSteps").collect());
+    const drawn = (await steps()).filter((step) => step.stepType === "draw");
+    // The host's round and a guest's
+    expect(drawn.map((step) => step.outputDrawingUrl?.slice(0, 5))).toEqual(["https", "data:"]);
+    const file = must(drawn[0].outputDrawingStorageId, "game drawing file");
+    expect(drawn[1].outputDrawingStorageId).toBeUndefined();
+    await closeRich(t, room);
+    // Closing the room deletes its voice clips and nothing else
+    expect(await fileExists(t, file)).toBe(true);
+    vi.setSystemTime(T0 + 31 * DAY);
+
+    await runPurge(t);
+
+    expect(await fileExists(t, file)).toBe(false);
+    expect(await steps()).toEqual([]);
+    expect(await fileCount(t)).toBe(0);
   });
 
   test("a Word Rush game's clips from a Say it! round that is over are deleted too", async () => {
@@ -1444,7 +1487,7 @@ describe("purgeClosedRooms with a retention of 30 days", () => {
     // own two clips. Emoji Bingo's roll timer stops at a closed room, like Emoji Match's turn clock, so its
     // game is left as the close found it and has no new trace rows
     expect(countByTable(rowsOf(ended, room.roomId)).bingoTrace).toBe(mid.bingoTrace);
-    expect(ended.files).toHaveLength(3);
+    expect(ended.files).toHaveLength(4);
     vi.setSystemTime(T0 + 31 * DAY);
 
     await runPurge(t);
@@ -1466,7 +1509,7 @@ describe("purgeClosedRooms with a retention of 30 days", () => {
     for (const room of [recent, open, undated]) {
       expect(rowsOf(after, room.roomId)).toEqual(rowsOf(before, room.roomId));
       expect(filesOf(after, room.roomId)).toEqual(filesOf(before, room.roomId));
-      expect(filesOf(after, room.roomId)).toHaveLength(6);
+      expect(filesOf(after, room.roomId)).toHaveLength(7);
     }
     expect((await t.query(api.rooms.getRoomState, { roomId: open.roomId }))?.room.status).toBe("active");
     expect((await t.query(api.rooms.getRoomState, { roomId: recent.roomId }))?.participants).toHaveLength(4);

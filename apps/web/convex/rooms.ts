@@ -202,7 +202,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * start, past the rows the step has already deleted, so a step's work grows faster than this number.
  */
 const PURGE_ROWS_PER_STEP = 50;
-/** Game drawings are stored inline, so a few rows can be megabytes: a step also stops on what it has read */
+/** A drawing kept as a data URL in its row (a game step, a chat message) makes a few rows megabytes: a step also stops on what it has read */
 const PURGE_CHARS_PER_STEP = 1_000_000;
 /** A run stops after this many rooms and the rest wait for the next day, so one run cannot empty a deployment */
 const PURGE_ROOMS_PER_RUN = 500;
@@ -262,12 +262,15 @@ async function purgeRoomRows(ctx: MutationCtx, roomId: Id<"rooms">, budget: Purg
   // first would strand them. Participants go last, normally in the step that also deletes the room, so
   // no client is shown a room with people missing from it.
   return (
-    // Lost in Translation and Emojifyr. Their drawings are inline in gameSteps, so there are no files
+    // Lost in Translation and Emojifyr. A drawing the submit-step route stored is a file, named on its
+    // draw step; any other is a data URL in the steps and goes with them
     (await where("gameSessions", "by_roomId", "roomId", roomId, async (session) =>
       (await where("emojifyrRounds", "by_gameSessionId", "gameSessionId", session._id, (round) =>
         where("emojifyrGuesses", "by_roundId", "roundId", round._id)
       )) &&
-      (await where("gameSteps", "by_gameSessionId", "gameSessionId", session._id)) &&
+      (await where("gameSteps", "by_gameSessionId", "gameSessionId", session._id, (step) =>
+        file(step.outputDrawingStorageId)
+      )) &&
       (await where("gameChains", "by_gameSessionId", "gameSessionId", session._id))
     )) &&
     (await where("emojiMatchGames", "by_roomId", "roomId", roomId, (game) =>
