@@ -1,0 +1,79 @@
+{
+  "about": "Four of the games' five shuffles become one, shuffleArray in apps/web/convex/gameShared.ts. It is the function that stood at games.ts:130-137, its eight lines unchanged but for `export`, under a comment that is new. The copies at emojiMatch.ts:155-162 and emojiBingo.ts:54-61 were that function letter for letter and are dropped. wordRush.ts:65-72 was the same function under the name `shuffle`, with other names for its two locals; it is dropped, and its four calls (lines 87, 88, 94 and 95) name shuffleArray. Each of the four files gains the import. Truth or Dare's loop (truthOrDare.ts:387-391) is not a function: it shuffles, in place, the array createGame has just built, and it is left as it stands. Nothing else in these files changes: no call is added, removed or moved, so every deal takes the draws it took, in the same order. Run from the repo root. Where each line stands: node scripts/step6/web-move-check.mjs scripts/step6/tables/be-shuffle-shared.ranges.json --strict-indent (the first line of emojiMatch.ts, emojiBingo.ts and wordRush.ts is given as a range to its own file, which is how the tool is told to hold every other line of those files in its old order; the dropped lines are the `\"new\": null` entries). Every line counted once: node scripts/step6/line-account.mjs --base 11df99dc022c80e2d581e20c6fcec23f6c72587e --old apps/web/convex/games.ts --old apps/web/convex/emojiMatch.ts --old apps/web/convex/emojiBingo.ts --old apps/web/convex/wordRush.ts --allow scripts/step6/tables/be-shuffle-shared.json apps/web/convex/games.ts apps/web/convex/emojiMatch.ts apps/web/convex/emojiBingo.ts apps/web/convex/wordRush.ts apps/web/convex/gameShared.ts. Both read the tree they are run in, so they hold at the commit that made this change. Outside these tables: apps/web/convex/_generated/api.d.ts gains, by hand, the two lines a push would write, before those of games (`import type * as gameShared from \"../gameShared.js\";` and `gameShared: typeof gameShared;`), and apps/web/tests/convex/smoke.test.ts gains one import and one test, which holds the helper to the draws and the result of the copies it replaces. apps/convex/convex is the same files byte for byte: diff -r -x _generated -x tsconfig.json apps/web/convex apps/convex/convex.",
+  "base": "11df99dc022c80e2d581e20c6fcec23f6c72587e",
+  "ranges": [
+    { "from": "apps/web/convex/games.ts", "lines": [130, 137], "to": "apps/web/convex/gameShared.ts" },
+    { "from": "apps/web/convex/emojiMatch.ts", "lines": [1, 1], "to": "apps/web/convex/emojiMatch.ts" },
+    { "from": "apps/web/convex/emojiBingo.ts", "lines": [1, 1], "to": "apps/web/convex/emojiBingo.ts" },
+    { "from": "apps/web/convex/wordRush.ts", "lines": [1, 1], "to": "apps/web/convex/wordRush.ts" }
+  ],
+  "changed": [
+    {
+      "file": "apps/web/convex/games.ts",
+      "line": 130,
+      "old": "function shuffleArray<T>(arr: T[]): T[] {",
+      "new": "export function shuffleArray<T>(arr: T[]): T[] {"
+    },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 155, "old": "function shuffleArray<T>(arr: T[]): T[] {", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 156, "old": "const shuffled = [...arr];", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 157, "old": "for (let i = shuffled.length - 1; i > 0; i--) {", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 158, "old": "const j = Math.floor(Math.random() * (i + 1));", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 159, "old": "[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 160, "old": "}", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 161, "old": "return shuffled;", "new": null },
+    { "file": "apps/web/convex/emojiMatch.ts", "line": 162, "old": "}", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 54, "old": "function shuffleArray<T>(arr: T[]): T[] {", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 55, "old": "const shuffled = [...arr];", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 56, "old": "for (let i = shuffled.length - 1; i > 0; i--) {", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 57, "old": "const j = Math.floor(Math.random() * (i + 1));", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 58, "old": "[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 59, "old": "}", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 60, "old": "return shuffled;", "new": null },
+    { "file": "apps/web/convex/emojiBingo.ts", "line": 61, "old": "}", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 65, "old": "function shuffle<T>(arr: T[]): T[] {", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 66, "old": "const a = [...arr];", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 67, "old": "for (let i = a.length - 1; i > 0; i--) {", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 68, "old": "const k = Math.floor(Math.random() * (i + 1));", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 69, "old": "[a[i], a[k]] = [a[k], a[i]];", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 70, "old": "}", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 71, "old": "return a;", "new": null },
+    { "file": "apps/web/convex/wordRush.ts", "line": 72, "old": "}", "new": null },
+    {
+      "file": "apps/web/convex/wordRush.ts",
+      "line": 87,
+      "old": "choicesEn: shuffle([raw.en, ...raw.wrongEn.slice(0, 3)]),",
+      "new": "choicesEn: shuffleArray([raw.en, ...raw.wrongEn.slice(0, 3)]),"
+    },
+    {
+      "file": "apps/web/convex/wordRush.ts",
+      "line": 88,
+      "old": "choicesJa: shuffle([raw.ja, ...raw.wrongJa.slice(0, 3)]),",
+      "new": "choicesJa: shuffleArray([raw.ja, ...raw.wrongJa.slice(0, 3)]),"
+    },
+    {
+      "file": "apps/web/convex/wordRush.ts",
+      "line": 94,
+      "old": "const inPack = shuffle(pool.filter((c) => c.packs.includes(pack)));",
+      "new": "const inPack = shuffleArray(pool.filter((c) => c.packs.includes(pack)));"
+    },
+    {
+      "file": "apps/web/convex/wordRush.ts",
+      "line": 95,
+      "old": "const rest = shuffle(pool.filter((c) => !c.packs.includes(pack)));",
+      "new": "const rest = shuffleArray(pool.filter((c) => !c.packs.includes(pack)));"
+    }
+  ],
+  "glue": {
+    "apps/web/convex/games.ts": ["import { shuffleArray } from \"./gameShared\";"],
+    "apps/web/convex/emojiMatch.ts": ["import { shuffleArray } from \"./gameShared\";"],
+    "apps/web/convex/emojiBingo.ts": ["import { shuffleArray } from \"./gameShared\";"],
+    "apps/web/convex/wordRush.ts": ["import { shuffleArray } from \"./gameShared\";"],
+    "apps/web/convex/gameShared.ts": [
+      "/**",
+      "* A shuffled copy of a list (Fisher-Yates); the list it is given is left as it was. Math.random is drawn once",
+      "* for every place but the first, from the last place down, so a list of n takes n - 1 draws. Tests replace",
+      "* Math.random with a fixed sequence to get a known board, deck or team split, and they depend on that order.",
+      "*/"
+    ]
+  }
+}

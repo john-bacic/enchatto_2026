@@ -11,6 +11,7 @@
 import type * as crons from "../crons.js";
 import type * as emojiBingo from "../emojiBingo.js";
 import type * as emojiMatch from "../emojiMatch.js";
+import type * as gameShared from "../gameShared.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
 import type * as httpEmojiBingo from "../httpEmojiBingo.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   emojiBingo: typeof emojiBingo;
   emojiMatch: typeof emojiMatch;
+  gameShared: typeof gameShared;
   games: typeof games;
   http: typeof http;
   httpEmojiBingo: typeof httpEmojiBingo;

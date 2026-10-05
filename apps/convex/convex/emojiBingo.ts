@@ -3,6 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { authFail, isPresent, requireCaller } from "./participants";
+import { shuffleArray } from "./gameShared";
 
 type Game = Doc<"emojiBingoGames">;
 
@@ -50,15 +51,6 @@ const GRACE_ROLL_INTERVAL_MS = 3000; // auto-roll every 3s during grace period
 const FINAL_CLAIM_MS = 15000;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 function generateCard(): string[] {
   const selected = shuffleArray(BINGO_EMOJI_POOL).slice(0, 24);

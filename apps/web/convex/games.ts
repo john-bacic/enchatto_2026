@@ -3,6 +3,7 @@ import { action, internalMutation, mutation, query, ActionCtx, MutationCtx } fro
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { callerProof, isAround, isInlineDrawing, isPresent, requireCaller, requireHost, takeRateLimit } from "./participants";
+import { shuffleArray } from "./gameShared";
 
 // Leveled prompts — level 1 has single words with hints, higher levels get progressively harder
 const LEVEL_PROMPTS: Record<number, Array<{ text: string; ja: string; hint?: string; hintJa?: string }>> = {
@@ -125,15 +126,6 @@ function distinctByText<T extends { text: string }>(prompts: T[]): T[] {
     seen.add(p.text);
     return true;
   });
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 /** Pick 3 distractor prompts from the same level, excluding the correct one */

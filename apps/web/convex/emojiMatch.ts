@@ -3,6 +3,7 @@ import { mutation, query, internalMutation, MutationCtx } from "./_generated/ser
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { authFail, isPresent, requireCaller } from "./participants";
+import { shuffleArray } from "./gameShared";
 
 // ─── Trace helper ────────────────────────────────────────────────────────────
 
@@ -150,15 +151,6 @@ function getBoardConfig(playerCount: number) {
   if (playerCount <= 4) return { rows: 4, cols: 4, pairs: 8 };
   if (playerCount <= 12) return { rows: 5, cols: 4, pairs: 10 };
   return { rows: 6, cols: 6, pairs: 18 };
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
 }
 
 function getNextEligiblePlayer(

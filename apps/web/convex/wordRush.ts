@@ -30,6 +30,7 @@ import {
   requireCaller,
   takeRateLimit,
 } from "./participants";
+import { shuffleArray } from "./gameShared";
 
 // ─── Tuning ──────────────────────────────────────────────────────────────────
 
@@ -62,15 +63,6 @@ type Player = Game["players"][number];
 const learningFor = (preferredLanguage: string): WordRushLang =>
   preferredLanguage === "ja" ? "en" : "ja";
 
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const k = Math.floor(Math.random() * (i + 1));
-    [a[i], a[k]] = [a[k], a[i]];
-  }
-  return a;
-}
-
 function toCard(raw: RawCard): WordRushCard {
   return {
     en: raw.en,
@@ -84,15 +76,15 @@ function toCard(raw: RawCard): WordRushCard {
     exampleEn: raw.exampleEn,
     exampleJa: raw.exampleJa,
     scene: (WORD_RUSH_SCENES as readonly string[]).includes(raw.scene) ? raw.scene : "sparkles",
-    choicesEn: shuffle([raw.en, ...raw.wrongEn.slice(0, 3)]),
-    choicesJa: shuffle([raw.ja, ...raw.wrongJa.slice(0, 3)]),
+    choicesEn: shuffleArray([raw.en, ...raw.wrongEn.slice(0, 3)]),
+    choicesJa: shuffleArray([raw.ja, ...raw.wrongJa.slice(0, 3)]),
   };
 }
 
 function fallbackCards(pack: string, exclude: Set<string>): WordRushCard[] {
   const pool = FALLBACK_DECK.filter((c) => !exclude.has(c.en));
-  const inPack = shuffle(pool.filter((c) => c.packs.includes(pack)));
-  const rest = shuffle(pool.filter((c) => !c.packs.includes(pack)));
+  const inPack = shuffleArray(pool.filter((c) => c.packs.includes(pack)));
+  const rest = shuffleArray(pool.filter((c) => !c.packs.includes(pack)));
   return [...inPack, ...rest].slice(0, CARD_COUNT).map(toCard);
 }
 

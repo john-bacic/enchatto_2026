@@ -1,0 +1,44 @@
+{
+  "changed": [
+    { "old": "function shuffleArray<T>(arr: T[]): T[] {", "new": "export function shuffleArray<T>(arr: T[]): T[] {" },
+    {
+      "old": "choicesEn: shuffle([raw.en, ...raw.wrongEn.slice(0, 3)]),",
+      "new": "choicesEn: shuffleArray([raw.en, ...raw.wrongEn.slice(0, 3)]),"
+    },
+    {
+      "old": "choicesJa: shuffle([raw.ja, ...raw.wrongJa.slice(0, 3)]),",
+      "new": "choicesJa: shuffleArray([raw.ja, ...raw.wrongJa.slice(0, 3)]),"
+    },
+    {
+      "old": "const inPack = shuffle(pool.filter((c) => c.packs.includes(pack)));",
+      "new": "const inPack = shuffleArray(pool.filter((c) => c.packs.includes(pack)));"
+    },
+    {
+      "old": "const rest = shuffle(pool.filter((c) => !c.packs.includes(pack)));",
+      "new": "const rest = shuffleArray(pool.filter((c) => !c.packs.includes(pack)));"
+    }
+  ],
+  "removed": [
+    { "line": "function shuffleArray<T>(arr: T[]): T[] {", "count": 2 },
+    { "line": "const shuffled = [...arr];", "count": 2 },
+    { "line": "for (let i = shuffled.length - 1; i > 0; i--) {", "count": 2 },
+    { "line": "const j = Math.floor(Math.random() * (i + 1));", "count": 2 },
+    { "line": "[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];", "count": 2 },
+    { "line": "return shuffled;", "count": 2 },
+    "function shuffle<T>(arr: T[]): T[] {",
+    "const a = [...arr];",
+    "for (let i = a.length - 1; i > 0; i--) {",
+    "const k = Math.floor(Math.random() * (i + 1));",
+    "[a[i], a[k]] = [a[k], a[i]];",
+    "return a;",
+    { "line": "}", "count": 6 }
+  ],
+  "added": [
+    { "line": "import { shuffleArray } from \"./gameShared\";", "count": 4 },
+    "/**",
+    "* A shuffled copy of a list (Fisher-Yates); the list it is given is left as it was. Math.random is drawn once",
+    "* for every place but the first, from the last place down, so a list of n takes n - 1 draws. Tests replace",
+    "* Math.random with a fixed sequence to get a known board, deck or team split, and they depend on that order.",
+    "*/"
+  ]
+}
