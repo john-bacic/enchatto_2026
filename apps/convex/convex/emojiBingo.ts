@@ -160,14 +160,15 @@ async function upsertBingoSummary(
     isTie: false,
   };
 
-  const allMessages = await ctx.db
+  // Only the room's system messages are read, not the chat. The lowest in the chat comes first
+  const systemMessages = await ctx.db
     .query("messages")
-    .withIndex("by_roomId_createdAt", (q: any) => q.eq("roomId", roomId))
+    .withIndex("by_roomId_kind_createdAt", (q: any) => q.eq("roomId", roomId).eq("kind", "system"))
     .order("desc")
     .collect();
 
   // Look for existing emoji_match_summary with gameType "Emoji Bingo", OR old emoji_bingo_summary
-  const existing = allMessages.find(
+  const existing = systemMessages.find(
     (m: any) => m.kind === "system" && (
       (m.text?.startsWith("emoji_match_summary:") && m.text?.includes('"Emoji Bingo"')) ||
       m.text?.startsWith("emoji_bingo_summary:")
@@ -415,13 +416,13 @@ export const startGame = mutation({
       `players=${players.length} pattern=${game.winPattern} firstTurn=${turnOrder[0]}`);
 
     // Post system message
-    const existingGameMsg = await ctx.db
+    const systemMessages = await ctx.db
       .query("messages")
-      .withIndex("by_roomId_createdAt", (q: any) => q.eq("roomId", game.roomId))
+      .withIndex("by_roomId_kind_createdAt", (q) => q.eq("roomId", game.roomId).eq("kind", "system"))
       .order("desc")
       .collect();
-    const alreadyPosted = existingGameMsg.some(
-      (m: any) => m.kind === "system" && m.text === "game:Emoji Bingo"
+    const alreadyPosted = systemMessages.some(
+      (m) => m.kind === "system" && m.text === "game:Emoji Bingo"
     );
     if (!alreadyPosted) {
       await ctx.db.insert("messages", {

@@ -1,7 +1,9 @@
+import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
-import { Backend, createRoom, joinGuest, newBackend, tokenFor } from "./setup";
+import schema from "../../convex/schema";
+import { Backend, createRoom, joinGuest, modules, newBackend, tokenFor } from "./setup";
 
 // Emoji Match (convex/emojiMatch.ts and the /api/emoji-match/* routes): a memory game. Players take
 // turns flipping two cards; a pair scores and keeps the turn, a miss is shown for 1.2 s and passes it.
@@ -1445,6 +1447,144 @@ describe("finishing the game", () => {
       { players: [{ name: "Host", avatar: "default", score: 8, isWinner: true }], totalPairs: 8, isTie: false },
     ]);
     expect((await t.query(api.messages.getMessageById, { messageId: oldMessage }))?.createdAt).toBe(Date.now());
+  });
+
+  test("of several summary messages of this game, the result goes to the lowest in the chat, and of two with the same time to the one written last", async () => {
+    const t = newBackend();
+    const { roomId, hostId, gameId } = await startedGame(t, 0);
+    const summaryOf = (name: string) =>
+      SUMMARY +
+      JSON.stringify({
+        gameType: "Match Emoji",
+        games: [{ players: [{ name, avatar: "default", score: 8, isWinner: true }], totalPairs: 8, isTie: false }],
+      });
+    vi.advanceTimersByTime(2_000);
+    const sameTimeFirst = await postSystemLine(t, roomId, hostId, summaryOf("First"));
+    const sameTimeLast = await postSystemLine(t, roomId, hostId, summaryOf("Last"));
+    // Written after both, with a time that puts it above them in the chat
+    const higherUp = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("messages", {
+          roomId,
+          senderId: hostId,
+          kind: "system",
+          status: "processed",
+          text: summaryOf("Higher up"),
+          createdAt: Date.now() - 1_000,
+        })
+    );
+    vi.advanceTimersByTime(1_000);
+    await takePairs(t, gameId, 8);
+
+    const textOf = async (messageId: Id<"messages">) => (await t.query(api.messages.getMessageById, { messageId }))?.text;
+    expect(await textOf(sameTimeFirst)).toBe(summaryOf("First"));
+    expect(await textOf(higherUp)).toBe(summaryOf("Higher up"));
+    const [updated] = summariesIn([(await textOf(sameTimeLast)) ?? ""]);
+    expect(updated.games.map((g: { players: Array<{ name: string }> }) => g.players[0].name)).toEqual(["Last", "Host"]);
+    expect(summariesIn(await chatLines(t, roomId))).toHaveLength(3);
+  });
+});
+
+// ─── A long chat ─────────────────────────────────────────────────────────────
+
+// A game looks for its summary message and its start line among the room's system messages. However
+// much has been said since they were written, it finds them, and it reads none of the chat to do so.
+describe("in a room with 300 chat messages since its last game", () => {
+  /** What one function call may read on the backend of these tests. Empty, the limits are Convex's own */
+  const limits: { documentsRead?: number } = {};
+
+  /** Runs `call` with a ceiling on the documents one function may read. A call that reads more is refused */
+  async function within<T>(documentsRead: number, call: () => Promise<T>): Promise<T> {
+    limits.documentsRead = documentsRead;
+    try {
+      return await call();
+    } finally {
+      delete limits.documentsRead;
+    }
+  }
+
+  /**
+   * A room whose host played Emoji Match to the end, then started a game of Emoji Bingo and ended it, and
+   * where 300 messages were sent after that: both games' summary messages and start lines are 300 messages
+   * up the chat, the Bingo ones below the Emoji Match ones. The next Emoji Match lobby is open.
+   */
+  async function longChat() {
+    const t: Backend = convexTest({ schema, modules, transactionLimits: limits });
+    const { roomId, hostId, gameId } = await startedGame(t, 0);
+    await takePairs(t, gameId, 8);
+    const [ownSummary] = (await t.query(api.messages.getRoomMessages, { roomId })).filter((m) => m.text?.startsWith(SUMMARY));
+
+    vi.setSystemTime(Date.now() + 1_000);
+    const bingoId = await t.mutation(api.emojiBingo.createLobby, { roomId, hostParticipantId: hostId });
+    await t.mutation(api.emojiBingo.startGame, { gameId: bingoId, participantId: hostId });
+    await t.mutation(api.emojiBingo.cancelGame, { gameId: bingoId, participantId: hostId });
+    const bingoSummary = (await t.query(api.messages.getRoomMessages, { roomId })).find((m) => m.text?.includes('"Emoji Bingo"'));
+    if (!bingoSummary) throw new Error("Emoji Bingo left no summary");
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 300; i++) {
+        // Moves the clock without running anything scheduled: each message has a second of its own
+        vi.setSystemTime(Date.now() + 1_000);
+        await ctx.db.insert("messages", {
+          roomId,
+          senderId: hostId,
+          kind: "text",
+          status: "processed",
+          text: `Chat message ${i}`,
+          processing: { translatedText: `チャットメッセージ ${i}` },
+          createdAt: Date.now(),
+        });
+      }
+    });
+    vi.setSystemTime(Date.now() + 1_000);
+    const nextId: GameId = await t.mutation(api.emojiMatch.playAgain, { gameId, participantId: hostId });
+    return { t, roomId, hostId, nextId, ownSummary, bingoSummary };
+  }
+
+  test("the next game's result is added to the first game's summary message, and its start line is not posted again", async () => {
+    const { t, roomId, hostId, nextId, ownSummary } = await longChat();
+    await t.mutation(api.emojiMatch.startGame, { gameId: nextId, participantId: hostId });
+    await takePairs(t, nextId, 8);
+
+    const lines = await chatLines(t, roomId);
+    expect(lines.filter((line) => line === "game:Emoji Match")).toHaveLength(1);
+    expect(summariesIn(lines).filter((s) => s.gameType === "Match Emoji")).toHaveLength(1);
+    const updated = await t.query(api.messages.getMessageById, { messageId: ownSummary._id });
+    expect(summariesIn([updated!.text!])[0].games).toHaveLength(2);
+    // Moved below the 300 messages
+    expect(updated!.createdAt).toBe(Date.now());
+    const messages = await t.query(api.messages.getRoomMessages, { roomId });
+    expect(messages.filter((m) => m.kind === "text")).toHaveLength(300);
+    expect(messages[messages.length - 1]._id).toBe(ownSummary._id);
+  });
+
+  test("the Emoji Bingo summary and start line up the chat are left as they were", async () => {
+    const { t, roomId, hostId, nextId, bingoSummary } = await longChat();
+    await t.mutation(api.emojiMatch.startGame, { gameId: nextId, participantId: hostId });
+    await takePairs(t, nextId, 8);
+
+    expect(await t.query(api.messages.getMessageById, { messageId: bingoSummary._id })).toEqual(bingoSummary);
+    const lines = await chatLines(t, roomId);
+    expect(lines.filter((line) => line === "game:Emoji Bingo")).toHaveLength(1);
+    expect(summariesIn(lines).map((s) => s.gameType).sort()).toEqual(["Emoji Bingo", "Match Emoji"]);
+  });
+
+  test("starting the game and writing its summary each read fewer than 40 documents", async () => {
+    const { t, roomId, hostId, nextId } = await longChat();
+    // The ceiling is in force on this backend: the chat itself cannot be read under it
+    await expect(within(39, () => t.query(api.messages.getRoomMessages, { roomId }))).rejects.toThrow(
+      /Scanned too many documents .*limit: 39\b/
+    );
+
+    await within(39, () => t.mutation(api.emojiMatch.startGame, { gameId: nextId, participantId: hostId }));
+    await takePairs(t, nextId, 7);
+    const [[first, second]] = await openPairs(t, nextId);
+    await flip(t, nextId, hostId, first);
+    expect(await within(39, () => flip(t, nextId, hostId, second))).toEqual({ action: "game_complete" });
+
+    const lines = await chatLines(t, roomId);
+    expect(lines.filter((line) => line === "game:Emoji Match")).toHaveLength(1);
+    expect(summariesIn(lines).find((s) => s.gameType === "Match Emoji").games).toHaveLength(2);
   });
 });
 

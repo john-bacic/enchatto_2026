@@ -107,13 +107,14 @@ async function upsertMatchEmojiSummary(
   newRound: GameRound,
   cancelled?: boolean,
 ) {
-  // Find this game's existing summary message in this room
-  const allMessages = await ctx.db
+  // Find this game's existing summary message in this room, the lowest in the chat if there are several.
+  // Only the room's system messages are read, not the chat
+  const systemMessages = await ctx.db
     .query("messages")
-    .withIndex("by_roomId_createdAt", (q) => q.eq("roomId", roomId))
+    .withIndex("by_roomId_kind_createdAt", (q) => q.eq("roomId", roomId).eq("kind", "system"))
     .order("desc")
     .collect();
-  const existing = allMessages.find((m) => ownSummaryData(m) !== null);
+  const existing = systemMessages.find((m) => ownSummaryData(m) !== null);
 
   if (existing) {
     // Append to the existing data
@@ -478,13 +479,13 @@ export const startGame = mutation({
     await scheduleTurnTimeout(ctx, args.gameId, turnTimeoutMs, now);
 
     // Post system message only for the first game in this room
-    const existingGameMsg = await ctx.db
+    const systemMessages = await ctx.db
       .query("messages")
-      .withIndex("by_roomId_createdAt", (q: any) => q.eq("roomId", game.roomId))
+      .withIndex("by_roomId_kind_createdAt", (q) => q.eq("roomId", game.roomId).eq("kind", "system"))
       .order("desc")
       .collect();
-    const alreadyPosted = existingGameMsg.some(
-      (m: any) => m.kind === "system" && m.text === "game:Emoji Match"
+    const alreadyPosted = systemMessages.some(
+      (m) => m.kind === "system" && m.text === "game:Emoji Match"
     );
     if (!alreadyPosted) {
       await ctx.db.insert("messages", {

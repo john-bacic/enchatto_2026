@@ -1,7 +1,9 @@
+import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
-import { Backend, createRoom, joinGuest, newBackend, tokenFor } from "./setup";
+import schema from "../../convex/schema";
+import { Backend, createRoom, joinGuest, modules, newBackend, tokenFor } from "./setup";
 
 // Emoji Bingo (convex/emojiBingo.ts and the /api/emoji-bingo/* routes).
 // lobby -> active (players take turns to roll; a turn nobody takes is rolled after 10 s)
@@ -1574,6 +1576,145 @@ describe("the summary in the chat", () => {
     expect(summary.data.gameType).toBe("Emoji Bingo");
     expect(summary.data.games).toHaveLength(2);
     expect(summary.data.games[0]).toEqual(oldRound);
+  });
+
+  test("of several Bingo summaries in the room, the round goes to the lowest in the chat, and of two with the same time to the one written last", async () => {
+    const t = newBackend();
+    const { roomId, gameId, hostId } = await startedGame(t, []);
+    const summaryOf = (name: string) =>
+      SUMMARY_PREFIX +
+      JSON.stringify({
+        gameType: "Emoji Bingo",
+        games: [{ players: [{ name, avatar: "default", score: 7, isWinner: true }], totalPairs: 25, isTie: false }],
+      });
+    vi.advanceTimersByTime(2_000);
+    const written = await t.run(async (ctx) => {
+      const insert = (name: string, createdAt: number) =>
+        ctx.db.insert("messages", { roomId, senderId: hostId, kind: "system", status: "processed", text: summaryOf(name), createdAt });
+      const sameTimeFirst = await insert("First", Date.now());
+      const sameTimeLast = await insert("Last", Date.now());
+      // Written after both, with a time that puts it above them in the chat
+      const higherUp = await insert("Higher up", Date.now() - 1_000);
+      return { sameTimeFirst, sameTimeLast, higherUp };
+    });
+    await win(t, gameId, hostId);
+
+    const all = await summaries(t, roomId);
+    expect(all).toHaveLength(3);
+    const textOf = (messageId: Id<"messages">) => all.find((s) => s.message._id === messageId)?.message.text;
+    expect(textOf(written.sameTimeFirst)).toBe(summaryOf("First"));
+    expect(textOf(written.higherUp)).toBe(summaryOf("Higher up"));
+    const updated = all.find((s) => s.message._id === written.sameTimeLast)!;
+    expect(updated.data.games.map((g) => g.players[0].name)).toEqual(["Last", "Host"]);
+  });
+});
+
+// ─── A long chat ─────────────────────────────────────────────────────────────
+
+// A game looks for its summary message and its start line among the room's system messages. However
+// much has been said since they were written, it finds them, and it reads none of the chat to do so.
+describe("in a room with 300 chat messages since its last game", () => {
+  /** What one function call may read on the backend of these tests. Empty, the limits are Convex's own */
+  const limits: { documentsRead?: number } = {};
+
+  /** Runs `call` with a ceiling on the documents one function may read. A call that reads more is refused */
+  async function within<T>(documentsRead: number, call: () => Promise<T>): Promise<T> {
+    limits.documentsRead = documentsRead;
+    try {
+      return await call();
+    } finally {
+      delete limits.documentsRead;
+    }
+  }
+
+  const startLines = async (t: Backend, roomId: RoomId, game: string) =>
+    (await t.query(api.messages.getRoomMessages, { roomId })).filter((m) => m.text === `game:${game}`);
+
+  /**
+   * A room whose host played Emoji Bingo to the end, then started a game of Emoji Match and ended it with
+   * one pair found, and where 300 messages were sent after that: both games' summary messages and start
+   * lines are 300 messages up the chat, the Emoji Match ones below the Bingo ones. The next Bingo lobby is open.
+   */
+  async function longChat() {
+    const t: Backend = convexTest({ schema, modules, transactionLimits: limits });
+    const { roomId, gameId, hostId } = await startedGame(t, []);
+    await win(t, gameId, hostId);
+    const [ownSummary] = await summaries(t, roomId);
+
+    vi.setSystemTime(Date.now() + 1_000);
+    const matchId = await t.mutation(api.emojiMatch.createLobby, { roomId, hostParticipantId: hostId });
+    await t.mutation(api.emojiMatch.startGame, { gameId: matchId, participantId: hostId });
+    const board = await t.run(async (ctx) => (await ctx.db.get(matchId))!.board);
+    const twin = board.find((c) => c.pairKey === board[0].pairKey && c.cardId !== board[0].cardId)!;
+    for (const card of [board[0], twin]) {
+      await t.mutation(api.emojiMatch.flipCard, { gameId: matchId, participantId: hostId, cardId: card.cardId });
+    }
+    await t.mutation(api.emojiMatch.cancelGame, { gameId: matchId, participantId: hostId });
+    const matchSummary = (await summaries(t, roomId)).find((s) => s.data.gameType === "Match Emoji");
+    if (!matchSummary) throw new Error("Emoji Match left no summary");
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 300; i++) {
+        // Moves the clock without running anything scheduled: each message has a second of its own
+        vi.setSystemTime(Date.now() + 1_000);
+        await ctx.db.insert("messages", {
+          roomId,
+          senderId: hostId,
+          kind: "text",
+          status: "processed",
+          text: `Chat message ${i}`,
+          processing: { translatedText: `チャットメッセージ ${i}` },
+          createdAt: Date.now(),
+        });
+      }
+    });
+    vi.setSystemTime(Date.now() + 1_000);
+    const nextId: GameId = await t.mutation(api.emojiBingo.playAgain, { gameId, participantId: hostId });
+    return { t, roomId, hostId, nextId, ownSummary: ownSummary.message, matchSummary: matchSummary.message };
+  }
+
+  test("the next game's round is added to the first game's summary message, and its start line is not posted again", async () => {
+    const { t, roomId, hostId, nextId, ownSummary } = await longChat();
+    await t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId });
+    await win(t, nextId, hostId);
+
+    expect(await startLines(t, roomId, "Emoji Bingo")).toHaveLength(1);
+    const own = (await summaries(t, roomId)).filter((s) => s.data.gameType === "Emoji Bingo");
+    expect(own).toHaveLength(1);
+    expect(own[0].message._id).toBe(ownSummary._id);
+    expect(own[0].data.games).toHaveLength(2);
+    // Moved below the 300 messages
+    expect(own[0].message.createdAt).toBe(Date.now());
+    const messages = await t.query(api.messages.getRoomMessages, { roomId });
+    expect(messages.filter((m) => m.kind === "text")).toHaveLength(300);
+    expect(messages[messages.length - 1]._id).toBe(ownSummary._id);
+  });
+
+  test("the Emoji Match summary and start line up the chat are left as they were", async () => {
+    const { t, roomId, hostId, nextId, matchSummary } = await longChat();
+    await t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId });
+    await win(t, nextId, hostId);
+
+    expect(await t.query(api.messages.getMessageById, { messageId: matchSummary._id })).toEqual(matchSummary);
+    expect(await startLines(t, roomId, "Emoji Match")).toHaveLength(1);
+    expect((await summaries(t, roomId)).map((s) => s.data.gameType).sort()).toEqual(["Emoji Bingo", "Match Emoji"]);
+  });
+
+  test("starting the game and writing its summary each read fewer than 40 documents", async () => {
+    const { t, roomId, hostId, nextId } = await longChat();
+    // The ceiling is in force on this backend: the chat itself cannot be read under it
+    await expect(within(39, () => t.query(api.messages.getRoomMessages, { roomId }))).rejects.toThrow(
+      /Scanned too many documents .*limit: 39\b/
+    );
+
+    await within(39, () => t.mutation(api.emojiBingo.startGame, { gameId: nextId, participantId: hostId }));
+    await fill(t, nextId, hostId, MIDDLE_ROW);
+    // In a game of one the first bingo ends the game, so this claim writes the summary
+    expect(await within(39, () => claim(t, nextId, hostId))).toEqual({ valid: true, placement: 1 });
+
+    expect(await startLines(t, roomId, "Emoji Bingo")).toHaveLength(1);
+    const own = (await summaries(t, roomId)).filter((s) => s.data.gameType === "Emoji Bingo");
+    expect(own.map((s) => s.data.games.length)).toEqual([2]);
   });
 });
 

@@ -112,7 +112,9 @@ export default defineSchema({
     // The failed messages still left for the host, without reading the room's other failed ones
     .index("by_roomId_awaitingHost", ["roomId", "awaitingHost"])
     // A room's messages that still have a voice clip, without reading its other messages (messages.ts: purgeRoomAudio)
-    .index("by_roomId_audioStorageId", ["roomId", "audioStorageId"]),
+    .index("by_roomId_audioStorageId", ["roomId", "audioStorageId"])
+    // A room's messages of one kind in the order of the chat, without reading its other messages (emojiMatch.ts, emojiBingo.ts: a game's summary message and start line among the system messages)
+    .index("by_roomId_kind_createdAt", ["roomId", "kind", "createdAt"]),
 
   reactions: defineTable({
     messageId: v.id("messages"),
