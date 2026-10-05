@@ -39,6 +39,8 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { useRoomRedirects } from "@/hooks/use-room-redirects";
 import { useOutbox } from "@/hooks/use-outbox";
 import { useVibe } from "@/hooks/use-vibe";
+import { useLostInTranslation } from "@/hooks/games/use-lost-in-translation";
+import { useWordRushStarter } from "@/hooks/games/use-word-rush-starter";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
@@ -65,7 +67,6 @@ function RoomContent() {
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [showGamePicker, setShowGamePicker] = useState(false);
   const [showGameReplay, setShowGameReplay] = useState(false);
-  const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
   const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
   const [dismissedEmojiBingoId, setDismissedEmojiBingoId] = useState<string | null>(null);
   const [dismissedTruthOrDareId, setDismissedTruthOrDareId] = useState<string | null>(null);
@@ -80,36 +81,9 @@ function RoomContent() {
   const messages = useQuery(api.messages.getRoomMessages, {
     roomId: roomId as Id<"rooms">,
   });
-  const activeGameSession = useQuery(api.games.getActiveGameSession, {
-    roomId: roomId as Id<"rooms">,
-  });
-  const myActiveStep = useQuery(
-    api.games.getMyActiveStep,
-    participantId ? { participantId: participantId as Id<"participants">, token: tokenFor(participantId) } : "skip"
-  );
-  // Debug: trace game step changes
-  useEffect(() => {
-    console.log("[GAME] myActiveStep:", myActiveStep ? { id: myActiveStep._id, type: myActiveStep.stepType, round: myActiveStep.round, chain: (myActiveStep as any).chainId } : null);
-  }, [myActiveStep]);
 
-  const latestGameSession = useQuery(api.games.getLatestGameSession, {
-    roomId: roomId as Id<"rooms">,
-  });
-  const gameReplay = useQuery(
-    api.games.getGameReplay,
-    latestGameSession && latestGameSession.status === "complete"
-      ? { gameSessionId: latestGameSession._id }
-      : "skip"
-  );
-  const gameStatus = useQuery(
-    api.games.getGameStatus,
-    activeGameSession ? { roomId: roomId as Id<"rooms"> } : "skip"
-  );
-
-  // Word Rush real-time subscription
-  const wordRushGame = useQuery(api.wordRush.getState, {
-    roomId: roomId as Id<"rooms">,
-  });
+  const { dismissedGameStepId, setDismissedGameStepId, activeGameSession, myActiveStep, latestGameSession, gameReplay, gameStatus, activeTimerSeconds, cancelGameMutation, handleStartGame, handleSubmitGameStep } = useLostInTranslation({ roomId, participantId, setShowGamePicker });
+  const { wordRushGame, cancelWordRush, handleStartWordRush } = useWordRushStarter({ roomId, participantId, setShowGamePicker, cancelGameMutation });
 
   // Emoji Match real-time subscription
   const emojiMatchGame = useQuery(api.emojiMatch.getActiveEmojiMatch, {
@@ -163,10 +137,6 @@ function RoomContent() {
     prevActiveGameRef.current = activeGameSession;
   }, [activeGameSession, latestGameSession?.status]);
 
-  // Mutations
-  const startGameMutation = useAuthedMutation(api.games.startGame);
-  const submitGameStepMutation = useAuthedMutation(api.games.submitGameStep);
-
   const { handleLeave } = usePresence({ participantId, convexUrl, router });
   const addReaction = useAuthedMutation(api.reactions.addReaction);
   const removeReaction = useAuthedMutation(api.reactions.removeReaction);
@@ -215,14 +185,6 @@ function RoomContent() {
     [addReaction, removeReaction, participantId, isOnline]
   );
 
-  // Compute timer seconds from active game SESSION (not step — watchers don't have
-  // an active step during the draw phase, so myActiveStep would be null for them,
-  // causing timerSeconds to always default to 20).
-  const sessionTimer = activeGameSession?.timerEnabled ?? myActiveStep?.timerEnabled;
-  const activeTimerSeconds = typeof sessionTimer === "number"
-    ? sessionTimer
-    : (sessionTimer !== false ? 20 : 0);
-
   const typingParticipants = participants
     .filter((p) => p._id !== participantId && (p as any).typingAction)
     .map((p) => ({
@@ -241,10 +203,6 @@ function RoomContent() {
   const handleCancelReply = () => {
     setReplyTo(null);
   };
-
-  // Word Rush mutations
-  const createWordRushLobby = useAuthedMutation(api.wordRush.createLobby);
-  const cancelWordRush = useAuthedMutation(api.wordRush.cancel);
 
   // Emoji Match mutations
   const createEmojiMatchLobby = useAuthedMutation(api.emojiMatch.createLobby);
@@ -268,58 +226,6 @@ function RoomContent() {
   const claimEmojiBingo = useAuthedMutation(api.emojiBingo.claimBingo);
   const cancelEmojiBingo = useAuthedMutation(api.emojiBingo.cancelGame);
   const playAgainEmojiBingo = useAuthedMutation(api.emojiBingo.playAgain);
-
-  const cancelGameMutation = useAuthedMutation(api.games.cancelGame);
-  const handleStartGame = useCallback(
-    async (gameType: string, level: number = 1, timerSeconds: number = 20) => {
-      if (!participantId) return;
-      try {
-        // Cancel any lingering active game first
-        await cancelGameMutation({
-          roomId: roomId as Id<"rooms">,
-          participantId: participantId as Id<"participants">,
-        });
-        await startGameMutation({
-          roomId: roomId as Id<"rooms">,
-          participantId: participantId as Id<"participants">,
-          gameType,
-          level,
-          timerEnabled: timerSeconds,
-        });
-        setShowGamePicker(false);
-      } catch (err) {
-        console.error("Failed to start game:", err);
-      }
-    },
-    [cancelGameMutation, startGameMutation, roomId, participantId]
-  );
-
-  const handleStartWordRush = useCallback(
-    async ({ pack, sayIt }: { pack: string; sayIt: boolean }) => {
-      if (!participantId) return;
-      try {
-        // Cancel any lingering active game first (ignore errors if no active game)
-        try {
-          await cancelGameMutation({
-            roomId: roomId as Id<"rooms">,
-            participantId: participantId as Id<"participants">,
-          });
-        } catch {
-          // No active game to cancel — that's fine
-        }
-        await createWordRushLobby({
-          roomId: roomId as Id<"rooms">,
-          hostParticipantId: participantId as Id<"participants">,
-          pack,
-          sayIt,
-        });
-        setShowGamePicker(false);
-      } catch (err) {
-        console.error("Failed to start Word Rush:", err);
-      }
-    },
-    [cancelGameMutation, createWordRushLobby, roomId, participantId]
-  );
 
   // Emoji Match handlers
   const handleCreateEmojiMatchLobby = useCallback(
@@ -773,30 +679,6 @@ function RoomContent() {
       }
     },
     [submitTruthOrDareRating, participantId]
-  );
-
-  const handleSubmitGameStep = useCallback(
-    async (stepId: string, outputText?: string, outputDrawingUrl?: string, selectedOption?: string) => {
-      if (!participantId) return;
-      try {
-        // Call mutation directly (not via action) for reliable Convex reactivity
-        const args: any = {
-          stepId: stepId as Id<"gameSteps">,
-          participantId: participantId as Id<"participants">,
-        };
-        if (outputText !== undefined) args.outputText = outputText;
-        if (outputDrawingUrl !== undefined) args.outputDrawingUrl = outputDrawingUrl;
-        if (selectedOption !== undefined) args.selectedOption = selectedOption;
-        // A guess is answered with how it came out, which the overlay shows
-        return await submitGameStepMutation(args);
-      } catch (err: any) {
-        console.error("Failed to submit game step:", err);
-        alert("Game step error: " + (err?.message ?? err?.data ?? String(err)));
-        // The overlay undoes the pick, or lets Done send the drawing again
-        throw err;
-      }
-    },
-    [submitGameStepMutation, participantId]
   );
 
   const { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing } = useOutbox({ roomId, participantId, isOnline, replyTo, setReplyTo, lang, convexSiteUrl });

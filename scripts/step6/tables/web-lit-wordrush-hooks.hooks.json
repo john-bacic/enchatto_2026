@@ -1,0 +1,8 @@
+{
+  "moved": [
+    {
+      "entry": "useState dismissedGameStepId",
+      "why": "The page declares the id of the Lost in Translation task the player put away among its state at the top of its component; useLostInTranslation is called below the room's and the messages' subscriptions, where the game's own subscriptions stand, so that the trace of the player's step keeps its place among the effects. The state is therefore created lower down. It starts from a constant, and between the two places stand three other states, the network status with its listeners, and two subscriptions that take the room's id: none reads it. Its first reader is the argument of useGameOnScreen, below the call."
+    }
+  ]
+}

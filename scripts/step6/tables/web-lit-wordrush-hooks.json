@@ -1,0 +1,63 @@
+{
+  "about": "The room page's Lost in Translation (the five subscriptions with the trace of the player's step, the id of the task the player put away, the three mutations, starting a game, sending a step, and the seconds of the draw timer) to hooks/games/use-lost-in-translation.ts, and what the page holds of Word Rush (its subscription, its two mutations and starting a lobby) to hooks/games/use-word-rush-starter.ts. The replay sheet's open state and the effect that opens it stay in the page. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-lit-wordrush-hooks.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-lit-wordrush-hooks.json --root <folder> --strict-indent, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 461c240 --allow scripts/step6/tables/web-lit-wordrush-hooks.hooks.json --strict",
+  "base": "461c240c543bd2f558f0e43c40b75ebedcb447e7",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [68, 68], "to": "apps/web/hooks/games/use-lost-in-translation.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [83, 107], "to": "apps/web/hooks/games/use-lost-in-translation.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [109, 112], "to": "apps/web/hooks/games/use-word-rush-starter.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [166, 168], "to": "apps/web/hooks/games/use-lost-in-translation.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [218, 224], "to": "apps/web/hooks/games/use-lost-in-translation.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [245, 247], "to": "apps/web/hooks/games/use-word-rush-starter.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [272, 295], "to": "apps/web/hooks/games/use-lost-in-translation.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [297, 322], "to": "apps/web/hooks/games/use-word-rush-starter.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [778, 800], "to": "apps/web/hooks/games/use-lost-in-translation.ts" }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useLostInTranslation } from \"@/hooks/games/use-lost-in-translation\";",
+      "import { useWordRushStarter } from \"@/hooks/games/use-word-rush-starter\";",
+      "const { dismissedGameStepId, setDismissedGameStepId, activeGameSession, myActiveStep, latestGameSession, gameReplay, gameStatus, activeTimerSeconds, cancelGameMutation, handleStartGame, handleSubmitGameStep } = useLostInTranslation({ roomId, participantId, setShowGamePicker });",
+      "const { wordRushGame, cancelWordRush, handleStartWordRush } = useWordRushStarter({ roomId, participantId, setShowGamePicker, cancelGameMutation });"
+    ],
+    "apps/web/hooks/games/use-lost-in-translation.ts": [
+      "\"use client\";",
+      "import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from \"react\";",
+      "import { useQuery } from \"convex/react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { tokenFor, useAuthedMutation } from \"@/lib/convex\";",
+      "export function useLostInTranslation({",
+      "roomId,",
+      "participantId,",
+      "setShowGamePicker,",
+      "}: {",
+      "roomId: string;",
+      "participantId: string;",
+      "setShowGamePicker: Dispatch<SetStateAction<boolean>>;",
+      "}) {",
+      "return { dismissedGameStepId, setDismissedGameStepId, activeGameSession, myActiveStep, latestGameSession, gameReplay, gameStatus, activeTimerSeconds, cancelGameMutation, handleStartGame, handleSubmitGameStep };",
+      "}"
+    ],
+    "apps/web/hooks/games/use-word-rush-starter.ts": [
+      "\"use client\";",
+      "import { useCallback, type Dispatch, type SetStateAction } from \"react\";",
+      "import { useQuery } from \"convex/react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { useAuthedMutation } from \"@/lib/convex\";",
+      "export function useWordRushStarter({",
+      "roomId,",
+      "participantId,",
+      "setShowGamePicker,",
+      "cancelGameMutation,",
+      "}: {",
+      "roomId: string;",
+      "participantId: string;",
+      "setShowGamePicker: Dispatch<SetStateAction<boolean>>;",
+      "cancelGameMutation: ReturnType<typeof useAuthedMutation<typeof api.games.cancelGame>>;",
+      "}) {",
+      "return { wordRushGame, cancelWordRush, handleStartWordRush };",
+      "}"
+    ]
+  }
+}
