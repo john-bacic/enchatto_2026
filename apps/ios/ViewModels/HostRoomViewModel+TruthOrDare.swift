@@ -5,8 +5,21 @@ extension HostRoomViewModel {
     // MARK: - Truth or Dare
 
     func pollTruthOrDareState() async {
+        await pollTruthOrDareState(afterOwnAction: false)
+    }
+
+    /// Asks for the game and shows it, unless it may be from before an action of the host's: a game asked for
+    /// before the latest action was sent or answered, and any game that arrives while an action is under way.
+    /// `afterOwnAction` marks the poll an action makes once it is answered: the action is still under way then,
+    /// which does not keep its own poll from showing
+    private func pollTruthOrDareState(afterOwnAction: Bool) async {
         do {
+            let epoch = truthOrDareEpoch
             let game = try await api.getActiveTruthOrDare(roomId: roomId)
+            guard epoch == truthOrDareEpoch, afterOwnAction || !isTruthOrDareSubmitting else {
+                DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:notCurrent")
+                return
+            }
             applyTruthOrDareState(game)
         } catch {
             DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:error", detail: error.localizedDescription, ok: false)
@@ -83,8 +96,14 @@ extension HostRoomViewModel {
                 startTruthOrDareFastPoll()
             }
         }
-        let result = try await action()
-        await pollTruthOrDareState()
+        // A poll that left before the action is sent, or before it is answered, does not show its game
+        truthOrDareEpoch += 1
+        let result: T
+        do {
+            defer { truthOrDareEpoch += 1 }
+            result = try await action()
+        }
+        await pollTruthOrDareState(afterOwnAction: true)
         return result
     }
 

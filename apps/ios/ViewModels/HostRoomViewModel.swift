@@ -67,6 +67,9 @@ class HostRoomViewModel: ObservableObject {
     @Published var activeTruthOrDareGame: TruthOrDareGame?
     @Published var isTruthOrDareSubmitting = false
     var truthOrDarePollTask: Task<Void, Never>?
+    /// Goes up when a Truth or Dare action is sent and again when it is answered or fails. A game asked for
+    /// before either may be from before the action
+    var truthOrDareEpoch = 0
 
     // MARK: - Draw countdown beep state
     var drawCountdownTimer: Timer?
