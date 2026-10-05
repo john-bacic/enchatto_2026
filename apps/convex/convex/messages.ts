@@ -24,10 +24,10 @@ const SEND_BASE_UNITS = 100;
 const MEDIA_PER_MINUTE = 20;
 // The web sends a photo as the file it is, and a 200-megapixel phone photo is 30-40 MB
 const IMAGE_MAX_BYTES = 50 * 1024 * 1024;
-// "rate limit" is what http.ts turns into a 503, and what the iOS send queue looks for to keep retrying until
-// the minute is over (HostRoomViewModel.maxThrottledAttempts). The build before that gives up after about 30 s
-// and shows "Not sent" with Retry; builds older still keep the message as a queued bubble until the phone next
-// reconnects.
+// "rate limit" is what the routes turn into a 503 (jsonAction in httpShared.ts, the drawing route in
+// httpMessages.ts), and what the iOS send queue looks for to keep retrying until the minute is over
+// (HostRoomViewModel.maxThrottledAttempts). The build before that gives up after about 30 s and shows "Not sent"
+// with Retry; builds older still keep the message as a queued bubble until the phone next reconnects.
 const TOO_FAST = "Sending too fast (rate limit). Wait a moment and try again.";
 
 /** A send that arrives again with the same clientId (the answer was lost and the client retried) returns the first message instead of adding a second */

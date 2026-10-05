@@ -102,7 +102,7 @@ Convex functions have to be live on both before the web build that calls them, b
 | iOS UI | SwiftUI |
 | Web UI | Next.js 14 + React 18 |
 | Backend | Convex (schema, mutations, queries) |
-| iOS ↔ Backend | HTTP actions (`http.ts`) with JSON POST |
+| iOS ↔ Backend | HTTP actions (the router in `http.ts`, its routes in the `http*.ts` files beside it) with JSON POST |
 | Web ↔ Backend | Convex React hooks (real-time subscriptions) |
 | State sync (iOS) | Polling (2s room state, 1.5s processing) |
 | State sync (Web) | Real-time via Convex `useQuery` |
