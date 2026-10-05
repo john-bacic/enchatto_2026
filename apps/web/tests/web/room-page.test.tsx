@@ -20,10 +20,14 @@ import { Id } from "../../convex/_generated/dataModel";
 // message (the settings sheet, the leave dialog, the Resume buttons, the game picker, the replay sheet, floaters,
 // the join cut-in, the vibe card, a queued message, the reply bar, the results of a game the page watched end).
 //
-// Of what stands behind a tap or a message, the last section holds the part the page's own view components draw
-// (components/room): the settings sheet, the leave dialog, the vibe card, the count of queued messages and the
-// join cut-in, each component rendered by itself with props such as the page hands it. That the tap or the message
-// brings them up, and that the page hands them those props, is still not covered.
+// Of what stands behind a tap or a message, the section "Behind a tap, or after a message has arrived" holds the
+// part the page's own view components draw (components/room): the settings sheet, the leave dialog, the vibe card,
+// the count of queued messages, the join cut-in, the results of a game of Emoji Match the page watched end and the
+// Resume buttons, each component rendered by itself with props such as the page hands it. That the tap or the
+// message brings them up, and that the page hands them those props, is still not covered.
+//
+// The last section calls the rule of the End Game button by itself (lib/end-game.ts): which game a tap ends. It is
+// the one thing here that is called and not drawn.
 //
 // When the page is meant to draw something else, `npx vitest run tests/web/room-page.test.tsx -u` (from apps/web)
 // rewrites the snapshots, and their diff is the change to read.
@@ -430,6 +434,18 @@ const board = (matchedPairs: number[], faceUp: number[] = []): MatchGame["board"
   }));
 /** What starting the game adds to the lobby */
 const matchDealt = { turnOrder: [HOST, YUKI], totalPairs: 8, boardRows: 4, boardCols: 4, startedAt: ago(60), turnTimeoutMs: 15000, idleTimeouts: 0 };
+/** The game twenty seconds after its last pair was found: Alex won with five pairs in six turns, Yuki has three in five */
+const matchFinished = matchGame({
+  ...matchDealt,
+  status: "completed",
+  players: [matchSeat(alex, 5, 6), matchSeat(yuki, 3, 5)],
+  currentTurnParticipantId: HOST,
+  board: board([0, 1, 2, 3, 4, 5, 6, 7]),
+  matchedPairCount: 8,
+  turnStartedAt: ago(20),
+  endedAt: ago(20),
+  result: { winnerParticipantIds: [HOST], isTie: false, endReason: "all_matched" },
+});
 
 // Emoji Bingo: the same lobby, of another game
 
@@ -892,17 +908,6 @@ describe("Emoji Match", () => {
   });
 
   test("a finished game the page did not see being played: no results screen on a first render, only its card in the chat", async () => {
-    const finished = matchGame({
-      ...matchDealt,
-      status: "completed",
-      players: [matchSeat(alex, 5, 6), matchSeat(yuki, 3, 5)],
-      currentTurnParticipantId: HOST,
-      board: board([0, 1, 2, 3, 4, 5, 6, 7]),
-      matchedPairCount: 8,
-      turnStartedAt: ago(20),
-      endedAt: ago(20),
-      result: { winnerParticipantIds: [HOST], isTie: false, endReason: "all_matched" },
-    });
     const summary = {
       gameType: "Match Emoji",
       games: [
@@ -918,7 +923,7 @@ describe("Emoji Match", () => {
     };
     const answers = quiet({
       "messages:getRoomMessages": [...joins, started, gameLine("m4", 20, `emoji_match_summary:${JSON.stringify(summary)}`)],
-      "emojiMatch:getActiveEmojiMatch": finished,
+      "emojiMatch:getActiveEmojiMatch": matchFinished,
     });
     expect(await open({ pid: HOST }, answers)).toMatchSnapshot();
   });
@@ -1105,7 +1110,8 @@ describe("the games together", () => {
 // ─── Behind a tap, or after a message has arrived ────────────────────────────
 
 // What the page's own view components draw in states no first render of the page reaches. Each is rendered by
-// itself, with props such as the page hands it in the quiet room; what a tap would call does nothing here
+// itself, with props such as the page hands it: in the quiet room, or with the games a test names. What a tap would
+// call does nothing here
 describe("what a first render of the page does not reach, each view component by itself", () => {
   const nothing = () => {};
 
@@ -1240,5 +1246,218 @@ describe("what a first render of the page does not reach, each view component by
       expect(more).toEqual([]);
       expect(cutIn.split("\n").filter((line) => line.startsWith(" <i style="))).toHaveLength(50);
     });
+  });
+
+  // Emoji Match's results are for a page that saw the game played, which no first render has. Here the game's layer
+  // is handed the finished game as a page hands it: emojiMatchOnScreen says whether that page watched it end
+  describe("a game of Emoji Match that ended while the page watched", () => {
+    const later = async () => {};
+    /** What a render gives when nothing is drawn */
+    const EMPTY = ["queries", "mutations", "markup", ""].join("\n");
+    /** The layer in `viewer`'s page. `state` is what that page keeps about the game */
+    const layer = (viewer: Person, state: { emojiMatchOnScreen: boolean; dismissedEmojiMatchId: string | null }) =>
+      render(async () => {
+        const { EmojiMatchLayer } = await import("@/components/room/emoji-match-layer");
+        return (
+          <EmojiMatchLayer
+            emojiMatchGame={matchFinished}
+            emojiMatchOnScreen={state.emojiMatchOnScreen}
+            dismissedEmojiMatchId={state.dismissedEmojiMatchId}
+            participants={[alex, yuki, sam]}
+            participantId={viewer._id}
+            me={viewer}
+            lang={viewer.preferredLanguage}
+            handleJoinEmojiMatchLobby={later}
+            handleLeaveEmojiMatchLobby={later}
+            handleStartEmojiMatch={later}
+            handleFlipEmojiMatchCard={later}
+            handleResolveEmojiMatchMismatch={later}
+            handleTimeoutEmojiMatchTurn={later}
+            handleCancelEmojiMatch={later}
+            handlePlayAgainEmojiMatch={later}
+            setDismissedEmojiMatchId={nothing}
+          />
+        );
+      });
+
+    // The screen's own words (Won!, you, Exit, Play Again) have no Japanese in lib/i18n.ts, so Yuki reads them in English
+    test("for Yuki, who came second: the results, Alex's five pairs above her three", async () => {
+      expect(await layer(yuki, { emojiMatchOnScreen: true, dismissedEmojiMatchId: null })).toMatchSnapshot();
+    });
+
+    test("for Alex, who won: You Won! for a headline, and seventy pieces of confetti", async () => {
+      const results = (await layer(alex, { emojiMatchOnScreen: true, dismissedEmojiMatchId: null })).split("\n");
+      expect(results.filter((line) => line.includes("<h2"))).toEqual([expect.stringMatching(/<h2 class="ec-outline"[^>]*>You Won!<\/h2>$/)]);
+      expect(results.filter((line) => line.includes('class="ec-confetti"'))).toHaveLength(1);
+      expect(results.filter((line) => line.trimStart().startsWith("<i style="))).toHaveLength(70);
+    });
+
+    test("once the player has put the results away: nothing", async () => {
+      expect(await layer(yuki, { emojiMatchOnScreen: true, dismissedEmojiMatchId: matchFinished._id })).toBe(EMPTY);
+    });
+
+    test("in a page that did not see the game played: nothing", async () => {
+      expect(await layer(yuki, { emojiMatchOnScreen: false, dismissedEmojiMatchId: null })).toBe(EMPTY);
+    });
+  });
+
+  describe("the Resume buttons", () => {
+    /** The buttons' column in Yuki's page, where the three games that can be put away are all on. `away` are the ones she has put away */
+    const column = (away: { dare: boolean; match: boolean; bingo: boolean }) =>
+      render(async () => {
+        const { ResumeButtons } = await import("@/components/room/resume-buttons");
+        const dare = dareGame();
+        const match = matchGame();
+        const bingo = bingoGame();
+        return (
+          <ResumeButtons
+            truthOrDareGame={dare}
+            dismissedTruthOrDareId={away.dare ? dare._id : null}
+            setDismissedTruthOrDareId={nothing}
+            lang="ja"
+            emojiMatchGame={match}
+            emojiMatchOnScreen
+            dismissedEmojiMatchId={away.match ? match._id : null}
+            setDismissedEmojiMatchId={nothing}
+            emojiBingoGame={bingo}
+            dismissedEmojiBingoId={away.bingo ? bingo._id : null}
+            setDismissedEmojiBingoId={nothing}
+          />
+        );
+      });
+    const labels = (drawn: string) => [...drawn.matchAll(/<button class="ec-resume" aria-label="([^"]*)"/g)].map((button) => button[1]);
+
+    test("with all three games put away: a button for each in one column, Truth or Dare's on top", async () => {
+      expect(await column({ dare: true, match: true, bingo: true })).toMatchSnapshot();
+    });
+
+    test("with only Emoji Bingo put away: its button alone", async () => {
+      expect(labels(await column({ dare: false, match: false, bingo: true }))).toEqual(["絵文字ビンゴを再開"]);
+    });
+
+    test("with no game put away: the column stands empty", async () => {
+      const drawn = await column({ dare: false, match: false, bingo: false });
+      expect(labels(drawn)).toEqual([]);
+      expect(drawn.split("\n").filter((line) => line.includes("<div"))).toEqual([expect.stringMatching(/^<div style="position:fixed;[^"]*"><\/div>$/)]);
+    });
+  });
+});
+
+// ─── End Game ────────────────────────────────────────────────────────────────
+
+// The rule the room's End Game button follows (lib/end-game.ts), called by itself with the five games as the page's
+// hooks hold them. The mutations are stand-ins that note what they were called with
+describe("the End Game button's rule", () => {
+  type Rule = typeof import("@/lib/end-game").endGameRule;
+  type Games = Pick<Parameters<Rule>[0], "activeGameSession" | "wordRushGame" | "emojiMatchGame" | "emojiBingoGame" | "truthOrDareGame">;
+
+  /** Every game on at once, which the server allows: three lobbies, Truth or Dare at its first turn, and Lost in Translation */
+  const all: Games = { activeGameSession: session(), wordRushGame: rushGame(), emojiMatchGame: matchGame(), emojiBingoGame: bingoGame(), truthOrDareGame: dareGame() };
+  const none: Games = { activeGameSession: null, wordRushGame: null, emojiMatchGame: null, emojiBingoGame: null, truthOrDareGame: null };
+  /** The four games that keep a status once they have ended, played to the end. A Lost in Translation that has ended is no active session */
+  const over: Games = {
+    activeGameSession: null,
+    wordRushGame: rushGame({ status: "completed" }),
+    emojiMatchGame: matchFinished,
+    emojiBingoGame: bingoGame({ status: "completed" }),
+    truthOrDareGame: dareGame({ status: "completed" }),
+  };
+  /** Called off instead: three keep a status, and a Word Rush that was called off is not answered at all */
+  const calledOff: Games = {
+    activeGameSession: null,
+    wordRushGame: null,
+    emojiMatchGame: matchGame({ status: "canceled" }),
+    emojiBingoGame: bingoGame({ status: "canceled" }),
+    truthOrDareGame: dareGame({ status: "canceled" }),
+  };
+  const QUESTION = "This will end the game for all players and show results.";
+
+  /**
+   * The rule in `viewer`'s page while the room has `games`. `answer` is what the viewer says when asked, and the
+   * mutation named by `refusing` fails. `called` lists the mutations called with their arguments, `asked` the
+   * questions put, `logged` what was said on the console as an error
+   */
+  async function rule(viewer: Person, games: Games, { answer = true, refusing = "" } = {}) {
+    const { endGameRule } = await import("@/lib/end-game");
+    const called: string[] = [];
+    const asked: string[] = [];
+    const logged: string[] = [];
+    vi.stubGlobal("confirm", (question: string) => {
+      asked.push(question);
+      return answer;
+    });
+    vi.spyOn(console, "error").mockImplementation((...said: unknown[]) => void logged.push(said.map(String).join(" ")));
+    const mutation = (name: string) => async (args: unknown) => {
+      called.push(`${name} ${written(args)}`);
+      if (name === refusing) throw new Error(`${name} refused`);
+      return undefined as never;
+    };
+    const { isGameActive, onEndGame } = endGameRule({
+      ...games,
+      me: viewer,
+      lang: "en",
+      participantId: viewer._id,
+      roomId: ROOM,
+      endTruthOrDare: mutation("truthOrDare:endGame"),
+      cancelEmojiBingo: mutation("emojiBingo:cancelGame"),
+      cancelEmojiMatch: mutation("emojiMatch:cancelGame"),
+      cancelWordRush: mutation("wordRush:cancel"),
+      cancelGameMutation: mutation("games:cancelGame"),
+    });
+    return { isGameActive, onEndGame, called, asked, logged };
+  }
+
+  // Each row has one game fewer on than the row above it: the game that row ended
+  test.each<[string, Games, string]>([
+    ["Truth or Dare, with every game on", all, 'truthOrDare:endGame {gameId: "dare1", participantId: "alex"}'],
+    ["Emoji Bingo, once Truth or Dare is over", { ...all, truthOrDareGame: over.truthOrDareGame }, 'emojiBingo:cancelGame {gameId: "bingo1", participantId: "alex"}'],
+    ["Emoji Match, once Emoji Bingo is over too", { ...over, activeGameSession: all.activeGameSession, wordRushGame: all.wordRushGame, emojiMatchGame: all.emojiMatchGame }, 'emojiMatch:cancelGame {gameId: "match1", participantId: "alex"}'],
+    ["Word Rush, once Emoji Match is over too", { ...over, activeGameSession: all.activeGameSession, wordRushGame: all.wordRushGame }, 'wordRush:cancel {gameId: "rush1", participantId: "alex"}'],
+    ["Lost in Translation, once Word Rush is over too", { ...over, activeGameSession: all.activeGameSession }, 'games:cancelGame {participantId: "alex", roomId: "room1"}'],
+  ])("the host's tap asks once and ends one game, the first that is on: %s", async (_, games, call) => {
+    const { isGameActive, onEndGame, called, asked } = await rule(alex, games);
+    expect(isGameActive).toBe(true);
+    await onEndGame?.();
+    expect(asked).toEqual([QUESTION]);
+    expect(called).toEqual([call]);
+  });
+
+  test.each<[string, Partial<Games>, string]>([
+    ["Lost in Translation", { activeGameSession: all.activeGameSession }, 'games:cancelGame {participantId: "alex", roomId: "room1"}'],
+    ["a Word Rush lobby", { wordRushGame: all.wordRushGame }, 'wordRush:cancel {gameId: "rush1", participantId: "alex"}'],
+    ["an Emoji Match lobby", { emojiMatchGame: all.emojiMatchGame }, 'emojiMatch:cancelGame {gameId: "match1", participantId: "alex"}'],
+    ["an Emoji Bingo lobby", { emojiBingoGame: all.emojiBingoGame }, 'emojiBingo:cancelGame {gameId: "bingo1", participantId: "alex"}'],
+    ["Truth or Dare", { truthOrDareGame: all.truthOrDareGame }, 'truthOrDare:endGame {gameId: "dare1", participantId: "alex"}'],
+  ])("a room whose only game is %s: the host has a game to end, and the tap ends it", async (_, game, call) => {
+    const { isGameActive, onEndGame, called } = await rule(alex, { ...none, ...game });
+    expect(isGameActive).toBe(true);
+    await onEndGame?.();
+    expect(called).toEqual([call]);
+  });
+
+  test("the host answers no: nothing is ended", async () => {
+    const { onEndGame, called, asked } = await rule(alex, all, { answer: false });
+    await onEndGame?.();
+    expect(asked).toEqual([QUESTION]);
+    expect(called).toEqual([]);
+  });
+
+  test("a room with no game, or with games that were all played to the end or called off: the host has no game to end", async () => {
+    expect((await rule(alex, none)).isGameActive).toBe(false);
+    expect((await rule(alex, over)).isGameActive).toBe(false);
+    expect((await rule(alex, calledOff)).isGameActive).toBe(false);
+  });
+
+  test("a guest has no game to end and nothing to tap, whatever is on", async () => {
+    const { isGameActive, onEndGame } = await rule(yuki, all);
+    expect(isGameActive).toBe(false);
+    expect(onEndGame).toBeUndefined();
+  });
+
+  test("Word Rush refuses to end: the tap logs it, and goes on to no other game", async () => {
+    const { onEndGame, called, logged } = await rule(alex, { ...none, wordRushGame: all.wordRushGame, activeGameSession: all.activeGameSession }, { refusing: "wordRush:cancel" });
+    await onEndGame?.();
+    expect(called).toEqual(['wordRush:cancel {gameId: "rush1", participantId: "alex"}']);
+    expect(logged).toEqual(["Failed to end Word Rush: Error: wordRush:cancel refused"]);
   });
 });

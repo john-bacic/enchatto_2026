@@ -8203,6 +8203,67 @@ markup
 </div>"
 `;
 
+exports[`what a first render of the page does not reach, each view component by itself > a game of Emoji Match that ended while the page watched > for Yuki, who came second: the results, Alex's five pairs above her three 1`] = `
+"queries
+mutations
+markup
+<div class="ec-sheet-backdrop" style="z-index:95;align-items:center;padding:16px">
+ <div class="ec-card" style="width:100%;max-width:360px;max-height:90dvh;overflow-y:auto;padding:22px 18px 18px;text-align:center;background:var(--paper);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)">
+  <img src="/icons/g-crown.png" alt="" draggable="false" class="ec-icon" style="width:64px;height:64px;animation:ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)"/>
+  <h2 class="ec-chunky" style="font-size:24px;margin:6px 0 14px">Alex Won!</h2>
+  <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
+   <div style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:2.5px solid var(--ink);border-radius:999px;background:var(--yellow-soft);box-shadow:0 3px 0 var(--ink);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) 0s both">
+    <span class="ec-chunky" style="width:22px;font-size:14px;text-align:center">
+     <img src="/icons/g-crown.png" alt="" draggable="false" class="ec-icon" style="width:22px;height:22px"/>
+    </span>
+    <span style="display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--ink);background:#fde68a;overflow:hidden">
+     <img src="/icons/av-hamster.png" alt="Hamster" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+    </span>
+    <span style="flex:1;min-width:0;text-align:left;font-size:13.5px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Alex</span>
+    <span style="font-size:11px;font-weight:900;opacity:0.55">6/5/8</span>
+    <span class="ec-chunky" style="font-size:18px">5</span>
+   </div>
+   <div style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:2.5px solid var(--ink);border-radius:999px;background:#fff;box-shadow:0 3px 0 var(--ink);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) 0.08s both">
+    <span class="ec-chunky" style="width:22px;font-size:14px;text-align:center">2</span>
+    <span style="display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--ink);background:#d9e4ff;overflow:hidden">
+     <img src="/icons/av-cat.png" alt="Cat" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+    </span>
+    <span style="flex:1;min-width:0;text-align:left;font-size:13.5px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+     Yuki
+     <span style="color:var(--pink);margin-left:4px">(you)</span>
+    </span>
+    <span style="font-size:11px;font-weight:900;opacity:0.55">5/3/8</span>
+    <span class="ec-chunky" style="font-size:18px">3</span>
+   </div>
+  </div>
+  <div style="display:flex;gap:10px">
+   <button class="ec-btn white" style="flex:1;font-size:17px">Exit</button>
+   <button class="ec-btn pink wiggle" style="flex:1.3;font-size:17px">Play Again</button>
+  </div>
+ </div>
+</div>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > the Resume buttons > with all three games put away: a button for each in one column, Truth or Dare's on top 1`] = `
+"queries
+mutations
+markup
+<div style="position:fixed;top:76px;right:max(12px, calc(50% - 248px));z-index:150;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none">
+ <button class="ec-resume" aria-label="真実か挑戦を再開" style="background:var(--pink)">
+  <img src="/icons/g-question.png" alt="" draggable="false" class="ec-icon" style="width:26px;height:26px"/>
+  再開
+ </button>
+ <button class="ec-resume" aria-label="絵文字マッチを再開" style="background:var(--violet)">
+  <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:26px;height:26px"/>
+  再開
+ </button>
+ <button class="ec-resume" aria-label="絵文字ビンゴを再開" style="background:var(--mint)">
+  <img src="/icons/g-clover.png" alt="" draggable="false" class="ec-icon" style="width:26px;height:26px"/>
+  再開
+ </button>
+</div>"
+`;
+
 exports[`what a first render of the page does not reach, each view component by itself > the display settings sheet of a guest who reads Japanese, with romaji off and medium text: the debug panel closed, asking for nothing 1`] = `
 "queries
   emojiMatch:getEmTraceByRoom skip
