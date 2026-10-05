@@ -52,6 +52,9 @@ describe("the number", () => {
     const chat = [said("en", 70 * SECOND), said("ja", 10 * SECOND)];
     // The older message still makes the combo 2: 12 × 1.1
     expect(vibeOf(chat)).toMatchObject({ recentCount: 1, switches: 0, combo: 2, vibe: 13 });
+    // The changes counted are those among the last 60 seconds' messages, wherever they stand in the chat
+    const lateChange = [said("en", 80 * SECOND), said("en", 70 * SECOND), said("ja", 20 * SECOND), said("en", 10 * SECOND)];
+    expect(vibeOf(lateChange)).toMatchObject({ recentCount: 2, switches: 1 });
   });
 });
 
