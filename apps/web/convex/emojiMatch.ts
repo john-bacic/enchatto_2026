@@ -108,7 +108,8 @@ async function upsertMatchEmojiSummary(
   cancelled?: boolean,
 ) {
   // Find this game's existing summary message in this room, the lowest in the chat if there are several.
-  // Only the room's system messages are read, not the chat
+  // None of the chat is read, and every system message of the room is: the games' lines, and a line for
+  // each time a guest joins, leaves, goes offline or comes back
   const systemMessages = await ctx.db
     .query("messages")
     .withIndex("by_roomId_kind_createdAt", (q) => q.eq("roomId", roomId).eq("kind", "system"))
@@ -478,7 +479,8 @@ export const startGame = mutation({
     });
     await scheduleTurnTimeout(ctx, args.gameId, turnTimeoutMs, now);
 
-    // Post system message only for the first game in this room
+    // Post system message only for the first game in this room. It is looked for among every system
+    // message of the room, the join and leave lines included; none of the chat is read
     const systemMessages = await ctx.db
       .query("messages")
       .withIndex("by_roomId_kind_createdAt", (q) => q.eq("roomId", game.roomId).eq("kind", "system"))

@@ -1613,6 +1613,9 @@ describe("the summary in the chat", () => {
 
 // A game looks for its summary message and its start line among the room's system messages. However
 // much has been said since they were written, it finds them, and it reads none of the chat to do so.
+// It does read every system message of the room, and a room gets one each time a guest joins, leaves,
+// goes offline or comes back. The room here has only its host, so its system messages are the four of
+// its two games, a start line and a summary each; every further one is one more document read.
 describe("in a room with 300 chat messages since its last game", () => {
   /** What one function call may read on the backend of these tests. Empty, the limits are Convex's own */
   const limits: { documentsRead?: number } = {};

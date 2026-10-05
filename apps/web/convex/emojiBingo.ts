@@ -160,7 +160,8 @@ async function upsertBingoSummary(
     isTie: false,
   };
 
-  // Only the room's system messages are read, not the chat. The lowest in the chat comes first
+  // None of the chat is read, and every system message of the room is: the games' lines, and a line for
+  // each time a guest joins, leaves, goes offline or comes back. The lowest in the chat comes first
   const systemMessages = await ctx.db
     .query("messages")
     .withIndex("by_roomId_kind_createdAt", (q: any) => q.eq("roomId", roomId).eq("kind", "system"))
@@ -415,7 +416,8 @@ export const startGame = mutation({
     await bingoTrace(ctx, args.gameId, "startGame", args.participantId.toString(),
       `players=${players.length} pattern=${game.winPattern} firstTurn=${turnOrder[0]}`);
 
-    // Post system message
+    // Post system message, unless the room has it. It is looked for among every system message of the
+    // room, the join and leave lines included; none of the chat is read
     const systemMessages = await ctx.db
       .query("messages")
       .withIndex("by_roomId_kind_createdAt", (q) => q.eq("roomId", game.roomId).eq("kind", "system"))
