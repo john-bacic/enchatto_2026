@@ -130,7 +130,7 @@
 		9B32D520EA7A655815D6A38C /* ThemeExtras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeExtras.swift; sourceTree = "<group>"; };
 		9C82A06E68BE52F0761E6F96 /* RoomTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomTexture.swift; sourceTree = "<group>"; };
 		A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubSuggestionService.swift; sourceTree = "<group>"; };
-		A33DB151FE11D2A253A5C4DB /* Enchatto.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Enchatto.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A33DB151FE11D2A253A5C4DB /* Enchatto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchatto.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A3C0A2E1624785B94728152B /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeCabCasualizer.swift; sourceTree = "<group>"; };
 		B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePickerView.swift; sourceTree = "<group>"; };
@@ -212,12 +212,6 @@
 				EE1D049BC86D95C7FD395063 /* GitInfo.swift */,
 				048A500F948FBFF3A696F580 /* Localization.swift */,
 				4C59768529F53DC71560987B /* SpeechRecognizer.swift */,
-				C167CF9D2F2508F01F631F95 /* Models */,
-				05CCED38D03EC14EFB663B18 /* Resources */,
-				EE49A2E446012BCA5D5244DB /* Services */,
-				A772A13DA0526C5ED66DD22C /* Theme */,
-				96010C2279DB14ADC7C19F4B /* ViewModels */,
-				FEE9A055B89074B1C90DB0E8 /* Views */,
 			);
 			name = ios;
 			path = .;
