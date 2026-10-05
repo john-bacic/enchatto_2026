@@ -50,7 +50,6 @@
 		8BA0BE698453C835C3ADE54B /* SuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B6CE020D97A2019D833739 /* SuggestionService.swift */; };
 		8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048E186B7C0C18591A0D86D4 /* GameReplayView.swift */; };
 		92EE0C46879D83ED51272062 /* ThemeExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B32D520EA7A655815D6A38C /* ThemeExtras.swift */; };
-		9380592464DE95EC989BE5A9 /* GeneratedGitSHA.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEBA3F0D71B0E5FF57A97F40 /* GeneratedGitSHA.swift */; };
 		93B38FF21A17897E2EB72F8D /* DelaGothicOne-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E8613E8DAB74204DF7411021 /* DelaGothicOne-Regular.ttf */; };
 		9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0A2E1624785B94728152B /* NetworkMonitor.swift */; };
 		960FF4E2C06901B18594FA1E /* WordRushAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575FC39C531C3DA8A6BC487F /* WordRushAudio.swift */; };
@@ -149,7 +148,6 @@
 		E8613E8DAB74204DF7411021 /* DelaGothicOne-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DelaGothicOne-Regular.ttf"; sourceTree = "<group>"; };
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
-		EEBA3F0D71B0E5FF57A97F40 /* GeneratedGitSHA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedGitSHA.swift; sourceTree = "<group>"; };
 		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
@@ -208,7 +206,6 @@
 			children = (
 				3739F0B6F971461D3C5ECBCE /* Assets.xcassets */,
 				5EE91A5BA76409C309044A18 /* EnchattoApp.swift */,
-				EEBA3F0D71B0E5FF57A97F40 /* GeneratedGitSHA.swift */,
 				EE1D049BC86D95C7FD395063 /* GitInfo.swift */,
 				048A500F948FBFF3A696F580 /* Localization.swift */,
 				4C59768529F53DC71560987B /* SpeechRecognizer.swift */,
@@ -432,12 +429,14 @@
 /* Begin PBXShellScriptBuildPhase section */
 		726D310D0C4080C39021ED6B /* Inject Git Commit SHA */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
 			);
 			name = "Inject Git Commit SHA";
 			outputFileListPaths = (
@@ -446,7 +445,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "SHA=$(git rev-parse --short HEAD 2>/dev/null || echo \"dev\")\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitSHA $SHA\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :GitCommitSHA string $SHA\" \"$PLIST\"\nfi\n";
+			shellScript = "# Writes the commit the app is built from into the built Info.plist, where GitInfo.swift reads it.\n# Seven characters, the same slice deploy.sh takes\nSHA=$(git rev-parse --verify --quiet HEAD 2>/dev/null | cut -c1-7)\nif [ -z \"$SHA\" ]; then\n  echo \"warning: git names no commit for ${SRCROOT}, so the app shows its version as unknown\"\n  SHA=unknown\nfi\nplutil -replace GitCommitSHA -string \"$SHA\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -474,7 +473,6 @@
 				8D05A0E655773F7E1AF414B8 /* GameReplayView.swift in Sources */,
 				9711E732A5357FD6818AB998 /* GameStatusBarView.swift in Sources */,
 				388472D20D00623473181E35 /* GameTaskOverlayView.swift in Sources */,
-				9380592464DE95EC989BE5A9 /* GeneratedGitSHA.swift in Sources */,
 				A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,

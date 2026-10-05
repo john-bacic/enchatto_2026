@@ -26,12 +26,20 @@ targets:
         product: IPADic
     postBuildScripts:
       - name: Inject Git Commit SHA
+        # Runs on every build, and only once Xcode has written the Info.plist it stamps: Xcode orders
+        # the phase after the task that produces its input file
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
         script: |
-          SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
-          PLIST="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
-          if [ -f "$PLIST" ]; then
-            /usr/libexec/PlistBuddy -c "Set :GitCommitSHA $SHA" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :GitCommitSHA string $SHA" "$PLIST"
+          # Writes the commit the app is built from into the built Info.plist, where GitInfo.swift reads it.
+          # Seven characters, the same slice deploy.sh takes
+          SHA=$(git rev-parse --verify --quiet HEAD 2>/dev/null | cut -c1-7)
+          if [ -z "$SHA" ]; then
+            echo "warning: git names no commit for ${SRCROOT}, so the app shows its version as unknown"
+            SHA=unknown
           fi
+          plutil -replace GitCommitSHA -string "$SHA" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
     sources:
       - path: .
         excludes:
