@@ -8,12 +8,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { MessageList } from "@/components/message-list";
 import { MessageInput } from "@/components/message-input";
 import { GamePickerModal } from "@/components/game-picker-modal";
-import { GameTaskOverlay } from "@/components/game-task-overlay";
-import { GameReplayModal } from "@/components/game-replay-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
-import { EmojiMatchGame } from "@/components/emoji-match-game";
-import { TruthOrDareGame } from "@/components/truth-or-dare-game";
-import { EmojiBingoGame } from "@/components/emoji-bingo-game";
 import { WordRushGame } from "@/components/word-rush-game";
 import { JoinRequired, LoadingState, RoomNotFound } from "@/components/room/center-states";
 import { MessageErrorBoundary } from "@/components/room/message-error-boundary";
@@ -23,12 +18,16 @@ import { HypeLayer } from "@/components/room/hype-layer";
 import { DisplaySettingsSheet } from "@/components/room/display-settings-sheet";
 import { LeaveConfirm } from "@/components/room/leave-confirm";
 import { JoinCutIn } from "@/components/room/join-cut-in";
-import { Icon } from "@/components/ui/icon";
+import { EmojiMatchLayer } from "@/components/room/emoji-match-layer";
+import { EmojiBingoLayer } from "@/components/room/emoji-bingo-layer";
+import { TruthOrDareLayer } from "@/components/room/truth-or-dare-layer";
+import { ResumeButtons } from "@/components/room/resume-buttons";
+import { LostInTranslationReplay, LostInTranslationTask } from "@/components/room/lost-in-translation-layer";
 import { RoomBackground } from "@/components/ui/effects";
 import { avatarTint } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
-import { teamInSession } from "@/lib/game-teams";
+import { endGameRule } from "@/lib/end-game";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePresence } from "@/hooks/use-presence";
@@ -209,7 +208,7 @@ function RoomContent() {
   const awayCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "away").length;
   const crowd = allVisible.filter((p) => (p as any).online).slice(0, 6);
 
-  const wordRushLive = wordRushGame != null && (wordRushGame.status === "lobby" || wordRushGame.status === "active");
+  const { isGameActive, onEndGame } = endGameRule({ wordRushGame, activeGameSession, emojiMatchGame, emojiBingoGame, truthOrDareGame, me, lang, endTruthOrDare, participantId, cancelEmojiBingo, cancelEmojiMatch, cancelWordRush, cancelGameMutation, roomId });
 
   const chatScale = CHAT_SIZES.find((s) => s.key === chatSize)?.scale ?? 1;
 
@@ -268,26 +267,8 @@ function RoomContent() {
           onSendDrawing={handleSendDrawing}
           onSendVoice={handleSendVoice}
           onGameTap={() => setShowGamePicker(true)}
-          isGameActive={(activeGameSession != null || wordRushLive || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host"}
-          onEndGame={me?.role === "host" ? async () => {
-            if (confirm(t("This will end the game for all players and show results.", lang))) {
-              if (truthOrDareGame && truthOrDareGame.status === "active") {
-                await endTruthOrDare({ gameId: truthOrDareGame._id as Id<"truthOrDareGames">, participantId: participantId as Id<"participants"> });
-              } else if (emojiBingoGame && !["completed", "canceled"].includes(emojiBingoGame.status)) {
-                await cancelEmojiBingo({ gameId: emojiBingoGame._id as Id<"emojiBingoGames">, participantId: participantId as Id<"participants"> });
-              } else if (emojiMatchGame && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") {
-                await cancelEmojiMatch({ gameId: emojiMatchGame._id as Id<"emojiMatchGames">, participantId: participantId as Id<"participants"> });
-              } else if (wordRushGame && wordRushLive) {
-                try {
-                  await cancelWordRush({ gameId: wordRushGame._id, participantId: participantId as Id<"participants"> });
-                } catch (err) {
-                  console.error("Failed to end Word Rush:", err);
-                }
-              } else {
-                await cancelGameMutation({ roomId: roomId as Id<"rooms">, participantId: participantId as Id<"participants"> });
-              }
-            }
-          } : undefined}
+          isGameActive={isGameActive}
+          onEndGame={onEndGame}
           replyTo={replyMessage ?? null}
           onCancelReply={handleCancelReply}
           onTypingChange={handleTypingChange}
@@ -308,142 +289,19 @@ function RoomContent() {
       <WordRushGame roomId={roomId as Id<"rooms">} participantId={participantId as Id<"participants">} lang={lang} isRoomHost={me?.role === "host"} />
 
       {/* Emoji Match game overlay */}
-      {emojiMatchGame && emojiMatchOnScreen && dismissedEmojiMatchId !== emojiMatchGame._id && (
-        <EmojiMatchGame
-          game={emojiMatchGame}
-          participants={participants}
-          myParticipantId={participantId}
-          isHost={me?.role === "host"}
-          lang={lang}
-          onJoinLobby={handleJoinEmojiMatchLobby}
-          onLeaveLobby={handleLeaveEmojiMatchLobby}
-          onStartGame={handleStartEmojiMatch}
-          onFlipCard={handleFlipEmojiMatchCard}
-          onResolveMismatch={handleResolveEmojiMatchMismatch}
-          onTimeoutTurn={handleTimeoutEmojiMatchTurn}
-          onCancelGame={handleCancelEmojiMatch}
-          onPlayAgain={handlePlayAgainEmojiMatch}
-          onClose={() => setDismissedEmojiMatchId(emojiMatchGame._id)}
-          onMinimize={() => setDismissedEmojiMatchId(emojiMatchGame._id)}
-        />
-      )}
+      <EmojiMatchLayer emojiMatchGame={emojiMatchGame} emojiMatchOnScreen={emojiMatchOnScreen} dismissedEmojiMatchId={dismissedEmojiMatchId} participants={participants} participantId={participantId} me={me} lang={lang} handleJoinEmojiMatchLobby={handleJoinEmojiMatchLobby} handleLeaveEmojiMatchLobby={handleLeaveEmojiMatchLobby} handleStartEmojiMatch={handleStartEmojiMatch} handleFlipEmojiMatchCard={handleFlipEmojiMatchCard} handleResolveEmojiMatchMismatch={handleResolveEmojiMatchMismatch} handleTimeoutEmojiMatchTurn={handleTimeoutEmojiMatchTurn} handleCancelEmojiMatch={handleCancelEmojiMatch} handlePlayAgainEmojiMatch={handlePlayAgainEmojiMatch} setDismissedEmojiMatchId={setDismissedEmojiMatchId} />
 
       {/* Emoji Bingo game overlay */}
-      {emojiBingoGame && emojiBingoGame.status !== "canceled" && dismissedEmojiBingoId !== emojiBingoGame._id && (
-        <EmojiBingoGame
-          game={emojiBingoGame}
-          myParticipantId={participantId}
-          isHost={me?.role === "host"}
-          lang={lang}
-          onJoinLobby={handleJoinEmojiBingoLobby}
-          onLeaveLobby={handleLeaveEmojiBingoLobby}
-          onStartGame={handleStartEmojiBingo}
-          onUpdateSettings={handleUpdateEmojiBingoSettings}
-          onRollEmoji={handleRollEmojiBingo}
-          onMarkCell={handleMarkEmojiBingoCell}
-          onClaimBingo={handleClaimEmojiBingo}
-          onCancelGame={handleCancelEmojiBingo}
-          onPlayAgain={handlePlayAgainEmojiBingo}
-          onClose={() => setDismissedEmojiBingoId(emojiBingoGame._id)}
-          onMinimize={() => setDismissedEmojiBingoId(emojiBingoGame._id)}
-        />
-      )}
+      <EmojiBingoLayer emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} participantId={participantId} me={me} lang={lang} handleJoinEmojiBingoLobby={handleJoinEmojiBingoLobby} handleLeaveEmojiBingoLobby={handleLeaveEmojiBingoLobby} handleStartEmojiBingo={handleStartEmojiBingo} handleUpdateEmojiBingoSettings={handleUpdateEmojiBingoSettings} handleRollEmojiBingo={handleRollEmojiBingo} handleMarkEmojiBingoCell={handleMarkEmojiBingoCell} handleClaimEmojiBingo={handleClaimEmojiBingo} handleCancelEmojiBingo={handleCancelEmojiBingo} handlePlayAgainEmojiBingo={handlePlayAgainEmojiBingo} setDismissedEmojiBingoId={setDismissedEmojiBingoId} />
 
       {/* Truth or Dare game overlay — only show for active games */}
-      {truthOrDareGame && truthOrDareGame.status === "active" && dismissedTruthOrDareId !== truthOrDareGame._id && (
-        <TruthOrDareGame
-          game={truthOrDareGame}
-          myParticipantId={participantId}
-          isHost={me?.role === "host"}
-          lang={lang}
-          onSubmitChoice={handleSubmitTruthOrDareChoice}
-          onSubmitResponse={handleSubmitTruthOrDareResponse}
-          onAdvanceTurn={handleAdvanceTruthOrDareTurn}
-          onSkipTurn={handleSkipTruthOrDareTurn}
-          onEndGame={handleEndTruthOrDare}
-          onSubmitRating={handleSubmitTruthOrDareRating}
-          onDrawingStateChange={(isDrawing) => {
-            if (participantId) {
-              setTypingAction({
-                participantId: participantId as Id<"participants">,
-                action: isDrawing ? "drawing" : undefined,
-              }).catch(() => {});
-            }
-          }}
-          onClose={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
-          onMinimize={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
-        />
-      )}
+      <TruthOrDareLayer truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} participantId={participantId} me={me} lang={lang} handleSubmitTruthOrDareChoice={handleSubmitTruthOrDareChoice} handleSubmitTruthOrDareResponse={handleSubmitTruthOrDareResponse} handleAdvanceTruthOrDareTurn={handleAdvanceTruthOrDareTurn} handleSkipTruthOrDareTurn={handleSkipTruthOrDareTurn} handleEndTruthOrDare={handleEndTruthOrDare} handleSubmitTruthOrDareRating={handleSubmitTruthOrDareRating} setTypingAction={setTypingAction} setDismissedTruthOrDareId={setDismissedTruthOrDareId} />
 
       {/* Floating resume buttons when games are minimized */}
-      <div
-        style={{
-          position: "fixed",
-          top: 76,
-          right: "max(12px, calc(50% - 248px))",
-          zIndex: 150,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          alignItems: "flex-end",
-          pointerEvents: "none",
-        }}
-      >
-        {truthOrDareGame && truthOrDareGame.status === "active" && dismissedTruthOrDareId === truthOrDareGame._id && (
-          <button
-            className="ec-resume"
-            onClick={() => setDismissedTruthOrDareId(null)}
-            aria-label={t("Resume Truth or Dare", lang)}
-            style={{ background: "var(--pink)" }}
-          >
-            <Icon name="g-question" size={26} />
-            {t("Resume", lang)}
-          </button>
-        )}
-        {emojiMatchGame && emojiMatchOnScreen && dismissedEmojiMatchId === emojiMatchGame._id && (
-          <button
-            className="ec-resume"
-            onClick={() => setDismissedEmojiMatchId(null)}
-            aria-label={t("Resume Emoji Match", lang)}
-            style={{ background: "var(--violet)" }}
-          >
-            <Icon name="ui-game" size={26} />
-            {t("Resume", lang)}
-          </button>
-        )}
-        {emojiBingoGame && emojiBingoGame.status !== "canceled" && dismissedEmojiBingoId === emojiBingoGame._id && (
-          <button
-            className="ec-resume"
-            onClick={() => setDismissedEmojiBingoId(null)}
-            aria-label={t("Resume Emoji Bingo", lang)}
-            style={{ background: "var(--mint)" }}
-          >
-            <Icon name="g-clover" size={26} />
-            {t("Resume", lang)}
-          </button>
-        )}
-      </div>
+      <ResumeButtons truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} setDismissedTruthOrDareId={setDismissedTruthOrDareId} lang={lang} emojiMatchGame={emojiMatchGame} emojiMatchOnScreen={emojiMatchOnScreen} dismissedEmojiMatchId={dismissedEmojiMatchId} setDismissedEmojiMatchId={setDismissedEmojiMatchId} emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} setDismissedEmojiBingoId={setDismissedEmojiBingoId} />
 
       {/* Game task overlay. Always rendered: it keeps a sent guess on screen until its result has shown */}
-      <GameTaskOverlay
-        step={myActiveStep && myActiveStep._id !== dismissedGameStepId ? myActiveStep : null}
-        onSubmit={handleSubmitGameStep}
-        onQuit={async (stepId) => {
-          setDismissedGameStepId(stepId);
-          if (me?.role === "host") {
-            try {
-              await cancelGameMutation({
-                roomId: roomId as Id<"rooms">,
-                participantId: participantId as Id<"participants">,
-              });
-            } catch (err) {
-              console.error("Failed to cancel game:", err);
-            }
-          }
-        }}
-        lang={lang}
-        team={teamInSession(latestGameSession?.teams, participantId)}
-      />
+      <LostInTranslationTask myActiveStep={myActiveStep} dismissedGameStepId={dismissedGameStepId} handleSubmitGameStep={handleSubmitGameStep} setDismissedGameStepId={setDismissedGameStepId} me={me} cancelGameMutation={cancelGameMutation} roomId={roomId} participantId={participantId} lang={lang} latestGameSession={latestGameSession} />
 
       {/* Game picker modal */}
       <GamePickerModal
@@ -463,21 +321,7 @@ function RoomContent() {
       />
 
       {/* Game replay modal */}
-      <GameReplayModal
-        isOpen={showGameReplay}
-        replay={gameReplay ?? null}
-        isHost={me?.role === "host"}
-        prevTimerSeconds={typeof latestGameSession?.timerEnabled === "number"
-          ? latestGameSession.timerEnabled
-          : (latestGameSession?.timerEnabled !== false ? 20 : 0)}
-        onNextLevel={(timerSeconds) => {
-          const nextLevel = (latestGameSession?.level as number ?? 1) + 1;
-          handleStartGame("lost-in-translation", nextLevel, timerSeconds);
-        }}
-        onClose={() => setShowGameReplay(false)}
-        lang={lang}
-        meId={participantId}
-      />
+      <LostInTranslationReplay showGameReplay={showGameReplay} gameReplay={gameReplay} me={me} latestGameSession={latestGameSession} handleStartGame={handleStartGame} setShowGameReplay={setShowGameReplay} lang={lang} participantId={participantId} />
 
       {/* Leave confirmation */}
       {showLeaveConfirm && (
