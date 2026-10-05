@@ -1,0 +1,58 @@
+{
+  "about": "The room page's three pieces that close over nothing: the vibe maths to lib/vibe.ts, the loading screen to components/room/center-states.tsx, the message list's error boundary to components/room/message-error-boundary.tsx. Run from the repo root: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-room-leaf-moves.json",
+  "base": "11df99dc022c80e2d581e20c6fcec23f6c72587e",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [45, 51], "to": "apps/web/lib/vibe.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [77, 107], "to": "apps/web/lib/vibe.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [1888, 1899], "to": "apps/web/components/room/center-states.tsx" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [1901, 1928], "to": "apps/web/components/room/message-error-boundary.tsx" }
+  ],
+  "changed": [
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 3,
+      "old": "import { Suspense, useState, useCallback, useEffect, useMemo, useRef, Component, type ReactNode } from \"react\";",
+      "new": "import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from \"react\";"
+    },
+    { "file": "apps/web/app/room/[roomId]/page.tsx", "line": 45, "old": "interface VibeMessage {", "new": "export interface VibeMessage {" },
+    { "file": "apps/web/app/room/[roomId]/page.tsx", "line": 79, "old": "const HYPE_AT = 150;", "new": "export const HYPE_AT = 150;" },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 82,
+      "old": "function computeVibe(messages: VibeMessage[], langOf: (m: VibeMessage) => string, now: number) {",
+      "new": "export function computeVibe(messages: VibeMessage[], langOf: (m: VibeMessage) => string, now: number) {"
+    },
+    { "file": "apps/web/app/room/[roomId]/page.tsx", "line": 105, "old": "function formatVibe(n: number) {", "new": "export function formatVibe(n: number) {" },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 1888,
+      "old": "function LoadingState({ lang }: { lang: string }) {",
+      "new": "export function LoadingState({ lang }: { lang: string }) {"
+    },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 1901,
+      "old": "class MessageErrorBoundary extends Component<",
+      "new": "export class MessageErrorBoundary extends Component<"
+    }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { LoadingState } from \"@/components/room/center-states\";",
+      "import { MessageErrorBoundary } from \"@/components/room/message-error-boundary\";",
+      "import { HYPE_AT, computeVibe, formatVibe, type VibeMessage } from \"@/lib/vibe\";"
+    ],
+    "apps/web/components/room/center-states.tsx": [
+      "\"use client\";",
+      "import { Chatto } from \"@/components/ui/chatto\";",
+      "import { RoomBackground } from \"@/components/ui/effects\";",
+      "import { t } from \"@/lib/i18n\";"
+    ],
+    "apps/web/components/room/message-error-boundary.tsx": [
+      "\"use client\";",
+      "import { Component, type ReactNode } from \"react\";",
+      "import { Chatto } from \"@/components/ui/chatto\";",
+      "import { t } from \"@/lib/i18n\";"
+    ]
+  }
+}

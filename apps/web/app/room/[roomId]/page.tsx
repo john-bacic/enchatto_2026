@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useCallback, useEffect, useMemo, useRef, Component, type ReactNode } from "react";
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -19,6 +19,8 @@ import { EmojiBingoGame } from "@/components/emoji-bingo-game";
 import { TodDebugPanel, todTrace, tracedMutation } from "@/components/tod-debug-panel";
 import { WordRushGame } from "@/components/word-rush-game";
 import { isJapaneseText } from "@/components/message-item";
+import { LoadingState } from "@/components/room/center-states";
+import { MessageErrorBoundary } from "@/components/room/message-error-boundary";
 import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon, LangBadge } from "@/components/ui/icon";
@@ -29,6 +31,7 @@ import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { teamInSession } from "@/lib/game-teams";
 import { useGameOnScreen } from "@/lib/game-results";
+import { HYPE_AT, computeVibe, formatVibe, type VibeMessage } from "@/lib/vibe";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
@@ -39,14 +42,6 @@ interface QueuedMessage {
   text?: string;
   mediaUrl?: string;
   replyToId?: string;
-  createdAt: number;
-}
-
-interface VibeMessage {
-  _id: string;
-  senderId: string;
-  kind: string;
-  text?: string;
   createdAt: number;
 }
 
@@ -72,38 +67,6 @@ function readDisplayPrefs(): DisplayPrefs | null {
     }
   } catch {}
   return null;
-}
-
-const VIBE_WINDOW_MS = 60_000;
-const COMBO_GAP_MS = 90_000;
-const HYPE_AT = 150;
-
-/** Client-side party meter: recent chatter, boosted by EN⇄JA back-and-forth. */
-function computeVibe(messages: VibeMessage[], langOf: (m: VibeMessage) => string, now: number) {
-  const real = messages.filter((m) => m.kind !== "system");
-  const recent = real.filter((m) => now - m.createdAt < VIBE_WINDOW_MS);
-  let switches = 0;
-  for (let i = 1; i < recent.length; i++) {
-    if (langOf(recent[i]) !== langOf(recent[i - 1])) switches++;
-  }
-  let combo = 0;
-  const last = real[real.length - 1];
-  if (last && now - last.createdAt < COMBO_GAP_MS) {
-    combo = 1;
-    for (let i = real.length - 1; i > 0; i--) {
-      const cur = real[i];
-      const prev = real[i - 1];
-      if (cur.createdAt - prev.createdAt > COMBO_GAP_MS || langOf(cur) === langOf(prev)) break;
-      combo++;
-    }
-  }
-  const mult = 1 + Math.min(combo, 20) * 0.05;
-  const vibe = Math.round((recent.length * 12 + switches * 20) * mult);
-  return { vibe, combo, mult, hype: vibe >= HYPE_AT, recentCount: recent.length, switches };
-}
-
-function formatVibe(n: number) {
-  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n);
 }
 
 interface Floater {
@@ -1883,48 +1846,6 @@ function RoomContent() {
       {confettiKey && <Confetti burstKey={confettiKey} count={50} />}
     </div>
   );
-}
-
-function LoadingState({ lang }: { lang: string }) {
-  return (
-    <>
-      <RoomBackground waiting />
-      <div className="ec-center-state">
-        <Chatto size={110} shadow />
-        <div className="ec-chunky" style={{ fontSize: 18 }}>{t("Loading room...", lang)}</div>
-        <span className="ec-dots"><i /><i /><i /></span>
-      </div>
-    </>
-  );
-}
-
-class MessageErrorBoundary extends Component<
-  { children: ReactNode; lang?: string },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; lang?: string }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="ec-empty">
-          <Chatto size={84} bob={false} wave={false} />
-          <div className="ec-sys plain" style={{ flexDirection: "column", gap: 6, borderRadius: 16, padding: "10px 16px" }}>
-            {t("Something went wrong displaying messages.", this.props.lang)}
-            <button className="ec-btn white sm" style={{ width: "auto", padding: "0 16px" }} onClick={() => this.setState({ hasError: false })}>
-              {t("Try again", this.props.lang)}
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 export default function RoomPage() {
