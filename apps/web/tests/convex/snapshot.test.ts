@@ -592,10 +592,15 @@ const STATES: State[] = [
     "a closed room with its games still in it",
     async () => {
       const room = await openRoom();
+      const { t, roomId, hostId, tokenOf } = room;
       await startLostInTranslation(room);
       await emojiMatchStarted(room);
+      await emojiBingoStarted(room);
+      await wordRushLobby(room);
       tick();
-      await room.t.mutation(api.rooms.closeRoom, { roomId: room.roomId, callerId: room.hostId, token: HOST });
+      await t.mutation(api.truthOrDare.createGame, { roomId, hostParticipantId: hostId, token: tokenOf.get(hostId) });
+      tick();
+      await t.mutation(api.rooms.closeRoom, { roomId, callerId: hostId, token: HOST });
       return room;
     },
     {
@@ -605,6 +610,9 @@ const STATES: State[] = [
       myActiveStep: { stepType: "draw" },
       latestSession: { status: "active" },
       emojiMatch: { status: "active" },
+      emojiBingo: { status: "active" },
+      truthOrDare: { status: "active" },
+      wordRush: { status: "lobby" },
     },
   ],
 ];
