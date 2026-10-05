@@ -213,9 +213,13 @@ extension HostRoomViewModel {
             }
             try await pollGame("latestSession") { latestGameSession = try await api.getLatestGameSession(roomId: roomId) }
             if let latest = latestGameSession, latest.status == .complete {
-                try await pollGame("replay") {
-                    let replay = try await api.getGameReplay(gameSessionId: latest.id)
-                    if latestGameSession?.id == latest.id { gameReplay = replay }
+                // A complete session does not change on the server, so its replay is asked for until it is here and
+                // not again: a request that fails leaves no replay, or another game's, and the next refresh asks
+                if gameReplay?.session.id != latest.id {
+                    try await pollGame("replay") {
+                        let replay = try await api.getGameReplay(gameSessionId: latest.id)
+                        if latestGameSession?.id == latest.id { gameReplay = replay }
+                    }
                 }
             } else {
                 gameReplay = nil
