@@ -26,6 +26,9 @@ import { Id } from "../../convex/_generated/dataModel";
 // Resume buttons, each component rendered by itself with props such as the page hands it. That the tap or the
 // message brings them up, and that the page hands them those props, is still not covered.
 //
+// Where the game picker, the replay sheet and the join cut-in stand among the room's layers is held in "the games
+// together": a first render draws none of them, so the page is rendered there with a mark in place of each.
+//
 // The last section calls the rule of the End Game button by itself (lib/end-game.ts): which game a tap ends. It is
 // the one thing here that is called and not drawn.
 //
@@ -1104,6 +1107,30 @@ describe("the games together", () => {
       "emojiBingo:getActiveEmojiBingo": bingoGame({ status: "canceled", players: [bingoSeat(alex, [], [])], endedAt: ago(70) }),
     });
     expect(await open({ pid: HOST }, answers)).toMatchSnapshot();
+  });
+
+  // The game picker and the replay sheet draw nothing while they are closed, and the join cut-in nothing until
+  // somebody joins, so no render above shows where they stand among the room's layers. It matters: the picker's
+  // backdrop and the replay's share a z-index, as do the wrapper of the Resume buttons and the cut-in, and of two
+  // such layers the later one in the document is on top. The replay opens by itself when a game ends and covers an
+  // open picker, and a cut-in passes over the Resume buttons. Here each of the three is replaced by a mark that is
+  // always drawn. The wrapper of the Resume buttons is drawn in every render, and is found by its style: fixed, at
+  // the z-index it shares with the cut-in
+  describe("the order of the layers that a first render does not draw", () => {
+    // The marks are for this render alone: resetting the modules keeps a replacement, and tests below draw the
+    // real cut-in
+    afterEach(() => {
+      for (const path of ["@/components/game-picker-modal", "@/components/game-replay-modal", "@/components/room/join-cut-in"]) vi.doUnmock(path);
+    });
+
+    test("the Resume buttons, then the game picker, then the replay over it, then the join cut-in", async () => {
+      vi.doMock("@/components/game-picker-modal", () => ({ GamePickerModal: () => <i data-layer="picker" /> }));
+      vi.doMock("@/components/game-replay-modal", () => ({ GameReplayModal: () => <i data-layer="replay" /> }));
+      vi.doMock("@/components/room/join-cut-in", () => ({ JoinCutIn: () => <i data-layer="cut-in" /> }));
+      const page = await open({ pid: HOST }, quiet());
+      const layers = [...page.matchAll(/data-layer="([a-z-]+)"|<div style="position:fixed;[^"]*z-index:150;/g)].map((found) => found[1] ?? "resume");
+      expect(layers).toEqual(["resume", "picker", "replay", "cut-in"]);
+    });
   });
 });
 
