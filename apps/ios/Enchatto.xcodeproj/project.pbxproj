@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A194772BB37EEACBF7C9C1F /* HostRoomViewModel+TruthOrDare.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19A7168ABD0DB9C8276A0B3 /* HostRoomViewModel+TruthOrDare.swift */; };
 		107EADF339940B99F1CB218F /* MeCabCasualizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */; };
 		10DDE6570822261326EAE4E8 /* WordRushShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD28D1D718C250B9D6A4A8AF /* WordRushShared.swift */; };
 		186D04AE60F59E354EE040FD /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1677B34B9CA8F994CFF0002 /* ImagePickerView.swift */; };
@@ -74,25 +75,30 @@
 		CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFA21F0DA55A96E6AB10387 /* ConvexHTTPClient.swift */; };
 		D12F466B4987A88A6F913F40 /* StubTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EF9BF8694735A0B284D54A /* StubTranslationService.swift */; };
 		D2125475124C862FAF863E64 /* DebugConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F0C810A294050A01EBC75F5 /* DebugConsoleView.swift */; };
+		D24475BE71F76DD4ECF769A3 /* HostRoomViewModel+EmojiMatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F276BA0039A8F6CCD86D2EA1 /* HostRoomViewModel+EmojiMatch.swift */; };
 		D2682651490F3225EBFE6D4B /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FEB11E5FF91BEBD77A223B /* TranslationService.swift */; };
 		D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */; };
 		D878161D76BF3222B1141ED2 /* VibeMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD81BA5B5FB79BB0F371DF04 /* VibeMeter.swift */; };
 		D95BEFE67672B4760E3DAF3D /* QRCodeFloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */; };
 		DAA475AB846CF28C659A87D4 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0373DCCC2C38FB107E44A1 /* Game.swift */; };
 		DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9108C84B71431E861972 /* HostMessageRow.swift */; };
+		DF014C42CD7679839D745227 /* HostRoomViewModel+EmojiBingo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */; };
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
 		EACC18B87EAC260255161B57 /* EmojiBingoGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D3B3EB6CCEA32C352D4464 /* EmojiBingoGame.swift */; };
 		EBA523A4AFA8DE70996BAB3A /* WordRushVerdictView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C38074846A2F0BE26E5AA8 /* WordRushVerdictView.swift */; };
 		EEC913B0FD6A4A33F0C727D8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964EF890B347B5E32208D1C0 /* Theme.swift */; };
+		F2A9527EC09CFF76A632CAD0 /* HostRoomViewModel+WordRush.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */; };
 		F5F3C13C264393F79702A6A0 /* EnchattoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EE91A5BA76409C309044A18 /* EnchattoApp.swift */; };
 		F5FBB6549E3DE590A1731FA9 /* WordRushGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = D175FCFF1599BE9CB6EC1DB8 /* WordRushGame.swift */; };
 		F9DF64F26EB26D91DDD6D1C7 /* EnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */; };
+		FC969E65AB4BD06E8B44615F /* HostRoomViewModel+LostInTranslation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829AE038CC737105F9D60D99 /* HostRoomViewModel+LostInTranslation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		031BC9C91ADF7C16A5205203 /* ConversationHeaderParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationHeaderParts.swift; sourceTree = "<group>"; };
 		048A500F948FBFF3A696F580 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		048E186B7C0C18591A0D86D4 /* GameReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameReplayView.swift; sourceTree = "<group>"; };
+		049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+EmojiBingo.swift"; sourceTree = "<group>"; };
 		0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
 		0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeFloatingPanel.swift; sourceTree = "<group>"; };
 		0D496EE877F3EEE3D55A79BD /* WordRushJudgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushJudgeView.swift; sourceTree = "<group>"; };
@@ -131,6 +137,7 @@
 		7D4143DC78BEF5E819A44A8A /* GamePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePickerView.swift; sourceTree = "<group>"; };
 		805997E063B44F481ED0804E /* GameStatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStatusBarView.swift; sourceTree = "<group>"; };
 		8110E3F4D4E66AED1A52ACC5 /* GameSummaryBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSummaryBanner.swift; sourceTree = "<group>"; };
+		829AE038CC737105F9D60D99 /* HostRoomViewModel+LostInTranslation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+LostInTranslation.swift"; sourceTree = "<group>"; };
 		82EF9BF8694735A0B284D54A /* StubTranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTranslationService.swift; sourceTree = "<group>"; };
 		889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoomViewModel.swift; sourceTree = "<group>"; };
 		8B0373DCCC2C38FB107E44A1 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
@@ -157,6 +164,7 @@
 		D4FC9108C84B71431E861972 /* HostMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostMessageRow.swift; sourceTree = "<group>"; };
 		D84049D72180662ED722A668 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		DCF756E413CA17E5688861E0 /* IconPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPack.swift; sourceTree = "<group>"; };
+		E19A7168ABD0DB9C8276A0B3 /* HostRoomViewModel+TruthOrDare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+TruthOrDare.swift"; sourceTree = "<group>"; };
 		E6C1974F8E10FC018700C386 /* WordRushLobbyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushLobbyView.swift; sourceTree = "<group>"; };
 		E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantAvatarView.swift; sourceTree = "<group>"; };
 		E7CC953DD5D0CCE1335A75F1 /* WordRushMicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushMicView.swift; sourceTree = "<group>"; };
@@ -164,6 +172,8 @@
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
 		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
+		F276BA0039A8F6CCD86D2EA1 /* HostRoomViewModel+EmojiMatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+EmojiMatch.swift"; sourceTree = "<group>"; };
+		F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+WordRush.swift"; sourceTree = "<group>"; };
 		F8218763E4792D0C70F91748 /* RealEnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealEnchattoAPI.swift; sourceTree = "<group>"; };
 		F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMessageRow.swift; sourceTree = "<group>"; };
 		FAE6679BF434A0BFDFC871B5 /* EnchattoAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchattoAPI.swift; sourceTree = "<group>"; };
@@ -286,6 +296,11 @@
 			isa = PBXGroup;
 			children = (
 				889F4A5245EC17E611A718AF /* HostRoomViewModel.swift */,
+				049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */,
+				F276BA0039A8F6CCD86D2EA1 /* HostRoomViewModel+EmojiMatch.swift */,
+				829AE038CC737105F9D60D99 /* HostRoomViewModel+LostInTranslation.swift */,
+				E19A7168ABD0DB9C8276A0B3 /* HostRoomViewModel+TruthOrDare.swift */,
+				F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */,
 				56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */,
 			);
 			path = ViewModels;
@@ -511,6 +526,11 @@
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
 				511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */,
+				DF014C42CD7679839D745227 /* HostRoomViewModel+EmojiBingo.swift in Sources */,
+				D24475BE71F76DD4ECF769A3 /* HostRoomViewModel+EmojiMatch.swift in Sources */,
+				FC969E65AB4BD06E8B44615F /* HostRoomViewModel+LostInTranslation.swift in Sources */,
+				0A194772BB37EEACBF7C9C1F /* HostRoomViewModel+TruthOrDare.swift in Sources */,
+				F2A9527EC09CFF76A632CAD0 /* HostRoomViewModel+WordRush.swift in Sources */,
 				8275B566A2A0F0D504E3482C /* HostRoomViewModel.swift in Sources */,
 				614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */,
 				D55BC4DF8F111BAE353DAF71 /* HostStartRoomViewModel.swift in Sources */,
