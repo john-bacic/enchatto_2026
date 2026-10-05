@@ -1,10 +1,11 @@
 import { HttpRouter } from "convex/server";
+import { ActionCtx } from "./_generated/server";
 import { api } from "./_generated/api";
 import { jsonAction } from "./httpShared";
 
 // --- Word Rush ---
 
-const wordRushRoutes: Record<string, (ctx: any, body: any) => Promise<any>> = {
+const wordRushRoutes: Record<string, (ctx: ActionCtx, body: any) => Promise<any>> = {
   "create-lobby": async (ctx, body) => ({
     gameId: await ctx.runMutation(api.wordRush.createLobby, {
       roomId: body.roomId,

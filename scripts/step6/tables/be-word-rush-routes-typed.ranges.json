@@ -1,0 +1,16 @@
+{
+  "about": "The table of Word Rush routes in apps/web/convex/httpWordRush.ts types each handler's ctx as ActionCtx, the type jsonAction asks of the handler it is given, where it said `any`. With `any` the compiler checked nothing a route passes to its function; now it checks the argument names and the function's kind, as it does for every route that is written out. Two lines: the table's type on line 7, and the import of ActionCtx, a type, which leaves no trace in the JavaScript. No route, argument or answer changes. Run from the repo root. Where each line stands: node scripts/step6/web-move-check.mjs scripts/step6/tables/be-word-rush-routes-typed.ranges.json --strict-indent (the file's first line is given as a range to its own file, which is how the tool is told to hold every other line in its old order). Every line counted once: node scripts/step6/line-account.mjs --base 66e4fa7224e8bee95851b805d7c2f6ac5cde0cd5 --old apps/web/convex/httpWordRush.ts --allow scripts/step6/tables/be-word-rush-routes-typed.json apps/web/convex/httpWordRush.ts. The base is the commit that made the file (pass --base to both if it has another name). Both read the tree they are run in, so they hold at the commit that made this change. The routes themselves: node scripts/step6/list-routes.mjs --same-as 11df99dc022c80e2d581e20c6fcec23f6c72587e. apps/convex/convex is the same file byte for byte: diff -r -x _generated -x tsconfig.json apps/web/convex apps/convex/convex.",
+  "base": "66e4fa7224e8bee95851b805d7c2f6ac5cde0cd5",
+  "ranges": [{ "from": "apps/web/convex/httpWordRush.ts", "lines": [1, 1], "to": "apps/web/convex/httpWordRush.ts" }],
+  "changed": [
+    {
+      "file": "apps/web/convex/httpWordRush.ts",
+      "line": 7,
+      "old": "const wordRushRoutes: Record<string, (ctx: any, body: any) => Promise<any>> = {",
+      "new": "const wordRushRoutes: Record<string, (ctx: ActionCtx, body: any) => Promise<any>> = {"
+    }
+  ],
+  "glue": {
+    "apps/web/convex/httpWordRush.ts": ["import { ActionCtx } from \"./_generated/server\";"]
+  }
+}

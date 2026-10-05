@@ -1,0 +1,9 @@
+{
+  "changed": [
+    {
+      "old": "const wordRushRoutes: Record<string, (ctx: any, body: any) => Promise<any>> = {",
+      "new": "const wordRushRoutes: Record<string, (ctx: ActionCtx, body: any) => Promise<any>> = {"
+    }
+  ],
+  "added": ["import { ActionCtx } from \"./_generated/server\";"]
+}
