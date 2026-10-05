@@ -119,6 +119,9 @@ struct HostConversationView: View {
         _viewModel = StateObject(wrappedValue: HostRoomViewModel(roomId: roomId, hostId: hostId))
     }
 
+    /// Index into RoomTexture.all this screen is drawn on: the room's own once its state is here
+    private var shownTextureIndex: Int { viewModel.textureIndex ?? textureIndex }
+
     var body: some View {
         VStack(spacing: 0) {
             headerView
@@ -156,7 +159,7 @@ struct HostConversationView: View {
                 closedBanner
             }
         }
-        .background { FadingRoomBackground(index: viewModel.textureIndex ?? textureIndex).ignoresSafeArea() }
+        .background { FadingRoomBackground(index: shownTextureIndex).ignoresSafeArea() }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .background { offlineTranslatorBridge }
@@ -212,6 +215,10 @@ struct HostConversationView: View {
         } message: {
             Text(L.t("This will remove the message for everyone.", hostLanguage))
         }
+        // A view shown over the room draws ecPaperBackground() on the room's texture. What a sheet or a cover
+        // shows is given the index again where it is presented, so that it does not rest on what a
+        // presentation inherits from its presenter
+        .environment(\.roomTextureIndex, shownTextureIndex)
     }
 
     // MARK: - QR Overlay
@@ -1409,6 +1416,7 @@ struct HostConversationView: View {
                     },
                     triggerAutoSubmit: .constant(false)
                 )
+                .environment(\.roomTextureIndex, shownTextureIndex)
             }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPickerView(
@@ -1525,6 +1533,7 @@ struct HostConversationView: View {
                         team: LITTeam(index: viewModel.presentedStepTeam)
                     )
                     .id(step.id)
+                    .environment(\.roomTextureIndex, shownTextureIndex)
                     .alert(L.t("Quit game?", hostLanguage), isPresented: $showQuitGameConfirm) {
                         Button(L.t("Cancel", hostLanguage), role: .cancel) {}
                         Button(L.t("Quit", hostLanguage), role: .destructive) {
@@ -1555,6 +1564,7 @@ struct HostConversationView: View {
                         // As the picker counts (GamePickerView.teamsAvailable): under four the server plays individually
                         playersHere: viewModel.gamePlayers.count
                     )
+                    .environment(\.roomTextureIndex, shownTextureIndex)
                 }
             }
             .onChange(of: viewModel.presentedStep?.id) { newStepId in
@@ -1668,6 +1678,8 @@ struct HostConversationView: View {
                 )
                 .overlay { DebugConsoleView() }
                 .onTapGesture(count: 3) { DebugConsole.shared.isEnabled.toggle() }
+                // The game hands it on to the cover an answer is drawn on
+                .environment(\.roomTextureIndex, shownTextureIndex)
             }
             .onChange(of: viewModel.activeTruthOrDareGame) { game in
                 if let g = game, g.status == .active {
@@ -2035,7 +2047,7 @@ struct HostConversationView: View {
                         .padding(.bottom, 12)
                 }
             }
-            .background(FadingRoomBackground(index: viewModel.textureIndex ?? textureIndex).ignoresSafeArea())
+            .background(FadingRoomBackground(index: shownTextureIndex).ignoresSafeArea())
             .tint(EC.blue)
             .navigationTitle(L.t("Settings", hostLanguage))
             .navigationBarTitleDisplayMode(.inline)

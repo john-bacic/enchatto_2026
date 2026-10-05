@@ -28,7 +28,8 @@ struct DrawingComposerView: View {
             Spacer()
             bottomBar
         }
-        .ecPaperBackground()
+        // In a game the cover around it draws the background
+        .ecPaperBackground(drawn: !gameMode)
         .onChange(of: triggerAutoSubmit) { triggered in
             if triggered {
                 sendDrawing()

@@ -110,6 +110,8 @@ struct HostStartRoomView: View {
             }
             .task { await viewModel.checkSavedRoom(enter: false) }
         }
+        // What is shown from this screen draws ecPaperBackground() on this screen's texture
+        .environment(\.roomTextureIndex, viewModel.textureIndex)
     }
 
     private func sectionTitle(_ text: String) -> some View {

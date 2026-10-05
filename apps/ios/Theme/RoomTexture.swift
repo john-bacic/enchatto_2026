@@ -127,3 +127,16 @@ struct FadingRoomBackground: View {
         .allowsHitTesting(false)
     }
 }
+
+private struct RoomTextureIndexKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+    /// Index into RoomTexture.all of the screen a view is shown from, which `ecPaperBackground()` draws. The room
+    /// screen and the start screen each set their own; where neither has it is 0, the plain grid
+    var roomTextureIndex: Int {
+        get { self[RoomTextureIndexKey.self] }
+        set { self[RoomTextureIndexKey.self] = newValue }
+    }
+}

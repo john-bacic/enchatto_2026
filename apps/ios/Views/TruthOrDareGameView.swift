@@ -8,6 +8,8 @@ struct TruthOrDareGameView: View {
     var onMinimize: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The texture the room screen is drawn on, handed on to the cover an answer is drawn on
+    @Environment(\.roomTextureIndex) private var roomTextureIndex
     @State private var responseText = ""
     @State private var showPhotoPicker = false
     @State private var showDrawing = false
@@ -616,9 +618,13 @@ struct TruthOrDareGameView: View {
                                 Task { await viewModel.submitTruthOrDareResponse(responseText: nil, responseMediaUrl: mediaUrl) }
                             },
                             onCancel: { showDrawing = false },
+                            gameMode: true,
                             triggerAutoSubmit: $triggerAutoSubmit
                         )
                     }
+                    // The whole cover is drawn on the room's texture, the prompt's strip too
+                    .ecPaperBackground()
+                    .environment(\.roomTextureIndex, roomTextureIndex)
                 }
 
                 if turn.choice == .dare {

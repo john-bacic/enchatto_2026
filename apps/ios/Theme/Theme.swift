@@ -135,9 +135,20 @@ extension View {
         return background(shape.fill(fill)).overlay(shape.strokeBorder(EC.ink, lineWidth: border))
     }
 
-    /// Fixed-size dot paper background used by full-screen views outside a room
-    func ecPaperBackground() -> some View {
-        background(RoomBackground(index: 0).ignoresSafeArea())
+    /// Background of a full-screen view shown over the room or the start screen: that screen's texture
+    /// (`roomTextureIndex`), and the plain grid anywhere else. A view that sits inside one that draws it passes
+    /// `drawn: false`: a second copy starts its tiles at its own corner, out of step with the first
+    func ecPaperBackground(drawn: Bool = true) -> some View {
+        background { if drawn { PaperBackground().ignoresSafeArea() } }
+    }
+}
+
+/// Cross-fades when the screen underneath changes its texture, as that screen's own background does
+private struct PaperBackground: View {
+    @Environment(\.roomTextureIndex) private var index
+
+    var body: some View {
+        FadingRoomBackground(index: index)
     }
 }
 
