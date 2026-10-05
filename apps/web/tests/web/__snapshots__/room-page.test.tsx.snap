@@ -8179,3 +8179,298 @@ markup
  </div>
 </div>"
 `;
+
+exports[`what a first render of the page does not reach, each view component by itself > Mika joins > for a guest who reads English, before the room lists her: the line in capitals, and no avatar 1`] = `
+"queries
+mutations
+markup
+<div class="ec-cutin" style="--c1:#ff7ab6;--c2:#ff9ccc">
+ <span>MIKA JOINED!</span>
+</div>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > Mika joins > for a guest who reads Japanese: the cut-in with her avatar 1`] = `
+"queries
+mutations
+markup
+<div class="ec-cutin" style="--c1:#ff7ab6;--c2:#ff9ccc">
+ <span>
+  <span class="ec-cutin-av" style="background:#e5e7eb">
+   <img src="/icons/av-panda.png" alt=""/>
+  </span>
+  Mikaがきた！
+ </span>
+</div>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > the display settings sheet of a guest who reads Japanese, with romaji off and medium text: the debug panel closed, asking for nothing 1`] = `
+"queries
+  emojiMatch:getEmTraceByRoom skip
+  truthOrDare:getTraceByRoom skip
+mutations
+markup
+<div class="ec-sheet-backdrop" style="z-index:100">
+ <div class="ec-sheet" role="dialog" aria-modal="true">
+  <div class="ec-sheet-grip"></div>
+  <div class="ec-sheet-head">
+   <span style="display:inline-grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);background:#d9e4ff;box-shadow:0 3px 0 var(--ink);overflow:hidden">
+    <img src="/icons/av-cat.png" alt="Cat" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+   </span>
+   <h2 style="min-width:0;overflow-wrap:anywhere">表示設定： Yuki</h2>
+   <button class="ec-round-btn" aria-label="閉じる">✕</button>
+  </div>
+  <div class="ec-sheet-body">
+   <div>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:13px">A</span>
+      英語
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none" checked=""/>
+     <span class="ec-switch on" aria-hidden="true"></span>
+    </label>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:13px">あ</span>
+      日本語
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none" checked=""/>
+     <span class="ec-switch on" aria-hidden="true"></span>
+    </label>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:12px;background:var(--pink-soft)">Ro</span>
+      ローマ字
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none"/>
+     <span class="ec-switch" aria-hidden="true"></span>
+    </label>
+    <div class="ec-toggle-row" style="cursor:default">
+     <span>文字サイズ</span>
+     <div class="ec-size-picker" role="radiogroup" aria-label="文字サイズ">
+      <button role="radio" aria-checked="false" aria-label="小" style="font-size:13px">A</button>
+      <button role="radio" aria-checked="true" aria-label="中" class="on" style="font-size:16px">A</button>
+      <button role="radio" aria-checked="false" aria-label="大" style="font-size:19px">A</button>
+     </div>
+    </div>
+   </div>
+   <div style="display:flex;gap:10px;margin-top:16px">
+    <button class="ec-btn red sm" style="flex:1">ルームを退出</button>
+    <button class="ec-btn sm" style="flex:1">完了</button>
+   </div>
+   <p class="ec-version" style="margin-top:14px">example · web v0.1.0</p>
+   <div style="margin-top:12px;border-top:2.5px dashed var(--line-soft);padding-top:12px">
+    <button style="background:rgba(0,0,0,0.7);color:#0f0;border:1px solid #0f0;border-radius:6px;padding:4px 10px;font-size:0.7rem;font-family:monospace;cursor:pointer;opacity:0.8;width:100%">Game Debug</button>
+   </div>
+  </div>
+ </div>
+</div>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > the header with the vibe card open under its badge 1`] = `
+"queries
+mutations
+markup
+<header class="ec-chat-head">
+ <button aria-label="表示設定" style="flex:none;padding:0;border:0;background:none;cursor:pointer;border-radius:50%">
+  <span style="display:inline-grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);background:#d9e4ff;box-shadow:0 3px 0 var(--ink);overflow:hidden">
+   <img src="/icons/av-cat.png" alt="Cat" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+  </span>
+ </button>
+ <div class="ec-chat-title">
+  <h1>
+   <div class="ec-wordmark" style="--fs:22px">
+    <div class="ec-logo-top" role="img" aria-label="Enchatto">
+     <i data-c="E" style="--r:-7deg;--dy:0px;--d:0s;--i:0;--c:#3b6bff">E</i>
+     <i data-c="n" style="--r:6deg;--dy:-5px;--d:-0.18s;--i:1;--c:#ff7ab6">n</i>
+     <i data-c="c" style="--r:-7deg;--dy:0px;--d:-0.36s;--i:2;--c:#3fdcb0">c</i>
+     <i data-c="h" style="--r:6deg;--dy:-5px;--d:-0.54s;--i:3;--c:#a77bff">h</i>
+     <i data-c="a" style="--r:-7deg;--dy:0px;--d:-0.72s;--i:4;--c:#3b6bff">a</i>
+     <i data-c="t" style="--r:6deg;--dy:-5px;--d:-0.8999999999999999s;--i:5;--c:#ff7ab6">t</i>
+     <i data-c="t" style="--r:-7deg;--dy:0px;--d:-1.08s;--i:6;--c:#3fdcb0">t</i>
+     <i data-c="o" style="--r:6deg;--dy:-5px;--d:-1.26s;--i:7;--c:#a77bff">o</i>
+    </div>
+   </div>
+  </h1>
+  <span>
+   <i class="ec-online-dot"></i>
+   3 オンライン
+  </span>
+ </div>
+ <button type="button" class="ec-vibe" aria-expanded="true" aria-label="VIBE 87">
+  <small>VIBE</small>
+  <b>87</b>
+ </button>
+ <div class="ec-vibe-info" role="dialog" aria-label="バイブって？">
+  <div class="ec-vibe-info-head">
+   <h3>バイブって？</h3>
+   <b>87</b>
+  </div>
+  <p>部屋の盛り上がりメーター。チャットすると上がり、英語と日本語が交互に飛び交うと一番上がります。</p>
+  <div class="ec-vibe-info-col">直近1分</div>
+  <div class="ec-vibe-info-row">
+   <i class="msg" aria-hidden="true">
+    <svg viewBox="0 0 16 16">
+     <path d="M3 3h10a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 13 11H7l-3 2.5V11H3a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 3 3z" fill="currentColor"></path>
+    </svg>
+   </i>
+   <div>
+    <strong>メッセージ1件</strong>
+    <small>+12</small>
+   </div>
+   <span>3</span>
+  </div>
+  <div class="ec-vibe-info-row">
+   <i class="swap" aria-hidden="true">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+     <path d="M3 5.5h10M10.5 3 13 5.5 10.5 8M13 10.5H3M5.5 8 3 10.5 5.5 13"></path>
+    </svg>
+   </i>
+   <div>
+    <strong>英⇄日の切り替え</strong>
+    <small>+20</small>
+   </div>
+   <span>2</span>
+  </div>
+  <div class="ec-vibe-info-row">
+   <i class="combo" aria-hidden="true">
+    <svg viewBox="0 0 16 16">
+     <path d="M8 1.5c.6 2.4 4 4 4 7.6A4 4 0 0 1 4 9.1c0-1.6.8-2.7 1.8-3.6.1 1.2.6 2 1.4 2.4C7 5.6 7.4 3.4 8 1.5z" fill="currentColor"></path>
+    </svg>
+   </i>
+   <div>
+    <strong>かけ合いコンボ</strong>
+    <small>最大×2</small>
+   </div>
+   <span>×1.15</span>
+  </div>
+  <div class="ec-vibe-info-goal">150でパーティーモード：新しいメッセージごとに紙吹雪</div>
+  <div class="ec-vibe-info-bar">
+   <i style="width:max(8px, 57.99999999999999%)"></i>
+  </div>
+  <p class="note">直近1分だけをカウントするので、静かになると下がります。</p>
+ </div>
+ <button class="ec-stack" aria-label="このルームのメンバー 2" aria-haspopup="dialog">
+  <span class="ec-stack-av">
+   <span style="display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;border:2.5px solid var(--ink);background:#fde68a;overflow:hidden">
+    <img src="/icons/av-hamster.png" alt="Hamster" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+   </span>
+   <span class="ec-presence-dot online"></span>
+  </span>
+  <span class="ec-stack-av">
+   <span style="display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;border:2.5px solid var(--ink);background:#cfe8ff;overflow:hidden">
+    <img src="/icons/av-whale.png" alt="Whale" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+   </span>
+   <span class="ec-presence-dot online"></span>
+  </span>
+ </button>
+</header>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > the leave dialog 1`] = `
+"queries
+mutations
+markup
+<div class="ec-modal-backdrop" style="z-index:210">
+ <div class="ec-card ec-modal">
+  <div style="width:84px;flex:none;margin:0 auto 8px">
+   <svg class="ec-mascot" viewBox="-6 -8 132 140" width="84" height="89.0909090909091" aria-hidden="true">not waving</svg>
+  </div>
+  <h2 class="ec-chunky" style="font-size:22px;margin-bottom:6px">ルームを退出しますか？</h2>
+  <p style="font-size:13px;opacity:0.7;margin-bottom:18px">同じルームコードで後から再参加できます。</p>
+  <div style="display:flex;gap:10px">
+   <button class="ec-btn white sm" style="flex:1">残る</button>
+   <button class="ec-btn red sm" style="flex:1">退出</button>
+  </div>
+ </div>
+</div>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > the offline banner while two messages wait to be sent: their count 1`] = `
+"queries
+mutations
+markup
+<div class="ec-banner red">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="1" y1="1" x2="23" y2="23"></line>
+  <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+  <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+  <path d="M10.71 5.05A16 16 0 0 1 22.56 9"></path>
+  <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+  <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+  <line x1="12" y1="20" x2="12.01" y2="20"></line>
+ </svg>
+ <span>オフラインです</span>
+ <span class="ec-chip" style="padding:1px 8px;font-size:11px">2 件待ち</span>
+</div>"
+`;
+
+exports[`what a first render of the page does not reach, each view component by itself > the same sheet in a deployed build, for a guest who reads English: the build's commit and address under the deployment's name 1`] = `
+"queries
+  emojiMatch:getEmTraceByRoom skip
+  truthOrDare:getTraceByRoom skip
+mutations
+markup
+<div class="ec-sheet-backdrop" style="z-index:100">
+ <div class="ec-sheet" role="dialog" aria-modal="true">
+  <div class="ec-sheet-grip"></div>
+  <div class="ec-sheet-head">
+   <span style="display:inline-grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);background:#cfe8ff;box-shadow:0 3px 0 var(--ink);overflow:hidden">
+    <img src="/icons/av-whale.png" alt="Whale" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
+   </span>
+   <h2 style="min-width:0;overflow-wrap:anywhere">Display for Sam</h2>
+   <button class="ec-round-btn" aria-label="Close">✕</button>
+  </div>
+  <div class="ec-sheet-body">
+   <div>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:13px">A</span>
+      English
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none" checked=""/>
+     <span class="ec-switch on" aria-hidden="true"></span>
+    </label>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:13px">あ</span>
+      Japanese
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none" checked=""/>
+     <span class="ec-switch on" aria-hidden="true"></span>
+    </label>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:12px;background:var(--pink-soft)">Ro</span>
+      Romaji
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none" checked=""/>
+     <span class="ec-switch on" aria-hidden="true"></span>
+    </label>
+    <div class="ec-toggle-row" style="cursor:default">
+     <span>Chat text size</span>
+     <div class="ec-size-picker" role="radiogroup" aria-label="Chat text size">
+      <button role="radio" aria-checked="true" aria-label="Small" class="on" style="font-size:13px">A</button>
+      <button role="radio" aria-checked="false" aria-label="Medium" style="font-size:16px">A</button>
+      <button role="radio" aria-checked="false" aria-label="Large" style="font-size:19px">A</button>
+     </div>
+    </div>
+   </div>
+   <div style="display:flex;gap:10px;margin-top:16px">
+    <button class="ec-btn red sm" style="flex:1">Leave room</button>
+    <button class="ec-btn sm" style="flex:1">Done</button>
+   </div>
+   <p class="ec-version" style="margin-top:14px">
+    example · web v0.1.0
+    <br/>
+    github: abc1234
+    <br/>
+    vercel: enchatto.vercel.app
+   </p>
+   <div style="margin-top:12px;border-top:2.5px dashed var(--line-soft);padding-top:12px">
+    <button style="background:rgba(0,0,0,0.7);color:#0f0;border:1px solid #0f0;border-radius:6px;padding:4px 10px;font-size:0.7rem;font-family:monospace;cursor:pointer;opacity:0.8;width:100%">Game Debug</button>
+   </div>
+  </div>
+ </div>
+</div>"
+`;

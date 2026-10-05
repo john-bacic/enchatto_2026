@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { getFunctionName, type FunctionReference, type FunctionReturnType } from "convex/server";
 import { TEXTURES } from "@/lib/textures";
@@ -18,6 +19,11 @@ import { Id } from "../../convex/_generated/dataModel";
 // (presence, the redirects, saved display settings, the offline queue), and anything behind a tap or an arriving
 // message (the settings sheet, the leave dialog, the Resume buttons, the game picker, the replay sheet, floaters,
 // the join cut-in, the vibe card, a queued message, the reply bar, the results of a game the page watched end).
+//
+// Of what stands behind a tap or a message, the last section holds the part the page's own view components draw
+// (components/room): the settings sheet, the leave dialog, the vibe card, the count of queued messages and the
+// join cut-in, each component rendered by itself with props such as the page hands it. That the tap or the message
+// brings them up, and that the page hands them those props, is still not covered.
 //
 // When the page is meant to draw something else, `npx vitest run tests/web/room-page.test.tsx -u` (from apps/web)
 // rewrites the snapshots, and their diff is the change to read.
@@ -155,13 +161,15 @@ function lines(html: string) {
   return out.join("\n");
 }
 
+/** The browser a render happens in. It is online and holds no caller token unless this says otherwise */
+type Where = { offline?: boolean; tokens?: Record<string, string> };
+
 /**
- * The page in a browser that opened the link `?search`, once `answers` have arrived: the queries and the mutations
- * it asked for, and what it draws. The browser is online and holds no caller token unless `where` says otherwise.
+ * What `element` asks for and draws in the browser `where`: the queries and the mutations it asked for, and its
+ * markup. `element` imports what it draws when it is called, which is after the modules were reset, so that what is
+ * drawn and what renders it share one copy of React.
  */
-async function open(search: Record<string, string>, answers: Answers, where: { offline?: boolean; tokens?: Record<string, string> } = {}) {
-  browser.search = new URLSearchParams(search);
-  browser.answers = answers as Record<string, unknown>;
+async function render(element: () => Promise<ReactElement>, where: Where = {}) {
   // What the page asks of a browser while it renders: that there is a window, whether it is online, and the
   // caller tokens it keeps
   const kept: Record<string, string> = where.tokens ?? {};
@@ -173,10 +181,8 @@ async function open(search: Record<string, string>, answers: Answers, where: { o
     vi.spyOn(console, level).mockImplementation((...args: unknown[]) => void said.push(String(args[0])));
   }
 
-  // Loaded here, after the modules were reset, so that the page and what renders it share one copy of React
   const { renderToStaticMarkup } = await import("react-dom/server");
-  const { default: RoomPage } = await import("@/app/room/[roomId]/page");
-  const html = renderToStaticMarkup(<RoomPage />);
+  const html = renderToStaticMarkup(await element());
 
   // React says for each background that its layout effect does not run in a static render. Nothing else may be
   // said: a warning about a key or an attribute is a defect of the page
@@ -189,6 +195,16 @@ async function open(search: Record<string, string>, answers: Answers, where: { o
     "markup",
     lines(withoutMascotShapes(withoutTextureTile(html))),
   ].join("\n");
+}
+
+/** The page in a browser that opened the link `?search`, once `answers` have arrived */
+async function open(search: Record<string, string>, answers: Answers, where: Where = {}) {
+  browser.search = new URLSearchParams(search);
+  browser.answers = answers as Record<string, unknown>;
+  return render(async () => {
+    const { default: RoomPage } = await import("@/app/room/[roomId]/page");
+    return <RoomPage />;
+  }, where);
 }
 
 // ─── The room and the people in it ───────────────────────────────────────────
@@ -1083,5 +1099,146 @@ describe("the games together", () => {
       "emojiBingo:getActiveEmojiBingo": bingoGame({ status: "canceled", players: [bingoSeat(alex, [], [])], endedAt: ago(70) }),
     });
     expect(await open({ pid: HOST }, answers)).toMatchSnapshot();
+  });
+});
+
+// ─── Behind a tap, or after a message has arrived ────────────────────────────
+
+// What the page's own view components draw in states no first render of the page reaches. Each is rendered by
+// itself, with props such as the page hands it in the quiet room; what a tap would call does nothing here
+describe("what a first render of the page does not reach, each view component by itself", () => {
+  const nothing = () => {};
+
+  test("the display settings sheet of a guest who reads Japanese, with romaji off and medium text: the debug panel closed, asking for nothing", async () => {
+    const sheet = await render(async () => {
+      const { DisplaySettingsSheet } = await import("@/components/room/display-settings-sheet");
+      return (
+        <DisplaySettingsSheet
+          setShowDisplaySettings={nothing}
+          me={yuki}
+          lang="ja"
+          showEnglish
+          toggleDisplay={nothing}
+          showJapanese
+          showRomaji={false}
+          chatSize="m"
+          pickChatSize={nothing}
+          setShowLeaveConfirm={nothing}
+          convexUrl="https://example.convex.cloud"
+          roomId={ROOM}
+        />
+      );
+    });
+    expect(sheet).toMatchSnapshot();
+  });
+
+  test("the same sheet in a deployed build, for a guest who reads English: the build's commit and address under the deployment's name", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GIT_SHA", "abc1234");
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_URL", "enchatto.vercel.app");
+    const sheet = await render(async () => {
+      const { DisplaySettingsSheet } = await import("@/components/room/display-settings-sheet");
+      return (
+        <DisplaySettingsSheet
+          setShowDisplaySettings={nothing}
+          me={sam}
+          lang="en"
+          showEnglish
+          toggleDisplay={nothing}
+          showJapanese
+          showRomaji
+          chatSize="s"
+          pickChatSize={nothing}
+          setShowLeaveConfirm={nothing}
+          convexUrl="https://example.convex.cloud"
+          roomId={ROOM}
+        />
+      );
+    });
+    expect(sheet).toMatchSnapshot();
+  });
+
+  test("the leave dialog", async () => {
+    const dialog = await render(async () => {
+      const { LeaveConfirm } = await import("@/components/room/leave-confirm");
+      return <LeaveConfirm setShowLeaveConfirm={nothing} lang="ja" handleLeave={async () => {}} />;
+    });
+    expect(dialog).toMatchSnapshot();
+  });
+
+  test("the header with the vibe card open under its badge", async () => {
+    // Three messages in the last minute, each in the other language than the one before it: three messages and two
+    // changes of language, times the 1.15 of a combo of three, is (3 × 12 + 2 × 20) × 1.15 = 87
+    const people = [alex, yuki, sam];
+    const header = await render(async () => {
+      const { RoomHeader } = await import("@/components/room/room-header");
+      return (
+        <RoomHeader
+          me={yuki}
+          setShowDisplaySettings={nothing}
+          lang="ja"
+          logoHop={0}
+          hype={false}
+          isClosed={false}
+          onlineCount={3}
+          awayCount={0}
+          vibeRef={{ current: null }}
+          setShowVibeInfo={nothing}
+          showVibeInfo
+          vibe={87}
+          recentCount={3}
+          switches={2}
+          mult={1.15}
+          closeVibeInfo={nothing}
+          participants={people}
+          participantId={YUKI}
+          roomState={{ room: room(), participants: people }}
+          setShowLeaveConfirm={nothing}
+        />
+      );
+    });
+    expect(header).toMatchSnapshot();
+  });
+
+  test("the offline banner while two messages wait to be sent: their count", async () => {
+    // As the outbox keeps them: an id of its own making, and no answer from a server yet
+    const waiting = [
+      { id: "queued-1", kind: "text" as const, text: "こんにちは", createdAt: ago(20) },
+      { id: "queued-2", kind: "text" as const, text: "聞こえますか？", createdAt: ago(10) },
+    ];
+    const banner = await render(async () => {
+      const { OfflineBanner } = await import("@/components/room/offline-banner");
+      return <OfflineBanner lang="ja" offlineQueue={waiting} />;
+    });
+    expect(banner).toMatchSnapshot();
+  });
+
+  describe("Mika joins", () => {
+    test("for a guest who reads Japanese: the cut-in with her avatar", async () => {
+      const cutIn = await render(async () => {
+        const { JoinCutIn } = await import("@/components/room/join-cut-in");
+        return <JoinCutIn cutIn={{ key: "m3", name: "Mika", avatar: "panda" }} lang="ja" confettiKey={null} />;
+      });
+      expect(cutIn).toMatchSnapshot();
+    });
+
+    test("for a guest who reads English, before the room lists her: the line in capitals, and no avatar", async () => {
+      const cutIn = await render(async () => {
+        const { JoinCutIn } = await import("@/components/room/join-cut-in");
+        return <JoinCutIn cutIn={{ key: "m3", name: "Mika", avatar: "" }} lang="en" confettiKey={null} />;
+      });
+      expect(cutIn).toMatchSnapshot();
+    });
+
+    test("while the room is in hype: fifty pieces of confetti after the cut-in", async () => {
+      const cutIn = await render(async () => {
+        const { JoinCutIn } = await import("@/components/room/join-cut-in");
+        return <JoinCutIn cutIn={{ key: "m3", name: "Mika", avatar: "panda" }} lang="ja" confettiKey="m3" />;
+      });
+      const [banner, confetti, ...more] = cutIn.split("\n").filter((line) => line.startsWith("<div"));
+      expect(banner).toMatch(/^<div class="ec-cutin"/);
+      expect(confetti).toBe('<div class="ec-confetti" aria-hidden="true">');
+      expect(more).toEqual([]);
+      expect(cutIn.split("\n").filter((line) => line.startsWith(" <i style="))).toHaveLength(50);
+    });
   });
 });
