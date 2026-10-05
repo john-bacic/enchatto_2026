@@ -1,0 +1,55 @@
+{
+  "about": "The room page's Emoji Match (its subscription, whether the game is this page's to show, the id of the game the player put away, the nine mutations and the nine handlers) to hooks/games/use-emoji-match.ts. One line stays in the page and is edited, the second entry of \"changed\": the argument that said whether a Lost in Translation task is open becomes the page's `const taskOpen`, which the hook takes and hands to useGameOnScreen in its place. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-emoji-match-hook.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-emoji-match-hook.json --root <folder> --strict-indent, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base af90b55 --allow scripts/step6/tables/web-emoji-match-hook.hooks.json --strict",
+  "base": "af90b5538469434561813ed6cf3f10a191bf6f8c",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [70, 70], "to": "apps/web/hooks/games/use-emoji-match.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [88, 95], "to": "apps/web/hooks/games/use-emoji-match.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [97, 97], "to": "apps/web/hooks/games/use-emoji-match.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [207, 216], "to": "apps/web/hooks/games/use-emoji-match.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [230, 377], "to": "apps/web/hooks/games/use-emoji-match.ts" }
+  ],
+  "changed": [
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 32,
+      "old": "import { useGameOnScreen } from \"@/lib/game-results\";",
+      "new": null
+    },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 96,
+      "old": "myActiveStep != null && myActiveStep._id !== dismissedGameStepId",
+      "new": "const taskOpen = myActiveStep != null && myActiveStep._id !== dismissedGameStepId;"
+    }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useEmojiMatch } from \"@/hooks/games/use-emoji-match\";",
+      "const { emojiMatchGame, emojiMatchOnScreen, dismissedEmojiMatchId, setDismissedEmojiMatchId, cancelEmojiMatch, handleCreateEmojiMatchLobby, handleJoinEmojiMatchLobby, handleLeaveEmojiMatchLobby, handleStartEmojiMatch, handleFlipEmojiMatchCard, handleResolveEmojiMatchMismatch, handleCancelEmojiMatch, handleTimeoutEmojiMatchTurn, handlePlayAgainEmojiMatch } = useEmojiMatch({ roomId, participantId, taskOpen, setShowGamePicker });"
+    ],
+    "apps/web/hooks/games/use-emoji-match.ts": [
+      "\"use client\";",
+      "import { useCallback, useState, type Dispatch, type SetStateAction } from \"react\";",
+      "import { useQuery } from \"convex/react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { tracedMutation } from \"@/components/tod-debug-panel\";",
+      "import { useAuthedMutation } from \"@/lib/convex\";",
+      "import { useGameOnScreen } from \"@/lib/game-results\";",
+      "export function useEmojiMatch({",
+      "roomId,",
+      "participantId,",
+      "taskOpen,",
+      "setShowGamePicker,",
+      "}: {",
+      "roomId: string;",
+      "participantId: string;",
+      "taskOpen: boolean;",
+      "setShowGamePicker: Dispatch<SetStateAction<boolean>>;",
+      "}) {",
+      "taskOpen",
+      "return { emojiMatchGame, emojiMatchOnScreen, dismissedEmojiMatchId, setDismissedEmojiMatchId, cancelEmojiMatch, handleCreateEmojiMatchLobby, handleJoinEmojiMatchLobby, handleLeaveEmojiMatchLobby, handleStartEmojiMatch, handleFlipEmojiMatchCard, handleResolveEmojiMatchMismatch, handleCancelEmojiMatch, handleTimeoutEmojiMatchTurn, handlePlayAgainEmojiMatch };",
+      "}"
+    ]
+  }
+}

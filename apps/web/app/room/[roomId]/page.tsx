@@ -29,7 +29,6 @@ import { avatarIconSrc, avatarTint, getAvatarById } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { teamInSession } from "@/lib/game-teams";
-import { useGameOnScreen } from "@/lib/game-results";
 import { HYPE_AT, formatVibe } from "@/lib/vibe";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
@@ -41,6 +40,7 @@ import { useOutbox } from "@/hooks/use-outbox";
 import { useVibe } from "@/hooks/use-vibe";
 import { useLostInTranslation } from "@/hooks/games/use-lost-in-translation";
 import { useWordRushStarter } from "@/hooks/games/use-word-rush-starter";
+import { useEmojiMatch } from "@/hooks/games/use-emoji-match";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
@@ -67,7 +67,6 @@ function RoomContent() {
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [showGamePicker, setShowGamePicker] = useState(false);
   const [showGameReplay, setShowGameReplay] = useState(false);
-  const [dismissedEmojiMatchId, setDismissedEmojiMatchId] = useState<string | null>(null);
   const [dismissedEmojiBingoId, setDismissedEmojiBingoId] = useState<string | null>(null);
   const [dismissedTruthOrDareId, setDismissedTruthOrDareId] = useState<string | null>(null);
 
@@ -85,16 +84,8 @@ function RoomContent() {
   const { dismissedGameStepId, setDismissedGameStepId, activeGameSession, myActiveStep, latestGameSession, gameReplay, gameStatus, activeTimerSeconds, cancelGameMutation, handleStartGame, handleSubmitGameStep } = useLostInTranslation({ roomId, participantId, setShowGamePicker });
   const { wordRushGame, cancelWordRush, handleStartWordRush } = useWordRushStarter({ roomId, participantId, setShowGamePicker, cancelGameMutation });
 
-  // Emoji Match real-time subscription
-  const emojiMatchGame = useQuery(api.emojiMatch.getActiveEmojiMatch, {
-    roomId: roomId as Id<"rooms">,
-  });
-  // The answer is the room's latest game even when it ended long ago: its results are for a page that saw it played,
-  // and never go over a Lost in Translation task
-  const emojiMatchOnScreen = useGameOnScreen(
-    emojiMatchGame,
-    myActiveStep != null && myActiveStep._id !== dismissedGameStepId
-  );
+  const taskOpen = myActiveStep != null && myActiveStep._id !== dismissedGameStepId;
+  const { emojiMatchGame, emojiMatchOnScreen, dismissedEmojiMatchId, setDismissedEmojiMatchId, cancelEmojiMatch, handleCreateEmojiMatchLobby, handleJoinEmojiMatchLobby, handleLeaveEmojiMatchLobby, handleStartEmojiMatch, handleFlipEmojiMatchCard, handleResolveEmojiMatchMismatch, handleCancelEmojiMatch, handleTimeoutEmojiMatchTurn, handlePlayAgainEmojiMatch } = useEmojiMatch({ roomId, participantId, taskOpen, setShowGamePicker });
   const emojiBingoGame = useQuery(api.emojiBingo.getActiveEmojiBingo, {
     roomId: roomId as Id<"rooms">,
   });
@@ -204,17 +195,6 @@ function RoomContent() {
     setReplyTo(null);
   };
 
-  // Emoji Match mutations
-  const createEmojiMatchLobby = useAuthedMutation(api.emojiMatch.createLobby);
-  const joinEmojiMatchLobby = useAuthedMutation(api.emojiMatch.joinLobby);
-  const leaveEmojiMatchLobby = useAuthedMutation(api.emojiMatch.leaveLobby);
-  const startEmojiMatch = useAuthedMutation(api.emojiMatch.startGame);
-  const flipEmojiMatchCard = useAuthedMutation(api.emojiMatch.flipCard);
-  const resolveEmojiMatchMismatch = useAuthedMutation(api.emojiMatch.resolveMismatch);
-  const cancelEmojiMatch = useAuthedMutation(api.emojiMatch.cancelGame);
-  const timeoutEmojiMatchTurn = useAuthedMutation(api.emojiMatch.timeoutTurn);
-  const playAgainEmojiMatch = useAuthedMutation(api.emojiMatch.playAgain);
-
   // Emoji Bingo mutations
   const createEmojiBingoLobby = useAuthedMutation(api.emojiBingo.createLobby);
   const joinEmojiBingoLobby = useAuthedMutation(api.emojiBingo.joinLobby);
@@ -226,155 +206,6 @@ function RoomContent() {
   const claimEmojiBingo = useAuthedMutation(api.emojiBingo.claimBingo);
   const cancelEmojiBingo = useAuthedMutation(api.emojiBingo.cancelGame);
   const playAgainEmojiBingo = useAuthedMutation(api.emojiBingo.playAgain);
-
-  // Emoji Match handlers
-  const handleCreateEmojiMatchLobby = useCallback(
-    async () => {
-      if (!participantId) return;
-      try {
-        await createEmojiMatchLobby({
-          roomId: roomId as Id<"rooms">,
-          hostParticipantId: participantId as Id<"participants">,
-        });
-        setDismissedEmojiMatchId(null);
-        setShowGamePicker(false);
-      } catch (err) {
-        console.error("Failed to create Emoji Match lobby:", err);
-      }
-    },
-    [createEmojiMatchLobby, roomId, participantId]
-  );
-
-  const handleJoinEmojiMatchLobby = useCallback(
-    async (gameId: string) => {
-      if (!participantId) return;
-      try {
-        await joinEmojiMatchLobby({
-          gameId: gameId as Id<"emojiMatchGames">,
-          participantId: participantId as Id<"participants">,
-        });
-      } catch (err) {
-        console.error("Failed to join Emoji Match lobby:", err);
-      }
-    },
-    [joinEmojiMatchLobby, participantId]
-  );
-
-  const handleLeaveEmojiMatchLobby = useCallback(
-    async (gameId: string) => {
-      if (!participantId) return;
-      try {
-        await leaveEmojiMatchLobby({
-          gameId: gameId as Id<"emojiMatchGames">,
-          participantId: participantId as Id<"participants">,
-        });
-      } catch (err) {
-        console.error("Failed to leave Emoji Match lobby:", err);
-      }
-    },
-    [leaveEmojiMatchLobby, participantId]
-  );
-
-  const handleStartEmojiMatch = useCallback(
-    async (gameId: string) => {
-      if (!participantId) return;
-      try {
-        await startEmojiMatch({
-          gameId: gameId as Id<"emojiMatchGames">,
-          participantId: participantId as Id<"participants">,
-        });
-      } catch (err) {
-        console.error("Failed to start Emoji Match:", err);
-      }
-    },
-    [startEmojiMatch, participantId]
-  );
-
-  const handleFlipEmojiMatchCard = useCallback(
-    async (gameId: string, cardId: string) => {
-      if (!participantId) return;
-      try {
-        await tracedMutation("em:flipCard", `card=${cardId} pid=${participantId.slice(-6)}`, () =>
-          flipEmojiMatchCard({
-            gameId: gameId as Id<"emojiMatchGames">,
-            cardId,
-            participantId: participantId as Id<"participants">,
-          })
-        );
-      } catch (err) {
-        console.error("Failed to flip card:", err);
-      }
-    },
-    [flipEmojiMatchCard, participantId]
-  );
-
-  const handleResolveEmojiMatchMismatch = useCallback(
-    async (gameId: string) => {
-      try {
-        await tracedMutation("em:resolveMismatch", "", () =>
-          resolveEmojiMatchMismatch({
-            gameId: gameId as Id<"emojiMatchGames">,
-            callerId: participantId as Id<"participants">,
-          })
-        );
-      } catch (err) {
-        console.error("Failed to resolve mismatch:", err);
-      }
-    },
-    [resolveEmojiMatchMismatch, participantId]
-  );
-
-  const handleCancelEmojiMatch = useCallback(
-    async (gameId: string) => {
-      try {
-        await tracedMutation("em:cancel", "", () =>
-          cancelEmojiMatch({
-            gameId: gameId as Id<"emojiMatchGames">,
-            participantId: participantId as Id<"participants">,
-          })
-        );
-      } catch (err) {
-        console.error("Failed to cancel Emoji Match:", err);
-      }
-    },
-    [cancelEmojiMatch, participantId]
-  );
-
-  const handleTimeoutEmojiMatchTurn = useCallback(
-    async (gameId: string, targetParticipantId: string) => {
-      try {
-        await tracedMutation("em:timeoutTurn", `pid=${targetParticipantId.slice(-6)}`, () =>
-          timeoutEmojiMatchTurn({
-            gameId: gameId as Id<"emojiMatchGames">,
-            // Whose turn ran out; the caller, whose token the hook adds, is callerId
-            participantId: targetParticipantId as Id<"participants">,
-            callerId: participantId as Id<"participants">,
-          })
-        );
-      } catch (err) {
-        console.error("Failed to timeout turn:", err);
-      }
-    },
-    [timeoutEmojiMatchTurn, participantId]
-  );
-
-  const handlePlayAgainEmojiMatch = useCallback(
-    async (gameId: string) => {
-      if (!participantId) return;
-      try {
-        await tracedMutation("em:playAgain", "", () =>
-          playAgainEmojiMatch({
-            gameId: gameId as Id<"emojiMatchGames">,
-            participantId: participantId as Id<"participants">,
-          })
-        );
-        setDismissedEmojiMatchId(null);
-      } catch (err) {
-        console.error("Failed to play again:", err);
-      }
-    },
-    [playAgainEmojiMatch, participantId]
-  );
 
   // Emoji Bingo handlers
   const handleCreateEmojiBingoLobby = useCallback(

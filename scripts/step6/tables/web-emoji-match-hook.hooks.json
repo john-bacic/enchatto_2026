@@ -1,0 +1,8 @@
+{
+  "moved": [
+    {
+      "entry": "useState dismissedEmojiMatchId",
+      "why": "The page declares the id of the Emoji Match game the player put away among its state at the top of its component; useEmojiMatch is called where the game's subscription stands, below the Lost in Translation and Word Rush hooks, so that the effect that watches the game keeps its place after the trace of the player's step and ahead of the Truth or Dare trace. The state is therefore created lower down. It starts from a constant, and between the two places stand two other states, the network status with its listeners, the room's and the messages' subscriptions, the two game hooks above and the line that says whether a Lost in Translation task is open: none reads it or its setter. Its first readers are the two handlers that clear it, lower in the hook, and the page's markup, below the call."
+    }
+  ]
+}
