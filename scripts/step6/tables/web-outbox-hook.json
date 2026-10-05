@@ -1,0 +1,67 @@
+{
+  "about": "The room page's outbox (the four send handlers for text, picture, voice and drawing, the queue that holds what could not be sent, its flush when the browser is back online, and the queue as pending messages) to hooks/use-outbox.ts. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-outbox-hook.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-outbox-hook.json --root <folder>, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base d174caf --allow scripts/step6/tables/web-outbox-hook.hooks.json --strict",
+  "base": "d174caf8488451acc0a871182265056ed2b5fb26",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [44, 51], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [89, 90], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [183, 186], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [191, 191], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [215, 226], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [228, 253], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [279, 328], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [330, 362], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [364, 398], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [984, 1032], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [1034, 1041], "to": "apps/web/hooks/use-outbox.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [1043, 1053], "to": "apps/web/hooks/use-outbox.ts" }
+  ],
+  "changed": [
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 11,
+      "old": "import { MessageInput, type OutgoingVoiceClip } from \"@/components/message-input\";",
+      "new": "import { MessageInput } from \"@/components/message-input\";"
+    },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 29,
+      "old": "import { QUEUED_ID_PREFIX, avatarIconSrc, avatarTint, getAvatarById } from \"@/lib/types\";",
+      "new": "import { avatarIconSrc, avatarTint, getAvatarById } from \"@/lib/types\";"
+    }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { useOutbox } from \"@/hooks/use-outbox\";",
+      "const { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing } = useOutbox({ roomId, participantId, isOnline, replyTo, setReplyTo, lang, convexSiteUrl });"
+    ],
+    "apps/web/hooks/use-outbox.ts": [
+      "\"use client\";",
+      "import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from \"react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import type { OutgoingVoiceClip } from \"@/components/message-input\";",
+      "import { tokenFor, useAuthedMutation } from \"@/lib/convex\";",
+      "import { t } from \"@/lib/i18n\";",
+      "import { QUEUED_ID_PREFIX } from \"@/lib/types\";",
+      "export function useOutbox({",
+      "roomId,",
+      "participantId,",
+      "isOnline,",
+      "replyTo,",
+      "setReplyTo,",
+      "lang,",
+      "convexSiteUrl,",
+      "}: {",
+      "roomId: string;",
+      "participantId: string;",
+      "isOnline: boolean;",
+      "replyTo: string | null;",
+      "setReplyTo: Dispatch<SetStateAction<string | null>>;",
+      "lang: string;",
+      "convexSiteUrl: string;",
+      "}) {",
+      "return { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing };",
+      "}"
+    ]
+  }
+}

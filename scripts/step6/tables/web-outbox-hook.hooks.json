@@ -1,0 +1,12 @@
+{
+  "moved": [
+    {
+      "entry": "useState offlineQueue",
+      "why": "The page declares the queue among its state at the top of its component, above its subscriptions; useOutbox is called below the redirect effects, where the flush effect stands, so that the effect keeps its place between the redirects and the vibe clock. The queue is therefore created lower down. It starts from a constant, and only the send handlers, the flush and the displayed list read or write it, all of which come after the call."
+    },
+    {
+      "entry": "useRef isFlushingRef",
+      "why": "As offlineQueue: it starts false and only flushQueue, which moves with it, reads or writes it."
+    }
+  ]
+}
