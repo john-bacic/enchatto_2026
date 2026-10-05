@@ -1,0 +1,34 @@
+{
+  "about": "The room page's display settings (which languages a message shows, and the chat text size) to hooks/use-display-prefs.ts. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-display-prefs-hook.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-display-prefs-hook.json --root <folder>, and node scripts/step6/hook-order.mjs \"apps/web/app/room/[roomId]/page.tsx\" --root <folder> --base 61a1910 --allow scripts/step6/tables/web-display-prefs-hook.hooks.json --strict",
+  "base": "61a1910e26ef86175761d73e4f50933e1d038004",
+  "ranges": [
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [48, 70], "to": "apps/web/hooks/use-display-prefs.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [99, 102], "to": "apps/web/hooks/use-display-prefs.ts" },
+    { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [273, 324], "to": "apps/web/hooks/use-display-prefs.ts" }
+  ],
+  "changed": [
+    { "file": "apps/web/app/room/[roomId]/page.tsx", "line": 48, "old": "const CHAT_SIZES = [", "new": "export const CHAT_SIZES = [" },
+    {
+      "file": "apps/web/app/room/[roomId]/page.tsx",
+      "line": 53,
+      "old": "type ChatSize = (typeof CHAT_SIZES)[number][\"key\"];",
+      "new": "export type ChatSize = (typeof CHAT_SIZES)[number][\"key\"];"
+    }
+  ],
+  "glue": {
+    "apps/web/app/room/[roomId]/page.tsx": [
+      "import { CHAT_SIZES, useDisplayPrefs } from \"@/hooks/use-display-prefs\";",
+      "const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize } = useDisplayPrefs(participantId);"
+    ],
+    "apps/web/hooks/use-display-prefs.ts": [
+      "\"use client\";",
+      "import { useCallback, useEffect, useRef, useState } from \"react\";",
+      "import { api } from \"@/convex/_generated/api\";",
+      "import type { Id } from \"@/convex/_generated/dataModel\";",
+      "import { useAuthedMutation } from \"@/lib/convex\";",
+      "export function useDisplayPrefs(participantId: string) {",
+      "return { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize };",
+      "}"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "moved": [
+    {
+      "entry": "useState showEnglish",
+      "why": "The page declares its state at the top of its component; useDisplayPrefs is called after the presence effect, where the first of its two effects stands, so that both effects keep their place. Its four states are therefore created lower down. Nothing reads them between the two places, and each starts from a constant."
+    },
+    { "entry": "useState showJapanese", "why": "As showEnglish." },
+    { "entry": "useState showRomaji", "why": "As showEnglish." },
+    { "entry": "useState chatSize", "why": "As showEnglish." }
+  ]
+}

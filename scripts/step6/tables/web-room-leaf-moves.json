@@ -1,5 +1,5 @@
 {
-  "about": "The room page's three pieces that close over nothing: the vibe maths to lib/vibe.ts, the loading screen to components/room/center-states.tsx, the message list's error boundary to components/room/message-error-boundary.tsx. Run from the repo root: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-room-leaf-moves.json",
+  "about": "The room page's three pieces that close over nothing: the vibe maths to lib/vibe.ts, the loading screen to components/room/center-states.tsx, the message list's error boundary to components/room/message-error-boundary.tsx. The table holds for the tree of the commit that added it (git log --diff-filter=A -- scripts/step6/tables/web-room-leaf-moves.json): later moves take more lines out of the page. From the repo root, with that commit checked out in <folder>: node scripts/step6/web-move-check.mjs scripts/step6/tables/web-room-leaf-moves.json --root <folder>",
   "base": "11df99dc022c80e2d581e20c6fcec23f6c72587e",
   "ranges": [
     { "from": "apps/web/app/room/[roomId]/page.tsx", "lines": [45, 51], "to": "apps/web/lib/vibe.ts" },

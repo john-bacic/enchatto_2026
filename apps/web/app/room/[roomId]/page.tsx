@@ -33,6 +33,7 @@ import { teamInSession } from "@/lib/game-teams";
 import { useGameOnScreen } from "@/lib/game-results";
 import { HYPE_AT, computeVibe, formatVibe, type VibeMessage } from "@/lib/vibe";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
 
@@ -43,30 +44,6 @@ interface QueuedMessage {
   mediaUrl?: string;
   replyToId?: string;
   createdAt: number;
-}
-
-const CHAT_SIZES = [
-  { key: "s", scale: 1, glyph: 13 },
-  { key: "m", scale: 1.15, glyph: 16 },
-  { key: "l", scale: 1.3, glyph: 19 },
-] as const;
-type ChatSize = (typeof CHAT_SIZES)[number]["key"];
-const CHAT_SIZE_KEY = "enchatto_chatTextSize";
-const DISPLAY_KEY = "enchatto_displaySettings";
-type DisplayPrefs = { showEnglish: boolean; showJapanese: boolean; showRomaji: boolean };
-
-function readDisplayPrefs(): DisplayPrefs | null {
-  try {
-    const saved = JSON.parse(localStorage.getItem(DISPLAY_KEY) ?? "null") as Partial<DisplayPrefs> | null;
-    if (
-      typeof saved?.showEnglish === "boolean" &&
-      typeof saved.showJapanese === "boolean" &&
-      typeof saved.showRomaji === "boolean"
-    ) {
-      return { showEnglish: saved.showEnglish, showJapanese: saved.showJapanese, showRomaji: saved.showRomaji };
-    }
-  } catch {}
-  return null;
 }
 
 interface Floater {
@@ -96,10 +73,6 @@ function RoomContent() {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
-  const [showEnglish, setShowEnglish] = useState(true);
-  const [showJapanese, setShowJapanese] = useState(true);
-  const [showRomaji, setShowRomaji] = useState(true);
-  const [chatSize, setChatSize] = useState<ChatSize>("s");
   const [showGamePicker, setShowGamePicker] = useState(false);
   const [showGameReplay, setShowGameReplay] = useState(false);
   const [dismissedGameStepId, setDismissedGameStepId] = useState<string | null>(null);
@@ -270,58 +243,8 @@ function RoomContent() {
   const addReaction = useAuthedMutation(api.reactions.addReaction);
   const removeReaction = useAuthedMutation(api.reactions.removeReaction);
   const setTypingAction = useAuthedMutation(api.participants.setTypingAction);
-  const updateDisplaySettings = useAuthedMutation(api.participants.updateDisplaySettings);
 
-  // Set once saved prefs have been read, so the first render's defaults never reach Convex
-  const initializedRef = useRef(false);
-
-  // Sync display settings to Convex whenever toggles change
-  useEffect(() => {
-    if (!participantId || !initializedRef.current) return;
-    updateDisplaySettings({
-      participantId: participantId as Id<"participants">,
-      displaySettings: { showEnglish, showJapanese, showRomaji },
-    }).catch(() => {});
-  }, [showEnglish, showJapanese, showRomaji, participantId, updateDisplaySettings]);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CHAT_SIZE_KEY);
-      if (CHAT_SIZES.some((s) => s.key === saved)) setChatSize(saved as ChatSize);
-    } catch {
-      // storage blocked
-    }
-    const prefs = readDisplayPrefs();
-    initializedRef.current = true;
-    if (prefs) {
-      setShowEnglish(prefs.showEnglish);
-      setShowJapanese(prefs.showJapanese);
-      setShowRomaji(prefs.showRomaji);
-    }
-  }, []);
-  const toggleDisplay = useCallback(
-    (key: keyof DisplayPrefs) => {
-      const current = { showEnglish, showJapanese, showRomaji };
-      const next = { ...current, [key]: !current[key] };
-      setShowEnglish(next.showEnglish);
-      setShowJapanese(next.showJapanese);
-      setShowRomaji(next.showRomaji);
-      try {
-        localStorage.setItem(DISPLAY_KEY, JSON.stringify(next));
-      } catch {
-        // storage blocked
-      }
-    },
-    [showEnglish, showJapanese, showRomaji],
-  );
-  const pickChatSize = useCallback((size: ChatSize) => {
-    setChatSize(size);
-    try {
-      localStorage.setItem(CHAT_SIZE_KEY, size);
-    } catch {
-      // storage blocked
-    }
-  }, []);
+  const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize } = useDisplayPrefs(participantId);
 
   // Set typing action to "drawing" while on a draw step so other players see pencil indicator
   useEffect(() => {
