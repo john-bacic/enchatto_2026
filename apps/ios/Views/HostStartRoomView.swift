@@ -47,14 +47,16 @@ struct HostStartRoomView: View {
 
                     if let saved = viewModel.rejoinableRoom {
                         // In Create Room's place while there is a room to go back to. Busy while the server is asked
-                        // about it, which ends in the room when it is open; a retry when the server cannot be reached
+                        // about it and, when it is open, while that room is on screen over this one; a retry when
+                        // the server cannot be reached
+                        let busy = viewModel.isRejoining || viewModel.createdRoomId != nil
                         Button {
                             nameFocused = false
                             Haptics.thump()
                             Task { await viewModel.checkSavedRoom(tapped: true) }
                         } label: {
                             HStack(spacing: 12) {
-                                if viewModel.isRejoining {
+                                if busy {
                                     ProgressView().tint(.white)
                                 }
                                 Text("\(L.t("Rejoin room", lang)) \(saved.joinCode)")
@@ -62,7 +64,7 @@ struct HostStartRoomView: View {
                             }
                         }
                         .buttonStyle(.chunky(EC.pink))
-                        .disabled(viewModel.isRejoining)
+                        .disabled(busy)
                         .padding(.top, 4)
                     } else {
                         Button {

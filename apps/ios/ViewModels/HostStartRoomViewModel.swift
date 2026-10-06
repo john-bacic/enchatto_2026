@@ -37,8 +37,11 @@ class HostStartRoomViewModel: ObservableObject {
     @Published var createdJoinCode: String?
     @Published var createdHostId: String?
 
-    /// The saved room this device hosts, until the server says it is closed or gone. While there is one this screen
-    /// offers no Create Room: it goes back into that room, or offers "Rejoin room" when the server cannot be reached
+    /// The room there is to go back to: the saved room this device hosts, read from its record when this screen is
+    /// made, at each check and on the way back out of a room, until the server says it is closed or gone. While
+    /// there is one this screen offers no Create Room: it goes back into that room, or offers "Rejoin room" when the
+    /// server cannot be reached. It stays on the way into that room and while the host is in it, with this screen
+    /// still there underneath
     @Published private(set) var rejoinableRoom: SavedHostRoom?
     /// The server is being asked about that room
     @Published private(set) var isRejoining = false
@@ -169,8 +172,6 @@ class HostStartRoomViewModel: ObservableObject {
             }
             // The token saved at creation; nil for a room an earlier build made, whose host the server takes by id alone
             api.setCaller(hostId: saved.hostId, token: saved.hostToken)
-            // In the room, so none to go back to. On the way back out the record says whether there is one (createdRoomId)
-            rejoinableRoom = nil
             // The room is there: what an earlier tap was told about it is taken away
             error = nil
             createdJoinCode = saved.joinCode
