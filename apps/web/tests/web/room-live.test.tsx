@@ -1826,9 +1826,9 @@ describe("a Truth or Dare action that fails", () => {
 
   // Yuki's turn, before she has chosen
   const choosing = gameAt(turn("turn1", 0, YUKI, {}));
-  /** Yuki's turn once she has chosen truth: a question she answers in writing, or with a drawing */
-  const answering = (promptResponseType: "text" | "drawing") =>
-    gameAt(turn("turn1", 0, YUKI, { choice: "truth", promptText: PROMPT, promptResponseType, status: "waiting_for_response" }));
+  /** Yuki's turn once she has chosen, truth unless `choice` says dare: a question she answers in writing, or with a drawing */
+  const answering = (promptResponseType: "text" | "drawing", choice: "truth" | "dare" = "truth") =>
+    gameAt(turn("turn1", 0, YUKI, { choice, promptText: PROMPT, promptResponseType, status: "waiting_for_response" }));
   /** Sam's turn once he has answered, with the ratings the room has given his answer */
   const answered = (ratings: NonNullable<Turn["ratings"]> = []) =>
     gameAt(turn("turn2", 1, SAM, { choice: "truth", promptText: PROMPT, promptResponseType: "text", responseText: "Sushi", ratings, status: "completed", completedAt: NOW }), {
@@ -2168,6 +2168,83 @@ describe("a Truth or Dare action that fails", () => {
     expect(told(page)).toEqual([FAILED.ja]);
     expect(field(page).value).toBe("ラーメン");
     expect(logged()).toEqual(["Failed to submit response:"]);
+  });
+
+  // The other controls that send one of the seven. Each is off, or sends nothing, while its action is on its way
+
+  test("the choice tapped on the Dare card: both cards can be tapped again, and the second try chooses dare", async () => {
+    const page = await openOn(choosing, "ja");
+    refuses("truthOrDare:submitChoice");
+    await page.tap(cards(page)[1]);
+    expect(cards(page).map(off)).toEqual([true, true]);
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(cards(page).map(off)).toEqual([false, false]);
+    expect(logged()).toEqual(["Failed to submit choice:"]);
+
+    takes("truthOrDare:submitChoice", () => answering("text", "dare"));
+    await page.tap(cards(page)[1]);
+    const choice = { gameId: GAME, participantId: YUKI, choice: "dare", token: undefined };
+    expect(sent("truthOrDare:submitChoice")).toEqual([choice, choice]);
+    expect(buttons(page, t("Done Dare", "ja")).length).toBe(1);
+  });
+
+  test("a written answer sent with Enter: it is back in its field, and Enter sends it again", async () => {
+    const page = await openOn(answering("text"), "ja");
+    const enter = () => page.act(() => field(page).fire("keydown", { key: "Enter" }));
+    refuses("truthOrDare:submitResponse");
+    field(page).value = "すしです";
+    await enter();
+    expect(field(page).value).toBe("");
+    expect(buttons(page, t("Send Answer", "ja")).length).toBe(0);
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(field(page).value).toBe("すしです");
+    expect(off(button(page, t("Send Answer", "ja")))).toBe(false);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+
+    takes("truthOrDare:submitResponse", (now) => ({ ...now, currentTurn: { ...now.currentTurn!, responseText: "すしです", status: "completed", completedAt: NOW } }));
+    await enter();
+    const answer = { gameId: GAME, participantId: YUKI, responseText: "すしです", responseMediaUrl: undefined, token: undefined };
+    expect(sent("truthOrDare:submitResponse")).toEqual([answer, answer]);
+    expect(page.body.all((n) => n.nodeName === "INPUT" && n.hasClass("ec-field")).length).toBe(0);
+  });
+
+  test("Done Dare on a dare answered in writing: both buttons are on again, and Done Dare sends again", async () => {
+    const page = await openOn(answering("text", "dare"), "ja");
+    refuses("truthOrDare:submitResponse");
+    await page.tap(button(page, t("Done Dare", "ja")));
+    // As while an answer is on its way: Send Answer shows dots in place of its words, and is off
+    expect(buttons(page, t("Send Answer", "ja")).length).toBe(0);
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(off(button(page, t("Send Answer", "ja")))).toBe(false);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+
+    takes("truthOrDare:submitResponse", (now) => ({ ...now, currentTurn: { ...now.currentTurn!, responseText: "✅ Done!", status: "completed", completedAt: NOW } }));
+    await page.tap(button(page, t("Done Dare", "ja")));
+    const done = { gameId: GAME, participantId: YUKI, responseText: "✅ Done!", responseMediaUrl: undefined, token: undefined };
+    expect(sent("truthOrDare:submitResponse")).toEqual([done, done]);
+    expect(buttons(page, t("Done Dare", "ja")).length).toBe(0);
+  });
+
+  test("Skip ratings, for the host, while a rating is still awaited: the chip is on again", async () => {
+    const page = await openOn(answered(), "ja", true);
+    const skip = t("Skip ratings", "ja");
+    refuses("truthOrDare:advanceTurn");
+    await page.tap(button(page, skip));
+    // As while the host's tap is on its way: the chip shows dots in place of its words
+    expect(buttons(page, skip).length).toBe(0);
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(off(button(page, skip))).toBe(false);
+    expect(logged()).toEqual(["Failed to advance turn:"]);
+
+    takes("truthOrDare:advanceTurn", (now) => ({ ...now, currentTurnIndex: 0, currentTurnParticipantId: YUKI, currentTurn: turn("turn3", 0, YUKI, {}), totalTurns: 3 }));
+    await page.tap(button(page, skip));
+    const advance = { gameId: GAME, participantId: YUKI, token: undefined };
+    expect(sent("truthOrDare:advanceTurn")).toEqual([advance, advance]);
+    expect(cards(page).length).toBe(2);
   });
 
   test("a drawing that cannot be sent at all, the network being down: its sheet is back on screen too", async () => {

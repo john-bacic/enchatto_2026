@@ -13,6 +13,8 @@ interface SimEvent {
   defaultPrevented: boolean;
   preventDefault(): void;
   stopPropagation(): void;
+  // What an event of its kind carries besides: a key press its key
+  [field: string]: unknown;
 }
 
 type Listener = (event: SimEvent) => void;
@@ -116,13 +118,15 @@ export class Sim {
 
   /**
    * Hands the page an event on this node as a browser does: down the document to it, then back up. React listens
-   * where it mounted the page, and on the body for what a sheet put there.
+   * where it mounted the page, and on the body for what a sheet put there. `fields` is what the event carries
+   * besides: `{ key: "Enter" }` for that key going down.
    */
-  fire(type: string) {
+  fire(type: string, fields: Record<string, unknown> = {}) {
     const path: Sim[] = [];
     for (let node: Sim | null = this; node; node = node.parentNode) path.push(node);
     let stopped = false;
     const event: SimEvent = {
+      ...fields,
       type,
       target: this,
       defaultPrevented: false,
