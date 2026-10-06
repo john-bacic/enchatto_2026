@@ -12,6 +12,7 @@ import { GameStatusBar } from "@/components/game-status-bar";
 import { WordRushGame } from "@/components/word-rush-game";
 import { JoinRequired, LoadingState, RoomNotFound } from "@/components/room/center-states";
 import { MessageErrorBoundary } from "@/components/room/message-error-boundary";
+import { ReactionsFallback } from "@/components/room/reactions-fallback";
 import { RoomHeader } from "@/components/room/room-header";
 import { OfflineBanner } from "@/components/room/offline-banner";
 import { HypeLayer } from "@/components/room/hype-layer";
@@ -269,7 +270,8 @@ function RoomContent() {
 
   // A room made since reactions carry their room is asked for all of them at once. Any other is not: the server
   // answers the room's query there by reading every message, again each time one of them changes, and each bubble
-  // subscribes to its own message's reactions instead
+  // subscribes to its own message's reactions instead. So does each bubble once the server has refused the room's
+  // query (ReactionsFallback): the conversation stays on screen
   const reactionsByRoom = roomState.room.reactionsByRoom === true;
 
   return (
@@ -293,7 +295,9 @@ function RoomContent() {
 
         <MessageErrorBoundary lang={lang}>
           {reactionsByRoom ? (
-            <RoomReactionsMessageList roomId={roomId as Id<"rooms">} {...listProps} />
+            <ReactionsFallback fallback={<MessageList {...listProps} />}>
+              <RoomReactionsMessageList roomId={roomId as Id<"rooms">} {...listProps} />
+            </ReactionsFallback>
           ) : (
             <MessageList {...listProps} />
           )}

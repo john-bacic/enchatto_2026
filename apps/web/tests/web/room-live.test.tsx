@@ -20,7 +20,8 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 //
 // And where the reactions are read from. A room that keeps them by room (`reactionsByRoom`) is asked once for all
 // of them, and the list hands each bubble its own message's; in any other room each bubble asks for its own. Both
-// show the same pills, and neither shows a reaction before the server has answered for it.
+// show the same pills, and neither shows a reaction before the server has answered for it. Where the server
+// refuses the room's query, each bubble asks for its own as well, and the conversation stands.
 //
 // And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
 // opens and when it closes, and not each time the page is drawn. While it is open, the signal is written once more
@@ -67,6 +68,10 @@ const server = vi.hoisted(() => ({
   calls: [] as { name: string; args: Record<string, unknown> }[],
   /** What the server does with a mutation, if anything */
   onCall: null as ((name: string, args: Record<string, unknown>) => void) | null,
+  /** The queries the server refuses, each with the error it answers */
+  refused: {} as Record<string, Error>,
+  /** A message whose bubble throws when it is drawn, if any */
+  bubbleThrows: null as string | null,
   /** The reactions queries asked for, by message */
   reactionsAsked: [] as string[],
   /** The reactions queries asked for, by room */
@@ -124,8 +129,9 @@ vi.mock("convex/react", async () => {
         server.reactionsOpen[name] = (server.reactionsOpen[name] ?? 0) + 1;
         return () => void server.reactionsOpen[name]--;
       }, [name, skipped]);
-      return useSyncExternalStore(subscribe, () => {
+      const answer = useSyncExternalStore(subscribe, () => {
         if (args === "skip") return undefined;
+        if (server.refused[name]) return server.refused[name];
         if (name === "reactions:getRoomReactionSummaries") {
           const roomId = args.roomId as string;
           if (!server.roomReactionsAsked.includes(roomId)) server.roomReactionsAsked.push(roomId);
@@ -136,6 +142,9 @@ vi.mock("convex/react", async () => {
         // An answer is one object until the server sends another, also the answer "none"
         return (server.answers[name] as Record<string, unknown> | undefined)?.[messageId] ?? server.noReactions;
       });
+      // A query the server refused is thrown where it was asked, as convex/react's own does
+      if (answer instanceof Error) throw answer;
+      return answer;
     },
     useMutation: (mutation: FunctionReference<"mutation">) => {
       const name = getFunctionName(mutation);
@@ -171,6 +180,7 @@ vi.mock("@/components/message-item", async (importOriginal) => {
   const { memo } = await import("react");
   const count = ({ message }: { message: { _id: string } }) => {
     server.draws.bubbles[message._id] = (server.draws.bubbles[message._id] ?? 0) + 1;
+    if (server.bubbleThrows === message._id) throw new Error("This bubble cannot be drawn");
   };
   return { ...actual, MessageItem: counted(actual.MessageItem, memo, count) };
 });
@@ -202,6 +212,8 @@ beforeEach(() => {
   server.answers = {};
   server.calls = [];
   server.onCall = null;
+  server.refused = {};
+  server.bubbleThrows = null;
   server.reactionsAsked = [];
   server.roomReactionsAsked = [];
   server.reactionsOpen = {};
@@ -357,6 +369,12 @@ interface Page {
 function tell<Name extends keyof Answers>(name: Name, change: (now: NonNullable<Answers[Name]>) => Answers[Name]) {
   const answer = change(server.answers[name] as never);
   server.answers = { ...server.answers, [name]: name === "reactions:getReactionSummary" ? answer : structuredClone(answer) };
+  for (const subscriber of [...server.subscribers]) subscriber();
+}
+
+/** The server refuses the query `name` from now on, and every subscriber hears of it */
+function refuse(name: keyof Answers, why: string) {
+  server.refused = { ...server.refused, [name]: new Error(why) };
   for (const subscriber of [...server.subscribers]) subscriber();
 }
 
@@ -1151,6 +1169,60 @@ describe("a room that keeps its reactions by room", () => {
   });
 });
 
+describe("a room that keeps its reactions by room, whose query the server refuses", () => {
+  const TOO_MANY = "Too many documents read in a single function execution (limit: 32000)";
+  const given = { hello: [thumb(YUKI, SAM), fire(SAM)], photo: [heart(MIKA)] };
+  /** React says where a component threw and which boundary took it: the one thing the page writes to the console here */
+  function thrownOnce() {
+    expect(complaints.length).toBe(1);
+    expect(complaints[0]).toMatch(/^The above error occurred in the <RoomReactionsMessageList\d*> component/);
+    complaints = [];
+  }
+  /** The conversation, with the pills each bubble's own subscription answers for */
+  function conversationStands(page: Page) {
+    expect(page.body.byClass("ec-msg").length).toBe(BUBBLES.length);
+    expect(page.body.byClass("ec-empty").length).toBe(0);
+    expect(pills(page, "hello")).toEqual([
+      ["👍", "2", true],
+      ["🔥", "", false],
+    ]);
+    expect(pills(page, "photo")).toEqual([["❤️", "", false]]);
+    expect([...server.reactionsAsked].sort()).toEqual([...BUBBLES].sort());
+  }
+
+  test("while the page is open: the conversation stands, and each bubble asks for its own message's reactions", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom(given), [PER_MESSAGE]: given }));
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
+    expect(server.reactionsAsked).toEqual([]);
+
+    await page.act(() => refuse(PER_ROOM, TOO_MANY));
+    thrownOnce();
+    conversationStands(page);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 0, [PER_MESSAGE]: BUBBLES.length });
+
+    // A reaction that arrives shows under its message, and a tap still sends one
+    await page.answer(PER_MESSAGE, (now) => ({ ...now, voice: [heart(SAM)] }));
+    expect(pills(page, "voice")).toEqual([["❤️", "", false]]);
+    await page.tap(one(bubble(page, "voice").byClass("ec-react")));
+    expect(server.calls.at(-1)).toEqual({ name: "reactions:addReaction", args: { messageId: "voice", participantId: YUKI, emoji: "❤️", token: undefined } });
+
+    // The page is drawn again, by a heartbeat: the room's reactions are not asked for a second time
+    const read = server.roomReactionsRun;
+    await page.answer("rooms:getRoomState", person(SAM, { lastSeenAt: Date.now() }));
+    expect(server.roomReactionsRun).toBe(read);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 0, [PER_MESSAGE]: BUBBLES.length });
+    expect(complaints).toEqual([]);
+  });
+
+  test("from the first answer: the page opens on the conversation, with each bubble's own subscription", async () => {
+    server.refused = { [PER_ROOM]: new Error(TOO_MANY) };
+    const page = await open(talkingByRoom({ [PER_MESSAGE]: given }));
+    thrownOnce();
+    conversationStands(page);
+    expect(server.reactionsOpen).toEqual({ [PER_MESSAGE]: BUBBLES.length });
+  });
+});
+
 describe("a room from before reactions carried their room", () => {
   test("each bubble subscribes to its own message's reactions, and the room's are never asked for", async () => {
     const page = await open(talking({ [PER_MESSAGE]: { hello: [thumb(YUKI, SAM), fire(SAM)] } }));
@@ -1235,6 +1307,29 @@ describe.each(ROOM_KINDS)("a reaction given and taken back in %s", (_, byRoom) =
     await page.tap(picker(page)[0]);
     expect(pills(page, "hello")).toEqual([["👍", "", true]]);
     expect(page.body.byClass("ec-react").length).toBe(1);
+  });
+});
+
+describe.each(ROOM_KINDS)("a bubble that throws as it is drawn in %s", (_, byRoom) => {
+  test("the card stands in for the list, and Try again brings the list back as it was read before", async () => {
+    const given = { hello: [thumb(YUKI, SAM)] };
+    const page = await open(byRoom ? talkingByRoom({ [PER_ROOM]: forRoom(given), [PER_MESSAGE]: given }) : talking({ [PER_MESSAGE]: given }));
+    const asked = { ...server.reactionsOpen };
+    const tryAgain = () => page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === t("Try again", "ja"));
+
+    server.bubbleThrows = "photo";
+    await page.answer("messages:getRoomMessages", (now) => changed(now, "photo", { mediaUrl: file("other") }));
+    expect(page.body.byClass("ec-msg").length).toBe(0);
+    expect(tryAgain().length).toBe(1);
+    // React says where each throw was caught, and the page writes nothing else to the console
+    expect(complaints.filter((line) => !line.startsWith("The above error occurred in the <"))).toEqual([]);
+    complaints = [];
+
+    server.bubbleThrows = null;
+    await page.tap(one(tryAgain()));
+    expect(page.body.byClass("ec-msg").length).toBe(BUBBLES.length);
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+    expect(server.reactionsOpen).toEqual(asked);
   });
 });
 
