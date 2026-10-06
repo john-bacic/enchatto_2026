@@ -425,8 +425,8 @@ describe("the texture a room is drawn with", () => {
   // A room with no stored index is drawn by the FNV-1a hash of its join code, modulo ten: the first ten textures are
   // the ones every build of the web page and the iPhone app has, so they all draw such a room alike. Taken modulo 52,
   // the length of the list, the hash of every code here but GHJKLM, 2A3B4C and QRSTUV lands on another texture than
-  // the one beside it. Two of the ten are retired, doodles and alphabet, and a code that lands on one is drawn with
-  // it: an installed build draws it so
+  // the one beside it, and each of the ten has a code whose hash does. Two of the ten are retired, doodles and
+  // alphabet, and a code that lands on one is drawn with it: an installed build draws it so
   const BY_JOIN_CODE: Array<[joinCode: string, index: number, key: string]> = [
     ["ABC234", 0, "grid"],
     ["ZZZZZZ", 1, "dots"],
@@ -441,11 +441,34 @@ describe("the texture a room is drawn with", () => {
     ["QRSTUV", 6, "zigzag"],
     ["222222", 1, "dots"],
     ["EC5XF4", 4, "doodles"],
+    ["M5N6P7", 6, "zigzag"],
+    ["3D4E5F", 8, "plaid"],
   ];
+
+  /** The FNV-1a hash of a join code, worked out here, apart from lib/textures.ts */
+  function hashOf(joinCode: string) {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < joinCode.length; i++) hash = Math.imul(hash ^ joinCode.charCodeAt(i), 0x01000193) >>> 0;
+    return hash;
+  }
 
   test.each(BY_JOIN_CODE)("a room with no stored background and the join code %s is drawn with texture %i, %s", (joinCode, index, key) => {
     expect(textureForRoom({ joinCode })).toBe(TEXTURES[index]);
     expect(textureForRoom({ joinCode }).key).toBe(key);
+  });
+
+  // What tells the rule from a hash taken modulo the length of the list: a code that lands on one texture modulo ten
+  // and on another modulo the length. The codes above hold that for each of the ten
+  test("each of the first ten has a join code above that a hash taken modulo the whole list draws with another texture", () => {
+    const told = new Set<number>();
+    const same: string[] = [];
+    for (const [joinCode, index] of BY_JOIN_CODE) {
+      expect(hashOf(joinCode) % 10, joinCode).toBe(index);
+      if (hashOf(joinCode) % TEXTURES.length === index) same.push(joinCode);
+      else told.add(index);
+    }
+    expect(same).toEqual(["GHJKLM", "2A3B4C", "QRSTUV"]);
+    expect([...told].sort((x, y) => x - y)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   // What a build is handed when the host's app has a texture it does not: every build that does not know the index
@@ -464,8 +487,7 @@ describe("the texture a room is drawn with", () => {
     for (const a of chars) {
       for (const b of chars) {
         const joinCode = `${a}${b}C234`;
-        let hash = 0x811c9dc5;
-        for (let i = 0; i < joinCode.length; i++) hash = Math.imul(hash ^ joinCode.charCodeAt(i), 0x01000193) >>> 0;
+        const hash = hashOf(joinCode);
         expect(textureForRoom({ joinCode }), joinCode).toBe(TEXTURES[hash % 10]);
         reached.add(hash % 10);
       }
