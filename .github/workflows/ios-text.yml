@@ -1,7 +1,8 @@
 name: iOS text tests
 
 # The Japanese text code (casualizer, romaji, translation helpers) compiled as a Swift package and
-# tested on macOS. This does not build the app: the Xcode project needs a generated file and signing.
+# tested on macOS. This does not build the app: the Xcode project is set to sign with a development
+# team, and no job here runs an unsigned build.
 on:
   push:
     branches: [main, redesign]
