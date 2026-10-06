@@ -6,6 +6,7 @@ struct QRCodeFloatingPanel: View {
     let joinCode: String
     @Binding var isPresented: Bool
     var lang: String = "en"
+    @Environment(\.roomTextureIndex) private var roomTextureIndex
     @State private var dragOffset: CGFloat = 0
     @State private var appeared = false
     @State private var copied = false
@@ -65,7 +66,8 @@ struct QRCodeFloatingPanel: View {
             }
             .frame(maxWidth: .infinity)
             .background {
-                RoomBackground(index: 1)
+                // The texture of the room behind it
+                RoomBackground(index: roomTextureIndex)
                     .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
             .ecCard(fill: .clear, radius: 28, border: 3.5, shadow: 8)
