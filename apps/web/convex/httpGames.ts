@@ -93,9 +93,17 @@ export function registerGameRoutes(http: HttpRouter): void {
       // step and the chat message would each hold a copy, and every poll of every client would carry them.
       // Stored as a file, they hold its URL.
       const drawing = await drawingToStore(ctx, args);
+      let storageId: Id<"_storage"> | null = null;
       if (drawing) {
+        try {
+          storageId = await ctx.storage.store(drawing);
+        } catch (err: any) {
+          // A round does not depend on file storage: the request is passed on as it came, and the step keeps the data URL
+          console.error("[submit-step] drawing not stored:", err?.message ?? err);
+        }
+      }
+      if (storageId) {
         const { stepId, participantId, outputText, selectedOption, token } = args as StepArgs;
-        const storageId = await ctx.storage.store(drawing);
         let taken = false;
         try {
           taken = await ctx.runMutation(internal.games.submitStoredDrawing, {

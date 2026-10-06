@@ -3043,6 +3043,32 @@ describe("a drawing sent through the submit-step route", () => {
     expect(await stepDoc(t, stepId)).toMatchObject({ status: "submitted", outputDrawingUrl: undecodable });
   });
 
+  // The round does not depend on file storage: the mutation takes the drawing as the data URL it is
+  test("a drawing that file storage does not take is kept in the rows as it came, answered ok, and the round goes on", async () => {
+    const t = newBackend();
+    const { roomId, ann, ben, sessionId, stepId, body } = await drawingStep(t);
+    const handedOver = handovers();
+    // convex-test's store reads the blob to hash it, and stores nothing when that fails
+    const read = vi.spyOn(Blob.prototype, "arrayBuffer").mockRejectedValue(new Error("file storage is down"));
+
+    expect(await post(t, SUBMIT, body)).toEqual(OK);
+
+    // The store was tried, once
+    expect(read).toHaveBeenCalledTimes(1);
+    read.mockRestore();
+    expect(consoleError.mock.calls).toEqual([["[submit-step] drawing not stored:", "file storage is down"]]);
+    expect(handedOver).not.toHaveBeenCalled();
+    expect(await filesIn(t)).toEqual([]);
+    const step = await stepDoc(t, stepId);
+    expect(step).toMatchObject({ status: "submitted", outputDrawingUrl: PNG });
+    expect(step).not.toHaveProperty("outputDrawingStorageId");
+    const guesses = (await stepsOf(t, sessionId)).filter((s) => s.stepType === "guess");
+    expect(guesses.map((s) => s.assignedParticipantId).sort()).toEqual([ann, ben].sort());
+    for (const g of guesses) expect(g).toMatchObject({ status: "active", inputDrawingUrl: PNG });
+    const [line] = (await chatOf(t, roomId)).filter((m) => m.kind === "drawing");
+    expect(line.mediaUrl).toBe(PNG);
+  });
+
   // The step refuses this one after the file is in storage: nothing the route asks beforehand looks at the answer
   test("a drawing beside an answer of over 500 characters is refused in the step's words, and the file stored for it is deleted", async () => {
     const t = newBackend();
