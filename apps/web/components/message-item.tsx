@@ -6,7 +6,7 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
 import { ReplyPreview } from "@/components/reply-preview";
-import { ReactionBar } from "@/components/reaction-bar";
+import { ReactionBar, ReactionBarPills } from "@/components/reaction-bar";
 import { SuggestionChips } from "@/components/suggestion-chips";
 import { MessageImage } from "@/components/message-image";
 import { MessageDrawing } from "@/components/message-drawing";
@@ -15,6 +15,7 @@ import { AvatarDisc } from "@/components/ui/avatar";
 import { Chatto } from "@/components/ui/chatto";
 import { EmojiArt, Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
+import { NO_REACTIONS, type ReactionSummary } from "@/lib/reactions";
 import { avatarTint, isQueuedMessageId } from "@/lib/types";
 
 interface ProcessingState {
@@ -65,6 +66,11 @@ interface MessageItemProps {
   showCarrier?: boolean;
   /** Marquee lights around the bubble (hype mode, latest message). */
   highlight?: boolean;
+  /**
+   * The message's reactions, where the page reads the whole room's in one subscription: the bubble draws these and
+   * subscribes to nothing. Without them it subscribes to its own message's.
+   */
+  reactions?: readonly ReactionSummary[];
 }
 
 /** Check if text contains Japanese characters (Hiragana, Katakana, CJK) */
@@ -111,26 +117,25 @@ function ReactionPill({
   );
 }
 
-function InlineReactions({
-  messageId,
-  currentParticipantId,
-  onToggleReaction,
-}: {
+interface InlineReactionsProps {
   messageId: string;
   currentParticipantId: string;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
-}) {
-  const summaryList = useQuery(
-    api.reactions.getReactionSummary,
-    isQueuedMessageId(messageId) ? "skip" : { messageId: messageId as Id<"messages"> }
-  );
+}
 
-  const reactions = (summaryList ?? []).filter((r) => r.count > 0);
-  if (reactions.length === 0) return null;
+/** The pills under a bubble: drawn from `reactions`, and subscribed to nothing */
+export function InlineReactionPills({
+  reactions,
+  messageId,
+  currentParticipantId,
+  onToggleReaction,
+}: InlineReactionsProps & { reactions: readonly ReactionSummary[] }) {
+  const given = reactions.filter((r) => r.count > 0);
+  if (given.length === 0) return null;
 
   return (
     <div className="ec-reacts">
-      {reactions.map((r) => {
+      {given.map((r) => {
         const isMine = r.participantIds.includes(currentParticipantId);
         return (
           <ReactionPill
@@ -146,9 +151,26 @@ function InlineReactions({
   );
 }
 
+/** InlineReactionPills for a message whose reactions are not handed down: it subscribes to that message's own */
+function InlineReactions({ messageId, currentParticipantId, onToggleReaction }: InlineReactionsProps) {
+  const summaryList = useQuery(
+    api.reactions.getReactionSummary,
+    isQueuedMessageId(messageId) ? "skip" : { messageId: messageId as Id<"messages"> }
+  );
+
+  return (
+    <InlineReactionPills
+      reactions={summaryList ?? NO_REACTIONS}
+      messageId={messageId}
+      currentParticipantId={currentParticipantId}
+      onToggleReaction={onToggleReaction}
+    />
+  );
+}
+
 // The list draws a bubble again only when one of its props is another value or object. The page hands down the
-// object it handed down before for a message or a person that holds what it held, and the same handlers
-// (lib/stable.ts)
+// object it handed down before for a message, a person or a message's reactions that hold what they held, and
+// the same handlers (lib/stable.ts)
 export const MessageItem = memo(function MessageItem({
   message,
   sender,
@@ -166,6 +188,7 @@ export const MessageItem = memo(function MessageItem({
   onImageLoad,
   showCarrier = false,
   highlight = false,
+  reactions,
 }: MessageItemProps) {
   const senderName = sender?.nickname ?? "Unknown";
   const isAudio = message.kind === "audio";
@@ -211,6 +234,12 @@ export const MessageItem = memo(function MessageItem({
     if (isOwn) return;
     e.preventDefault();
     setShowModal(true);
+  };
+
+  // A tap on a reaction the message already has, in the sheet
+  const toggleFromSheet = (emoji: string, hasReacted: boolean) => {
+    onToggleReaction?.(message._id, emoji, hasReacted);
+    setShowModal(false);
   };
 
   // Others' bubbles take their avatar colour so a busy room is easy to scan
@@ -380,11 +409,20 @@ export const MessageItem = memo(function MessageItem({
               )}
             </div>
 
-            <InlineReactions
-              messageId={message._id}
-              currentParticipantId={currentParticipantId}
-              onToggleReaction={onToggleReaction}
-            />
+            {reactions ? (
+              <InlineReactionPills
+                reactions={reactions}
+                messageId={message._id}
+                currentParticipantId={currentParticipantId}
+                onToggleReaction={onToggleReaction}
+              />
+            ) : (
+              <InlineReactions
+                messageId={message._id}
+                currentParticipantId={currentParticipantId}
+                onToggleReaction={onToggleReaction}
+              />
+            )}
           </div>
 
           {/* Reaction trigger on right of others' bubble */}
@@ -448,14 +486,11 @@ export const MessageItem = memo(function MessageItem({
                 </div>
 
                 {/* Existing reactions */}
-                <ReactionBar
-                  messageId={message._id}
-                  currentParticipantId={currentParticipantId}
-                  onToggle={(emoji, hasReacted) => {
-                    onToggleReaction?.(message._id, emoji, hasReacted);
-                    setShowModal(false);
-                  }}
-                />
+                {reactions ? (
+                  <ReactionBarPills reactions={reactions} currentParticipantId={currentParticipantId} onToggle={toggleFromSheet} />
+                ) : (
+                  <ReactionBar messageId={message._id} currentParticipantId={currentParticipantId} onToggle={toggleFromSheet} />
+                )}
 
                 {/* Reply button */}
                 <button

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { getFunctionName, type FunctionReference, type FunctionReturnType } from "convex/server";
 import { t } from "@/lib/i18n";
@@ -17,6 +17,10 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // do not show. Both are React.memo components, and the page hands them the objects it handed them before for
 // whatever holds what it held (lib/stable.ts). Each drawing of the list and of a bubble is counted where its own
 // function runs, and what is on screen is read from the document.
+//
+// And where the reactions are read from. A room that keeps them by room (`reactionsByRoom`) is asked once for all
+// of them, and the list hands each bubble its own message's; in any other room each bubble asks for its own. Both
+// show the same pills, and neither shows a reaction before the server has answered for it.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -24,6 +28,7 @@ type RoomState = NonNullable<FunctionReturnType<typeof api.rooms.getRoomState>>;
 type Person = RoomState["participants"][number];
 type Message = FunctionReturnType<typeof api.messages.getRoomMessages>[number];
 type Reactions = FunctionReturnType<typeof api.reactions.getReactionSummary>;
+type RoomReactions = FunctionReturnType<typeof api.reactions.getRoomReactionSummaries>;
 type Session = NonNullable<FunctionReturnType<typeof api.games.getActiveGameSession>>;
 type DareGame = NonNullable<FunctionReturnType<typeof api.truthOrDare.getActiveTruthOrDare>>;
 
@@ -40,6 +45,8 @@ interface Answers {
   "truthOrDare:getActiveTruthOrDare"?: DareGame | null;
   /** Asked once for each message, so it is kept by message. A message that is not named has none */
   "reactions:getReactionSummary"?: Record<string, Reactions>;
+  /** Asked once for the room: an entry for each message that has reactions */
+  "reactions:getRoomReactionSummaries"?: RoomReactions;
 }
 
 // Shared with the mocks below, which vitest lifts above the imports
@@ -52,6 +59,14 @@ const server = vi.hoisted(() => ({
   onCall: null as ((name: string, args: Record<string, unknown>) => void) | null,
   /** The reactions queries asked for, by message */
   reactionsAsked: [] as string[],
+  /** The reactions queries asked for, by room */
+  roomReactionsAsked: [] as string[],
+  /** How many subscriptions to each reactions query are open: the hooks on the page that ask for it and are not skipped */
+  reactionsOpen: {} as Record<string, number>,
+  /** How often a hook that asks for the room's reactions has run */
+  roomReactionsRun: 0,
+  /** The deployments each query was asked of, where the page stands under a provider */
+  askedOf: {} as Record<string, string[]>,
   search: new URLSearchParams(),
   draws: { page: 0, list: 0, bubbles: {} as Record<string, number> },
   noReactions: [] as never[],
@@ -73,19 +88,38 @@ vi.mock("next/navigation", () => {
 });
 
 vi.mock("convex/react", async () => {
-  const { useSyncExternalStore } = await import("react");
+  const { createContext, createElement, useContext, useEffect, useSyncExternalStore } = await import("react");
   const subscribe = (subscriber: () => void) => {
     server.subscribers.add(subscriber);
     return () => server.subscribers.delete(subscriber);
   };
   const mutations = new Map<string, (args: Record<string, unknown>) => Promise<null>>();
+  /** A client is the deployment it was made for */
+  class Client {
+    constructor(readonly url: string) {}
+  }
+  const Deployment = createContext<Client | null>(null);
   return {
-    ConvexProvider: ({ children }: { children: unknown }) => children,
-    ConvexReactClient: class {},
+    ConvexProvider: ({ client, children }: { client: Client; children: ReactNode }) => createElement(Deployment.Provider, { value: client }, children),
+    ConvexReactClient: Client,
     useQuery: (query: FunctionReference<"query">, args: "skip" | Record<string, unknown>) => {
       const name = getFunctionName(query);
+      const skipped = args === "skip";
+      // A query goes to the deployment of the provider it is asked under, as convex/react's own does
+      const deployment = useContext(Deployment);
+      if (deployment && !skipped && !server.askedOf[name]?.includes(deployment.url)) (server.askedOf[name] ??= []).push(deployment.url);
+      if (name === "reactions:getRoomReactionSummaries" && !skipped) server.roomReactionsRun++;
+      useEffect(() => {
+        if (skipped || !name.startsWith("reactions:")) return;
+        server.reactionsOpen[name] = (server.reactionsOpen[name] ?? 0) + 1;
+        return () => void server.reactionsOpen[name]--;
+      }, [name, skipped]);
       return useSyncExternalStore(subscribe, () => {
         if (args === "skip") return undefined;
+        if (name === "reactions:getRoomReactionSummaries") {
+          const roomId = args.roomId as string;
+          if (!server.roomReactionsAsked.includes(roomId)) server.roomReactionsAsked.push(roomId);
+        }
         if (name !== "reactions:getReactionSummary") return server.answers[name];
         const messageId = args.messageId as string;
         if (!server.reactionsAsked.includes(messageId)) server.reactionsAsked.push(messageId);
@@ -149,6 +183,10 @@ beforeEach(() => {
   server.calls = [];
   server.onCall = null;
   server.reactionsAsked = [];
+  server.roomReactionsAsked = [];
+  server.reactionsOpen = {};
+  server.roomReactionsRun = 0;
+  server.askedOf = {};
   server.search = new URLSearchParams();
   server.draws = { page: 0, list: 0, bubbles: {} };
   browser = installBrowser();
@@ -302,19 +340,23 @@ function tell<Name extends keyof Answers>(name: Name, change: (now: NonNullable<
   for (const subscriber of [...server.subscribers]) subscriber();
 }
 
-/** The page as Yuki's browser draws it once `answers` have arrived */
-async function open(answers: Answers): Promise<Page> {
-  server.search = new URLSearchParams({ pid: YUKI });
+/**
+ * The page as Yuki's browser draws it once `answers` have arrived. `link` is what the room link says besides who
+ * she is, and with it the page stands under the app's provider (lib/convex.tsx), which picks the deployment.
+ */
+async function open(answers: Answers, link?: Record<string, string>): Promise<Page> {
+  server.search = new URLSearchParams({ pid: YUKI, ...link });
   server.answers = answers as Record<string, unknown>;
   const React = await import("react");
   const { createRoot } = await import("react-dom/client");
   const { default: RoomPage } = await import("@/app/room/[roomId]/page");
+  const { ConvexClientProvider } = await import("@/lib/convex");
   const container = browser.document.body.appendChild(browser.document.createElement("div"));
   const root = createRoot(container as unknown as Element);
   const act = async (work: () => void) => {
     await React.act(async () => work());
   };
-  await act(() => root.render(<RoomPage />));
+  await act(() => root.render(link ? <ConvexClientProvider><RoomPage /></ConvexClientProvider> : <RoomPage />));
   leave = () => React.act(() => root.unmount());
   drawnAgain();
   return {
@@ -356,6 +398,14 @@ function bubble(page: Page, id: string) {
 }
 
 const labelled = (page: Page, label: string) => page.body.all((n) => n.attributes["aria-label"] === label);
+
+/** Reaction pills as they stand under `node`: each one's emoji, the count it shows, and whether it is marked as Yuki's */
+const pillsIn = (node: Sim) =>
+  node.byClass("ec-react").map((pill) => [one(pill.all((n) => n.nodeName === "IMG")).attributes.alt, pill.textContent, pill.hasClass("mine")]);
+/** The pills under the message `id` */
+const pills = (page: Page, id: string) => pillsIn(bubble(page, id));
+/** The emoji of the sheet a bubble's heart opens, as buttons */
+const picker = (page: Page) => one(page.body.byClass("ec-picker-row")).all((n) => n.nodeName === "BUTTON");
 
 /** `messages` with the message `id` changed as `fields` say */
 const changed = (messages: Message[], id: string, fields: Partial<Message>) => messages.map((m) => (m._id === id ? { ...m, ...fields } : m));
@@ -679,8 +729,6 @@ describe("what a game leaves in the list", () => {
 // ─── The handlers a bubble is handed ─────────────────────────────────────────
 
 describe("what a bubble is handed to call", () => {
-  const picker = (page: Page) => one(page.body.byClass("ec-picker-row")).all((n) => n.nodeName === "BUTTON");
-
   test("the sheet behind a bubble's heart: a reaction is sent, taken back from its pill, and Reply quotes the message", async () => {
     const page = await open(talking());
     const heart = () => one(bubble(page, "hello").byClass("ec-react-add"));
@@ -759,6 +807,255 @@ describe("a message written offline", () => {
   });
 });
 
+// ─── Where the reactions are read from ───────────────────────────────────────
+
+const PER_MESSAGE = "reactions:getReactionSummary";
+const PER_ROOM = "reactions:getRoomReactionSummaries";
+
+/** The room as one made since reactions carry their room is */
+const keptByRoom: RoomState["room"] = { ...room, reactionsByRoom: true };
+
+/** The conversation in a room that keeps its reactions by room. Nobody has reacted unless `extra` says so */
+const talkingByRoom = (extra: Answers = {}): Answers =>
+  talking({ "rooms:getRoomState": { room: keptByRoom, participants: [alex, yuki, sam, mika] }, [PER_ROOM]: [], ...extra });
+
+/** Reactions by message as the room's query answers them: an entry for each message that has any */
+const forRoom = (given: Record<string, Reactions>): RoomReactions =>
+  Object.entries(given)
+    .filter(([, reactions]) => reactions.length > 0)
+    .map(([messageId, reactions]) => ({ messageId, reactions }));
+
+const thumb = (...participantIds: PID[]) => ({ emoji: "👍", count: participantIds.length, participantIds });
+const fire = (...participantIds: PID[]) => ({ emoji: "🔥", count: participantIds.length, participantIds });
+const heart = (...participantIds: PID[]) => ({ emoji: "❤️", count: participantIds.length, participantIds });
+
+describe("a room that keeps its reactions by room", () => {
+  test("one subscription answers for every message: the pills stand under their messages, and no bubble asks for its own", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom({ hello: [thumb(YUKI, SAM), fire(SAM)], photo: [heart(MIKA)] }) }));
+    expect(server.roomReactionsAsked).toEqual([ROOM]);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
+    expect(server.reactionsAsked).toEqual([]);
+    expect(pills(page, "hello")).toEqual([
+      ["👍", "2", true],
+      ["🔥", "", false],
+    ]);
+    expect(pills(page, "photo")).toEqual([["❤️", "", false]]);
+    expect(page.body.byClass("ec-react").length).toBe(3);
+  });
+
+  test("a reaction given or taken back draws its message's bubble again, and no other", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom({ hello: [thumb(YUKI, SAM), fire(SAM)], photo: [heart(MIKA)] }) }));
+
+    // Sam gives the voice message a heart. The page itself is not drawn: the list's own subscription heard of it
+    await page.answer(PER_ROOM, (now) => [...now, { messageId: "voice", reactions: [heart(SAM)] }]);
+    expect(pills(page, "voice")).toEqual([["❤️", "", false]]);
+    expect(drawnAgain()).toEqual({ page: 0, list: 1, bubbles: ["voice"] });
+
+    // Yuki's thumb under the first message is taken back
+    await page.answer(PER_ROOM, (now) => now.map((entry) => (entry.messageId === "hello" ? { ...entry, reactions: [thumb(SAM), fire(SAM)] } : entry)));
+    expect(pills(page, "hello")).toEqual([
+      ["👍", "", false],
+      ["🔥", "", false],
+    ]);
+    expect(drawnAgain()).toEqual({ page: 0, list: 1, bubbles: ["hello"] });
+
+    // The photo's only reaction is taken back: the server names the message no more
+    await page.answer(PER_ROOM, (now) => now.filter((entry) => entry.messageId !== "photo"));
+    expect(pills(page, "photo")).toEqual([]);
+    expect(pills(page, "voice")).toEqual([["❤️", "", false]]);
+    expect(drawnAgain()).toEqual({ page: 0, list: 1, bubbles: ["photo"] });
+
+    // The server sends what it sent before, as new objects: nothing is drawn
+    await page.answer(PER_ROOM, (now) => now);
+    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
+
+    // The entries come in the order of each message's oldest reaction, which a reaction taken back can change
+    await page.answer(PER_ROOM, (now) => [...now].reverse());
+    expect(page.body.byClass("ec-react").length).toBe(3);
+    expect(drawnAgain().bubbles).toEqual([]);
+  });
+
+  test("until the server has answered for the reactions there are no pills, and no bubble asks in the meantime", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: undefined }));
+    expect(page.body.byClass("ec-msg").length).toBe(BUBBLES.length);
+    expect(page.body.byClass("ec-react").length).toBe(0);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
+    expect(server.reactionsAsked).toEqual([]);
+
+    await page.answer(PER_ROOM, () => forRoom({ hello: [thumb(SAM)] }));
+    expect(pills(page, "hello")).toEqual([["👍", "", false]]);
+    expect(drawnAgain()).toEqual({ page: 0, list: 1, bubbles: ["hello"] });
+  });
+
+  test("the sheet behind a bubble's heart shows the message's reactions from the room's, and asks for nothing", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom({ hello: [thumb(YUKI), fire(SAM, MIKA)], photo: [heart(MIKA)] }) }));
+    const sheet = () => one(page.body.byClass("ec-sheet"));
+    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+    expect(pillsIn(sheet())).toEqual([
+      ["👍", "1", true],
+      ["🔥", "2", false],
+    ]);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
+    expect(server.reactionsAsked).toEqual([]);
+
+    // A reaction that arrives while the sheet is open shows in it
+    await page.answer(PER_ROOM, () => forRoom({ hello: [thumb(YUKI), fire(SAM, MIKA), heart(HOST)], photo: [heart(MIKA)] }));
+    expect(pillsIn(sheet())).toEqual([
+      ["👍", "1", true],
+      ["🔥", "2", false],
+      ["❤️", "1", false],
+    ]);
+
+    // A tap on Yuki's own takes it back, and one on somebody else's gives the same
+    await page.tap(sheet().byClass("ec-react")[0]);
+    expect(server.calls.at(-1)).toEqual({ name: "reactions:removeReaction", args: { messageId: "hello", participantId: YUKI, emoji: "👍", token: undefined } });
+    expect(page.body.byClass("ec-sheet").length).toBe(0);
+    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+    await page.tap(sheet().byClass("ec-react")[1]);
+    expect(server.calls.at(-1)).toEqual({ name: "reactions:addReaction", args: { messageId: "hello", participantId: YUKI, emoji: "🔥", token: undefined } });
+    expect(page.body.byClass("ec-sheet").length).toBe(0);
+  });
+
+  test("a message written offline has no pills and asks for nothing, nor does the server's message that takes its place", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom({ hello: [thumb(SAM)] }) }));
+    await page.act(() => {
+      browser.navigator.onLine = false;
+      browser.fireOnWindow("offline");
+    });
+    const field = one(page.body.all((n) => n.nodeName === "TEXTAREA"));
+    field.value = "あとで行きます";
+    await page.act(() => field.fire("input"));
+    await page.tap(one(labelled(page, t("Send", "ja"))));
+    const bubbles = () => page.body.byClass("ec-msg");
+    expect(bubbles().length).toBe(BUBBLES.length + 1);
+    expect(bubbles().at(-1)!.textContent).toBe(`あとで行きます${t("translating", "ja")}`);
+    expect(page.body.byClass("ec-react").length).toBe(1);
+
+    server.onCall = (name, args) => {
+      if (name !== "messages:sendTextMessage") return;
+      tell("messages:getRoomMessages", (now) => [...now, message("later", YUKI, 0, { kind: "text", status: "pending", text: args.text as string })]);
+    };
+    await page.act(() => {
+      browser.navigator.onLine = true;
+      browser.fireOnWindow("online");
+    });
+    expect(bubble(page, "later").textContent).toBe(`あとで行きます${t("translating", "ja")}`);
+    expect(pills(page, "hello")).toEqual([["👍", "", false]]);
+    expect(page.body.byClass("ec-react").length).toBe(1);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
+    expect(server.reactionsAsked).toEqual([]);
+  });
+
+  test("a minute of everyone's heartbeats: neither the list nor a bubble is drawn, the reactions are not read again, and the pills stand", async () => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom({ hello: [thumb(YUKI, SAM)] }) }));
+    const readAtOpen = server.roomReactionsRun;
+    const beat = (id: PID) => tell("rooms:getRoomState", person(id, { lastSeenAt: Date.now() }));
+    server.onCall = (name, args) => {
+      if (name === "participants:setParticipantOnline") beat(args.participantId as PID);
+    };
+    [HOST, SAM, MIKA].forEach((id, i) =>
+      setTimeout(() => {
+        beat(id);
+        setInterval(() => beat(id), 15_000);
+      }, (3 + 4 * i) * 1000)
+    );
+    await page.wait(60);
+    const { page: pageDrawn, ...rest } = drawnAgain();
+    expect(pageDrawn).toBeGreaterThanOrEqual(16);
+    expect(rest).toEqual({ list: 0, bubbles: [] });
+    expect(server.roomReactionsRun).toBe(readAtOpen);
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+    expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
+  });
+});
+
+describe("a room from before reactions carried their room", () => {
+  test("each bubble subscribes to its own message's reactions, and the room's are never asked for", async () => {
+    const page = await open(talking({ [PER_MESSAGE]: { hello: [thumb(YUKI, SAM), fire(SAM)] } }));
+    expect(pills(page, "hello")).toEqual([
+      ["👍", "2", true],
+      ["🔥", "", false],
+    ]);
+    expect(server.reactionsOpen).toEqual({ [PER_MESSAGE]: BUBBLES.length });
+    expect([...server.reactionsAsked].sort()).toEqual([...BUBBLES].sort());
+    expect(server.roomReactionsAsked).toEqual([]);
+
+    // The sheet subscribes to its message's reactions for as long as it is open
+    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+    expect(pillsIn(one(page.body.byClass("ec-sheet")))).toEqual([
+      ["👍", "2", true],
+      ["🔥", "1", false],
+    ]);
+    expect(server.reactionsOpen).toEqual({ [PER_MESSAGE]: BUBBLES.length + 1 });
+    await page.tap(one(labelled(page, t("Close", "ja"))));
+    expect(server.reactionsOpen).toEqual({ [PER_MESSAGE]: BUBBLES.length });
+    expect(server.roomReactionsAsked).toEqual([]);
+  });
+});
+
+// Both kinds of room, one after the other: what a guest who reacts sees, and when
+const ROOM_KINDS = [
+  ["a room that keeps its reactions by room", true],
+  ["a room from before reactions carried their room", false],
+] as const;
+
+describe.each(ROOM_KINDS)("a reaction given and taken back in %s", (_, byRoom) => {
+  /** The room where the server holds the reactions `given` */
+  const withReactions = (given: Record<string, Reactions>) => (byRoom ? talkingByRoom({ [PER_ROOM]: forRoom(given) }) : talking({ [PER_MESSAGE]: given }));
+  /** The server answers the query this kind of room reads: the reactions are now `given` */
+  const answered = (page: Page, given: Record<string, Reactions>) =>
+    byRoom ? page.answer(PER_ROOM, () => forRoom(given)) : page.answer(PER_MESSAGE, () => given);
+  /** Whether each pill under the message `id` is playing its pop */
+  const popping = (page: Page, id: string) => bubble(page, id).byClass("ec-react").map((pill) => pill.byClass("pop").length === 1);
+
+  test("the tap sends it and closes the sheet; the pill comes, counts and goes with the server's answers, and not before", async () => {
+    const page = await open(withReactions({}));
+    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+    await page.tap(picker(page)[0]);
+    expect(server.calls.at(-1)).toEqual({ name: "reactions:addReaction", args: { messageId: "hello", participantId: YUKI, emoji: "👍", token: undefined } });
+    // Sent and not yet answered: the sheet is gone, and no pill stands in for the answer
+    expect(page.body.byClass("ec-sheet").length).toBe(0);
+    expect(page.body.byClass("ec-react").length).toBe(0);
+    await page.wait(3);
+    expect(page.body.byClass("ec-react").length).toBe(0);
+
+    await answered(page, { hello: [thumb(YUKI)] });
+    expect(pills(page, "hello")).toEqual([["👍", "", true]]);
+    expect(popping(page, "hello")).toEqual([false]);
+
+    // Sam gives the same: the pill counts two, and pops
+    await answered(page, { hello: [thumb(YUKI, SAM)] });
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+    expect(popping(page, "hello")).toEqual([true]);
+
+    // Yuki taps her pill. It stays as it is until the server has taken her reaction back
+    await page.tap(one(bubble(page, "hello").byClass("ec-react")));
+    expect(server.calls.at(-1)).toEqual({ name: "reactions:removeReaction", args: { messageId: "hello", participantId: YUKI, emoji: "👍", token: undefined } });
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+    await page.wait(3);
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+
+    await answered(page, { hello: [thumb(SAM)] });
+    expect(pills(page, "hello")).toEqual([["👍", "", false]]);
+    await answered(page, {});
+    expect(page.body.byClass("ec-react").length).toBe(0);
+  });
+
+  test("the server answers as the mutation is made: the pill is there when the tap has been dealt with", async () => {
+    const page = await open(withReactions({}));
+    server.onCall = (name, args) => {
+      if (name !== "reactions:addReaction") return;
+      const given = { [args.messageId as string]: [thumb(args.participantId as PID)] };
+      if (byRoom) tell(PER_ROOM, () => forRoom(given));
+      else tell(PER_MESSAGE, () => given);
+    };
+    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+    await page.tap(picker(page)[0]);
+    expect(pills(page, "hello")).toEqual([["👍", "", true]]);
+    expect(page.body.byClass("ec-react").length).toBe(1);
+  });
+});
+
 // ─── Answers that arrive one after the other ─────────────────────────────────
 
 describe("the messages answer before the room does", () => {
@@ -769,5 +1066,62 @@ describe("the messages answer before the room does", () => {
     await page.answer("rooms:getRoomState", () => ({ room, participants: [alex, yuki, sam, mika] }));
     expect(page.body.byClass("ec-sys").map((line) => line.textContent)).toEqual([`Sam${t("has joined", "ja")}`]);
     expect(page.body.byClass("ec-msg").length).toBe(BUBBLES.length);
+  });
+
+  test.each(ROOM_KINDS)("nothing is asked about reactions until the room has answered, and then only what is asked of %s", async (_, byRoom) => {
+    const state: RoomState = { room: byRoom ? keptByRoom : room, participants: [alex, yuki, sam, mika] };
+    const given = { hello: [thumb(YUKI, SAM)] };
+    const page = await open(talking({ "rooms:getRoomState": undefined, [PER_MESSAGE]: given, [PER_ROOM]: forRoom(given) }));
+    expect(server.reactionsOpen).toEqual({});
+    expect(server.reactionsAsked).toEqual([]);
+    expect(server.roomReactionsAsked).toEqual([]);
+
+    await page.answer("rooms:getRoomState", () => state);
+    const asked = () => ({ open: server.reactionsOpen, byMessage: [...server.reactionsAsked].sort(), byRoom: server.roomReactionsAsked });
+    const expected = byRoom
+      ? { open: { [PER_ROOM]: 1 }, byMessage: [], byRoom: [ROOM] }
+      : { open: { [PER_MESSAGE]: BUBBLES.length }, byMessage: [...BUBBLES].sort(), byRoom: [] };
+    expect(asked()).toEqual(expected);
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+    drawnAgain();
+
+    // The room answers again, its host having given it another texture: the list and the pills stay as they are
+    await page.answer("rooms:getRoomState", (now) => ({ ...now, room: { ...now.room, background: 7 } }));
+    expect(drawnAgain()).toMatchObject({ list: 0, bubbles: [] });
+    expect(pills(page, "hello")).toEqual([["👍", "2", true]]);
+    expect(asked()).toEqual(expected);
+  });
+});
+
+// ─── The deployment the room is on ───────────────────────────────────────────
+
+describe("the deployment a room's reactions are asked of", () => {
+  const MAIN = "https://example.convex.cloud";
+  const OTHER = "https://other.convex.cloud";
+
+  // lib/convex.tsx makes its clients as it is loaded, from the environment it finds then
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_LEGACY_URL", OTHER);
+    vi.resetModules();
+  });
+  afterEach(() => vi.resetModules());
+
+  test.each([
+    ["a link to the app's own deployment", {}, MAIN],
+    ["a link to the other deployment (?b=legacy)", { b: "legacy" }, OTHER],
+  ])("%s: the room's reactions are asked of the deployment the room was read from", async (_, link, url) => {
+    const page = await open(talkingByRoom({ [PER_ROOM]: forRoom({ hello: [thumb(SAM)] }) }), link);
+    expect(server.askedOf["rooms:getRoomState"]).toEqual([url]);
+    expect(server.askedOf[PER_ROOM]).toEqual([url]);
+    expect(Object.keys(server.askedOf)).not.toContain(PER_MESSAGE);
+    expect(pills(page, "hello")).toEqual([["👍", "", false]]);
+  });
+
+  test("a room from before on the other deployment: each bubble's reactions are asked of it too", async () => {
+    const page = await open(talking({ [PER_MESSAGE]: { hello: [thumb(SAM)] } }), { b: "legacy" });
+    expect(server.askedOf["rooms:getRoomState"]).toEqual([OTHER]);
+    expect(server.askedOf[PER_MESSAGE]).toEqual([OTHER]);
+    expect(Object.keys(server.askedOf)).not.toContain(PER_ROOM);
+    expect(pills(page, "hello")).toEqual([["👍", "", false]]);
   });
 });

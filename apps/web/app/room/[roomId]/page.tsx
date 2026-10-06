@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, memo, useState, useCallback, useEffect, useMemo, useRef, type ComponentProps } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -28,6 +28,7 @@ import { avatarTint } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { endGameRule } from "@/lib/end-game";
+import { useReactionsByMessage } from "@/lib/reactions";
 import { byId, useStableList } from "@/lib/stable";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
@@ -44,6 +45,20 @@ import { useEmojiBingo } from "@/hooks/games/use-emoji-bingo";
 import { useTruthOrDare } from "@/hooks/games/use-truth-or-dare";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
 import "@/app/screens.css";
+
+/**
+ * The message list of a room that keeps its reactions by room (`rooms.reactionsByRoom`): one subscription answers
+ * for every message, and the list hands each bubble its own message's. The query is asked of the deployment the
+ * room was read from, as every query under the page's provider is (lib/convex.tsx). A reaction draws this
+ * component, the list and the bubble it is on, and not the page.
+ */
+const RoomReactionsMessageList = memo(function RoomReactionsMessageList({
+  roomId,
+  ...listProps
+}: ComponentProps<typeof MessageList> & { roomId: Id<"rooms"> }) {
+  const reactions = useReactionsByMessage(useQuery(api.reactions.getRoomReactionSummaries, { roomId }));
+  return <MessageList {...listProps} reactions={reactions} />;
+});
 
 function RoomContent() {
   const params = useParams();
@@ -232,6 +247,31 @@ function RoomContent() {
 
   const chatScale = CHAT_SIZES.find((s) => s.key === chatSize)?.scale ?? 1;
 
+  // What the message list is handed, whichever way the room's reactions are read
+  const listProps: ComponentProps<typeof MessageList> = {
+    messages: displayMessages,
+    participants: shownParticipants,
+    currentParticipantId: participantId,
+    preferredLanguage: lang,
+    onReply: handleReply,
+    onToggleReaction: isOnline ? handleToggleReaction : undefined,
+    typingParticipants,
+    lang,
+    showEnglish,
+    showJapanese,
+    showRomaji,
+    isGameComplete: latestGameSession?.status === "complete" && !activeGameSession,
+    gameCompletedAt: latestGameSession?.completedAt,
+    onViewGameResults: handleViewGameResults,
+    truthOrDareGame,
+    hype,
+  };
+
+  // A room made since reactions carry their room is asked for all of them at once. Any other is not: the server
+  // answers the room's query there by reading every message, again each time one of them changes, and each bubble
+  // subscribes to its own message's reactions instead
+  const reactionsByRoom = roomState.room.reactionsByRoom === true;
+
   return (
     <div className="ec-room" style={{ "--chat-scale": chatScale, "--me-tint": meTint } as React.CSSProperties}>
       {background}
@@ -252,24 +292,11 @@ function RoomContent() {
         <HypeLayer hype={hype} crowd={crowd} combo={combo} lang={lang} mult={mult} />
 
         <MessageErrorBoundary lang={lang}>
-          <MessageList
-            messages={displayMessages}
-            participants={shownParticipants}
-            currentParticipantId={participantId}
-            preferredLanguage={lang}
-            onReply={handleReply}
-            onToggleReaction={isOnline ? handleToggleReaction : undefined}
-            typingParticipants={typingParticipants}
-            lang={lang}
-            showEnglish={showEnglish}
-            showJapanese={showJapanese}
-            showRomaji={showRomaji}
-            isGameComplete={latestGameSession?.status === "complete" && !activeGameSession}
-            gameCompletedAt={latestGameSession?.completedAt}
-            onViewGameResults={handleViewGameResults}
-            truthOrDareGame={truthOrDareGame}
-            hype={hype}
-          />
+          {reactionsByRoom ? (
+            <RoomReactionsMessageList roomId={roomId as Id<"rooms">} {...listProps} />
+          ) : (
+            <MessageList {...listProps} />
+          )}
         </MessageErrorBoundary>
 
         {floaters.map((f) => (

@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
 import { EmojiArt } from "@/components/ui/icon";
+import { NO_REACTIONS, type ReactionSummary } from "@/lib/reactions";
 import { isQueuedMessageId } from "@/lib/types";
 
 interface ReactionBarProps {
@@ -12,22 +13,16 @@ interface ReactionBarProps {
   onToggle: (emoji: string, hasReacted: boolean) => void;
 }
 
-export function ReactionBar({
-  messageId,
+/** The reactions a message has, each a button with its count: drawn from `reactions`, and subscribed to nothing */
+export function ReactionBarPills({
+  reactions,
   currentParticipantId,
   onToggle,
-}: ReactionBarProps) {
-  const summaryList = useQuery(
-    api.reactions.getReactionSummary,
-    isQueuedMessageId(messageId) ? "skip" : { messageId: messageId as Id<"messages"> }
-  );
-
+}: Omit<ReactionBarProps, "messageId"> & { reactions: readonly ReactionSummary[] }) {
   // Convert array format to a lookup map
   const reactionMap = new Map<string, { count: number; participantIds: string[] }>();
-  if (Array.isArray(summaryList)) {
-    for (const item of summaryList) {
-      reactionMap.set(item.emoji, { count: item.count, participantIds: item.participantIds });
-    }
+  for (const item of reactions) {
+    reactionMap.set(item.emoji, { count: item.count, participantIds: item.participantIds });
   }
 
   const activeReactions = Array.from(reactionMap.entries()).filter(
@@ -48,5 +43,25 @@ export function ReactionBar({
         );
       })}
     </div>
+  );
+}
+
+/** ReactionBarPills for a message whose reactions are not handed down: it subscribes to that message's own */
+export function ReactionBar({
+  messageId,
+  currentParticipantId,
+  onToggle,
+}: ReactionBarProps) {
+  const summaryList = useQuery(
+    api.reactions.getReactionSummary,
+    isQueuedMessageId(messageId) ? "skip" : { messageId: messageId as Id<"messages"> }
+  );
+
+  return (
+    <ReactionBarPills
+      reactions={Array.isArray(summaryList) ? summaryList : NO_REACTIONS}
+      currentParticipantId={currentParticipantId}
+      onToggle={onToggle}
+    />
   );
 }

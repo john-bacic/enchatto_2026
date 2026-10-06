@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/icon";
 import { TeamChip, TeamDot, YourTeamTag } from "@/components/ui/team";
 import { TEAM_LOOK, leadingTeam, readTeamPoints, readTeams, teamOf, teamResultLine, teamTitle, type GameTeam, type TeamIndex } from "@/lib/game-teams";
 import { t } from "@/lib/i18n";
+import { reactionsOf, type ReactionsByMessage } from "@/lib/reactions";
 
 interface MessageData {
   _id: string;
@@ -80,6 +81,11 @@ interface MessageListProps {
   truthOrDareGame?: TruthOrDareGameData | null;
   /** Room is buzzing: leave room for the bunting/crowd and light up the latest bubble. */
   hype?: boolean;
+  /**
+   * The room's reactions by message, where the page reads them in one subscription: each bubble is handed its
+   * message's. Without it each bubble subscribes to its own.
+   */
+  reactions?: ReactionsByMessage;
 }
 
 // ─── Summary cards ───────────────────────────────────────────────────────────
@@ -299,7 +305,8 @@ function personLine(name: string, key: string, lang?: string) {
 }
 
 // The page draws the list again only when one of its props is another value or object: it hands down the list it
-// handed down before when no message in it changed, and likewise the people and the handlers (lib/stable.ts)
+// handed down before when no message in it changed, and likewise the people, the reactions and the handlers
+// (lib/stable.ts)
 export const MessageList = memo(function MessageList({
   messages,
   participants,
@@ -317,6 +324,7 @@ export const MessageList = memo(function MessageList({
   onViewGameResults,
   truthOrDareGame,
   hype = false,
+  reactions,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -683,6 +691,7 @@ export const MessageList = memo(function MessageList({
             onImageLoad={handleImageLoad}
             showCarrier={message._id === carrierId}
             highlight={hype && message._id === latestId}
+            reactions={reactions && reactionsOf(reactions, message._id)}
           />
         );
         return elements;
