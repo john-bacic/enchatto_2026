@@ -25,6 +25,9 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
 // opens and when it closes, and not each time the page is drawn. While it is open, the signal is written once more
 // each time the room shows it gone.
+//
+// And what the page does by its clock alone. The vibe meter in the header shows at each 5-second move of its
+// clock the numbers a page drawn at every move would show, and a move draws the page only when it changes one.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -694,6 +697,116 @@ describe("the room is buzzing", () => {
     expect(page.body.byClass("ec-marquee").length).toBe(0);
     // Only the bubble that had the marquee was drawn again
     expect(drawnAgain().bubbles).toEqual(["r9"]);
+  });
+});
+
+// ─── The meter in the header ─────────────────────────────────────────────────
+
+describe("the vibe meter, by the page's own clock", () => {
+  // The conversation of ten minutes ago counts for nothing: the meter reads 0 as the page opens
+  /** What the header's badge says */
+  const meter = (page: Page) => one(page.body.byClass("ec-vibe")).attributes["aria-label"];
+  /** The card behind the badge: the messages of the last minute, the changes of language among them, the multiplier */
+  const card = (page: Page) => one(page.body.byClass("ec-vibe-info")).byClass("ec-vibe-info-row").map((row) => row.lastChild!.textContent);
+  /** A text sent `seconds` after the page opened, which the translator has not answered yet */
+  const sentAt = (id: string, senderId: PID, seconds: number, text: string) => message(id, senderId, -seconds, { kind: "text", status: "pending", text });
+  /** The room's messages are answered with one more, sent at this moment */
+  const says = (page: Page, id: string, senderId: PID, text: string) =>
+    page.answer("messages:getRoomMessages", (now) => [...now, sentAt(id, senderId, (Date.now() - NOW) / 1000, text)]);
+  /** Waits until `seconds` after the page opened */
+  const until = (page: Page, seconds: number) => page.wait(seconds - (Date.now() - NOW) / 1000);
+
+  /** Sam, Yuki and Sam again, 2, 13 and 24 seconds after the page opened, in English, Japanese and English */
+  async function threeMessages(page: Page) {
+    await until(page, 2);
+    await says(page, "a", SAM, "Hello");
+    // 12 × 1.05
+    expect(meter(page)).toBe("VIBE 13");
+    await until(page, 13);
+    await says(page, "b", YUKI, "こんにちは");
+    // (2 × 12 + 20) × 1.1
+    expect(meter(page)).toBe("VIBE 48");
+    await until(page, 24);
+    await says(page, "c", SAM, "Nice");
+    // (3 × 12 + 2 × 20) × 1.15
+    expect(meter(page)).toBe("VIBE 87");
+  }
+
+  test("a room where nothing is said: the clock does not draw the page", async () => {
+    const page = await open(talking());
+    expect(meter(page)).toBe("VIBE 0");
+    await page.wait(30);
+    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
+    expect(meter(page)).toBe("VIBE 0");
+  });
+
+  test("the number rises with each message and falls at the clock's moves a minute later; the clock draws the page for those moves only", async () => {
+    const page = await open(talking());
+    expect(meter(page)).toBe("VIBE 0");
+    await threeMessages(page);
+    drawnAgain();
+
+    // A message leaves the count at the first move of the clock 60 seconds or more after it was sent
+    const shown: [number, string][] = [];
+    for (const at of [60, 64, 65, 70, 74, 75, 80, 84, 85, 180]) {
+      await until(page, at);
+      shown.push([at, meter(page)]);
+    }
+    expect(shown).toEqual([
+      [60, "VIBE 87"],
+      [64, "VIBE 87"],
+      [65, "VIBE 51"],
+      [70, "VIBE 51"],
+      [74, "VIBE 51"],
+      [75, "VIBE 14"],
+      [80, "VIBE 14"],
+      [84, "VIBE 14"],
+      [85, "VIBE 0"],
+      [180, "VIBE 0"],
+    ]);
+    // Thirty-two moves of the clock since the last message. Four changed a number: the three above, and the one
+    // at 115 seconds that ends the combo. The list shows none of it
+    expect(drawnAgain()).toEqual({ page: 4, list: 0, bubbles: [] });
+  });
+
+  test("the combo ends 90 seconds after the last message: the card's multiplier goes back to 1 while the number stays 0", async () => {
+    const page = await open(talking());
+    await threeMessages(page);
+    await page.tap(one(page.body.byClass("ec-vibe")));
+    expect(card(page)).toEqual(["3", "2", "×1.15"]);
+    await until(page, 110);
+    expect(meter(page)).toBe("VIBE 0");
+    expect(card(page)).toEqual(["0", "0", "×1.15"]);
+    await until(page, 115);
+    expect(meter(page)).toBe("VIBE 0");
+    expect(card(page)).toEqual(["0", "0", "×1.00"]);
+  });
+
+  test("a message that arrives between two moves of the clock shows at once, read at its own time", async () => {
+    const page = await open(talking());
+    await until(page, 2);
+    await says(page, "a", SAM, "Hello");
+    await until(page, 63);
+    expect(meter(page)).toBe("VIBE 13");
+    await page.act(() => void vi.advanceTimersByTime(500));
+    await says(page, "b", YUKI, "こんにちは");
+    // The clock stands at 60 seconds. At 63.5 the first message is over a minute old, and the second answers it: 12 × 1.1
+    expect(meter(page)).toBe("VIBE 13");
+    await page.tap(one(page.body.byClass("ec-vibe")));
+    expect(card(page)).toEqual(["1", "0", "×1.10"]);
+  });
+
+  test("messages that reach the page late are counted from where the clock stands", async () => {
+    const page = await open(talking());
+    await until(page, 201);
+    // Sent 100 and 150 seconds after the page opened, and answered only now
+    await page.answer("messages:getRoomMessages", (now) => [...now, sentAt("a", SAM, 100, "Hello"), sentAt("b", YUKI, 150, "こんにちは")]);
+    // The clock stands at 200 seconds: the first is not of the last minute, and the second answers it: 12 × 1.1
+    expect(meter(page)).toBe("VIBE 13");
+    await until(page, 209);
+    expect(meter(page)).toBe("VIBE 13");
+    await until(page, 210);
+    expect(meter(page)).toBe("VIBE 0");
   });
 });
 

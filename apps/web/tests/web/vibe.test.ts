@@ -157,7 +157,8 @@ describe("formatVibe", () => {
 // and a move of the clock draws the page only when sameVibe says that a number changed. No effect runs here (see
 // CLAUDE.md), so the hook itself is not run: a page is played through a room's messages by the two functions the
 // hook is made of, beside a page that is drawn again at every move of its clock. At every step the two show the
-// same numbers. The page opens at NOW, and times are seconds after that.
+// same numbers. The page opens at NOW, and times are seconds after that. The hook itself, with its clock, runs on
+// the mounted page in room-live.test.tsx.
 
 const TICK = 5;
 
