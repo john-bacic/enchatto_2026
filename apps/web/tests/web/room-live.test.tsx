@@ -21,6 +21,9 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // And where the reactions are read from. A room that keeps them by room (`reactionsByRoom`) is asked once for all
 // of them, and the list hands each bubble its own message's; in any other room each bubble asks for its own. Both
 // show the same pills, and neither shows a reaction before the server has answered for it.
+//
+// And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
+// opens and when it closes, and not each time the page is drawn.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -169,6 +172,16 @@ vi.mock("@/components/message-list", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/message-list")>();
   const { memo } = await import("react");
   return { ...actual, MessageList: counted(actual.MessageList, memo, () => void server.draws.list++) };
+});
+
+// A drawing sheet's canvas asks a browser for something to paint on. What stands in for it is its way out
+vi.mock("@/components/drawing-canvas", async () => {
+  const { createElement, forwardRef } = await import("react");
+  return {
+    DrawingCanvas: forwardRef(function DrawingCanvas({ onCancel }: { onCancel: () => void }, _ref) {
+      return createElement("button", { className: "sim-canvas-cancel", onClick: onCancel });
+    }),
+  };
 });
 
 const NOW = Date.parse("2026-10-03T12:00:00Z");
@@ -1123,5 +1136,160 @@ describe("the deployment a room's reactions are asked of", () => {
     expect(server.askedOf[PER_MESSAGE]).toEqual([OTHER]);
     expect(Object.keys(server.askedOf)).not.toContain(PER_ROOM);
     expect(pills(page, "hello")).toEqual([["👍", "", false]]);
+  });
+});
+
+// ─── What the page tells the room it is doing ────────────────────────────────
+
+describe("Truth or Dare's drawing signal", () => {
+  const seat = (p: Person) => ({ participantId: p._id, nickname: p.nickname, avatarValue: p.avatar.value, online: p.online });
+  const GAME = "dare1" as Id<"truthOrDareGames">;
+  /** A turn of the game, as the room is sent the one it is at */
+  const turn = (id: string, turnIndex: number, participantId: PID, fields: Partial<NonNullable<DareGame["currentTurn"]>>): NonNullable<DareGame["currentTurn"]> => ({
+    _id: id as Id<"truthOrDareTurns">,
+    _creationTime: NOW,
+    gameId: GAME,
+    turnIndex,
+    participantId,
+    status: "waiting_for_choice",
+    createdAt: NOW,
+    responseMediaUrl: undefined,
+    responseStorageId: undefined,
+    ...fields,
+  });
+  // Yuki and Sam play, and it is Yuki's turn: a dare she answers with a drawing
+  const game: DareGame = {
+    _id: GAME,
+    _creationTime: NOW,
+    roomId: ROOM,
+    status: "active",
+    hostParticipantId: HOST,
+    promptMode: "normal",
+    playerOrder: [YUKI, SAM],
+    currentTurnIndex: 0,
+    currentTurnParticipantId: YUKI,
+    createdAt: NOW,
+    currentTurn: turn("turn1", 0, YUKI, {
+      choice: "dare",
+      promptText: JSON.stringify({ en: "Draw your favourite food", ja: "好きな食べ物を描いて" }),
+      promptResponseType: "drawing",
+      status: "waiting_for_response",
+    }),
+    completedTurns: 0,
+    completedTurnsList: [],
+    totalTurns: 1,
+    playerInfo: [seat(yuki), seat(sam)],
+  };
+
+  /** Every participants.setTypingAction the page called, in order: the action it set, or "clear" */
+  const signals = () => server.calls.filter((c) => c.name === "participants:setTypingAction").map((c) => (c.args.action as string | undefined) ?? "clear");
+  /** What the room holds as Yuki's action */
+  const stored = () => (server.answers["rooms:getRoomState"] as RoomState).participants.find((p) => p._id === YUKI)!.typingAction;
+
+  /**
+   * The room as its server keeps it while the page is open: an action Yuki's tab sets is hers a tenth of a second
+   * later, and all four tabs say every 15 seconds that they are still there. Each answer draws the page.
+   */
+  function roomLives() {
+    const beat = (id: PID) => tell("rooms:getRoomState", person(id, { lastSeenAt: Date.now() }));
+    server.onCall = (name, args) => {
+      if (name === "participants:setParticipantOnline") beat(args.participantId as PID);
+      if (name === "participants:setTypingAction") {
+        const typingAction = args.action as Person["typingAction"];
+        setTimeout(() => tell("rooms:getRoomState", person(args.participantId as PID, { typingAction })), 100);
+      }
+    };
+    [HOST, SAM, MIKA].forEach((id, i) =>
+      setTimeout(() => {
+        beat(id);
+        setInterval(() => beat(id), 15_000);
+      }, (3 + 4 * i) * 1000)
+    );
+  }
+
+  const drawButton = (page: Page) => one(page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === t("Draw your answer", "ja")));
+  /** How many drawing sheets are open */
+  const sheets = (page: Page) => page.body.byClass("sim-canvas-cancel").length;
+
+  test("one write when the sheet opens and one when it closes, however often the page is drawn meanwhile", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    // The overlay says that nothing is being drawn as it comes up
+    expect(signals()).toEqual(["clear"]);
+    await page.wait(30);
+    expect(drawnAgain().page).toBeGreaterThanOrEqual(8);
+    expect(signals()).toEqual(["clear"]);
+
+    await page.tap(drawButton(page));
+    expect(sheets(page)).toBe(1);
+    expect(signals()).toEqual(["clear", "drawing"]);
+    await page.wait(30);
+    expect(drawnAgain().page).toBeGreaterThanOrEqual(8);
+    expect(signals()).toEqual(["clear", "drawing"]);
+    expect(stored()).toBe("drawing");
+
+    await page.tap(one(page.body.byClass("sim-canvas-cancel")));
+    expect(sheets(page)).toBe(0);
+    expect(signals()).toEqual(["clear", "drawing", "clear"]);
+    await page.wait(30);
+    expect(signals()).toEqual(["clear", "drawing", "clear"]);
+    expect(stored()).toBeUndefined();
+  });
+
+  test("the turn is skipped under the open sheet: the sheet goes, and the signal with it", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    await page.tap(drawButton(page));
+    await page.wait(5);
+    expect(stored()).toBe("drawing");
+
+    await page.answer("truthOrDare:getActiveTruthOrDare", (now) => ({ ...now, currentTurnIndex: 1, currentTurnParticipantId: SAM, currentTurn: turn("turn2", 1, SAM, {}), totalTurns: 2 }));
+    expect(sheets(page)).toBe(0);
+    await page.wait(5);
+    expect(signals()).toEqual(["clear", "drawing", "clear"]);
+    expect(stored()).toBeUndefined();
+  });
+
+  test("the game is ended under the open sheet: the overlay goes, and the signal with it", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    await page.tap(drawButton(page));
+    await page.wait(5);
+    expect(stored()).toBe("drawing");
+
+    await page.answer("truthOrDare:getActiveTruthOrDare", (now) => ({ ...now, status: "canceled", completedAt: Date.now() }));
+    expect(sheets(page)).toBe(0);
+    await page.wait(5);
+    expect(signals()).toEqual(["clear", "drawing", "clear"]);
+    expect(stored()).toBeUndefined();
+  });
+
+  test("the page is left with the sheet open: the signal is cleared on the way out", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    await page.tap(drawButton(page));
+    expect(signals()).toEqual(["clear", "drawing"]);
+    leave!();
+    leave = null;
+    expect(signals()).toEqual(["clear", "drawing", "clear"]);
+  });
+
+  test("a message left in the field, then the sheet opened: the field's own clear two seconds on does not take the signal down", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    await page.tap(one(labelled(page, t("Minimize", "ja"))));
+    const field = one(page.body.all((n) => n.nodeName === "TEXTAREA"));
+    field.value = "ちょっと";
+    await page.act(() => field.fire("input"));
+    expect(signals()).toEqual(["clear", "typing"]);
+
+    // The overlay says again that nothing is being drawn as it comes back up
+    await page.tap(one(labelled(page, t("Resume Truth or Dare", "ja"))));
+    expect(signals()).toEqual(["clear", "typing", "clear"]);
+    await page.tap(drawButton(page));
+    expect(signals()).toEqual(["clear", "typing", "clear", "drawing"]);
+    await page.wait(5);
+    expect(sheets(page)).toBe(1);
+    expect(signals()).toEqual(["clear", "typing", "clear", "drawing"]);
+    expect(stored()).toBe("drawing");
   });
 });
