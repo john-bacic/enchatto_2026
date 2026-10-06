@@ -3150,6 +3150,9 @@ describe("a drawing sent through the submit-step route", () => {
       const sessionId = await start(t, roomId, hostId, { token: HOST_TOKEN, level: 2 });
       const chains = await chainsOf(t, sessionId);
       const stepFor = async (participantId: PID, token: string) => (await t.query(api.games.getMyActiveStep, { participantId, token }))!;
+      // convex-test makes a file's URL from its bytes, so each of the host's drawings has bytes of its own: the
+      // PNG with the round's number after its last chunk. A round that showed another round's file shows another URL
+      const drawingOf = (round: number) => "data:image/png;base64," + btoa(String.fromCharCode(...bytesOf(PNG), round));
 
       // The host draws the odd rounds through the route and guesses the even ones through it; Ann is on the web page.
       // Ann guesses right every time, the host in round 2 only
@@ -3157,9 +3160,14 @@ describe("a drawing sent through the submit-step route", () => {
         const right = chain.originalPrompt;
         if (i % 2 === 0) {
           const step = await stepFor(hostId, HOST_TOKEN);
-          expect(await post(t, SUBMIT, { stepId: step._id, participantId: hostId, outputDrawingUrl: PNG, callerId: hostId, callerToken: HOST_TOKEN })).toEqual(OK);
+          expect(
+            await post(t, SUBMIT, { stepId: step._id, participantId: hostId, outputDrawingUrl: drawingOf(i + 1), callerId: hostId, callerToken: HOST_TOKEN })
+          ).toEqual(OK);
+          const file = (await filesIn(t)).at(-1)!;
+          const url = await urlOf(t, file);
+          expect(await stepDoc(t, step._id)).toMatchObject({ outputDrawingStorageId: file, outputDrawingUrl: url });
           const guessStep = await stepFor(ann, ANN_TOKEN);
-          expect(guessStep).toMatchObject({ stepType: "guess", round: i + 1, inputDrawingUrl: await urlOf(t, (await filesIn(t)).at(-1)!) });
+          expect(guessStep).toMatchObject({ stepType: "guess", round: i + 1, inputDrawingUrl: url });
           expect(
             await t.mutation(api.games.submitGameStep, { stepId: guessStep._id, participantId: ann, selectedOption: right, token: ANN_TOKEN })
           ).toEqual({ correct: true, correctOption: right, selectedOption: right });
@@ -3185,11 +3193,13 @@ describe("a drawing sent through the submit-step route", () => {
       expect((await sessionDoc(t, sessionId)).status).toBe("complete");
       const files = await filesIn(t);
       expect(files).toHaveLength(5);
+      const urls = await Promise.all(files.map((file) => urlOf(t, file)));
+      expect(new Set(urls).size).toBe(5);
       const totals = { [hostId]: { correct: 1, total: 5 }, [ann]: { correct: 5, total: 5 } };
       const replay = await t.query(api.games.getGameReplay, { gameSessionId: sessionId });
       expect(replay!.chains.map((c) => c.steps.map((s) => s.stepType))).toEqual(Array(10).fill(["draw", "guess"]));
       for (const [i, chain] of replay!.chains.entries()) {
-        expect(chain.steps[0].outputDrawingUrl).toBe(i % 2 === 0 ? await urlOf(t, files[i / 2]) : JPEG);
+        expect(chain.steps[0].outputDrawingUrl).toBe(i % 2 === 0 ? urls[i / 2] : JPEG);
       }
       expect(replay!.scores).toEqual(totals);
       const [summary, ...more] = await summariesIn(t, roomId);
@@ -3197,7 +3207,7 @@ describe("a drawing sent through the submit-step route", () => {
       expect(summary.rounds.map((r) => r.round)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
       expect(summary.totals).toEqual(totals);
       const drawings = (await chatOf(t, roomId)).filter((m) => m.kind === "drawing");
-      expect(drawings.map((m) => m.mediaUrl?.slice(0, 5))).toEqual(Array(5).fill(["https", "data:"]).flat());
+      expect(drawings.map((m) => m.mediaUrl)).toEqual(urls.flatMap((url) => [url, JPEG]));
     }
   );
 
