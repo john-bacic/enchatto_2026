@@ -156,6 +156,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [isFocused, setIsFocused] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsCollapsed = (isFocused || text.length > 0) && !toolsOpen;
+  const toolsCollapsedRef = useRef(toolsCollapsed);
+  toolsCollapsedRef.current = toolsCollapsed;
+  const toolsRef = useRef<HTMLDivElement>(null);
   const refocusRef = useRef(false);
   /** The field takes the focus when it is drawn again in the place of dictation's pill */
   const focusOnReturnRef = useRef(false);
@@ -197,25 +200,37 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // The field is as tall as its text needs at the width it has. While the tools fold away that width is on the
+  // move, and narrower at first, as Clear and the chevron come in beside the field before the tools have gone: a
+  // fit taken on the way would stand the field a line or two too tall for a moment. So the field keeps its height
+  // until the tools have folded (their onTransitionEnd), and is fitted then. Tools that come back narrow the field
+  // all the way, and it is fitted as it narrows. A browser that cannot say what is on the move fits at once
+  const fitField = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const folding = toolsCollapsedRef.current && toolsRef.current?.getAnimations?.().some((a) => a.playState === "running");
+    if (!folding) fitTextarea(el);
+  }, []);
+
   // Auto-resize textarea when text changes (e.g. from voice input)
   useEffect(() => {
-    if (inputRef.current) fitTextarea(inputRef.current);
-  }, [text]);
+    fitField();
+  }, [text, fitField]);
 
   // Re-fit when the field widens or narrows as the tools fold away
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    fitTextarea(el);
+    fitField();
     let lastWidth = el.clientWidth;
     const observer = new ResizeObserver(() => {
       if (el.clientWidth === lastWidth) return;
       lastWidth = el.clientWidth;
-      fitTextarea(el);
+      fitField();
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [isListening]);
+  }, [isListening, fitField]);
 
   // Reset audio level and transcript ref when listening stops
   useEffect(() => {
@@ -579,7 +594,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           ) : (
           <>
           {/* Tools fold into a chevron while typing so the field gets the width */}
-          <div className={`ec-tools${toolsCollapsed ? " collapsed" : ""}`} aria-hidden={toolsCollapsed || undefined}>
+          <div
+            ref={toolsRef}
+            className={`ec-tools${toolsCollapsed ? " collapsed" : ""}`}
+            aria-hidden={toolsCollapsed || undefined}
+            onTransitionEnd={fitField}
+          >
             {/* Game button — End Game when active, Game otherwise */}
             {isGameActive && onEndGame ? (
               <button
@@ -676,7 +696,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               }}
               placeholder={isListening ? t("Listening...", lang) : t("Type a message...", lang)}
               rows={1}
-              onInput={(e) => fitTextarea(e.currentTarget)}
+              onInput={fitField}
             />
             {text.length > 0 && (
               <button

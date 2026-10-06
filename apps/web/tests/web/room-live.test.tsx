@@ -1149,6 +1149,32 @@ describe("a tap on a suggestion under a message", () => {
     expect(one(page.body.byClass("ec-tools")).hasClass("collapsed")).toBe(true);
   });
 
+  test("the field keeps its height while the tools fold away beside it, and is fitted to the suggestion once they have gone", async () => {
+    const page = await open(offered());
+    const tools = one(page.body.byClass("ec-tools"));
+    // A browser's tools take 0.3 s to fold away or to come back (screens.css), and say so while they move
+    let moving = true;
+    tools.getAnimations = () => (moving ? [{ playState: "running" }] : []);
+    const before = field(page).style.height;
+    field(page).scrollHeight = 64;
+
+    await press(page, chips(page, "hello")[1]);
+    expect(tools.hasClass("collapsed")).toBe(true);
+    expect(held(page)).toBe("よろしくね");
+    expect(field(page).style.height).toBe(before);
+    moving = false;
+    await page.act(() => void tools.fire("transitionend"));
+    expect(field(page).style.height).toBe("64px");
+
+    // Tools that come back narrow the field all the way, and it is fitted as they move
+    await page.tap(one(labelled(page, t("More tools", "ja"))));
+    expect(tools.hasClass("collapsed")).toBe(false);
+    moving = true;
+    field(page).scrollHeight = 85;
+    await page.act(() => void field(page).fire("input"));
+    expect(field(page).style.height).toBe("85px");
+  });
+
   test("what was typed is replaced by the suggestion, not added to", async () => {
     const page = await open(offered());
     await type(page, "ねえ、");
