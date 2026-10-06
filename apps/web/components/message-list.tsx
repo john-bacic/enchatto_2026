@@ -70,6 +70,8 @@ interface MessageListProps {
   preferredLanguage?: string;
   onReply: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
+  /** A tap on a suggestion under a message, with the suggestion: each bubble is handed it */
+  onSuggestionTap?: (suggestion: string) => void;
   typingParticipants?: TypingParticipant[];
   lang?: string;
   showEnglish?: boolean;
@@ -314,6 +316,7 @@ export const MessageList = memo(function MessageList({
   preferredLanguage,
   onReply,
   onToggleReaction,
+  onSuggestionTap,
   typingParticipants,
   lang,
   showEnglish = true,
@@ -682,6 +685,7 @@ export const MessageList = memo(function MessageList({
             replyToSender={replyToSender}
             onReply={onReply}
             onToggleReaction={onToggleReaction}
+            onSuggestionTap={onSuggestionTap}
             currentParticipantId={currentParticipantId}
             preferredLanguage={preferredLanguage}
             lang={lang}

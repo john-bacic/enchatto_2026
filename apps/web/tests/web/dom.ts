@@ -119,9 +119,10 @@ export class Sim {
   /**
    * Hands the page an event on this node as a browser does: down the document to it, then back up. React listens
    * where it mounted the page, and on the body for what a sheet put there. `fields` is what the event carries
-   * besides: `{ key: "Enter" }` for that key going down.
+   * besides: `{ key: "Enter" }` for that key going down. Answers whether the page prevented what a browser goes on
+   * to do by itself for the event: for a button going down ("mousedown"), moving the focus to it.
    */
-  fire(type: string, fields: Record<string, unknown> = {}) {
+  fire(type: string, fields: Record<string, unknown> = {}): boolean {
     const path: Sim[] = [];
     for (let node: Sim | null = this; node; node = node.parentNode) path.push(node);
     let stopped = false;
@@ -138,6 +139,7 @@ export class Sim {
     };
     for (const node of [...path].reverse()) heard(node, true);
     for (const node of path) heard(node, false);
+    return event.defaultPrevented;
   }
 }
 
@@ -194,19 +196,22 @@ export interface SimBrowser {
   document: SimDocument;
   /** Whether the network is up. The page hears of a change through `fireOnWindow` */
   navigator: { onLine: boolean };
+  /** What the device is pointed at with: a finger on a phone, which is coarse, or a mouse on a computer */
+  pointer: { coarse: boolean };
   /** Hands the page an event on the window: "online", "offline" */
   fireOnWindow(type: string): void;
 }
 
 /**
- * Puts a browser in place: an empty document, storage that holds nothing, the network up. Call it before
- * react-dom is imported, which looks for a document when it loads.
+ * Puts a browser in place: an empty document, storage that holds nothing, the network up, a mouse to point with.
+ * Call it before react-dom is imported, which looks for a document when it loads.
  */
 export function installBrowser(): SimBrowser {
   const document = new SimDocument();
   // The window's own listeners (online, offline, pagehide) are kept on a node that stands nowhere
   const windowEvents = new Sim(1, "window", null);
   const navigator = { onLine: true, userAgent: "vitest" };
+  const pointer = { coarse: false };
   const globals: Record<string, unknown> = {
     window: globalThis,
     document,
@@ -215,6 +220,8 @@ export function installBrowser(): SimBrowser {
     sessionStorage: new SimStorage(),
     addEventListener: windowEvents.addEventListener.bind(windowEvents),
     removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
+    // The page asks what the device is pointed at with, and nothing else
+    matchMedia: (query: string) => ({ matches: query === "(pointer: coarse)" && pointer.coarse }),
     // React asks whether the focused element is a frame
     HTMLIFrameElement: class {},
     ResizeObserver: class {
@@ -228,5 +235,5 @@ export function installBrowser(): SimBrowser {
     IS_REACT_ACT_ENVIRONMENT: true,
   };
   for (const [name, value] of Object.entries(globals)) vi.stubGlobal(name, value);
-  return { document, navigator, fireOnWindow: (type) => windowEvents.fire(type) };
+  return { document, navigator, pointer, fireOnWindow: (type) => void windowEvents.fire(type) };
 }

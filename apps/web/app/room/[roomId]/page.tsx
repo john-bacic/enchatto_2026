@@ -6,7 +6,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { MessageList } from "@/components/message-list";
-import { MessageInput } from "@/components/message-input";
+import { MessageInput, type MessageInputHandle } from "@/components/message-input";
 import { GamePickerModal } from "@/components/game-picker-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
 import { WordRushGame } from "@/components/word-rush-game";
@@ -194,6 +194,12 @@ function RoomContent() {
     setReplyTo(null);
   };
 
+  // A tap on a suggestion under a message puts it in the message box. The box keeps its own text, so it is asked
+  // through its handle: the handler is one function for the life of the page, and a tap draws the box and nothing
+  // else. A closed room has no box, and a tap there does nothing
+  const messageInput = useRef<MessageInputHandle>(null);
+  const handleSuggestionTap = useCallback((suggestion: string) => messageInput.current?.fill(suggestion), []);
+
   const handleViewGameResults = useCallback(() => setShowGameReplay(true), []);
 
   const { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing } = useOutbox({ roomId, participantId, isOnline, replyTo, setReplyTo, lang, convexSiteUrl });
@@ -256,6 +262,7 @@ function RoomContent() {
     preferredLanguage: lang,
     onReply: handleReply,
     onToggleReaction: isOnline ? handleToggleReaction : undefined,
+    onSuggestionTap: handleSuggestionTap,
     typingParticipants,
     lang,
     showEnglish,
@@ -313,6 +320,7 @@ function RoomContent() {
       {/* Input */}
       {!isClosed ? (
         <MessageInput
+          ref={messageInput}
           onSend={handleSend}
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { forwardRef, useState, useRef, useEffect, useCallback, useImperativeHandle } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { DrawingModal } from "@/components/drawing-modal";
 import { useSpeechRecognition, ensurePunctuation, isAndroid } from "@/hooks/use-speech-recognition";
@@ -113,6 +113,15 @@ interface ReplyTo {
   senderId: string;
 }
 
+/** What the room page asks of the message box */
+export interface MessageInputHandle {
+  /**
+   * Puts a suggestion in the field in place of whatever the field holds, as if it had been typed by hand. Nothing is
+   * sent. A dictation that is running ends first, as its Cancel ends it.
+   */
+  fill: (suggestion: string) => void;
+}
+
 interface MessageInputProps {
   onSend: (text: string) => void;
   onSendImage?: (file: File) => void;
@@ -127,7 +136,7 @@ interface MessageInputProps {
   lang?: string;
 }
 
-export function MessageInput({
+export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput({
   onSend,
   onSendImage,
   onSendDrawing,
@@ -139,7 +148,7 @@ export function MessageInput({
   onCancelReply,
   onTypingChange,
   lang,
-}: MessageInputProps) {
+}, ref) {
   const [text, setText] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -147,6 +156,8 @@ export function MessageInput({
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsCollapsed = (isFocused || text.length > 0) && !toolsOpen;
   const refocusRef = useRef(false);
+  /** The field takes the focus when it is drawn again in the place of dictation's pill */
+  const focusOnReturnRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const preVoiceTextRef = useRef("");
   const lastTranscriptRef = useRef("");
@@ -261,20 +272,54 @@ export function MessageInput({
     };
   }, []);
 
+  /** Tells the room that this person is typing, until two seconds have passed without it being told again */
+  const signalTyping = () => {
+    onTypingChange?.("typing");
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      onTypingChange?.(null);
+      typingTimeoutRef.current = null;
+    }, 2000);
+  };
+
   const handleTextChange = (value: string) => {
     setText(value);
     setToolsOpen(false);
-    if (value.trim() && !isListening) {
-      onTypingChange?.("typing");
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        onTypingChange?.(null);
-        typingTimeoutRef.current = null;
-      }, 2000);
-    } else {
-      clearTyping();
-    }
+    if (value.trim() && !isListening) signalTyping();
+    else clearTyping();
   };
+
+  // A suggestion takes the place of whatever the field holds, and from there on the field is as if the suggestion
+  // had been typed by hand: the person sends it, or edits it first. A dictation that is running ends as its Cancel
+  // ends it, the words it heard and its recording dropped, and the suggestion is sent as it reads, whatever was
+  // dictated before it
+  const fill = (suggestion: string) => {
+    // A chip with nothing on it leaves the field as it is
+    if (!suggestion.trim()) return;
+    voiceClip.discard();
+    // stop() hands over the last transcript before it returns, so the text is set after it
+    if (isListening) stopVoice();
+    usedVoiceRef.current = false;
+    preVoiceTextRef.current = "";
+    dictatedRef.current = "";
+    setText(suggestion);
+    setToolsOpen(false);
+    signalTyping();
+    // A phone's keyboard stays as it is: the chip leaves the focus where it was (suggestion-chips.tsx), and the
+    // field is not given it here. On a computer the field takes the focus, so that Enter sends
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    if (isListening) focusOnReturnRef.current = true;
+    else inputRef.current?.focus();
+  };
+  useImperativeHandle(ref, () => ({ fill }));
+
+  // While dictation runs its pill stands in the field's place: the field that a suggestion ended dictation for
+  // takes the focus here, once it is drawn again
+  useEffect(() => {
+    if (isListening || !focusOnReturnRef.current) return;
+    focusOnReturnRef.current = false;
+    inputRef.current?.focus();
+  }, [isListening]);
 
   const handleSendVoice = async () => {
     if (!isListening) return;
@@ -664,4 +709,4 @@ export function MessageInput({
       />
     </>
   );
-}
+});

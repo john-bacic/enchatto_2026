@@ -55,6 +55,8 @@ interface MessageItemProps {
   replyToSender?: ParticipantData;
   onReply: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
+  /** A tap on one of the suggestions under the message, with the suggestion. Without it a tap does nothing */
+  onSuggestionTap?: (suggestion: string) => void;
   currentParticipantId: string;
   preferredLanguage?: string;
   lang?: string;
@@ -179,6 +181,7 @@ export const MessageItem = memo(function MessageItem({
   replyToSender,
   onReply,
   onToggleReaction,
+  onSuggestionTap,
   currentParticipantId,
   preferredLanguage = "en",
   lang,
@@ -433,13 +436,13 @@ export const MessageItem = memo(function MessageItem({
           )}
         </div>
 
-        {/* Suggestions: shown only, a tap on one does nothing */}
+        {/* Suggestions: a tap on one hands it to the page, which puts it in the message box */}
         {message.processing?.suggestions &&
           message.processing.suggestions.length > 0 && (
             <div style={{ marginLeft: isOwn ? 0 : 50 }}>
               <SuggestionChips
                 suggestions={message.processing.suggestions}
-                onSelect={() => {}}
+                onSelect={onSuggestionTap}
               />
             </div>
           )}
