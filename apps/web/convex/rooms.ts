@@ -433,7 +433,8 @@ export const setRoomBackground = mutation({
     // Refused, where createRoom makes its own pick: the room has a background to keep
     if (!isBackground(args.background)) throw new Error("Unknown background");
     // A retired texture is asked for by a build whose own list still offers it. That is not refused, which
-    // would fail its host's tap: the room gets another texture, never the one it has
+    // would fail its host's tap: the room gets the server's pick, never the index stored on it. A room with
+    // none stored is drawn by its join code, and its pick can be the texture it is drawn with
     const background = isRetired(args.background) ? pickBackground(room.background) : args.background;
 
     await ctx.db.patch(args.roomId, { background });
@@ -466,7 +467,8 @@ function isRetired(background: number): boolean {
 
 /**
  * The server's own pick of a background: at random among the first ten textures that are not retired, and
- * never `avoid`, the background of the last room made or of the room the pick is for.
+ * never `avoid`, the index stored on the last room made or on the room the pick is for. A room with none
+ * stored leaves nothing to avoid.
  */
 function pickBackground(avoid: number | undefined): number {
   const among: number[] = [];

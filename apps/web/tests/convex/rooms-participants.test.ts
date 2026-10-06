@@ -1451,8 +1451,9 @@ describe("setRoomBackground", () => {
 
   // An installed build's Random button picks among its own whole list, which still offers the retired textures.
   // The room then gets the server's pick: one of the first ten that are not retired, which every build has the
-  // tile of, and never the one the room has, so that the tap changes the room. The pick is made as createRoom's
-  // is: each texture it is made among has an equal share of the range, in the order of the list
+  // tile of, and never the index stored on the room, so that the tap changes the room. A room with no stored
+  // background has none to avoid: its pick is among all eight. The pick is made as createRoom's is: each texture
+  // it is made among has an equal share of the range, in the order of the list
   describe("a retired texture is not refused: the room gets the server's pick, and the answer names it", () => {
     const HAS: Array<[what: string, background: number | undefined]> = [
       ...PICKED.map((background): [string, number] => [`texture ${background}`, background]),
