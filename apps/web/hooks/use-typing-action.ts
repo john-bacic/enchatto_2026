@@ -33,8 +33,9 @@ export function useTypingAction({
     }
   }, [myActiveStep?.stepType, myActiveStep?._id, participantId, setTypingAction]);
 
+  // What this tab last sent. A signal that repeats it is not sent again
   const lastTypingAction = useRef<string | null>(null);
-  const handleTypingChange = useCallback(
+  const sendTypingAction = useCallback(
     (action: "typing" | "drawing" | "voicing" | null) => {
       if (!participantId) return;
       const key = action ?? "null";
@@ -48,5 +49,20 @@ export function useTypingAction({
     [setTypingAction, participantId]
   );
 
-  return { setTypingAction, handleTypingChange };
+  // While the Truth or Dare drawing sheet is open the action stays "drawing" whatever the input signals: its
+  // clear, two seconds after the last key, can come once the sheet is open
+  const drawingSheetOpen = useRef(false);
+  const handleTypingChange = useCallback(
+    (action: "typing" | "drawing" | "voicing" | null) => sendTypingAction(drawingSheetOpen.current ? "drawing" : action),
+    [sendTypingAction]
+  );
+  const handleDrawingStateChange = useCallback(
+    (isDrawing: boolean) => {
+      drawingSheetOpen.current = isDrawing;
+      sendTypingAction(isDrawing ? "drawing" : null);
+    },
+    [sendTypingAction]
+  );
+
+  return { handleTypingChange, handleDrawingStateChange };
 }

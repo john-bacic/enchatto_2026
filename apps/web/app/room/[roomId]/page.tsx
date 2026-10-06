@@ -105,7 +105,7 @@ function RoomContent() {
 
   const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize } = useDisplayPrefs(participantId);
 
-  const { setTypingAction, handleTypingChange } = useTypingAction({ participantId, myActiveStep });
+  const { handleTypingChange, handleDrawingStateChange } = useTypingAction({ participantId, myActiveStep });
 
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
@@ -295,7 +295,7 @@ function RoomContent() {
       <EmojiBingoLayer emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} participantId={participantId} me={me} lang={lang} handleJoinEmojiBingoLobby={handleJoinEmojiBingoLobby} handleLeaveEmojiBingoLobby={handleLeaveEmojiBingoLobby} handleStartEmojiBingo={handleStartEmojiBingo} handleUpdateEmojiBingoSettings={handleUpdateEmojiBingoSettings} handleRollEmojiBingo={handleRollEmojiBingo} handleMarkEmojiBingoCell={handleMarkEmojiBingoCell} handleClaimEmojiBingo={handleClaimEmojiBingo} handleCancelEmojiBingo={handleCancelEmojiBingo} handlePlayAgainEmojiBingo={handlePlayAgainEmojiBingo} setDismissedEmojiBingoId={setDismissedEmojiBingoId} />
 
       {/* Truth or Dare game overlay — only show for active games */}
-      <TruthOrDareLayer truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} participantId={participantId} me={me} lang={lang} handleSubmitTruthOrDareChoice={handleSubmitTruthOrDareChoice} handleSubmitTruthOrDareResponse={handleSubmitTruthOrDareResponse} handleAdvanceTruthOrDareTurn={handleAdvanceTruthOrDareTurn} handleSkipTruthOrDareTurn={handleSkipTruthOrDareTurn} handleEndTruthOrDare={handleEndTruthOrDare} handleSubmitTruthOrDareRating={handleSubmitTruthOrDareRating} setTypingAction={setTypingAction} setDismissedTruthOrDareId={setDismissedTruthOrDareId} />
+      <TruthOrDareLayer truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} participantId={participantId} me={me} lang={lang} handleSubmitTruthOrDareChoice={handleSubmitTruthOrDareChoice} handleSubmitTruthOrDareResponse={handleSubmitTruthOrDareResponse} handleAdvanceTruthOrDareTurn={handleAdvanceTruthOrDareTurn} handleSkipTruthOrDareTurn={handleSkipTruthOrDareTurn} handleEndTruthOrDare={handleEndTruthOrDare} handleSubmitTruthOrDareRating={handleSubmitTruthOrDareRating} handleDrawingStateChange={handleDrawingStateChange} setDismissedTruthOrDareId={setDismissedTruthOrDareId} />
 
       {/* Floating resume buttons when games are minimized */}
       <ResumeButtons truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} setDismissedTruthOrDareId={setDismissedTruthOrDareId} lang={lang} emojiMatchGame={emojiMatchGame} emojiMatchOnScreen={emojiMatchOnScreen} dismissedEmojiMatchId={dismissedEmojiMatchId} setDismissedEmojiMatchId={setDismissedEmojiMatchId} emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} setDismissedEmojiBingoId={setDismissedEmojiBingoId} />

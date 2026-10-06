@@ -2,7 +2,6 @@
 
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import { TruthOrDareGame } from "@/components/truth-or-dare-game";
 import type { useTruthOrDare } from "@/hooks/games/use-truth-or-dare";
 import type { useTypingAction } from "@/hooks/use-typing-action";
@@ -19,7 +18,7 @@ export function TruthOrDareLayer({
   handleSkipTruthOrDareTurn,
   handleEndTruthOrDare,
   handleSubmitTruthOrDareRating,
-  setTypingAction,
+  handleDrawingStateChange,
   setDismissedTruthOrDareId,
 }: {
   truthOrDareGame: ReturnType<typeof useTruthOrDare>["truthOrDareGame"];
@@ -33,7 +32,7 @@ export function TruthOrDareLayer({
   handleSkipTruthOrDareTurn: ReturnType<typeof useTruthOrDare>["handleSkipTruthOrDareTurn"];
   handleEndTruthOrDare: ReturnType<typeof useTruthOrDare>["handleEndTruthOrDare"];
   handleSubmitTruthOrDareRating: ReturnType<typeof useTruthOrDare>["handleSubmitTruthOrDareRating"];
-  setTypingAction: ReturnType<typeof useTypingAction>["setTypingAction"];
+  handleDrawingStateChange: ReturnType<typeof useTypingAction>["handleDrawingStateChange"];
   setDismissedTruthOrDareId: ReturnType<typeof useTruthOrDare>["setDismissedTruthOrDareId"];
 }) {
   return (
@@ -50,14 +49,7 @@ export function TruthOrDareLayer({
           onSkipTurn={handleSkipTruthOrDareTurn}
           onEndGame={handleEndTruthOrDare}
           onSubmitRating={handleSubmitTruthOrDareRating}
-          onDrawingStateChange={(isDrawing) => {
-            if (participantId) {
-              setTypingAction({
-                participantId: participantId as Id<"participants">,
-                action: isDrawing ? "drawing" : undefined,
-              }).catch(() => {});
-            }
-          }}
+          onDrawingStateChange={handleDrawingStateChange}
           onClose={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
           onMinimize={() => setDismissedTruthOrDareId(truthOrDareGame._id)}
         />
