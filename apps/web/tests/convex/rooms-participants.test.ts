@@ -2636,6 +2636,19 @@ describe("/api/rooms/* and /api/participants/*", () => {
     expect((await roomRow(t, other.roomId)).background).toBe(3);
   });
 
+  // What the Random button of a build that has the whole list can send: a texture past the first ten, the last too
+  test("rooms/background takes a texture past the first ten, up to the last of the list", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    for (const background of [10, 36, LAST]) {
+      const res = await post(t, "/api/rooms/background", { roomId, background });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ background });
+      expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(background);
+      expect((await roomRow(t, roomId)).background).toBe(background);
+    }
+  });
+
   // What an installed build's Random button can send. The app reads nothing of the answer: it draws its own pick
   // and takes the room's background from its next refresh of the room
   test("rooms/background answers 200 to a retired texture, with the background the room got in its place", async () => {
