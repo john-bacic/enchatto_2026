@@ -34,7 +34,7 @@ extension HostRoomViewModel {
         }
     }
 
-    private func applyWordRushState(_ game: WordRushGame?) {
+    func applyWordRushState(_ game: WordRushGame?) {
         if let game, game.isLive { wordRushSeenLiveIds.insert(game.id) }
         if game != activeWordRushGame { activeWordRushGame = game }
         if wordRushNeedsFastPoll { startWordRushFastPoll() }

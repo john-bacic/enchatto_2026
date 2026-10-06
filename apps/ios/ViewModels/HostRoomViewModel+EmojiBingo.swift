@@ -19,7 +19,7 @@ extension HostRoomViewModel {
         }
     }
 
-    private func applyEmojiBingoState(_ game: EmojiBingoGame?) {
+    func applyEmojiBingoState(_ game: EmojiBingoGame?) {
         activeEmojiBingoGame = game
         let needsFastPoll = game != nil &&
             (game!.status == .active || game!.status == .won || game!.status == .lobby)

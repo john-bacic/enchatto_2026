@@ -13,6 +13,38 @@ struct CreateRoomResult {
     let background: Int?
 }
 
+/// A room as one request reads it (/api/rooms/snapshot): what a refresh of the room screen shows, all but a
+/// finished game's replay. The room, its participants, its messages and their reactions are always here: an
+/// answer without one of them makes no snapshot. Each game section is here or not on its own
+struct RoomSnapshot {
+    /// The game sections, under the names the route has for them
+    enum Section: String {
+        case activeSession, gameStatus, myActiveStep, latestSession, wordRush, emojiMatch, emojiBingo, truthOrDare
+    }
+
+    /// One game section of an answer
+    enum Part<Value> {
+        /// Not in the answer: the request left it out, or the server could not read it. Nothing is known of
+        /// the game, which is not the same as there being none
+        case missing
+        /// What the server has: nil when there is none
+        case answered(Value?)
+    }
+
+    let room: Room
+    let participants: [Participant]
+    let messages: [Message]
+    let reactions: [MessageReactionSummary]
+    let activeSession: Part<GameSession>
+    let gameStatus: Part<GameStatus>
+    let myActiveStep: Part<GameStep>
+    let latestSession: Part<GameSession>
+    let wordRush: Part<WordRushGame>
+    let emojiMatch: Part<EmojiMatchGame>
+    let emojiBingo: Part<EmojiBingoGame>
+    let truthOrDare: Part<TruthOrDareGame>
+}
+
 /// Protocol defining all backend operations the host app needs
 protocol EnchattoAPI {
     /// Create a new room with the given settings. hostLanguage ("en" / "ja") is the host's own language, separate from the room's translation direction.
@@ -25,6 +57,11 @@ protocol EnchattoAPI {
 
     /// Fetch the current room state (room + participants)
     func getRoomState(roomId: String) async throws -> (room: Room, participants: [Participant])
+
+    /// Fetch the room, its participants, its messages, their reactions and the state of every game in one request.
+    /// `participantId` is whose game step is asked for; `skip` names the game sections to leave out. Throws
+    /// `APIError.http` with status 404 on a server that has no such route
+    func getRoomSnapshot(roomId: String, participantId: String, skip: Set<RoomSnapshot.Section>) async throws -> RoomSnapshot
 
     /// Fetch all messages for a room
     func getRoomMessages(roomId: String) async throws -> [Message]

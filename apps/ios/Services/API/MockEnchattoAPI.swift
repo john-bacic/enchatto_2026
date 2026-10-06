@@ -82,6 +82,28 @@ class MockEnchattoAPI: EnchattoAPI {
         return (room, participants[roomId] ?? [])
     }
 
+    func getRoomSnapshot(roomId: String, participantId: String, skip: Set<RoomSnapshot.Section>) async throws -> RoomSnapshot {
+        /// A game section from the getter of its own route; left out when the request skips it
+        func part<Value>(_ section: RoomSnapshot.Section, _ get: () async throws -> Value?) async rethrows -> RoomSnapshot.Part<Value> {
+            skip.contains(section) ? .missing : .answered(try await get())
+        }
+        let state = try await getRoomState(roomId: roomId)
+        return RoomSnapshot(
+            room: state.room,
+            participants: state.participants,
+            messages: try await getRoomMessages(roomId: roomId),
+            reactions: try await getRoomReactions(roomId: roomId),
+            activeSession: try await part(.activeSession) { try await getActiveGameSession(roomId: roomId) },
+            gameStatus: try await part(.gameStatus) { try await getGameStatus(roomId: roomId) },
+            myActiveStep: try await part(.myActiveStep) { try await getMyActiveStep(participantId: participantId) },
+            latestSession: try await part(.latestSession) { try await getLatestGameSession(roomId: roomId) },
+            wordRush: try await part(.wordRush) { try await getWordRushState(roomId: roomId) },
+            emojiMatch: try await part(.emojiMatch) { try await getActiveEmojiMatch(roomId: roomId) },
+            emojiBingo: try await part(.emojiBingo) { try await getActiveEmojiBingo(roomId: roomId) },
+            truthOrDare: try await part(.truthOrDare) { try await getActiveTruthOrDare(roomId: roomId) }
+        )
+    }
+
     func getRoomMessages(roomId: String) async throws -> [Message] {
         return messages[roomId] ?? []
     }

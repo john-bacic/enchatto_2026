@@ -8,22 +8,27 @@ extension HostRoomViewModel {
         await pollTruthOrDareState(afterOwnAction: false)
     }
 
-    /// Asks for the game and shows it, unless it may be from before an action of the host's: a game asked for
-    /// before the latest action was sent or answered, and any game that arrives while an action is under way.
-    /// `afterOwnAction` marks the poll an action makes once it is answered: the action is still under way then,
-    /// which does not keep its own poll from showing
+    /// Asks for the game and shows it under the rule of `applyTruthOrDareState(_:askedAt:afterOwnAction:)`
     private func pollTruthOrDareState(afterOwnAction: Bool) async {
         do {
             let epoch = truthOrDareEpoch
             let game = try await api.getActiveTruthOrDare(roomId: roomId)
-            guard epoch == truthOrDareEpoch, afterOwnAction || !isTruthOrDareSubmitting else {
-                DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:notCurrent")
-                return
-            }
-            applyTruthOrDareState(game)
+            applyTruthOrDareState(game, askedAt: epoch, afterOwnAction: afterOwnAction)
         } catch {
             DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:error", detail: error.localizedDescription, ok: false)
         }
+    }
+
+    /// Shows a game that was asked for at `epoch`, unless it may be from before an action of the host's: a game
+    /// asked for before the latest action was sent or answered, and any game that arrives while an action is
+    /// under way. `afterOwnAction` marks the poll an action makes once it is answered: the action is still
+    /// under way then, which does not keep its own poll from showing
+    func applyTruthOrDareState(_ game: TruthOrDareGame?, askedAt epoch: Int, afterOwnAction: Bool = false) {
+        guard epoch == truthOrDareEpoch, afterOwnAction || !isTruthOrDareSubmitting else {
+            DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:notCurrent")
+            return
+        }
+        applyTruthOrDareState(game)
     }
 
     private func applyTruthOrDareState(_ game: TruthOrDareGame?) {

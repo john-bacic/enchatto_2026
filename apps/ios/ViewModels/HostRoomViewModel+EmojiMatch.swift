@@ -46,7 +46,7 @@ extension HostRoomViewModel {
         }
     }
 
-    private func applyEmojiMatchState(_ server: EmojiMatchGame?, askedAt epoch: Int) {
+    func applyEmojiMatchState(_ server: EmojiMatchGame?, askedAt epoch: Int) {
         // The board to show: the server's, except that one which may be missing a flip leaves face-up
         // cards up, and one older than the screen's is not shown
         let game = emojiMatchBoard(server, askedAt: epoch)

@@ -72,6 +72,9 @@ class ConvexHTTPClient {
         // repeated here, since the request may have arrived
         var retriesLeft = retriesOn5xx
         while true {
+            #if DEBUG
+            ConvexHTTPClient.countRequest()
+            #endif
             let (data, response) = try await ConvexHTTPClient.session.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -107,6 +110,43 @@ class ConvexHTTPClient {
 private struct EmptyResponse: Decodable {
     // Accepts {"ok": true} or any JSON
 }
+
+#if DEBUG
+/// Counts the requests one task sends, for the line each refresh writes to the debug console. A count is kept
+/// for the task that started it and for no other: the tasks a refresh starts on its way (a game's fast poll, a
+/// write) are tasks of their own, and what they send is not counted as the refresh's
+extension ConvexHTTPClient {
+    private static let countLock = NSLock()
+    private static var requestCounts: [Int: Int] = [:]
+    /// Tells the running task from every other task that is alive
+    private static var runningTask: Int? {
+        withUnsafeCurrentTask { $0?.hashValue }
+    }
+
+    /// Counts the requests the running task sends from here on
+    static func startRequestCount() {
+        guard let task = runningTask else { return }
+        countLock.lock()
+        defer { countLock.unlock() }
+        requestCounts[task] = 0
+    }
+
+    /// Ends the running task's count and gives it
+    static func endRequestCount() -> Int {
+        guard let task = runningTask else { return 0 }
+        countLock.lock()
+        defer { countLock.unlock() }
+        return requestCounts.removeValue(forKey: task) ?? 0
+    }
+
+    fileprivate static func countRequest() {
+        guard let task = runningTask else { return }
+        countLock.lock()
+        defer { countLock.unlock() }
+        if let count = requestCounts[task] { requestCounts[task] = count + 1 }
+    }
+}
+#endif
 
 extension Error {
     /// The task was cancelled (view went away, app backgrounded). Nothing failed: never retried on its account, never shown.

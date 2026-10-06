@@ -168,6 +168,9 @@ class HostRoomViewModel: ObservableObject {
     var consecutivePollFailures = 0
     /// Last poll failure written to the debug console, so one that repeats is logged once
     var lastPollFailureLogged: String?
+    /// Set when the server answers the snapshot request with 404: it has no such route. For as long as this view
+    /// model lives, which is one visit to the room, every refresh then makes the requests the snapshot stands for
+    var snapshotRouteMissing = false
 
     var pushRegistered = false
 

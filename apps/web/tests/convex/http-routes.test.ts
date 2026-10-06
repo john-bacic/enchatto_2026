@@ -129,3 +129,14 @@ test("a POST to a path with no route answers 404", async () => {
   const refused = await t.fetch("/api/rooms/state", { method: "POST", body: JSON.stringify({}) });
   expect(refused.status).toBe(400);
 });
+
+test("the path a Debug build of the iPhone app asks in place of the snapshot has no route", async () => {
+  const t = newBackend();
+  // Started with -enchatto_noSnapshotRoute YES, a Debug build sends its snapshot request to this path
+  // (RealEnchattoAPI.snapshotPath): the 404 is then the server's own, as from a server that has no snapshot route,
+  // and the app carries on with the requests the snapshot stands for. A route at this path would end that. The
+  // snapshot route answers the same request with something other than 404: here 400, for ids that are none
+  const body = JSON.stringify({ roomId: "none", participantId: "none", skip: [] });
+  expect((await t.fetch("/api/rooms/no-snapshot-route", { method: "POST", body })).status).toBe(404);
+  expect((await t.fetch("/api/rooms/snapshot", { method: "POST", body })).status).toBe(400);
+});

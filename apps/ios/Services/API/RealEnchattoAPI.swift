@@ -66,6 +66,70 @@ class RealEnchattoAPI: EnchattoAPI {
         return (response.room, response.participants)
     }
 
+    /// The path the snapshot is asked at. A Debug build started with the launch argument
+    /// `-enchatto_noSnapshotRoute YES` asks a path the server has no route for, and is answered as a server from
+    /// before the route answers: with its own 404
+    private static var snapshotPath: String {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "enchatto_noSnapshotRoute") { return "/api/rooms/no-snapshot-route" }
+        #endif
+        return "/api/rooms/snapshot"
+    }
+
+    func getRoomSnapshot(roomId: String, participantId: String, skip: Set<RoomSnapshot.Section>) async throws -> RoomSnapshot {
+        /// The answer, section by section. Each is the result of the query its own route runs, and is read as
+        /// the getter for that route in this file reads its body
+        struct Answer: Decodable {
+            let snapshot: RoomSnapshot
+
+            enum CodingKeys: String, CodingKey {
+                case room, participants, messages, reactions
+                case activeSession, gameStatus, myActiveStep, latestSession, wordRush, emojiMatch, emojiBingo, truthOrDare
+            }
+
+            init(from decoder: Decoder) throws {
+                let sections = try decoder.container(keyedBy: CodingKeys.self)
+
+                /// A game section. One that is not there is not null: null says there is no game. One that does
+                /// not decode reads as no game too, as on its own route, whose {"ok":true} for none does not decode
+                func part<Value: Decodable>(_ key: CodingKeys) -> RoomSnapshot.Part<Value> {
+                    guard sections.contains(key) else { return .missing }
+                    return .answered(try? sections.decode(Value.self, forKey: key))
+                }
+
+                // Word Rush is the game itself or null, where its own route wraps it ({"game": …}). There a game
+                // that does not decode fails the request, and nothing is known of the game: the same here
+                let wordRush: RoomSnapshot.Part<WordRushGame>
+                do {
+                    wordRush = sections.contains(.wordRush) ? .answered(try sections.decodeIfPresent(WordRushGame.self, forKey: .wordRush)) : .missing
+                } catch {
+                    wordRush = .missing
+                }
+
+                snapshot = RoomSnapshot(
+                    // Missing, null or unreadable, any one of these four fails the whole answer
+                    room: try sections.decode(Room.self, forKey: .room),
+                    participants: try sections.decode([Participant].self, forKey: .participants),
+                    messages: try sections.decode([Message].self, forKey: .messages),
+                    reactions: try sections.decode([MessageReactionSummary].self, forKey: .reactions),
+                    activeSession: part(.activeSession),
+                    gameStatus: part(.gameStatus),
+                    myActiveStep: part(.myActiveStep),
+                    latestSession: part(.latestSession),
+                    wordRush: wordRush,
+                    emojiMatch: part(.emojiMatch),
+                    emojiBingo: part(.emojiBingo),
+                    truthOrDare: part(.truthOrDare)
+                )
+            }
+        }
+
+        var body: [String: Any] = ["roomId": roomId, "participantId": participantId]
+        if !skip.isEmpty { body["skip"] = skip.map(\.rawValue).sorted() }
+        let answer: Answer = try await client.post(RealEnchattoAPI.snapshotPath, body: body)
+        return answer.snapshot
+    }
+
     func closeRoom(roomId: String) async throws {
         try await client.postVoid("/api/rooms/close", body: ["roomId": roomId], retriesOn5xx: 1)
     }
