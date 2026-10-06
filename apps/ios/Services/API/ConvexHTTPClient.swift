@@ -139,7 +139,7 @@ extension ConvexHTTPClient {
         return requestCounts.removeValue(forKey: task) ?? 0
     }
 
-    fileprivate static func countRequest() {
+    private static func countRequest() {
         guard let task = runningTask else { return }
         countLock.lock()
         defer { countLock.unlock() }
