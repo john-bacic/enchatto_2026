@@ -24,9 +24,11 @@ export function useLostInTranslation({
     api.games.getMyActiveStep,
     participantId ? { participantId: participantId as Id<"participants">, token: tokenFor(participantId) } : "skip"
   );
-  // Debug: trace game step changes
+  // Debug: trace game step changes. A production build prints nothing
   useEffect(() => {
-    console.log("[GAME] myActiveStep:", myActiveStep ? { id: myActiveStep._id, type: myActiveStep.stepType, round: myActiveStep.round, chain: (myActiveStep as any).chainId } : null);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[GAME] myActiveStep:", myActiveStep ? { id: myActiveStep._id, type: myActiveStep.stepType, round: myActiveStep.round, chain: (myActiveStep as any).chainId } : null);
+    }
   }, [myActiveStep]);
 
   const latestGameSession = useQuery(api.games.getLatestGameSession, {

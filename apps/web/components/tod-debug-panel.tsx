@@ -23,12 +23,14 @@ export function todTrace(entry: Omit<TodTraceEntry, "ts">) {
   _traceLog.push({ ...entry, ts: Date.now() });
   if (_traceLog.length > 500) _traceLog = _traceLog.slice(-300);
   _listeners.forEach((fn) => fn());
-  // Also log to console for Safari/Chrome DevTools
-  const icon = entry.ok === false ? "❌" : entry.source === "server" ? "🔵" : "🟢";
-  console.log(
-    `%c[T/D] ${icon} ${entry.action}${entry.latencyMs ? ` ${entry.latencyMs}ms` : ""}${entry.detail ? ` — ${entry.detail}` : ""}`,
-    entry.ok === false ? "color: red" : "color: gray"
-  );
+  // Also log to console for Safari/Chrome DevTools. A production build prints nothing
+  if (process.env.NODE_ENV !== "production") {
+    const icon = entry.ok === false ? "❌" : entry.source === "server" ? "🔵" : "🟢";
+    console.log(
+      `%c[T/D] ${icon} ${entry.action}${entry.latencyMs ? ` ${entry.latencyMs}ms` : ""}${entry.detail ? ` — ${entry.detail}` : ""}`,
+      entry.ok === false ? "color: red" : "color: gray"
+    );
+  }
 }
 
 function useTraceLog() {

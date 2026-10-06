@@ -31,6 +31,10 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // clock the numbers a page drawn at every move would show, and a move draws the page only when it changes one.
 // The results of a Word Rush game that ended before the page opened go three minutes after the game ended, by
 // the game's own timer.
+//
+// And what the page prints about a guest's game: the step of Lost in Translation at each change, and each traced
+// action of Truth or Dare. A development build prints them; a production build prints nothing, and the debug panel
+// lists the traced actions in both.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -40,6 +44,7 @@ type Message = FunctionReturnType<typeof api.messages.getRoomMessages>[number];
 type Reactions = FunctionReturnType<typeof api.reactions.getReactionSummary>;
 type RoomReactions = FunctionReturnType<typeof api.reactions.getRoomReactionSummaries>;
 type Session = NonNullable<FunctionReturnType<typeof api.games.getActiveGameSession>>;
+type Step = NonNullable<FunctionReturnType<typeof api.games.getMyActiveStep>>;
 type DareGame = NonNullable<FunctionReturnType<typeof api.truthOrDare.getActiveTruthOrDare>>;
 type RushGame = NonNullable<FunctionReturnType<typeof api.wordRush.getState>>;
 
@@ -48,7 +53,7 @@ interface Answers {
   "rooms:getRoomState"?: RoomState | null;
   "messages:getRoomMessages"?: Message[];
   "games:getActiveGameSession"?: Session | null;
-  "games:getMyActiveStep"?: null;
+  "games:getMyActiveStep"?: Step | null;
   "games:getLatestGameSession"?: Session | null;
   "wordRush:getState"?: RushGame | null;
   "emojiMatch:getActiveEmojiMatch"?: null;
@@ -1646,5 +1651,120 @@ describe("Truth or Dare's drawing signal", () => {
     expect(sheets(page)).toBe(1);
     expect(signals()).toEqual(["clear", "typing", "clear", "drawing"]);
     expect(stored()).toBe("drawing");
+  });
+});
+
+// ─── What the page prints ────────────────────────────────────────────────────
+
+describe("the debug lines about a guest's game", () => {
+  const seat = (p: Person) => ({ participantId: p._id, nickname: p.nickname, avatarValue: p.avatar.value, online: p.online });
+  const GAME = "dare1" as Id<"truthOrDareGames">;
+  // Truth or Dare between Yuki and Sam, at Yuki's turn: she has not chosen yet
+  const choosing: DareGame = {
+    _id: GAME,
+    _creationTime: NOW,
+    roomId: ROOM,
+    status: "active",
+    hostParticipantId: HOST,
+    promptMode: "normal",
+    playerOrder: [YUKI, SAM],
+    currentTurnIndex: 0,
+    currentTurnParticipantId: YUKI,
+    createdAt: NOW,
+    currentTurn: {
+      _id: "turn1" as Id<"truthOrDareTurns">,
+      _creationTime: NOW,
+      gameId: GAME,
+      turnIndex: 0,
+      participantId: YUKI,
+      status: "waiting_for_choice",
+      createdAt: NOW,
+      responseMediaUrl: undefined,
+      responseStorageId: undefined,
+    },
+    completedTurns: 0,
+    completedTurnsList: [],
+    totalTurns: 1,
+    playerInfo: [seat(yuki), seat(sam)],
+  };
+  // Round 1 of Lost in Translation, where Yuki guesses Alex's drawing
+  const guess: Step = {
+    _id: "step2" as Id<"gameSteps">,
+    _creationTime: NOW,
+    gameSessionId: session._id,
+    chainId: "chain1" as Id<"gameChains">,
+    stepIndex: 1,
+    stepType: "guess",
+    assignedParticipantId: YUKI,
+    status: "active",
+    createdAt: NOW,
+    round: 1,
+    inputText: undefined,
+    hintText: undefined,
+    inputDrawingUrl: file("round-1"),
+    options: ["猫", "星", "家", "ドラゴン"],
+    correctOption: "猫",
+    chainMaxSteps: 3,
+    level: 1,
+    totalRounds: 10,
+    timerEnabled: 45,
+  };
+
+  // The panel keeps its log in its module, as the page keeps what it has traced: each test starts from a page load
+  beforeEach(() => vi.resetModules());
+  afterEach(() => vi.resetModules());
+
+  /**
+   * The page in a build of the kind `mode`, with both games on. React takes its own build from NODE_ENV as it is
+   * loaded, and a test needs its development build, so React is loaded before the page's build is named.
+   */
+  async function openIn(mode: "production" | "development") {
+    await import("react");
+    await import("react-dom/client");
+    vi.stubEnv("NODE_ENV", mode);
+    return open(talking({ "truthOrDare:getActiveTruthOrDare": choosing }));
+  }
+
+  /** Yuki chooses truth, and then her step of Lost in Translation arrives */
+  async function play(page: Page) {
+    await page.tap(one(page.body.all((n) => n.nodeName === "BUTTON" && n.hasClass("tod-card") && n.textContent.startsWith(t("Truth", "ja")))));
+    await page.answer("games:getMyActiveStep", () => guess);
+  }
+
+  /** Everything the page printed with console.log, each line as its arguments */
+  const printed = () => vi.mocked(console.log).mock.calls;
+
+  /** The actions the debug panel lists, oldest first. It stands at the foot of the display settings sheet */
+  async function traced(page: Page) {
+    await page.tap(one(labelled(page, t("Display settings", "ja"))));
+    await page.tap(one(page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === "Game Debug")));
+    const count = one(page.body.all((n) => n.nodeName === "SPAN" && /^\d+ entries$/.test(n.textContent)));
+    const entries = count.parentNode!.parentNode!.parentNode!.lastChild!.childNodes;
+    expect(count.textContent).toBe(`${entries.length} entries`);
+    return entries.map((entry) => entry.all((n) => n.nodeName === "SPAN")[1].textContent).reverse();
+  }
+
+  const TRACED = ["query:stateChange", "btn:truth", "submitChoice:start", "submitChoice:ok"];
+
+  test("a production build prints none of them, and the debug panel still lists each traced action", async () => {
+    const page = await openIn("production");
+    await play(page);
+    expect(printed()).toEqual([]);
+    expect(await traced(page)).toEqual(TRACED);
+  });
+
+  test("a development build prints the step at each change and every traced action, which the panel lists too", async () => {
+    const page = await openIn("development");
+    await play(page);
+    expect(printed()).toEqual([
+      ["[GAME] myActiveStep:", null],
+      ["%c[T/D] 🟢 query:stateChange — status=active turn=waiting_for_choice idx=0 pid=yuki", "color: gray"],
+      ["%c[T/D] 🟢 btn:truth — turnStatus=waiting_for_choice isMyTurn=true", "color: gray"],
+      ["%c[T/D] 🟢 submitChoice:start — truth pid=yuki", "color: gray"],
+      // The time the mutation took stands before the dash when it is a millisecond or more
+      [expect.stringMatching(/^%c\[T\/D\] 🟢 submitChoice:ok( \d+ms)? — truth pid=yuki$/), "color: gray"],
+      ["[GAME] myActiveStep:", { id: "step2", type: "guess", round: 1, chain: "chain1" }],
+    ]);
+    expect(await traced(page)).toEqual(TRACED);
   });
 });
