@@ -23,7 +23,8 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // show the same pills, and neither shows a reaction before the server has answered for it.
 //
 // And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
-// opens and when it closes, and not each time the page is drawn.
+// opens and when it closes, and not each time the page is drawn. While it is open, the signal is written once more
+// each time the room shows it gone.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -1271,6 +1272,97 @@ describe("Truth or Dare's drawing signal", () => {
     leave!();
     leave = null;
     expect(signals()).toEqual(["clear", "drawing", "clear"]);
+  });
+
+  test("the server takes the action away under the open sheet: it is sent once more each time, and stands", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    await page.tap(drawButton(page));
+    await page.wait(3);
+    expect(stored()).toBe("drawing");
+
+    // The sweep finds the tab quiet and marks it away, with no action (participants.cleanupStaleParticipants)
+    await page.answer("rooms:getRoomState", person(YUKI, { presence: "away", typingAction: undefined }));
+    expect(signals()).toEqual(["clear", "drawing", "drawing"]);
+    await page.wait(30);
+    expect(signals()).toEqual(["clear", "drawing", "drawing"]);
+    expect(stored()).toBe("drawing");
+
+    // Another tab of Yuki's is closed, and its leave clears what the room holds for her (participants.leaveRoom)
+    await page.answer("rooms:getRoomState", person(YUKI, { online: false, departed: true, typingAction: undefined }));
+    await page.wait(30);
+    expect(signals()).toEqual(["clear", "drawing", "drawing", "drawing"]);
+    expect(stored()).toBe("drawing");
+
+    // Another tab of hers writes in its chat field, and stops
+    await page.answer("rooms:getRoomState", person(YUKI, { typingAction: "typing" }));
+    await page.wait(2);
+    expect(stored()).toBe("drawing");
+    await page.answer("rooms:getRoomState", person(YUKI, { typingAction: undefined }));
+    await page.wait(30);
+    expect(signals()).toEqual(["clear", "drawing", "drawing", "drawing", "drawing", "drawing"]);
+    expect(stored()).toBe("drawing");
+
+    await page.tap(one(page.body.byClass("sim-canvas-cancel")));
+    await page.wait(5);
+    expect(signals().slice(6)).toEqual(["clear"]);
+    expect(stored()).toBeUndefined();
+  });
+
+  test("the server takes the action away and does not keep the one it is sent: it is sent once, not again and again", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    await page.tap(drawButton(page));
+    await page.wait(3);
+    const keeps = server.onCall!;
+    server.onCall = (name, args) => {
+      if (name !== "participants:setTypingAction") keeps(name, args);
+    };
+    await page.answer("rooms:getRoomState", person(YUKI, { typingAction: undefined }));
+    await page.wait(60);
+    expect(drawnAgain().page).toBeGreaterThanOrEqual(16);
+    expect(signals()).toEqual(["clear", "drawing", "drawing"]);
+  });
+
+  test("with no sheet open, the action going from the room is nothing to this tab", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    // Another tab of Yuki's has its own sheet open, and closes it
+    await page.answer("rooms:getRoomState", person(YUKI, { typingAction: "drawing" }));
+    await page.answer("rooms:getRoomState", person(YUKI, { typingAction: undefined }));
+    await page.wait(30);
+    expect(signals()).toEqual(["clear"]);
+
+    // This tab's sheet, opened and closed: the room's answer to the close is not a reason to send anything
+    await page.tap(drawButton(page));
+    await page.wait(3);
+    await page.tap(one(page.body.byClass("sim-canvas-cancel")));
+    await page.wait(30);
+    expect(signals()).toEqual(["clear", "drawing", "clear"]);
+    expect(stored()).toBeUndefined();
+  });
+
+  test("a clear of this tab's own is still on its way when the sheet opens: the room's answer to it costs one more write, and no more", async () => {
+    const page = await open(talking({ "truthOrDare:getActiveTruthOrDare": game }));
+    roomLives();
+    await page.tap(one(labelled(page, t("Minimize", "ja"))));
+    const field = one(page.body.all((n) => n.nodeName === "TEXTAREA"));
+    field.value = "ちょっと";
+    await page.act(() => field.fire("input"));
+    await page.wait(1);
+    expect(stored()).toBe("typing");
+
+    // The overlay clears the field's signal as it comes back up, and the sheet is opened before the room has answered
+    await page.tap(one(labelled(page, t("Resume Truth or Dare", "ja"))));
+    await page.act(() => void vi.advanceTimersByTime(50));
+    await page.tap(drawButton(page));
+    expect(signals()).toEqual(["clear", "typing", "clear", "drawing"]);
+    await page.act(() => void vi.advanceTimersByTime(60));
+    expect(stored()).toBeUndefined();
+    expect(signals()).toEqual(["clear", "typing", "clear", "drawing", "drawing"]);
+    await page.wait(30);
+    expect(signals()).toEqual(["clear", "typing", "clear", "drawing", "drawing"]);
+    expect(stored()).toBe("drawing");
   });
 
   test("a message left in the field, then the sheet opened: the field's own clear two seconds on does not take the signal down", async () => {

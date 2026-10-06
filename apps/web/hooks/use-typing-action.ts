@@ -9,9 +9,12 @@ import { useAuthedMutation } from "@/lib/convex";
 export function useTypingAction({
   participantId,
   myActiveStep,
+  storedAction,
 }: {
   participantId: string;
   myActiveStep: FunctionReturnType<typeof api.games.getMyActiveStep> | undefined;
+  /** The action the room holds for this participant */
+  storedAction: "typing" | "drawing" | "voicing" | undefined;
 }) {
   const setTypingAction = useAuthedMutation(api.participants.setTypingAction);
 
@@ -63,6 +66,15 @@ export function useTypingAction({
     },
     [sendTypingAction]
   );
+
+  // The room can lose the action under the open sheet without this tab having cleared it: the server takes it
+  // from someone whose tab left or went quiet, and another tab of the same guest writes its own. Each time the
+  // room shows this participant with anything but "drawing" while the sheet is open, it is sent once more
+  useEffect(() => {
+    if (!drawingSheetOpen.current || storedAction === "drawing") return;
+    lastTypingAction.current = null;
+    sendTypingAction("drawing");
+  }, [storedAction, sendTypingAction]);
 
   return { handleTypingChange, handleDrawingStateChange };
 }

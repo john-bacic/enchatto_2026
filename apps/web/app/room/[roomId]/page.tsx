@@ -121,13 +121,13 @@ function RoomContent() {
 
   const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize } = useDisplayPrefs(participantId);
 
-  const { handleTypingChange, handleDrawingStateChange } = useTypingAction({ participantId, myActiveStep });
-
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
 
   const me = participants.find((p) => p._id === participantId);
   const lang = me?.preferredLanguage ?? "ja";
+
+  const { handleTypingChange, handleDrawingStateChange } = useTypingAction({ participantId, myActiveStep, storedAction: me?.typingAction });
 
   // A guest's header, input bar and browser chrome take a light tint of their avatar colour
   const meTint = me && me.role !== "host" ? avatarTint(me.avatar.value) : undefined;
