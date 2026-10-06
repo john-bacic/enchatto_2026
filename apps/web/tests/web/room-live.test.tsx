@@ -40,6 +40,7 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // an answer typed or drawn, Next Turn, Skip, End Game, a rating) tells the player in their language and leaves what
 // they had entered for another try. All but starting the game wait a second first, for the room to say whether the
 // game has moved on: an action the server refuses for that alone tells nothing, and neither does one it takes.
+// A toast that is up goes when the game moves on.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -2260,6 +2261,57 @@ describe("a Truth or Dare action that fails", () => {
     noRefusalWords(page);
     expect(sheets(page)).toEqual([1]);
     expect(logged()).toEqual(["Failed to submit response:"]);
+  });
+
+  // ─── A toast and the game it is about ──────────────────────────────────────
+
+  // A refusal for a turn that has moved on is told like any failure when the room's answer is more than a second
+  // behind it: nothing tells the two apart until the answer is in
+  test.each(LANGS)("a refusal whose room answers later than the second, for a guest who reads %s: the toast goes as the screen moves on", async (lang) => {
+    const page = await openOn(answering("text"), lang);
+    refuses("truthOrDare:submitResponse", "Not your turn", () => void setTimeout(() => tell("truthOrDare:getActiveTruthOrDare", (now) => samsTurn(now!)), 1500));
+    field(page).value = "Sushi";
+    await page.tap(button(page, t("Send Answer", lang)));
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED[lang]]);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+    for (let tenths = 0; tenths < 4; tenths++) await tenth(page);
+    expect(told(page)).toEqual([FAILED[lang]]);
+
+    await tenth(page);
+    expect(page.body.textContent).toContain(`${t("Waiting for", lang)} Sam ${t("to choose...", lang)}`);
+    await toldNothing(page);
+  });
+
+  test("a drawing refused for a turn that has moved on, the room answering later than the second: the toast and the sheet go as the screen moves on", async () => {
+    const page = await openOn(answering("drawing"), "ja");
+    vi.stubGlobal("fetch", async () => {
+      setTimeout(() => tell("truthOrDare:getActiveTruthOrDare", (now) => samsTurn(now!)), 1500);
+      return new Response(JSON.stringify({ error: "Uncaught Error: Not your turn\n    at handler (../convex/truthOrDare.ts:495:13)\n" }), { status: 400 });
+    });
+    await page.tap(button(page, t("Draw your answer", "ja")));
+    await page.tap(one(page.body.byClass("sim-canvas-send")));
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(sheets(page)).toEqual([1]);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+
+    await page.wait(1);
+    expect(page.body.byClass("sim-canvas-send").length).toBe(0);
+    await toldNothing(page);
+  });
+
+  test("the game ends while a failure is being told: the toast goes with the game's screen", async () => {
+    const page = await openOn(choosing, "ja");
+    refuses("truthOrDare:skipTurn");
+    await page.tap(button(page, t("Skip", "ja")));
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(logged()).toEqual(["Failed to skip turn:"]);
+
+    await page.answer("truthOrDare:getActiveTruthOrDare", (now) => ({ ...now, status: "completed", completedAt: NOW }));
+    expect(cards(page).length).toBe(0);
+    await toldNothing(page);
   });
 
   /** The Close a drawing sheet has of its own, beside the question it is drawn for */

@@ -80,6 +80,13 @@ export function useTruthOrDare({
     if (failureTimer.current) clearTimeout(failureTimer.current);
     failureTimer.current = setTimeout(() => setTruthOrDareFailure(null), FAILURE_SHOWN_MS);
   }, []);
+  // The toast is about the game as it stood when the action failed: it goes when the game moves on, as the screen
+  // does. A refusal for a game that has already moved on is told like any failure when the room's answer comes
+  // later than the look SETTLE_MS after it, and this takes that toast down as the answer arrives
+  useEffect(() => {
+    if (failureTimer.current) clearTimeout(failureTimer.current);
+    setTruthOrDareFailure(null);
+  }, [stage]);
 
   // Failed actions that are due to be judged: each with where the game stood when it was sent, and the function
   // its verdict goes to
