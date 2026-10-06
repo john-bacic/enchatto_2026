@@ -285,9 +285,19 @@ extension HostRoomViewModel {
     /// The refresh in one request: the room, its messages and every game as the snapshot route read them, shown
     /// together. False when the server has no such route, which its first 404 says and the view model remembers:
     /// the caller then makes the requests the route stands for. Any other failure is the refresh's own and is
-    /// thrown, with nothing assigned
+    /// thrown, with nothing assigned.
+    ///
+    /// Refreshes overlap: the poll loop's, one after each action, one for each processed message. Each takes the
+    /// next ticket as it starts, and an answer is shown only if no refresh that started later has been shown
+    /// already. So the screen never goes back to an older state of the room, and once a refresh has been
+    /// answered the screen holds a state that was asked for when that refresh was, or later
     private func refreshFromSnapshot() async throws -> Bool {
         guard !snapshotRouteMissing else { return false }
+        refreshTicket += 1
+        let ticket = refreshTicket
+        #if DEBUG
+        DebugConsole.shared.trace(source: .network, action: "refresh:\(ticket):start")
+        #endif
         // Read before the request leaves: each section is shown under the rule its own poll has for an answer
         // that an action of the host's has overtaken
         let asked = (background: backgroundEpoch, emojiMatch: emojiMatchEpoch, truthOrDare: truthOrDareEpoch)
@@ -308,6 +318,18 @@ extension HostRoomViewModel {
         }
         try Task.checkCancellation()
 
+        guard ticket > shownRefreshTicket else {
+            #if DEBUG
+            DebugConsole.shared.trace(source: .network, action: "refresh:\(ticket):drop", detail: "\(shownRefreshTicket) is on screen")
+            #endif
+            // Nothing is assigned. The server answered, so the poll is a healthy one all the same
+            clearPollFailures()
+            return true
+        }
+        shownRefreshTicket = ticket
+        #if DEBUG
+        DebugConsole.shared.trace(source: .network, action: "refresh:\(ticket):apply")
+        #endif
         let after = show(snapshot, askedAt: asked, skipped: skip)
 
         // The two requests a refresh makes besides, once everything else is on screen

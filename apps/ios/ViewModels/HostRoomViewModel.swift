@@ -171,6 +171,10 @@ class HostRoomViewModel: ObservableObject {
     /// Set when the server answers the snapshot request with 404: it has no such route. For as long as this view
     /// model lives, which is one visit to the room, every refresh then makes the requests the snapshot stands for
     var snapshotRouteMissing = false
+    /// The number the latest refresh from the snapshot took as it started, and the number of the one whose answer
+    /// is on screen. An answer with a lower number than the second was asked for before what the screen shows
+    var refreshTicket = 0
+    var shownRefreshTicket = 0
 
     var pushRegistered = false
 
