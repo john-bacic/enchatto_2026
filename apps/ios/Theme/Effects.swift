@@ -102,7 +102,8 @@ struct CutInBanner: View {
 
 // MARK: - Looping motion
 
-/// Clock-driven loop. Never start loops with `withAnimation(.repeatForever)` in onAppear: the
+/// Clock-driven loop, redrawn at most 30 times a second: `content` is handed the time and draws the
+/// loop's pose at it. Never start loops with `withAnimation(.repeatForever)` in onAppear: the
 /// repeating transaction can capture unrelated layout changes (nav bar / safe area settling) and
 /// make whole headers and input bars bob forever.
 struct LoopClock<Content: View>: View {
@@ -112,7 +113,7 @@ struct LoopClock<Content: View>: View {
 
     var body: some View {
         if active && !reduceMotion {
-            TimelineView(.animation) { ctx in
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
                 content(ctx.date.timeIntervalSinceReferenceDate)
             }
         } else {
