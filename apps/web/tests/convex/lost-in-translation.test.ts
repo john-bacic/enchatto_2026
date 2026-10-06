@@ -3305,8 +3305,12 @@ describe("a drawing sent through the submit-step route", () => {
     expect(known).toContain(url);
     expect(known).toContain(game.stepId);
 
-    // Ben offers each of them as the id of a file to the functions that take one from a guest: a picture, a
-    // drawing or a voice message of his own, which he then deletes, and a dictation, which deletes its clip
+    // Ben offers each of them as the id of a file to the functions that take one from a guest and lead to its
+    // delete: a picture, a drawing or a voice message of his own, which he then deletes, and a dictation, which
+    // deletes its clip. Three more take a file's id from a guest and are not tried, because none of them leads
+    // to the delete of a drawing's file, whoever names it: wordRush.submitClip and wordRush.submitTeachClip take
+    // nothing but an audio file (word-rush.test.ts), and truthOrDare.submitResponse keeps the file on a turn,
+    // which nothing but the purge of a closed room deletes
     const asBen = { roomId, senderId: ben, token: BEN_TOKEN };
     for (const text of known) {
       const storageId = text as Id<"_storage">;
