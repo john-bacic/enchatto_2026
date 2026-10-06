@@ -5,10 +5,9 @@ import { RoomTexture, ambientTexture, ambientTextureIfAny, keepAmbientTexture, t
 
 /**
  * Fixed full-page paper + texture behind everything. A room's screens pass the room's texture, which the screens
- * outside a room then keep showing, unless it is a retired one; without one this is such a screen and shows the
- * ambient texture (lib/textures.ts).
- * `waiting` says the room's texture is on its way: until it comes no random texture is picked, since the room's
- * would replace it a moment later.
+ * outside a room then keep showing unless it is retired; without a texture this is such a screen and shows the
+ * ambient one (lib/textures.ts). `waiting` says the room's texture is on its way: until it comes no random texture
+ * is picked, since the room's would replace it a moment later.
  */
 export function RoomBackground({ texture, waiting = false }: { texture?: RoomTexture; waiting?: boolean }) {
   // The ambient texture is only known in the browser. The server and the first client render draw the paper bare,
