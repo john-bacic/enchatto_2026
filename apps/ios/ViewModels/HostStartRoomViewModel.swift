@@ -22,6 +22,8 @@ class HostStartRoomViewModel: ObservableObject {
             guard createdRoomId == nil else { return }
             api.setCaller(hostId: nil, token: nil)
             let saved = SavedHostRoom.load()
+            // A room whose record is still kept is the one to go back to. A room that closed has left none
+            rejoinableRoom = saved
             // The background the room's screen was last drawn on, which the host can change from inside the room.
             // The room's record has it: still saved while the room is open, set aside when it closed
             if let record = saved ?? SavedHostRoom.dropped, record.roomId == oldValue {
@@ -35,8 +37,10 @@ class HostStartRoomViewModel: ObservableObject {
     @Published var createdJoinCode: String?
     @Published var createdHostId: String?
 
-    /// Room this device was hosting when the app last stopped, offered as "Rejoin room" once the server says it is open or cannot be reached
+    /// The saved room this device hosts, until the server says it is closed or gone. While there is one this screen
+    /// offers no Create Room: it goes back into that room, or offers "Rejoin room" when the server cannot be reached
     @Published private(set) var rejoinableRoom: SavedHostRoom?
+    /// The server is being asked about that room
     @Published private(set) var isRejoining = false
 
     /// Index into RoomTexture.all of the background this screen is drawn on, which is the background of the room
@@ -57,18 +61,22 @@ class HostStartRoomViewModel: ObservableObject {
         if let saved = SavedHostRoom.load() {
             self.textureIndex = RoomTexture.index(background: saved.background, joinCode: saved.joinCode)
             self.textureIsFromRoom = true
+            // From the first frame, before the server has been asked
+            self.rejoinableRoom = saved
         } else {
             self.textureIndex = RoomTexture.randomIndex()
             self.textureIsFromRoom = false
         }
     }
 
+    /// Never while there is a room to go back to: a room created then would leave that one open without its host
     var canCreate: Bool {
-        !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isCreating && !isRejoining
+        rejoinableRoom == nil && !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isCreating && !isRejoining
     }
 
     func createRoom() async {
-        guard canCreate else { return }
+        // Nor while a room is on screen: this screen is still there underneath it
+        guard canCreate, createdRoomId == nil else { return }
 
         isCreating = true
         error = nil
@@ -86,11 +94,10 @@ class HostStartRoomViewModel: ObservableObject {
             )
             // What the room screen will draw. A server that names no background is taken to have given the one asked for
             let texture = RoomTexture.index(background: result.background ?? background, joinCode: result.joinCode)
-            // Replaces any earlier record. That room is not closed from here: it closes itself once its host stays away
+            // The only record there is: a room is not created while an earlier one's is kept (canCreate)
             SavedHostRoom(roomId: result.roomId, hostId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, hostToken: result.hostToken, background: texture).save()
             // Before the room screen exists: its first requests already go out as the host
             api.setCaller(hostId: result.hostId, token: result.hostToken)
-            rejoinableRoom = nil
             // Coming back out of the room, this screen is drawn on the room's background
             textureIndex = texture
             textureIsFromRoom = true
@@ -104,20 +111,22 @@ class HostStartRoomViewModel: ObservableObject {
         isCreating = false
     }
 
-    /// Asks the server about the room saved by the last createRoom. Open: offers "Rejoin room", or with `enter` goes back in.
-    /// Closed or gone: forgets it. Anything else: keeps it so the host can retry.
-    func checkSavedRoom(enter: Bool) async {
+    /// Asks the server about the room saved by the last createRoom. Open, with this device as its host: goes back in.
+    /// Closed or gone: forgets it, and the screen offers Create Room. Anything else: keeps it, and the screen offers
+    /// "Rejoin room" so the host can retry. One check at a time: a second one asked for meanwhile does nothing.
+    /// `tapped` is the check that button asks for: it says why the host is not in the room, and a refusal from the
+    /// server forgets the room too
+    func checkSavedRoom(tapped: Bool) async {
         guard createdRoomId == nil, !isCreating, !isRejoining else { return }
         guard let saved = SavedHostRoom.load() else {
             rejoinableRoom = nil
             pickFreshTexture()
             return
         }
-        if enter {
-            isRejoining = true
-            error = nil
-        }
-        defer { if enter { isRejoining = false } }
+        rejoinableRoom = saved
+        isRejoining = true
+        if tapped { error = nil }
+        defer { isRejoining = false }
 
         var open = false
         var unreachable = false
@@ -135,7 +144,7 @@ class HostStartRoomViewModel: ObservableObject {
             // room is gone. Any other failure (a certificate the phone does not trust, a captive network's page) says
             // nothing about the room and keeps the offer. A 4xx is not that word either (a missing room is answered
             // 200, below), so it only drops the record when the host tapped and would otherwise be stuck on it.
-            var gone = enter && error.isServerRefusal
+            var gone = tapped && error.isServerRefusal
             // A room that does not exist is answered 200 {"ok":true}: decoding stops at the missing top-level "room".
             // Any other undecodable reply is not that answer
             if let decoding = error as? DecodingError, case .keyNotFound(let key, let context) = decoding {
@@ -146,8 +155,9 @@ class HostStartRoomViewModel: ObservableObject {
             unreachable = !gone
         }
 
-        // A room created while the request was out replaces the record: this answer is about the old one. A record
-        // that only has another background since is still about this room
+        // The answer is about the record that was asked about. With the host in a room by now, or with the record
+        // gone or another room's, it changes nothing. A record that only has another background since is still
+        // about this room
         guard createdRoomId == nil, SavedHostRoom.load()?.roomId == saved.roomId else { return }
 
         if open {
@@ -157,24 +167,23 @@ class HostStartRoomViewModel: ObservableObject {
                 textureIndex = texture
                 textureIsFromRoom = true
             }
-            if enter {
-                // The token saved at creation; nil for a room an earlier build made, whose host the server takes by id alone
-                api.setCaller(hostId: saved.hostId, token: saved.hostToken)
-                rejoinableRoom = nil
-                createdJoinCode = saved.joinCode
-                createdHostId = saved.hostId
-                createdRoomId = saved.roomId
-            } else {
-                rejoinableRoom = saved
-            }
+            // The token saved at creation; nil for a room an earlier build made, whose host the server takes by id alone
+            api.setCaller(hostId: saved.hostId, token: saved.hostToken)
+            // In the room, so none to go back to. On the way back out the record says whether there is one (createdRoomId)
+            rejoinableRoom = nil
+            // The room is there: what an earlier tap was told about it is taken away
+            error = nil
+            createdJoinCode = saved.joinCode
+            createdHostId = saved.hostId
+            createdRoomId = saved.roomId
         } else if unreachable {
-            rejoinableRoom = saved
-            if enter { self.error = L.t("Couldn't reach the room. Try again.", hostLanguage) }
+            if tapped { self.error = L.t("Couldn't reach the room. Try again.", hostLanguage) }
         } else {
             SavedHostRoom.clear(roomId: saved.roomId)
             rejoinableRoom = nil
             pickFreshTexture()
-            if enter { self.error = L.t("This room has been closed", hostLanguage) }
+            // Said only after a tap. A check without one also takes away what an earlier tap was told about the room
+            self.error = tapped ? L.t("This room has been closed", hostLanguage) : nil
         }
     }
 

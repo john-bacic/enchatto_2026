@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HostStartRoomView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = HostStartRoomViewModel()
     @FocusState private var nameFocused: Bool
 
@@ -45,40 +46,44 @@ struct HostStartRoomView: View {
                     }
 
                     if let saved = viewModel.rejoinableRoom {
+                        // In Create Room's place while there is a room to go back to. Busy while the server is asked
+                        // about it, which ends in the room when it is open; a retry when the server cannot be reached
                         Button {
                             nameFocused = false
                             Haptics.thump()
-                            Task { await viewModel.checkSavedRoom(enter: true) }
+                            Task { await viewModel.checkSavedRoom(tapped: true) }
                         } label: {
-                            if viewModel.isRejoining {
-                                ProgressView().tint(.white)
-                            } else {
+                            HStack(spacing: 12) {
+                                if viewModel.isRejoining {
+                                    ProgressView().tint(.white)
+                                }
                                 Text("\(L.t("Rejoin room", lang)) \(saved.joinCode)")
                                     .textCase(.uppercase)
                             }
                         }
                         .buttonStyle(.chunky(EC.pink))
-                        .disabled(viewModel.isRejoining || viewModel.isCreating)
-                    }
-
-                    Button {
-                        nameFocused = false
-                        Haptics.thump()
-                        Task { await viewModel.createRoom() }
-                    } label: {
-                        if viewModel.isCreating {
-                            ProgressView().tint(.white)
-                        } else {
-                            HStack(spacing: 12) {
-                                AvatarDisc(avatarId: viewModel.hostAvatarId, size: 38)
-                                Text(L.t("Create Room", lang))
-                                    .textCase(.uppercase)
+                        .disabled(viewModel.isRejoining)
+                        .padding(.top, 4)
+                    } else {
+                        Button {
+                            nameFocused = false
+                            Haptics.thump()
+                            Task { await viewModel.createRoom() }
+                        } label: {
+                            if viewModel.isCreating {
+                                ProgressView().tint(.white)
+                            } else {
+                                HStack(spacing: 12) {
+                                    AvatarDisc(avatarId: viewModel.hostAvatarId, size: 38)
+                                    Text(L.t("Create Room", lang))
+                                        .textCase(.uppercase)
+                                }
                             }
                         }
+                        .buttonStyle(.chunky(EC.blue))
+                        .disabled(!viewModel.canCreate)
+                        .padding(.top, 4)
                     }
-                    .buttonStyle(.chunky(EC.blue))
-                    .disabled(!viewModel.canCreate)
-                    .padding(.top, 4)
 
                     Text("v\(GitInfo.commitSHA)")
                         .font(.round(9, .medium))
@@ -108,7 +113,17 @@ struct HostStartRoomView: View {
                     HostConversationView(roomId: roomId, hostId: hostId, textureIndex: viewModel.textureIndex)
                 }
             }
-            .task { await viewModel.checkSavedRoom(enter: false) }
+            .task { await viewModel.checkSavedRoom(tapped: false) }
+        }
+        // Back in the foreground, a room the server could not be reached about is asked about again. In a room, or
+        // with none saved, the check does nothing
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            Task { await viewModel.checkSavedRoom(tapped: false) }
+        }
+        // A room entered without a tap, while the nickname is being typed: the keyboard does not follow into it
+        .onChange(of: viewModel.createdRoomId) { roomId in
+            if roomId != nil { nameFocused = false }
         }
         // What is shown from this screen draws ecPaperBackground() on this screen's texture
         .environment(\.roomTextureIndex, viewModel.textureIndex)
