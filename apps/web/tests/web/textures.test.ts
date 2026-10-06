@@ -13,8 +13,8 @@ import { TEXTURES, ambientTexture, ambientTextureIndex, keepAmbientTexture, text
 // retired, but where a test says otherwise.
 // RoomBackground puts the ambient texture on in an effect, and no effect runs here (see CLAUDE.md): what is tested of
 // it is the server's half, the markup the browser's first render has to match.
-// Then the list itself, the texture a room is drawn with, the iPhone app's copy of the list, read from its files, and
-// what the server holds of the list, read from the two copies of convex/rooms.ts.
+// Then the list itself, the texture a room is drawn with, the iPhone app's copy of the list and its own pick, read
+// from its files, and what the server holds of the list, read from the two copies of convex/rooms.ts.
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -507,6 +507,19 @@ describe("the iPhone app's textures", () => {
     const { entries } = inSwift();
     expect(entries.flatMap((entry, index) => (entry.retired ? [index] : []))).toEqual(RETIRED);
     expect(entries.filter((entry) => entry.retired).map((entry) => entry.key)).toEqual(["doodles", "alphabet", "brush", "pencil", "candylines"]);
+  });
+
+  // The pick behind the start screen, the Random button and the mock API. No Swift test runs it: the Swift package
+  // does not compile RoomTexture.swift. So its body is held here as the file writes it: any of the textures that
+  // are not retired, but the one it is told to leave out
+  test("the app's own pick, RoomTexture.randomIndex, is made among the textures that are not retired", () => {
+    const swift = readFileSync(`${ios}Theme/RoomTexture.swift`, "utf8");
+    // From the function's opening line to the line that closes it
+    const body = /\n {4}static func randomIndex\(not current: Int\? = nil\) -> Int \{\n([\s\S]*?)\n {4}\}\n/.exec(swift)?.[1] ?? "";
+    expect(body.split("\n").map((line) => line.trim())).toEqual([
+      "let offered = all.indices.filter { !all[$0].retired && $0 != current }",
+      "return offered.randomElement() ?? 0",
+    ]);
   });
 
   test.each(TEXTURES.map((texture) => [texture.key, texture] as const))(
