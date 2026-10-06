@@ -9,6 +9,8 @@ import { TEXTURES, ambientTexture, ambientTextureIndex, keepAmbientTexture, text
 // lib/textures.ts. First the "ambient" texture, the one a screen outside a room shows. The rule runs here over a
 // stand-in for the tab's sessionStorage and a source of random numbers that gives what the test asks for. One call of
 // ambientTextureIndex is one page load; the same storage handed to a second call is a reload of the tab.
+// A retired texture is never the ambient one, so the indexes these tests pick and keep are of textures that are not
+// retired, but where a test says otherwise.
 // RoomBackground puts the ambient texture on in an effect, and no effect runs here (see CLAUDE.md): what is tested of
 // it is the server's half, the markup the browser's first render has to match.
 // Then the list itself, the texture a room is drawn with, the iPhone app's copy of the list, read from its files, and
@@ -29,11 +31,22 @@ function tabStorage(kept?: string) {
   };
 }
 
-/** Random numbers that land on these indexes in turn, each in the middle of its texture's share of the range */
+/** The retired textures, by index, and the others: the ones a random pick is made among */
+const RETIRED = TEXTURES.flatMap((texture, index) => (texture.retired ? [index] : []));
+const PICKED = TEXTURES.flatMap((texture, index) => (texture.retired ? [] : [index]));
+
+/**
+ * Random numbers that land on these indexes in turn, each in the middle of its texture's share of the range. The
+ * range is shared among the textures that are not retired, so no number lands on a retired one
+ */
 function landingOn(...indexes: number[]) {
+  for (const index of indexes) if (!PICKED.includes(index)) throw new Error(`No random number lands on texture ${index}`);
   let calls = 0;
-  return vi.fn(() => (indexes[calls++ % indexes.length] + 0.5) / TEXTURES.length);
+  return vi.fn(() => (PICKED.indexOf(indexes[calls++ % indexes.length]) + 0.5) / PICKED.length);
 }
+
+/** A texture that is not retired and is not this one */
+const anotherOf = (index: number) => PICKED[(PICKED.indexOf(index) + 1) % PICKED.length];
 
 const blocked = () => {
   throw new DOMException("The operation is insecure.", "SecurityError");
@@ -48,8 +61,8 @@ describe("a tab that has shown a room", () => {
     expect(random).not.toHaveBeenCalled();
   });
 
-  test.each(TEXTURES.map((_, index) => index))("texture %i is read back", (index) => {
-    expect(ambientTextureIndex(tabStorage(String(index)), landingOn((index + 1) % TEXTURES.length)).get()).toBe(index);
+  test.each(PICKED)("texture %i is read back", (index) => {
+    expect(ambientTextureIndex(tabStorage(String(index)), landingOn(anotherOf(index))).get()).toBe(index);
   });
 });
 
@@ -69,23 +82,104 @@ describe("a tab that has shown no room", () => {
     expect(ambientTextureIndex(storage, landingOn(8)).get()).toBe(8);
   });
 
-  test("the pick covers all 36 textures and nothing else", () => {
+  test("the pick covers the 31 textures that are not retired and nothing else", () => {
     expect(TEXTURES).toHaveLength(36);
-    const all = Array.from({ length: 36 }, (_, index) => index);
+    expect(PICKED).toHaveLength(31);
     const pick = (value: number) => ambientTextureIndex(tabStorage(), () => value).get();
-    expect(all.map((index) => pick((index + 0.5) / 36))).toEqual(all);
+    // Each of the 31 has an equal share of the range, in the order of the list
+    expect(PICKED.map((_, share) => pick((share + 0.5) / 31))).toEqual(PICKED);
     // Math.random gives from 0 up to, never, 1
     expect(pick(0)).toBe(0);
     expect(pick(1 - Number.EPSILON)).toBe(35);
     const seen = new Set<number>();
     for (let n = 0; n < 1000; n++) seen.add(pick(n / 1000));
-    expect([...seen].sort((a, b) => a - b)).toEqual(all);
+    expect([...seen].sort((a, b) => a - b)).toEqual(PICKED);
+  });
+});
+
+// A retired texture is drawn for the room that has it and for no other screen. The tab that showed such a room is,
+// outside it, a tab that has shown no room
+describe("a tab whose last room has a retired texture", () => {
+  test.each(RETIRED)("texture %i, held by storage, is not shown: the screen gets a random pick, held for the page load", (index) => {
+    const random = landingOn(6, 8);
+    const ambient = ambientTextureIndex(tabStorage(String(index)), random);
+    expect(ambient.get()).toBe(6);
+    expect(ambient.get()).toBe(6);
+    expect(random).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(RETIRED)("texture %i, held by storage, leaves a screen that is waiting for its room on bare paper", (index) => {
+    const random = landingOn(6);
+    const ambient = ambientTextureIndex(tabStorage(String(index)), random);
+    expect(ambient.peek()).toBeUndefined();
+    expect(random).not.toHaveBeenCalled();
+    // Once a screen outside a room has picked, the waiting screen shows that pick
+    expect(ambient.get()).toBe(6);
+    expect(ambient.peek()).toBe(6);
+  });
+
+  test.each(RETIRED)("texture %i, kept by this page load, gives way to the pick the page load made before the room", (index) => {
+    const random = landingOn(6, 8);
+    const ambient = ambientTextureIndex(tabStorage(), random);
+    expect(ambient.get()).toBe(6);
+    ambient.keep(index);
+    expect(ambient.peek()).toBe(6);
+    expect(ambient.get()).toBe(6);
+    expect(random).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(RETIRED)("texture %i, kept by this page load, does not bring back the texture of the room before", (index) => {
+    const storage = tabStorage("2");
+    const ambient = ambientTextureIndex(storage, landingOn(6));
+    expect(ambient.get()).toBe(2);
+    ambient.keep(index);
+    expect(ambient.peek()).toBeUndefined();
+    expect(ambient.get()).toBe(6);
+    // Nor does a reload: storage holds the retired texture's index, which counts as none
+    expect(storage.getItem(KEY)).toBe(String(index));
+    expect(ambientTextureIndex(storage, landingOn(8)).get()).toBe(8);
+  });
+
+  test.each(RETIRED)("texture %i gives way again to the texture of the next room", (index) => {
+    const storage = tabStorage(String(index));
+    const ambient = ambientTextureIndex(storage, landingOn(6));
+    expect(ambient.get()).toBe(6);
+    ambient.keep(3);
+    expect(ambient.get()).toBe(3);
+    expect(ambientTextureIndex(storage, landingOn(6)).get()).toBe(3);
+  });
+
+  test("with storage that cannot be used, a retired texture kept in memory is not shown either", () => {
+    const ambient = ambientTextureIndex({ getItem: blocked, setItem: blocked }, landingOn(5));
+    ambient.keep(9);
+    expect(ambient.peek()).toBeUndefined();
+    expect(ambient.get()).toBe(5);
+  });
+
+  // Every index a tab can hold, from storage or kept by the page load, against random numbers across the whole range
+  test("whatever is kept and whatever the random source gives, the screen never shows a retired texture", () => {
+    const draws = [0, 1 - Number.EPSILON, ...Array.from({ length: 311 }, (_, n) => (n + 0.5) / 311)];
+    for (const index of TEXTURES.keys()) {
+      for (const draw of draws) {
+        const fromStorage = ambientTextureIndex({ getItem: () => String(index), setItem: () => {} }, () => draw);
+        const fromMemory = ambientTextureIndex(null, () => draw);
+        fromMemory.keep(index);
+        for (const ambient of [fromStorage, fromMemory]) {
+          const waiting = ambient.peek();
+          const shown = ambient.get();
+          expect(PICKED, `kept ${index}, draw ${draw}`).toContain(shown);
+          // A texture that is not retired is the room's own, whatever the draw
+          if (PICKED.includes(index)) expect({ waiting, shown }).toEqual({ waiting: index, shown: index });
+          else expect(waiting).toBeUndefined();
+        }
+      }
+    }
   });
 });
 
 describe("a screen that is waiting for its room", () => {
   test("picks no texture in a tab that has none: the room's own is on its way", () => {
-    const random = landingOn(4);
+    const random = landingOn(6);
     const ambient = ambientTextureIndex(tabStorage(), random);
     expect(ambient.peek()).toBeUndefined();
     expect(ambient.peek()).toBeUndefined();
@@ -93,31 +187,31 @@ describe("a screen that is waiting for its room", () => {
   });
 
   test("shows the texture of the room the tab last showed", () => {
-    const random = landingOn(4);
+    const random = landingOn(6);
     expect(ambientTextureIndex(tabStorage("7"), random).peek()).toBe(7);
     expect(random).not.toHaveBeenCalled();
   });
 
   test("shows the pick an earlier screen of this page load made, and a room's texture once one is kept", () => {
-    const ambient = ambientTextureIndex(tabStorage(), landingOn(4, 8));
-    expect(ambient.get()).toBe(4);
-    expect(ambient.peek()).toBe(4);
+    const ambient = ambientTextureIndex(tabStorage(), landingOn(6, 8));
+    expect(ambient.get()).toBe(6);
+    expect(ambient.peek()).toBe(6);
     ambient.keep(2);
     expect(ambient.peek()).toBe(2);
   });
 
   test("a kept value that is no texture's index counts as none, and unusable storage as none", () => {
-    expect(ambientTextureIndex(tabStorage("36"), landingOn(4)).peek()).toBeUndefined();
-    expect(ambientTextureIndex({ getItem: blocked, setItem: blocked }, landingOn(4)).peek()).toBeUndefined();
-    expect(ambientTextureIndex(undefined, landingOn(4)).peek()).toBeUndefined();
+    expect(ambientTextureIndex(tabStorage("36"), landingOn(6)).peek()).toBeUndefined();
+    expect(ambientTextureIndex({ getItem: blocked, setItem: blocked }, landingOn(6)).peek()).toBeUndefined();
+    expect(ambientTextureIndex(undefined, landingOn(6)).peek()).toBeUndefined();
   });
 
   test("a room that is not found then gets a pick like any screen outside a room", () => {
-    const random = landingOn(4);
+    const random = landingOn(6);
     const ambient = ambientTextureIndex(tabStorage(), random);
     expect(ambient.peek()).toBeUndefined();
-    expect(ambient.get()).toBe(4);
-    expect(ambient.peek()).toBe(4);
+    expect(ambient.get()).toBe(6);
+    expect(ambient.peek()).toBe(6);
     expect(random).toHaveBeenCalledTimes(1);
   });
 });
@@ -126,9 +220,9 @@ describe("a kept value that is not a texture's index", () => {
   test.each(["", " ", "abc", "2.5", "3.0", "-1", "-0", "36", "99", "1e0", "0x3", " 3", "3 ", "NaN", "Infinity", "null", "[3]"])(
     "%j is ignored, and the random pick shows",
     (kept) => {
-      const ambient = ambientTextureIndex(tabStorage(kept), landingOn(4, 6));
-      expect(ambient.get()).toBe(4);
-      expect(ambient.get()).toBe(4);
+      const ambient = ambientTextureIndex(tabStorage(kept), landingOn(5, 6));
+      expect(ambient.get()).toBe(5);
+      expect(ambient.get()).toBe(5);
     }
   );
 });
@@ -161,19 +255,19 @@ describe("storage that cannot be used", () => {
   });
 
   test.each([undefined, null])("with no storage at all (%s) memory serves", (storage) => {
-    const ambient = ambientTextureIndex(storage, landingOn(9, 1));
-    expect(ambient.get()).toBe(9);
-    expect(ambient.get()).toBe(9);
-    ambient.keep(4);
-    expect(ambient.get()).toBe(4);
+    const ambient = ambientTextureIndex(storage, landingOn(8, 1));
+    expect(ambient.get()).toBe(8);
+    expect(ambient.get()).toBe(8);
+    ambient.keep(7);
+    expect(ambient.get()).toBe(7);
   });
 
   test("the page's own ambient texture works where there is no sessionStorage, as in this test", () => {
     expect(typeof sessionStorage).toBe("undefined");
     const first = ambientTexture();
-    expect(TEXTURES).toContain(first);
+    expect(PICKED).toContain(TEXTURES.indexOf(first));
     expect(ambientTexture()).toBe(first);
-    const room = TEXTURES[(TEXTURES.indexOf(first) + 1) % TEXTURES.length];
+    const room = TEXTURES[anotherOf(TEXTURES.indexOf(first))];
     expect(() => keepAmbientTexture(room)).not.toThrow();
     expect(ambientTexture()).toBe(room);
     // A texture that is not one of the list has no index to keep
@@ -185,12 +279,12 @@ describe("storage that cannot be used", () => {
 describe("keeping a room's texture", () => {
   test("replaces the one kept before, for this page load and the next", () => {
     const storage = tabStorage("2");
-    const ambient = ambientTextureIndex(storage, landingOn(9));
+    const ambient = ambientTextureIndex(storage, landingOn(8));
     expect(ambient.get()).toBe(2);
     ambient.keep(5);
     expect(ambient.get()).toBe(5);
     expect(storage.getItem(KEY)).toBe("5");
-    expect(ambientTextureIndex(storage, landingOn(9)).get()).toBe(5);
+    expect(ambientTextureIndex(storage, landingOn(8)).get()).toBe(5);
   });
 
   test("replaces the random pick of a tab that had shown no room", () => {
@@ -234,7 +328,7 @@ describe("the background as the server renders it", () => {
     const bare = '<div class="ec-paper" aria-hidden="true"></div>';
     for (let n = 0; n < 20; n++) expect(renderToStaticMarkup(createElement(RoomBackground))).toBe(bare);
     // Not even with a room's texture kept: the server serves every tab
-    keepAmbientTexture(TEXTURES[4]);
+    keepAmbientTexture(TEXTURES[5]);
     expect(renderToStaticMarkup(createElement(RoomBackground))).toBe(bare);
   });
 
@@ -280,6 +374,14 @@ describe("the list of textures", () => {
     expect(TEXTURES.map((texture) => texture.key)).toEqual(KEYS);
   });
 
+  // A retired texture keeps its place in the list: its index goes on meaning it, for the rooms that have it and for
+  // the builds of the iPhone app that offer it
+  test("five of them are retired, each in its place: doodles, alphabet, brush, pencil and candylines", () => {
+    expect(RETIRED).toEqual([4, 9, 24, 25, 26]);
+    expect(RETIRED.map((index) => KEYS[index])).toEqual(["doodles", "alphabet", "brush", "pencil", "candylines"]);
+    expect(PICKED).toHaveLength(31);
+  });
+
   test("every texture has a name, and no two share one", () => {
     const names = TEXTURES.map((texture) => texture.name);
     for (const name of names) expect(name).toMatch(/^\S.*\S$/);
@@ -311,9 +413,18 @@ describe("the texture a room is drawn with", () => {
     }
   });
 
+  test.each(RETIRED)("a room that has the retired texture %i is drawn with it", (index) => {
+    for (const joinCode of [undefined, "ABC234", "HJKL67"]) {
+      const texture = textureForRoom({ background: index, joinCode });
+      expect(texture).toBe(TEXTURES[index]);
+      expect(texture.retired).toBe(true);
+    }
+  });
+
   // A room with no stored index is drawn by the FNV-1a hash of its join code, modulo ten: the first ten textures are
   // the ones every build of the web page and the iPhone app has, so they all draw such a room alike. Taken modulo 36,
-  // the hash of every code here but 222222 lands on another texture than the one beside it
+  // the hash of every code here but 222222 lands on another texture than the one beside it. Two of the ten are
+  // retired, doodles and alphabet, and a code that lands on one is drawn with it: an installed build draws it so
   const BY_JOIN_CODE: Array<[joinCode: string, index: number, key: string]> = [
     ["ABC234", 0, "grid"],
     ["ZZZZZZ", 1, "dots"],
@@ -341,6 +452,23 @@ describe("the texture a room is drawn with", () => {
     for (const [joinCode, index] of BY_JOIN_CODE) {
       expect(textureForRoom({ background, joinCode }), joinCode).toBe(TEXTURES[index]);
     }
+  });
+
+  // The hash worked out here, apart from lib/textures.ts, for 1,024 codes that differ in their first two characters:
+  // each of the ten is reached, the two retired ones among them, and none of the other 26
+  test("the join code picks among all of the first ten, whichever of them are retired", () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const reached = new Set<number>();
+    for (const a of chars) {
+      for (const b of chars) {
+        const joinCode = `${a}${b}C234`;
+        let hash = 0x811c9dc5;
+        for (let i = 0; i < joinCode.length; i++) hash = Math.imul(hash ^ joinCode.charCodeAt(i), 0x01000193) >>> 0;
+        expect(textureForRoom({ joinCode }), joinCode).toBe(TEXTURES[hash % 10]);
+        reached.add(hash % 10);
+      }
+    }
+    expect([...reached].sort((x, y) => x - y)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   test("with no join code either, and with no room at all, it is the grid", () => {
@@ -413,7 +541,7 @@ describe("the server's textures", () => {
     expect(retired.filter((index) => index < 10).length).toBeLessThanOrEqual(8);
   });
 
-  test("the two copies retire the same textures", () => {
-    expect(onServer(COPIES[1]).retired).toEqual(onServer(COPIES[0]).retired);
+  test.each(COPIES)("%s retires the textures the list marks retired", (copy) => {
+    expect(onServer(copy).retired).toEqual(RETIRED);
   });
 });

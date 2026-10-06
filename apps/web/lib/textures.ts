@@ -4,7 +4,9 @@ import type { CSSProperties } from "react";
 // same palette; only the pattern and blob tints change. Order matters: rooms store an
 // index (rooms.background), and iOS ships PNG renders in the same order (RoomTexture.swift).
 // A new texture goes at the end, and the server holds their number (BACKGROUND_COUNT in
-// convex/rooms.ts).
+// convex/rooms.ts). None is ever taken out: a texture that is no longer offered is marked
+// `retired`, here, in RoomTexture.swift and on the server (RETIRED_BACKGROUNDS in
+// convex/rooms.ts), and keeps its place and its index.
 
 const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 const tile = (w: number, h: number, body: string) =>
@@ -19,6 +21,8 @@ const Y = "rgba(255, 210, 63, .26)";
 export interface RoomTexture {
   key: string;
   name: string;
+  /** A retired texture is drawn for a room that has it, and nothing picks it: no room is given it any more */
+  retired?: true;
   size: string;
   blobs: [string, string];
   svg: string;
@@ -72,6 +76,7 @@ export const TEXTURES: RoomTexture[] = [
   {
     key: "doodles",
     name: "Chat doodles",
+    retired: true,
     size: "160px",
     blobs: [P, B],
     svg: tile(
@@ -148,6 +153,7 @@ export const TEXTURES: RoomTexture[] = [
   {
     key: "alphabet",
     name: "Alphabet soup",
+    retired: true,
     size: "170px",
     blobs: [Y, V],
     svg: tile(
@@ -322,6 +328,7 @@ export const TEXTURES: RoomTexture[] = [
   {
     key: "brush",
     name: "Brush stripes",
+    retired: true,
     size: "200px 128px",
     blobs: [P, B],
     svg: tile(
@@ -333,6 +340,7 @@ export const TEXTURES: RoomTexture[] = [
   {
     key: "pencil",
     name: "Wobbly lines",
+    retired: true,
     size: "150px 200px",
     blobs: [V, M],
     svg: tile(
@@ -344,6 +352,7 @@ export const TEXTURES: RoomTexture[] = [
   {
     key: "candylines",
     name: "Candy lines",
+    retired: true,
     size: "176px 220px",
     blobs: [Y, P],
     svg: tile(
@@ -481,6 +490,8 @@ export function textureStyle(t: RoomTexture): CSSProperties {
 // brings its own. With no room yet it is a random one, picked once per page load: moving between such screens
 // keeps it, and a reload picks again. A screen that is only waiting for its room picks nothing: it shows the
 // ambient texture if the page load has one, and otherwise bare paper until the room's own arrives.
+// A retired texture is never the ambient one. The pick is made among the others, and a last room that has a
+// retired texture counts as no room yet.
 
 const AMBIENT_KEY = "enchatto_background";
 
@@ -488,6 +499,9 @@ const AMBIENT_KEY = "enchatto_background";
 type TextureStorage = Pick<Storage, "getItem" | "setItem">;
 
 const isTextureIndex = (index: number) => Number.isInteger(index) && index >= 0 && index < TEXTURES.length;
+
+/** The indexes the random pick is made among: every texture that is not retired */
+const PICKED_TEXTURES = TEXTURES.flatMap((texture, index) => (texture.retired ? [] : [index]));
 
 /**
  * The rule for the ambient texture, over a given storage and source of random numbers. Storage that is missing or
@@ -497,8 +511,8 @@ export function ambientTextureIndex(storage: TextureStorage | null | undefined, 
   // Read first: a room's texture kept by this page load is the last one shown, whatever storage took or still holds
   let kept: number | undefined;
   let picked: number | undefined;
-  /** What this page load already has: a room's texture, or a pick made earlier. Picks nothing */
-  const peek = (): number | undefined => {
+  /** The texture of the last room shown: the one this page load kept, or else the one storage holds */
+  const lastRoom = (): number | undefined => {
     if (kept !== undefined) return kept;
     try {
       const stored = storage?.getItem(AMBIENT_KEY);
@@ -507,14 +521,20 @@ export function ambientTextureIndex(storage: TextureStorage | null | undefined, 
     } catch {
       // storage blocked
     }
-    return picked;
+    return undefined;
+  };
+  /** What this page load already has: a room's texture, or a pick made earlier. Picks nothing */
+  const peek = (): number | undefined => {
+    const last = lastRoom();
+    // A retired texture is shown in its room and nowhere else
+    return last !== undefined && !TEXTURES[last].retired ? last : picked;
   };
   return {
     peek,
     get(): number {
       const known = peek();
       if (known !== undefined) return known;
-      picked = Math.floor(random() * TEXTURES.length);
+      picked = PICKED_TEXTURES[Math.floor(random() * PICKED_TEXTURES.length)];
       return picked;
     },
     keep(index: number) {
