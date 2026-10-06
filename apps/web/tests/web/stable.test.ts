@@ -71,6 +71,17 @@ describe("whether two values hold the same", () => {
     expect(sameValue({ toString: Object.prototype.toString }, { other: Object.prototype.toString })).toBe(false);
   });
 
+  test("a place in an array that holds nothing is the same only as another such place", () => {
+    const gap = (...rest: unknown[]) => [, ...rest];
+    expect(sameValue(gap(1), [2, 1])).toBe(false);
+    expect(sameValue([2, 1], gap(1))).toBe(false);
+    expect(sameValue(gap(1), [undefined, 1])).toBe(false);
+    expect(sameValue([undefined, 1], gap(1))).toBe(false);
+    expect(sameValue(gap(1), gap(1))).toBe(true);
+    expect(sameValue(gap(1), gap(2))).toBe(false);
+    expect(sameValue({ list: gap(1) }, { list: [{ a: 1 }, 1] })).toBe(false);
+  });
+
   test("an array is not the object with its fields", () => {
     expect(sameValue([1], { 0: 1 })).toBe(false);
     expect(sameValue({ 0: 1 }, [1])).toBe(false);

@@ -8,13 +8,19 @@ function isPlain(value: object): value is Record<string, unknown> {
 
 /**
  * Whether two values out of a query's answer hold the same: arrays item by item, plain objects field by field,
- * everything else as `Object.is` has it. An object that is not plain (a date, a buffer) is the same only as itself.
+ * everything else as `Object.is` has it. An object that is not plain (a date, a buffer) is the same only as itself,
+ * and a place in an array that holds nothing only as another such place.
  */
 export function sameValue(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
   if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    // By index, so that a place that holds nothing is compared as well: an array's own methods pass over it
+    for (let i = 0; i < a.length; i++) {
+      if ((i in a) !== (i in b) || !sameValue(a[i], b[i])) return false;
+    }
+    return true;
   }
   if (!isPlain(a) || !isPlain(b)) return false;
   const keys = Object.keys(a);
