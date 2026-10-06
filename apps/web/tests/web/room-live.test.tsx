@@ -27,7 +27,8 @@ import { installBrowser, Sim, type SimBrowser } from "./dom";
 // held, as if she had typed it: Send and Clear are there, the field is fitted to it, the room hears that she is
 // typing, and nothing is sent until she sends it. A dictation that is running ends with the tap, its words dropped.
 // A voice message that is being recorded runs on, and the tap does nothing. A phone's keyboard stays as it is, and
-// a computer's field takes the focus. A tap, like a keystroke, draws the box and nothing else.
+// a computer's field takes the focus. A tap, like a keystroke, draws neither the list nor a bubble: it draws the
+// box, and the page once the room answers its typing notice.
 //
 // And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
 // opens and when it closes, and not each time the page is drawn. While it is open, the signal is written once more

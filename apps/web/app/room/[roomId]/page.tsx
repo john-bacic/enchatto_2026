@@ -195,8 +195,9 @@ function RoomContent() {
   };
 
   // A tap on a suggestion under a message puts it in the message box. The box keeps its own text, so it is asked
-  // through its handle: the handler is one function for the life of the page, and a tap draws the box and nothing
-  // else. A closed room has no box, and a tap there does nothing
+  // through its handle: the handler is one function for the life of the page, so a tap draws neither the list nor
+  // a bubble. The tap itself draws the box alone; the page is drawn when the room answers the typing notice the tap
+  // sends, as it is for a keystroke. A closed room has no box, and a tap there does nothing
   const messageInput = useRef<MessageInputHandle>(null);
   const handleSuggestionTap = useCallback((suggestion: string) => messageInput.current?.fill(suggestion), []);
 
