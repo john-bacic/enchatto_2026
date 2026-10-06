@@ -1,15 +1,20 @@
+// @vitest-environment node
+import { act } from "react";
 import type { FunctionReturnType } from "convex/server";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { EmojiMatchGame } from "@/components/emoji-match-game";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { installBrowser, type Sim } from "./dom";
 
 // The three screens of Emoji Match on the web (components/emoji-match-game.tsx): the lobby, the board and the
 // results, as static markup, each read as a guest who chose Japanese reads it and as one who chose English does.
 // What is held: the Japanese guest reads no English but the players' names and the words on the cards, which are
 // the game, and the English guest reads the words written here.
-// No effect runs in a static render, so the board is read before its countdown is drawn, and nothing is tapped.
+// No effect runs in a static render, so the board is read there before its countdown is drawn, and nothing is
+// tapped. The countdown is read from the board mounted with react-dom/client in the stand-in browser (dom.ts),
+// where the effect that draws it runs.
 
 type MatchGame = NonNullable<FunctionReturnType<typeof api.emojiMatch.getActiveEmojiMatch>>;
 type PID = Id<"participants">;
@@ -86,26 +91,28 @@ const over = (players: MatchGame["players"], result: NonNullable<MatchGame["resu
 const nothing = () => {};
 
 /** The screen of `game` in the page of `viewer`, who reads `lang` */
-const screen = (game: MatchGame, viewer: PID, lang: "en" | "ja") =>
-  renderToStaticMarkup(
-    <EmojiMatchGame
-      game={game}
-      participants={[]}
-      myParticipantId={viewer}
-      isHost={false}
-      lang={lang}
-      onJoinLobby={nothing}
-      onLeaveLobby={nothing}
-      onStartGame={nothing}
-      onFlipCard={nothing}
-      onResolveMismatch={nothing}
-      onTimeoutTurn={nothing}
-      onCancelGame={nothing}
-      onPlayAgain={nothing}
-      onClose={nothing}
-      onMinimize={nothing}
-    />
-  );
+const element = (game: MatchGame, viewer: PID, lang: "en" | "ja") => (
+  <EmojiMatchGame
+    game={game}
+    participants={[]}
+    myParticipantId={viewer}
+    isHost={false}
+    lang={lang}
+    onJoinLobby={nothing}
+    onLeaveLobby={nothing}
+    onStartGame={nothing}
+    onFlipCard={nothing}
+    onResolveMismatch={nothing}
+    onTimeoutTurn={nothing}
+    onCancelGame={nothing}
+    onPlayAgain={nothing}
+    onClose={nothing}
+    onMinimize={nothing}
+  />
+);
+
+/** That screen as static markup */
+const screen = (game: MatchGame, viewer: PID, lang: "en" | "ja") => renderToStaticMarkup(element(game, viewer, lang));
 
 /** What a reader sees of `html`: its text, without the tags and without the style sheet the board carries */
 const words = (html: string) =>
@@ -171,6 +178,37 @@ describe("the board", () => {
       en: `– Emoji Match 1/4 pairs Alex 1 turn 1 YOU 1 turn 0 Alex's turn ${CARDS}`,
       ja: `– 絵文字マッチ 1/4 ペア Alex 1回 1 あなた 1回 0 Alexの番 ${CARDS}`,
     });
+  });
+});
+
+describe("the board, mounted", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  /** What a reader sees under `node`: its text, an element apart from its neighbours as in `words`, without the style sheet */
+  const shown = (node: Sim): string => (node.nodeType === 3 ? (node.nodeValue ?? "") : node.nodeName === "STYLE" ? "" : ` ${node.childNodes.map(shown).join("")} `);
+
+  /** The board of `game` as `viewer`, who reads `lang`, sees it `seconds` into the turn, once its effects have run */
+  async function mounted(game: MatchGame, viewer: PID, lang: "en" | "ja", seconds: number) {
+    const browser = installBrowser();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    vi.setSystemTime(NOW + seconds * 1000);
+    const { createRoot } = await import("react-dom/client");
+    const container = browser.document.body.appendChild(browser.document.createElement("div"));
+    const root = createRoot(container as unknown as Element);
+    await act(async () => root.render(element(game, viewer, lang)));
+    const text = shown(container).replace(/\s+/g, " ").trim();
+    await act(async () => root.unmount());
+    return text;
+  }
+
+  test("a second into a turn of fifteen: the countdown stands after the turn line, its seconds written as each language writes them", async () => {
+    expect(await mounted(playing(YUKI), YUKI, "en", 1)).toBe(`– Emoji Match 1/4 pairs Alex 1 turn 1 YOU 1 turn 0 Your turn! Find a pair 14s ${CARDS}`);
+    const japanese = await mounted(playing(YUKI), YUKI, "ja", 1);
+    expect(japanese).toBe(`– 絵文字マッチ 1/4 ペア Alex 1回 1 あなた 1回 0 あなたの番！ ペアを探そう 14秒 ${CARDS}`);
+    expect(english(japanese, ["Alex", "Yuki", ...CARD_WORDS])).toEqual([]);
   });
 });
 

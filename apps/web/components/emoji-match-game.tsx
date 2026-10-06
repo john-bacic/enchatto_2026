@@ -27,8 +27,8 @@ interface EmojiMatchGameProps {
 // The game's name and the two buttons of its results are worded here, for these screens alone: an entry of
 // lib/i18n.ts words every screen that asks for the same English, as the game picker and Emoji Bingo's results do
 const COPY = {
-  en: { name: "Emoji Match", pairs: "pairs", you: "YOU", findPair: "Find a pair", pair: "PAIR! +1", turns: (n: number) => `${n} ${n === 1 ? "turn" : "turns"}`, exit: "Exit", playAgain: "Play Again" },
-  ja: { name: "絵文字マッチ", pairs: "ペア", you: "あなた", findPair: "ペアを探そう", pair: "ペア！+1", turns: (n: number) => `${n}回`, exit: "閉じる", playAgain: "もう一回" },
+  en: { name: "Emoji Match", pairs: "pairs", you: "YOU", findPair: "Find a pair", pair: "PAIR! +1", turns: (n: number) => `${n} ${n === 1 ? "turn" : "turns"}`, secs: (n: number) => `${n}s`, exit: "Exit", playAgain: "Play Again" },
+  ja: { name: "絵文字マッチ", pairs: "ペア", you: "あなた", findPair: "ペアを探そう", pair: "ペア！+1", turns: (n: number) => `${n}回`, secs: (n: number) => `${n}秒`, exit: "閉じる", playAgain: "もう一回" },
 };
 const copy = (lang?: string) => (lang === "ja" ? COPY.ja : COPY.en);
 
@@ -508,7 +508,7 @@ function GameBoardView({
                   animation: hurry ? "ec-kick 0.5s ease-in-out infinite" : undefined,
                 }}
               >
-                {Math.ceil(timeLeft / 1000)}s
+                {c.secs(Math.ceil(timeLeft / 1000))}
               </span>
             </div>
           )}
