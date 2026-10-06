@@ -1307,6 +1307,21 @@ describe("a tap on a suggestion under a message", () => {
     expect(live(page)).toBe("はい。");
   });
 
+  test("a tap while the microphone button is held down, short of its long press: no dictation starts over the suggestion", async () => {
+    const recognisers = canDictate();
+    const page = await open(offered());
+    // Held for 0.45 s, the button starts a voice message. The tap comes 0.2 s in
+    await page.act(() => void micButton(page).fire("pointerdown"));
+    await page.act(() => void vi.advanceTimersByTime(200));
+    await press(page, chips(page, "hello")[1]);
+    expect(held(page)).toBe("よろしくね");
+    await page.wait(1);
+    expect(recognisers.length).toBe(0);
+    expect(page.body.byClass("ec-voice-pill").length).toBe(0);
+    expect(held(page)).toBe("よろしくね");
+    expect(signals()).toEqual(["typing"]);
+  });
+
   test("after dictation was stopped with its words in the field: the suggestion replaces them, and is sent as it reads", async () => {
     const recognisers = canDictate();
     const page = await open(offered());

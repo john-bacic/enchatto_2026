@@ -300,6 +300,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     // A voice message that is being recorded is no text of the field's, and once dropped it cannot be had back:
     // it runs on, to be sent or cancelled from its own pill, and the tap does nothing
     if (sendingVoice) return;
+    // A press on the mic that has not yet been held long enough starts no dictation over the suggestion
+    clearLongPress();
     voiceClip.discard();
     // stop() hands over the last transcript before it returns, so the text is set after it
     if (isListening) stopVoice();
