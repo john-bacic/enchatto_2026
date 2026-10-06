@@ -115,6 +115,9 @@ extension HostRoomViewModel {
         // The pass clears isFlushing itself when it unwinds
         flushTask?.cancel()
         stopGameFastPolls()
+        // A refresh from the snapshot that is still out is not shown when it is answered: nothing is assigned
+        // on a screen that has been left, and no game's fast poll starts again
+        shownRefreshTicket = refreshTicket
         dropGuessHold()
     }
 
@@ -290,7 +293,8 @@ extension HostRoomViewModel {
     /// Refreshes overlap: the poll loop's, one after each action, one for each processed message. Each takes the
     /// next ticket as it starts, and an answer is shown only if no refresh that started later has been shown
     /// already. So the screen never goes back to an older state of the room, and once a refresh has been
-    /// answered the screen holds a state that was asked for when that refresh was, or later
+    /// answered the screen holds a state that was asked for when that refresh was, or later. A refresh that
+    /// is out when the room screen is left (stopObserving) is not shown either
     private func refreshFromSnapshot() async throws -> Bool {
         guard !snapshotRouteMissing else { return false }
         refreshTicket += 1
@@ -325,7 +329,7 @@ extension HostRoomViewModel {
 
         guard ticket > shownRefreshTicket else {
             #if DEBUG
-            DebugConsole.shared.trace(source: .network, action: "refresh:\(ticket):drop", detail: "\(shownRefreshTicket) is on screen")
+            DebugConsole.shared.trace(source: .network, action: "refresh:\(ticket):drop", detail: "\(shownRefreshTicket) is on screen, or the room was left")
             #endif
             // Nothing is assigned. The server answered, so the poll is a healthy one all the same
             clearPollFailures()
