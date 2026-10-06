@@ -1032,7 +1032,8 @@ describe("a tap on a suggestion under a message", () => {
   const sendButton = (page: Page) => one(labelled(page, t("Send", "ja")));
   /** Every call the page made to send, upload or queue a message */
   const sent = () => server.calls.filter((c) => c.name.startsWith("messages:"));
-  const asText = (text: string) => ({ name: "messages:sendTextMessage", args: { roomId: ROOM, senderId: YUKI, text, replyToId: undefined, token: undefined } });
+  /** The call that sends `text` as a message, in reply to the message `replyToId` if there is one */
+  const asText = (text: string, replyToId?: string) => ({ name: "messages:sendTextMessage", args: { roomId: ROOM, senderId: YUKI, text, replyToId, token: undefined } });
   /** Every participants.setTypingAction the page called, in order: the action it set, or "clear" */
   const signals = () => server.calls.filter((c) => c.name === "participants:setTypingAction").map((c) => (c.args.action as string | undefined) ?? "clear");
 
@@ -1080,19 +1081,21 @@ describe("a tap on a suggestion under a message", () => {
   }
   /**
    * The browser can record the microphone as well, so dictation records a voice message beside its words. Answers
-   * the microphone's one track and the recorders the page makes.
+   * the microphone's one track and the recorders the page makes. A recorder that is told to stop has stopped at
+   * once, with nothing recorded. One that hands over `late` has a recording, and has stopped with it only when the
+   * test calls its `handOver`, as a browser's recorder stops some time after it is told to.
    */
-  function canRecord() {
+  function canRecord(late = false) {
     const track = { readyState: "live", stop: () => void (track.readyState = "ended") };
     const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
     Object.assign(browser.navigator, { mediaDevices: { getUserMedia: async () => stream } });
-    const recorders: { state: string }[] = [];
+    const recorders: { state: string; handOver(): void }[] = [];
     vi.stubGlobal(
       "MediaRecorder",
       class {
         static isTypeSupported = () => true;
         state = "inactive";
-        ondataavailable = null;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
         onstop: (() => void) | null = null;
         onerror = null;
         constructor() {
@@ -1103,6 +1106,10 @@ describe("a tap on a suggestion under a message", () => {
         }
         stop() {
           this.state = "inactive";
+          if (!late) this.onstop?.();
+        }
+        handOver() {
+          this.ondataavailable?.({ data: new Blob([new Uint8Array(4000)]) });
           this.onstop?.();
         }
       }
@@ -1231,15 +1238,44 @@ describe("a tap on a suggestion under a message", () => {
   test("a chip drawn as a picture puts its emoji in the box, and a chip with nothing on it leaves the box as it is", async () => {
     const page = await open(offered());
     const [, thumbsUp, empty] = chips(page, "welcome");
+    // Over an empty box the chip with nothing on it leaves the box empty, and the room is told nothing
+    await press(page, empty);
+    expect(held(page)).toBe("");
+    expect(labelled(page, t("Clear", "ja")).length).toBe(0);
+    expect(signals()).toEqual([]);
+
     expect(one(thumbsUp.all((n) => n.nodeName === "IMG")).attributes.alt).toBe("👍");
     await press(page, thumbsUp);
     expect(held(page)).toBe("👍");
 
+    // Over what she has typed it leaves that
     await type(page, "ねえ");
-    const told = signals().length;
     await press(page, empty);
     expect(held(page)).toBe("ねえ");
-    expect(signals().length).toBe(told);
+  });
+
+  test("the room hears of a key as it hears of a tap, and at once of a field she empties by hand", async () => {
+    const page = await open(offered());
+    await type(page, "ね");
+    expect(signals()).toEqual(["typing"]);
+    await type(page, "");
+    expect(signals()).toEqual(["typing", "clear"]);
+    await page.wait(3);
+    expect(signals()).toEqual(["typing", "clear"]);
+  });
+
+  test("a reply she is writing stays: the suggestion is sent as that reply", async () => {
+    const page = await open(offered());
+    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+    await page.tap(one(page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === t("↩ Reply", "ja"))));
+    expect(page.body.byClass("ec-reply-bar").length).toBe(1);
+
+    await press(page, chips(page, "welcome")[0]);
+    expect(page.body.byClass("ec-reply-bar").length).toBe(1);
+    expect(held(page)).toBe("ありがとう");
+    await page.tap(sendButton(page));
+    expect(sent()).toEqual([asText("ありがとう", "hello")]);
+    expect(page.body.byClass("ec-reply-bar").length).toBe(0);
   });
 
   test("a keystroke and a tap draw the box alone: not the page, the list or a bubble", async () => {
@@ -1437,7 +1473,31 @@ describe("a tap on a suggestion under a message", () => {
     expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
   });
 
-  test("on Android, between two runs of its recogniser: the tap ends dictation, and no run starts after it", async () => {
+  test("a tap after Send on a voice message, before the recorder has handed the recording over: the voice message goes all the same, and the box holds the suggestion", async () => {
+    const recognisers = canDictate();
+    const { recorders } = canRecord(true);
+    // The recording is uploaded, then sent as a message
+    vi.stubGlobal("fetch", async () => ({ ok: true, status: 200, json: async () => ({ storageId: "stored1" }) }));
+    localStorage.setItem("enchatto_voiceMode", "voice");
+    const page = await open(offered());
+    await page.tap(micButton(page));
+    await page.act(() => one(recognisers).hears("おはよう"));
+    await page.wait(1);
+    await page.tap(one(labelled(page, t("Send voice message", "ja"))));
+    expect(sent()).toEqual([]);
+
+    await press(page, chips(page, "hello")[1]);
+    expect(held(page)).toBe("よろしくね");
+    await page.act(() => one(recorders).handOver());
+    await page.wait(1);
+    expect(sent().map((call) => [call.name, call.args.text, call.args.storageId])).toEqual([
+      ["messages:generateUploadUrl", undefined, undefined],
+      ["messages:sendAudioMessage", "おはよう。", "stored1"],
+    ]);
+    expect(held(page)).toBe("よろしくね");
+  });
+
+  test("on Android, between two runs of its recogniser: the tap ends dictation, no run starts after it, and the keyboard stays down", async () => {
     onAndroid();
     const recognisers = canDictate();
     const page = await open(offered());
@@ -1447,11 +1507,14 @@ describe("a tap on a suggestion under a message", () => {
     await page.act(() => recognisers[0].ends());
     expect(live(page)).toBe("おはよう。");
 
+    const focused = vi.spyOn(Sim.prototype, "focus");
     await press(page, chips(page, "hello")[1]);
     expect(held(page)).toBe("よろしくね");
     await page.wait(1);
     expect(recognisers.length).toBe(1);
     expect(held(page)).toBe("よろしくね");
+    // The keyboard was down while she dictated. The field that comes back is not given the focus that brings it up
+    expect(focused).not.toHaveBeenCalled();
     await page.tap(sendButton(page));
     expect(sent()).toEqual([asText("よろしくね")]);
   });
