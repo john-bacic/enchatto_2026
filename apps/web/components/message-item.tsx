@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -38,6 +38,7 @@ interface MessageData {
   createdAt: number;
 }
 
+/** A person as the room page hands them down: these fields and no others */
 interface ParticipantData {
   _id: string;
   nickname: string;
@@ -145,7 +146,10 @@ function InlineReactions({
   );
 }
 
-export function MessageItem({
+// The list draws a bubble again only when one of its props is another value or object. The page hands down the
+// object it handed down before for a message or a person that holds what it held, and the same handlers
+// (lib/stable.ts)
+export const MessageItem = memo(function MessageItem({
   message,
   sender,
   isOwn,
@@ -470,4 +474,4 @@ export function MessageItem({
         )}
     </>
   );
-}
+});

@@ -28,6 +28,7 @@ import { avatarTint } from "@/lib/types";
 import { textureForRoom } from "@/lib/textures";
 import { t } from "@/lib/i18n";
 import { endGameRule } from "@/lib/end-game";
+import { byId, useStableList } from "@/lib/stable";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { CHAT_SIZES, useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePresence } from "@/hooks/use-presence";
@@ -147,37 +148,56 @@ function RoomContent() {
     [addReaction, removeReaction, participantId, isOnline]
   );
 
-  const typingParticipants = participants
-    .filter((p) => p._id !== participantId && (p as any).typingAction)
-    .map((p) => ({
-      _id: p._id,
-      nickname: p.nickname,
-      avatar: p.avatar,
-      typingAction: (p as any).typingAction as "typing" | "drawing" | "voicing",
-      drawingStartedAt: (p as any).drawingStartedAt as number | undefined,
-      timerSeconds: activeTimerSeconds,
-    }));
+  // The people as the message list draws them: the fields its props name, which leave out lastSeenAt and whatever
+  // else a heartbeat or a keystroke moves. A person who is as they were is the object the list already has
+  const shownParticipants = useStableList(
+    participants.map(({ _id, nickname, role, avatar }) => ({ _id, nickname, role, avatar })),
+    byId
+  );
 
-  const handleReply = (messageId: string) => {
+  // Who is typing, drawing or speaking: the same list, and the same people in it, until one of them starts or stops
+  const typingParticipants = useStableList(
+    participants
+      .filter((p) => p._id !== participantId && (p as any).typingAction)
+      .map((p) => ({
+        _id: p._id,
+        nickname: p.nickname,
+        avatar: p.avatar,
+        typingAction: (p as any).typingAction as "typing" | "drawing" | "voicing",
+        drawingStartedAt: (p as any).drawingStartedAt as number | undefined,
+        timerSeconds: activeTimerSeconds,
+      })),
+    byId
+  );
+
+  const handleReply = useCallback((messageId: string) => {
     setReplyTo(messageId);
-  };
+  }, []);
 
   const handleCancelReply = () => {
     setReplyTo(null);
   };
 
+  const handleViewGameResults = useCallback(() => setShowGameReplay(true), []);
+
   const { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing } = useOutbox({ roomId, participantId, isOnline, replyTo, setReplyTo, lang, convexSiteUrl });
 
   // Filter out host's own join/leave/away/back system messages (keep game messages)
   const roomHostId = roomState?.room?.hostId;
-  const displayMessages = [...messageList, ...queuedAsMessages].filter((m) => {
-    if (m.kind === "system" && roomHostId && m.senderId === roomHostId) {
-      const text = m.text ?? "";
-      if (text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:") || text.startsWith("game_summary:") || text.startsWith("emoji_match_summary:") || text.startsWith("emoji_match_complete:")) return true;
-      return false;
-    }
-    return true;
-  });
+  // A message the server sent again as it was is the object the list already has
+  const shownMessages = useStableList(messageList, byId);
+  const displayMessages = useMemo(
+    () =>
+      [...shownMessages, ...queuedAsMessages].filter((m) => {
+        if (m.kind === "system" && roomHostId && m.senderId === roomHostId) {
+          const text = m.text ?? "";
+          if (text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:") || text.startsWith("game_summary:") || text.startsWith("emoji_match_summary:") || text.startsWith("emoji_match_complete:")) return true;
+          return false;
+        }
+        return true;
+      }),
+    [shownMessages, queuedAsMessages, roomHostId]
+  );
 
   // ─── Vibe / hype ──────────────────────────────────────────────────────────
   const { vibe, combo, mult, hype, recentCount, switches, showVibeInfo, setShowVibeInfo, vibeRef, closeVibeInfo, floaters, cutIn, confettiKey, logoHop } = useVibe({ messages, messageList, participants, participantId, roomState });
@@ -234,7 +254,7 @@ function RoomContent() {
         <MessageErrorBoundary lang={lang}>
           <MessageList
             messages={displayMessages}
-            participants={participants}
+            participants={shownParticipants}
             currentParticipantId={participantId}
             preferredLanguage={lang}
             onReply={handleReply}
@@ -246,7 +266,7 @@ function RoomContent() {
             showRomaji={showRomaji}
             isGameComplete={latestGameSession?.status === "complete" && !activeGameSession}
             gameCompletedAt={latestGameSession?.completedAt}
-            onViewGameResults={() => setShowGameReplay(true)}
+            onViewGameResults={handleViewGameResults}
             truthOrDareGame={truthOrDareGame}
             hype={hype}
           />

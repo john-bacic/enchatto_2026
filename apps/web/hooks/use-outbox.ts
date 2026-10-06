@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { OutgoingVoiceClip } from "@/components/message-input";
@@ -263,17 +263,21 @@ export function useOutbox({
     wasOnlineRef.current = isOnline;
   }, [isOnline, flushQueue]);
 
-  // Merge queued messages into the display list
-  const queuedAsMessages = offlineQueue.map((q) => ({
-    _id: q.id,
-    senderId: participantId,
-    kind: q.kind,
-    status: "pending" as const,
-    text: q.text,
-    mediaUrl: q.mediaUrl,
-    replyToId: q.replyToId,
-    createdAt: q.createdAt,
-  }));
+  // Merge queued messages into the display list. They are the same objects until the queue changes
+  const queuedAsMessages = useMemo(
+    () =>
+      offlineQueue.map((q) => ({
+        _id: q.id,
+        senderId: participantId,
+        kind: q.kind,
+        status: "pending" as const,
+        text: q.text,
+        mediaUrl: q.mediaUrl,
+        replyToId: q.replyToId,
+        createdAt: q.createdAt,
+      })),
+    [offlineQueue, participantId]
+  );
 
   return { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing };
 }

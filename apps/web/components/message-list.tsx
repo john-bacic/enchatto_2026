@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { memo, useEffect, useRef, useCallback } from "react";
 import { MessageItem } from "@/components/message-item";
 import { TypingIndicator } from "@/components/typing-indicator";
 import { AvatarDisc } from "@/components/ui/avatar";
@@ -27,6 +27,7 @@ interface MessageData {
   createdAt: number;
 }
 
+/** A person as the room page hands them down: these fields and no others */
 interface ParticipantData {
   _id: string;
   nickname: string;
@@ -297,7 +298,9 @@ function personLine(name: string, key: string, lang?: string) {
   return lang === "ja" ? `${name}${t(key, lang)}` : `${name} ${t(key, lang)}`;
 }
 
-export function MessageList({
+// The page draws the list again only when one of its props is another value or object: it hands down the list it
+// handed down before when no message in it changed, and likewise the people and the handlers (lib/stable.ts)
+export const MessageList = memo(function MessageList({
   messages,
   participants,
   currentParticipantId,
@@ -696,4 +699,4 @@ export function MessageList({
       <div ref={bottomRef} style={{ flex: "none", height: hype ? 44 : 4 }} />
     </div>
   );
-}
+});
