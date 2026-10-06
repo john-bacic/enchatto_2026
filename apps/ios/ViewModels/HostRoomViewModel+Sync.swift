@@ -301,11 +301,16 @@ extension HostRoomViewModel {
         // Read before the request leaves: each section is shown under the rule its own poll has for an answer
         // that an action of the host's has overtaken
         let asked = (background: backgroundEpoch, emojiMatch: emojiMatchEpoch, truthOrDare: truthOrDareEpoch)
-        // What the requests one by one would not ask for either
+        // Left out: a game whose own fast poll runs, which shows that game meanwhile, and Truth or Dare while
+        // an action is under way
         var skip: Set<RoomSnapshot.Section> = []
         if wordRushPollTask != nil { skip.insert(.wordRush) }
+        if emojiMatchPollTask != nil { skip.insert(.emojiMatch) }
         if emojiBingoPollTask != nil { skip.insert(.emojiBingo) }
         if isTruthOrDareSubmitting { skip.insert(.truthOrDare) }
+        // Truth or Dare is asked for all the same while its fast poll runs. That poll does not send a finished
+        // answer to be translated, and a refresh does: from a game that it then does not show
+        let truthOrDareFastPolled = truthOrDarePollTask != nil
 
         let snapshot: RoomSnapshot
         do {
@@ -330,7 +335,7 @@ extension HostRoomViewModel {
         #if DEBUG
         DebugConsole.shared.trace(source: .network, action: "refresh:\(ticket):apply")
         #endif
-        let after = show(snapshot, askedAt: asked, skipped: skip)
+        let after = show(snapshot, askedAt: asked, skipped: skip, truthOrDareFastPolled: truthOrDareFastPolled)
 
         // The two requests a refresh makes besides, once everything else is on screen
         if let typing = after.typing {
@@ -357,8 +362,9 @@ extension HostRoomViewModel {
 
     /// Shows a snapshot: every assignment of a refresh, in the order the requests one by one make them. Not
     /// async, so they are all made in one turn and nothing else runs between two of them. `asked` holds the
-    /// epochs read before the request left, `skipped` the sections it left out
-    private func show(_ snapshot: RoomSnapshot, askedAt asked: (background: Int, emojiMatch: Int, truthOrDare: Int), skipped: Set<RoomSnapshot.Section>) -> SnapshotFollowUp {
+    /// epochs read before the request left, `skipped` the sections it left out, and `truthOrDareFastPolled`
+    /// says whether Truth or Dare's fast poll ran as it left
+    private func show(_ snapshot: RoomSnapshot, askedAt asked: (background: Int, emojiMatch: Int, truthOrDare: Int), skipped: Set<RoomSnapshot.Section>, truthOrDareFastPolled: Bool) -> SnapshotFollowUp {
         /// A game section the server answered is assigned: nil means the server says there is no game. One it
         /// left out keeps its value, as after a game request that failed, and unless the request asked for it
         /// to be left out it is logged as one
@@ -426,17 +432,24 @@ extension HostRoomViewModel {
             gameReplay = nil
         }
 
-        // Word Rush and Bingo: not while the game's own fast poll runs, which it may have begun to do since
-        // the request left. Its answers are the newer ones
+        // A game is not shown while its own fast poll runs, which it may have begun to do since the request
+        // left. Its answers are the newer ones
         if wordRushPollTask == nil {
             take(snapshot.wordRush, .wordRush) { applyWordRushState($0) }
         }
-        take(snapshot.emojiMatch, .emojiMatch) { applyEmojiMatchState($0, askedAt: asked.emojiMatch) }
+        if emojiMatchPollTask == nil {
+            take(snapshot.emojiMatch, .emojiMatch) { applyEmojiMatchState($0, askedAt: asked.emojiMatch) }
+        }
         if emojiBingoPollTask == nil {
             take(snapshot.emojiBingo, .emojiBingo) { applyEmojiBingoState($0) }
         }
-        // Not shown when an action is under way or has been since the request left
-        take(snapshot.truthOrDare, .truthOrDare) { applyTruthOrDareState($0, askedAt: asked.truthOrDare) }
+        // Nor is Truth or Dare when its fast poll ran as the request left or runs now: a finished answer in
+        // the game is then sent to be translated, and that is all. Nothing is done with a game that an action
+        // is under way for, or has been since the request left
+        let translationOnly = truthOrDareFastPolled || truthOrDarePollTask != nil
+        take(snapshot.truthOrDare, .truthOrDare) {
+            applyTruthOrDareState($0, askedAt: asked.truthOrDare, translationOnly: translationOnly)
+        }
 
         if isLoading { isLoading = false }
         return after

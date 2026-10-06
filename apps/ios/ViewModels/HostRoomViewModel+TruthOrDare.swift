@@ -8,7 +8,7 @@ extension HostRoomViewModel {
         await pollTruthOrDareState(afterOwnAction: false)
     }
 
-    /// Asks for the game and shows it under the rule of `applyTruthOrDareState(_:askedAt:afterOwnAction:)`
+    /// Asks for the game and shows it under the rule of `applyTruthOrDareState(_:askedAt:afterOwnAction:translationOnly:)`
     private func pollTruthOrDareState(afterOwnAction: Bool) async {
         do {
             let epoch = truthOrDareEpoch
@@ -22,24 +22,28 @@ extension HostRoomViewModel {
     /// Shows a game that was asked for at `epoch`, unless it may be from before an action of the host's: a game
     /// asked for before the latest action was sent or answered, and any game that arrives while an action is
     /// under way. `afterOwnAction` marks the poll an action makes once it is answered: the action is still
-    /// under way then, which does not keep its own poll from showing
-    func applyTruthOrDareState(_ game: TruthOrDareGame?, askedAt epoch: Int, afterOwnAction: Bool = false) {
+    /// under way then, which does not keep its own poll from showing. `translationOnly` marks a game from a
+    /// refresh that the fast poll has newer answers than: it is not shown and neither starts nor stops that
+    /// poll, and a finished answer in it is sent to be translated all the same, which the fast poll does not do
+    func applyTruthOrDareState(_ game: TruthOrDareGame?, askedAt epoch: Int, afterOwnAction: Bool = false, translationOnly: Bool = false) {
         guard epoch == truthOrDareEpoch, afterOwnAction || !isTruthOrDareSubmitting else {
             DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:notCurrent")
             return
         }
-        applyTruthOrDareState(game)
+        applyTruthOrDareState(game, translationOnly: translationOnly)
     }
 
-    private func applyTruthOrDareState(_ game: TruthOrDareGame?) {
-        // Every assignment publishes, and each view that observes the view model is then evaluated again,
-        // whether the game changed or not: only a game that differs from the one on screen is assigned
-        if game != activeTruthOrDareGame { activeTruthOrDareGame = game }
-        let needsFastPoll = game != nil && game!.status == .active
-        if needsFastPoll && truthOrDarePollTask == nil {
-            startTruthOrDareFastPoll()
-        } else if !needsFastPoll && truthOrDarePollTask != nil {
-            stopTruthOrDareFastPoll()
+    private func applyTruthOrDareState(_ game: TruthOrDareGame?, translationOnly: Bool) {
+        if !translationOnly {
+            // Every assignment publishes, and each view that observes the view model is then evaluated again,
+            // whether the game changed or not: only a game that differs from the one on screen is assigned
+            if game != activeTruthOrDareGame { activeTruthOrDareGame = game }
+            let needsFastPoll = game != nil && game!.status == .active
+            if needsFastPoll && truthOrDarePollTask == nil {
+                startTruthOrDareFastPoll()
+            } else if !needsFastPoll && truthOrDarePollTask != nil {
+                stopTruthOrDareFastPoll()
+            }
         }
 
         // Auto-translate completed turn responses that lack a translation
@@ -86,7 +90,13 @@ extension HostRoomViewModel {
 
     func createTruthOrDare(promptMode: String = "normal") async {
         do {
-            _ = try await api.createTruthOrDare(roomId: roomId, hostParticipantId: hostId, promptMode: promptMode)
+            // A poll that left before the new game is sent for, or before the server has answered, does not
+            // show its game: it would take the new one off the screen again
+            truthOrDareEpoch += 1
+            do {
+                defer { truthOrDareEpoch += 1 }
+                _ = try await api.createTruthOrDare(roomId: roomId, hostParticipantId: hostId, promptMode: promptMode)
+            }
             await pollTruthOrDareState()
         } catch {
             DebugConsole.shared.trace(source: .client, action: "truthOrDare:create:error", detail: error.localizedDescription, ok: false)
