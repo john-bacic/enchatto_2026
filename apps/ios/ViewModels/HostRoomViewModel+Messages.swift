@@ -81,13 +81,50 @@ extension HostRoomViewModel {
         }
     }
 
+    /// The long side of a photo as it is sent, in pixels
+    private static let sentPhotoLongSide: CGFloat = 1600
+
+    /// The photo as it is encoded: drawn upright, in sRGB, on white where it is transparent, and scaled down so
+    /// that its long side is `sentPhotoLongSide`. A smaller photo keeps its size. The JPEG made from it holds
+    /// the photo as it looks, with no orientation left for whoever shows it to apply
+    private static func photoForSending(_ image: UIImage) -> UIImage {
+        let pixels = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        // Nothing to draw: the image goes back as it is, and encoding it fails as it does for any empty image
+        guard pixels.width > 0, pixels.height > 0 else { return image }
+        let ratio = min(1, sentPhotoLongSide / max(pixels.width, pixels.height))
+        let size = CGSize(width: max(1, (pixels.width * ratio).rounded()), height: max(1, (pixels.height * ratio).rounded()))
+        let format = UIGraphicsImageRendererFormat.default()
+        // One pixel for each point of `size`, whatever the screen's scale
+        format.scale = 1
+        format.opaque = true
+        // Eight bits a channel, in sRGB: wide colour would double the memory of the drawing and make it slower
+        format.preferredRange = .standard
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let bounds = CGRect(origin: .zero, size: size)
+            // A JPEG has no transparency: white shows through, as it does when a transparent picture is encoded directly
+            UIColor.white.setFill()
+            context.fill(bounds)
+            context.cgContext.interpolationQuality = .high
+            image.draw(in: bounds)
+        }
+    }
+
     func sendImage(_ image: UIImage, replyToId: String? = nil) {
-        guard let data = image.jpegData(compressionQuality: 0.7) else { return }
+        #if DEBUG
+        let started = CFAbsoluteTimeGetCurrent()
+        #endif
+        let photo = Self.photoForSending(image)
+        guard let data = photo.jpegData(compressionQuality: 0.7) else { return }
         let base64 = data.base64EncodedString()
         let queued = QueuedMessage(kind: .image, mediaUrl: "data:image/jpeg;base64,\(base64)", replyToId: replyToId)
         // The bubble draws from this, as a placeholder and as the server's copy, instead of loading the picture again
         SentPictures.store(image, clientId: queued.clientId)
         enqueue(queued)
+        #if DEBUG
+        // One line in the debug console for each photo: the pixels it is sent at, and how long this call kept the main actor
+        let spent = Int((CFAbsoluteTimeGetCurrent() - started) * 1000)
+        DebugConsole.shared.trace(source: .client, action: "sendImage", detail: "\(Int(photo.size.width)) x \(Int(photo.size.height)) px", latencyMs: spent)
+        #endif
     }
 
     func sendDrawing(_ image: UIImage, replyToId: String? = nil) {

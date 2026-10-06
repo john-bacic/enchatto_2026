@@ -237,6 +237,9 @@ extension HostRoomViewModel {
                 }
                 let contentType = mediaUrl.hasPrefix("data:image/png") ? "image/png" : "image/jpeg"
                 let uploadUrl = try await api.generateUploadUrl()
+                #if DEBUG
+                DebugConsole.shared.trace(source: .network, action: "sendImage:upload", detail: "\(imageData.count) bytes")
+                #endif
                 storageId = try await api.uploadData(imageData, to: uploadUrl, contentType: contentType)
                 // Deleted while it uploaded: do not post a photo only to take it back
                 guard let index = offlineQueue.firstIndex(where: { $0.id == queued.id }) else {
