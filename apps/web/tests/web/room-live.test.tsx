@@ -2262,6 +2262,49 @@ describe("a Truth or Dare action that fails", () => {
     expect(logged()).toEqual(["Failed to submit response:"]);
   });
 
+  /** The Close a drawing sheet has of its own, beside the question it is drawn for */
+  const sheetCloses = (page: Page, lang: Lang) =>
+    page.body.byClass("ec-sheet").flatMap((sheet) => sheet.all((n) => n.nodeName === "BUTTON" && n.attributes["aria-label"] === t("Close", lang)));
+
+  test.each(LANGS)("a drawing that keeps failing, for a guest who reads %s: the sheet that is back has a Close, which keeps the drawing for Draw your answer", async (lang) => {
+    const page = await openOn(answering("drawing"), lang);
+    const drawingSignals = () => server.calls.filter((c) => c.name === "participants:setTypingAction").map((c) => c.args.action ?? "clear");
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ error: "Server Error" }), { status: 400 }));
+    await page.tap(button(page, t("Draw your answer", lang)));
+    // Until a send has failed the sheet is as it is in any game: Send is its one way out
+    expect(sheetCloses(page, lang)).toEqual([]);
+    await page.tap(one(page.body.byClass("sim-canvas-send")));
+    await aSecond(page);
+    expect(told(page)).toEqual([FAILED[lang]]);
+    expect(sheets(page)).toEqual([1]);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+
+    // The sheet lies over the whole game. Its Close takes it off the screen, and the room is told she has stopped drawing
+    await page.tap(one(sheetCloses(page, lang)));
+    expect(sheets(page)).toEqual([]);
+    expect(drawingSignals()).toEqual(["clear", "drawing", "clear", "drawing", "clear"]);
+    await page.wait(3);
+    expect(sheets(page)).toEqual([]);
+
+    // The canvas she drew on comes back, and can be sent from and closed again
+    await page.tap(button(page, t("Draw your answer", lang)));
+    expect(sheets(page)).toEqual([1]);
+    await page.tap(one(page.body.byClass("sim-canvas-send")));
+    await aSecond(page);
+    expect(sheets(page)).toEqual([1]);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+    await page.tap(one(sheetCloses(page, lang)));
+    expect(sheets(page)).toEqual([]);
+
+    // From under the closed sheet she gives the turn up: the turn she is dealt next has no sheet, and its sheet no Close
+    takes("truthOrDare:skipTurn", (now) => ({ ...now, currentTurn: turn("turn2", 0, YUKI, { choice: "truth", promptText: PROMPT, promptResponseType: "drawing", status: "waiting_for_response" }), totalTurns: 2 }));
+    await page.tap(button(page, t("Skip", lang)));
+    expect(page.body.byClass("sim-canvas-send").length).toBe(0);
+    await page.tap(button(page, t("Draw your answer", lang)));
+    expect(sheets(page)).toEqual([2]);
+    expect(sheetCloses(page, lang)).toEqual([]);
+  });
+
   // ─── An action the server takes ────────────────────────────────────────────
 
   // The stand-in server takes each call and the room does not answer in these five seconds: nothing but the

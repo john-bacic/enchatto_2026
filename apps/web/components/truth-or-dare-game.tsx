@@ -313,9 +313,12 @@ export function TruthOrDareGame({
   const responseInputRef = useRef<HTMLInputElement>(null);
   const responseSectionRef = useRef<HTMLDivElement>(null);
   const [showDrawing, setShowDrawing] = useState(false);
-  // While the sheet's drawing is on its way to the server the sheet is off screen and still mounted, with the
-  // drawing on its canvas: a failure brings it back as it was
-  const [sendingDrawing, setSendingDrawing] = useState(false);
+  // A sheet that is away is off screen and still mounted, with the drawing on its canvas. It is away while its
+  // drawing is on its way to the server, and a failure brings it back as it was
+  const [sheetAway, setSheetAway] = useState(false);
+  // Set once a send of the sheet's drawing has failed. The sheet has a Close from then on, which puts it away: the
+  // screen under it, with Skip, is in reach again, and Draw your answer brings the sheet back with its drawing
+  const [drawingUnsent, setDrawingUnsent] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
@@ -350,7 +353,8 @@ export function TruthOrDareGame({
     setHasRated(false);
     setSubmitting(null); // clear any stale submitting state
     setShowDrawing(false); // a turn skipped from under an open drawing sheet must not leave it open
-    setSendingDrawing(false);
+    setSheetAway(false);
+    setDrawingUnsent(false);
     if (responseInputRef.current) responseInputRef.current.value = "";
   }, [game.currentTurn?._id, turnStatus]);
 
@@ -363,7 +367,7 @@ export function TruthOrDareGame({
     dismissedRoundBreak !== game.completedTurns;
 
   // Signal drawing state to other players via typing indicator
-  const sheetOnScreen = showDrawing && !sendingDrawing;
+  const sheetOnScreen = showDrawing && !sheetAway;
   useEffect(() => {
     onDrawingStateChange?.(sheetOnScreen);
     return () => { onDrawingStateChange?.(false); };
@@ -393,8 +397,11 @@ export function TruthOrDareGame({
 
   const handleDrawingSave = useCallback(
     (dataUrl: string) => {
-      setSendingDrawing(true);
-      orUndo(onSubmitResponse(game._id, undefined, dataUrl), () => setSendingDrawing(false));
+      setSheetAway(true);
+      orUndo(onSubmitResponse(game._id, undefined, dataUrl), () => {
+        setSheetAway(false);
+        setDrawingUnsent(true);
+      });
     },
     [game._id, onSubmitResponse]
   );
@@ -986,8 +993,8 @@ export function TruthOrDareGame({
                 {/* Drawing response */}
                 {turn.promptResponseType === "drawing" && (
                   <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
-                    {/* Also brings back a sheet whose drawing is still on its way */}
-                    <button className="ec-btn yellow" onClick={() => { setShowDrawing(true); setSendingDrawing(false); }} style={{ width: "100%", gap: 8 }}>
+                    {/* Also brings back a sheet that is away, with its drawing */}
+                    <button className="ec-btn yellow" onClick={() => { setShowDrawing(true); setSheetAway(false); }} style={{ width: "100%", gap: 8 }}>
                       <Icon name="g-pencil" size={28} />
                       {t("Draw your answer", lang)}
                     </button>
@@ -1006,7 +1013,7 @@ export function TruthOrDareGame({
 
                 {/* Drawing overlay with prompt visible */}
                 {showDrawing && (
-                  <div className="ec-sheet-backdrop" style={{ zIndex: 300, display: sendingDrawing ? "none" : undefined }}>
+                  <div className="ec-sheet-backdrop" style={{ zIndex: 300, display: sheetAway ? "none" : undefined }}>
                     <div className="ec-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480, padding: "18px 16px max(16px, env(safe-area-inset-bottom))" }}>
                       <div
                         className="ec-chunky"
@@ -1026,6 +1033,21 @@ export function TruthOrDareGame({
                       >
                         <Icon name="g-pencil" size={26} />
                         <span style={{ flex: 1 }}>{promptDisplay}</span>
+                        {/* The canvas has no Close in a game. This one puts the sheet away with its drawing kept */}
+                        {drawingUnsent && (
+                          <button
+                            className="ec-round-btn"
+                            onClick={() => setSheetAway(true)}
+                            aria-label={t("Close", lang)}
+                            title={t("Close", lang)}
+                            style={{ width: 40, height: 40, boxShadow: "0 3px 0 var(--ink)" }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="3.5" strokeLinecap="round">
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                       <DrawingCanvas
                         ref={drawingCanvasRef}
