@@ -10,8 +10,8 @@ class MockEnchattoAPI: EnchattoAPI {
         let roomId = UUID().uuidString
         let joinCode = String((0..<6).map { _ in "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".randomElement()! })
         let hostId = UUID().uuidString
-        // As the server does: the background asked for when it is one, else its own pick
-        let background = background.flatMap { RoomTexture.all.indices.contains($0) ? $0 : nil } ?? RoomTexture.randomIndex()
+        // As the server does: the background asked for when it is a texture that is not retired, else its own pick
+        let background = background.flatMap { RoomTexture.all.indices.contains($0) && !RoomTexture.all[$0].retired ? $0 : nil } ?? RoomTexture.randomIndex()
 
         let room = Room(
             id: roomId,
@@ -230,11 +230,12 @@ class MockEnchattoAPI: EnchattoAPI {
     }
 
     func setRoomBackground(roomId: String, background: Int) async throws {
-        // As the server does: only an open room, and only an index that is one of the textures
+        // As the server does: only an open room, and only an index that is one of the textures. For a retired
+        // texture the room gets a pick of its own, never the background it has
         guard let room = rooms[roomId] else { throw APIError.roomNotFound }
         guard room.status != .closed else { throw APIError.serverError("Room is closed") }
         guard RoomTexture.all.indices.contains(background) else { throw APIError.serverError("Unknown background") }
-        rooms[roomId]?.background = background
+        rooms[roomId]?.background = RoomTexture.all[background].retired ? RoomTexture.randomIndex(not: room.background) : background
     }
 
     func setHostPushToken(roomId: String, hostId: String, token: String) async throws {}

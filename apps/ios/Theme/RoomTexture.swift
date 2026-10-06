@@ -2,10 +2,14 @@ import SwiftUI
 
 /// The 36 room backgrounds. Order must match apps/web/lib/textures.ts TEXTURES — rooms store an index.
 /// Tiles are @3x PNG renders of the web SVGs (Assets.xcassets/Textures).
+/// None is ever taken out: a texture that is no longer offered is marked `retired`, here, in TEXTURES and on the
+/// server (RETIRED_BACKGROUNDS in convex/rooms.ts), and keeps its place, its index and its tile.
 struct RoomTexture {
     let key: String
     let blobA: Color
     let blobB: Color
+    /// A retired texture is drawn for a room that has it, and no pick lands on it
+    var retired = false
 
     private static let pink = Color(red: 1, green: 122 / 255, blue: 182 / 255).opacity(0.18)
     private static let blue = Color(red: 59 / 255, green: 107 / 255, blue: 1).opacity(0.13)
@@ -18,12 +22,12 @@ struct RoomTexture {
         RoomTexture(key: "dots", blobA: pink, blobB: blue),
         RoomTexture(key: "gingham", blobA: yellow, blobB: blue),
         RoomTexture(key: "sprinkles", blobA: violet, blobB: mint),
-        RoomTexture(key: "doodles", blobA: pink, blobB: blue),
+        RoomTexture(key: "doodles", blobA: pink, blobB: blue, retired: true),
         RoomTexture(key: "stripes", blobA: mint, blobB: violet),
         RoomTexture(key: "zigzag", blobA: yellow, blobB: blue),
         RoomTexture(key: "bubbles", blobA: mint, blobB: blue),
         RoomTexture(key: "plaid", blobA: pink, blobB: mint),
-        RoomTexture(key: "alphabet", blobA: yellow, blobB: violet),
+        RoomTexture(key: "alphabet", blobA: yellow, blobB: violet, retired: true),
         RoomTexture(key: "sakura", blobA: pink, blobB: violet),
         RoomTexture(key: "seigaiha", blobA: blue, blobB: mint),
         RoomTexture(key: "onigiri", blobA: mint, blobB: violet),
@@ -38,9 +42,9 @@ struct RoomTexture {
         RoomTexture(key: "paws", blobA: violet, blobB: yellow),
         RoomTexture(key: "waves", blobA: violet, blobB: pink),
         RoomTexture(key: "hearts", blobA: pink, blobB: yellow),
-        RoomTexture(key: "brush", blobA: pink, blobB: blue),
-        RoomTexture(key: "pencil", blobA: violet, blobB: mint),
-        RoomTexture(key: "candylines", blobA: yellow, blobB: pink),
+        RoomTexture(key: "brush", blobA: pink, blobB: blue, retired: true),
+        RoomTexture(key: "pencil", blobA: violet, blobB: mint, retired: true),
+        RoomTexture(key: "candylines", blobA: yellow, blobB: pink, retired: true),
         RoomTexture(key: "jimmies", blobA: yellow, blobB: violet),
         RoomTexture(key: "minihearts", blobA: blue, blobB: pink),
         RoomTexture(key: "dabs", blobA: pink, blobB: blue),
@@ -67,11 +71,10 @@ struct RoomTexture {
         return Int(h % UInt32(joinCodeCount))
     }
 
-    /// Any of the textures, or with `not` any but that one
+    /// Any of the textures that are not retired, or with `not` any of them but that one
     static func randomIndex(not current: Int? = nil) -> Int {
-        guard let current, all.indices.contains(current) else { return Int.random(in: all.indices) }
-        let index = Int.random(in: 0..<all.count - 1)
-        return index < current ? index : index + 1
+        let offered = all.indices.filter { !all[$0].retired && $0 != current }
+        return offered.randomElement() ?? 0
     }
 
     static func forRoom(_ room: Room?) -> RoomTexture {

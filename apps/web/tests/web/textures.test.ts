@@ -483,14 +483,30 @@ describe("the texture a room is drawn with", () => {
 describe("the iPhone app's textures", () => {
   const ios = fileURLToPath(new URL("../../../ios/", import.meta.url));
 
-  test("are the web's: the same keys in the same order, each with the same two blobs", () => {
+  /** The entries of RoomTexture.all as the file writes them, one to a line: a key, two blobs, and `retired: true` on a retired one */
+  function inSwift() {
     const swift = readFileSync(`${ios}Theme/RoomTexture.swift`, "utf8");
     // From the list's opening bracket to the line that closes it
     const list = /static let all: \[RoomTexture\] = \[\n([\s\S]*?)\n {4}\]/.exec(swift)?.[1] ?? "";
-    const entries = [...list.matchAll(/RoomTexture\(\s*key:\s*"([^"]*)",\s*blobA:\s*(\w+),\s*blobB:\s*(\w+)\s*\)/g)];
-    expect(entries.map(([, key, blobA, blobB]) => ({ key, blobs: [blobA, blobB] }))).toEqual(
+    const entries = [...list.matchAll(/RoomTexture\(\s*key:\s*"([^"]*)",\s*blobA:\s*(\w+),\s*blobB:\s*(\w+)\s*(?:,\s*retired:\s*(true|false)\s*)?\)/g)];
+    return { lines: list.split("\n").length, entries: entries.map(([, key, blobA, blobB, retired]) => ({ key, blobs: [blobA, blobB], retired: retired === "true" })) };
+  }
+
+  test("are the web's: the same keys in the same order, each with the same two blobs", () => {
+    const { lines, entries } = inSwift();
+    expect(entries.map(({ key, blobs }) => ({ key, blobs }))).toEqual(
       TEXTURES.map((texture) => ({ key: texture.key, blobs: texture.blobs.map((tint) => TINTS[tint]) }))
     );
+    // Every line of the list is an entry that was read
+    expect(lines).toBe(entries.length);
+  });
+
+  // The app's own picks leave out the textures it marks retired, so the marks are held to the web's, and through
+  // them to the server's
+  test("are retired where the web's are: the same five, and no other", () => {
+    const { entries } = inSwift();
+    expect(entries.flatMap((entry, index) => (entry.retired ? [index] : []))).toEqual(RETIRED);
+    expect(entries.filter((entry) => entry.retired).map((entry) => entry.key)).toEqual(["doodles", "alphabet", "brush", "pencil", "candylines"]);
   });
 
   test.each(TEXTURES.map((texture) => [texture.key, texture] as const))(
