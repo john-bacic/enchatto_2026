@@ -433,15 +433,13 @@ export const MessageItem = memo(function MessageItem({
           )}
         </div>
 
-        {/* Suggestions */}
+        {/* Suggestions: shown only, a tap on one does nothing */}
         {message.processing?.suggestions &&
           message.processing.suggestions.length > 0 && (
             <div style={{ marginLeft: isOwn ? 0 : 50 }}>
               <SuggestionChips
                 suggestions={message.processing.suggestions}
-                onSelect={(text) => {
-                  console.log("Suggestion selected:", text);
-                }}
+                onSelect={() => {}}
               />
             </div>
           )}
