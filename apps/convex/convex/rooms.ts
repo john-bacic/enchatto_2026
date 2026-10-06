@@ -6,7 +6,7 @@ import { DataModel, Doc, Id, TableNames } from "./_generated/dataModel";
 import { deleteStoredFile, isSupportedLanguage, registerToken, requireHost } from "./participants";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
-const BACKGROUND_COUNT = 36;
+const BACKGROUND_COUNT = 52;
 // The retired textures, by index: the ones the two lists mark retired. A retired texture keeps its place in the
 // lists and is still drawn for a room that has it, and no room is given it any more.
 const RETIRED_BACKGROUNDS = [4, 9, 24, 25, 26];

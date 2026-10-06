@@ -82,15 +82,15 @@ describe("a tab that has shown no room", () => {
     expect(ambientTextureIndex(storage, landingOn(8)).get()).toBe(8);
   });
 
-  test("the pick covers the 31 textures that are not retired and nothing else", () => {
-    expect(TEXTURES).toHaveLength(36);
-    expect(PICKED).toHaveLength(31);
+  test("the pick covers the 47 textures that are not retired and nothing else", () => {
+    expect(TEXTURES).toHaveLength(52);
+    expect(PICKED).toHaveLength(47);
     const pick = (value: number) => ambientTextureIndex(tabStorage(), () => value).get();
-    // Each of the 31 has an equal share of the range, in the order of the list
-    expect(PICKED.map((_, share) => pick((share + 0.5) / 31))).toEqual(PICKED);
+    // Each of the 47 has an equal share of the range, in the order of the list
+    expect(PICKED.map((_, share) => pick((share + 0.5) / 47))).toEqual(PICKED);
     // Math.random gives from 0 up to, never, 1
     expect(pick(0)).toBe(0);
-    expect(pick(1 - Number.EPSILON)).toBe(35);
+    expect(pick(1 - Number.EPSILON)).toBe(51);
     const seen = new Set<number>();
     for (let n = 0; n < 1000; n++) seen.add(pick(n / 1000));
     expect([...seen].sort((a, b) => a - b)).toEqual(PICKED);
@@ -158,7 +158,7 @@ describe("a tab whose last room has a retired texture", () => {
 
   // Every index a tab can hold, from storage or kept by the page load, against random numbers across the whole range
   test("whatever is kept and whatever the random source gives, the screen never shows a retired texture", () => {
-    const draws = [0, 1 - Number.EPSILON, ...Array.from({ length: 311 }, (_, n) => (n + 0.5) / 311)];
+    const draws = [0, 1 - Number.EPSILON, ...Array.from({ length: 471 }, (_, n) => (n + 0.5) / 471)];
     for (const index of TEXTURES.keys()) {
       for (const draw of draws) {
         const fromStorage = ambientTextureIndex({ getItem: () => String(index), setItem: () => {} }, () => draw);
@@ -201,7 +201,7 @@ describe("a screen that is waiting for its room", () => {
   });
 
   test("a kept value that is no texture's index counts as none, and unusable storage as none", () => {
-    expect(ambientTextureIndex(tabStorage("36"), landingOn(6)).peek()).toBeUndefined();
+    expect(ambientTextureIndex(tabStorage("52"), landingOn(6)).peek()).toBeUndefined();
     expect(ambientTextureIndex({ getItem: blocked, setItem: blocked }, landingOn(6)).peek()).toBeUndefined();
     expect(ambientTextureIndex(undefined, landingOn(6)).peek()).toBeUndefined();
   });
@@ -217,7 +217,7 @@ describe("a screen that is waiting for its room", () => {
 });
 
 describe("a kept value that is not a texture's index", () => {
-  test.each(["", " ", "abc", "2.5", "3.0", "-1", "-0", "36", "99", "1e0", "0x3", " 3", "3 ", "NaN", "Infinity", "null", "[3]"])(
+  test.each(["", " ", "abc", "2.5", "3.0", "-1", "-0", "52", "99", "1e0", "0x3", " 3", "3 ", "NaN", "Infinity", "null", "[3]"])(
     "%j is ignored, and the random pick shows",
     (kept) => {
       const ambient = ambientTextureIndex(tabStorage(kept), landingOn(5, 6));
@@ -306,7 +306,7 @@ describe("keeping a room's texture", () => {
     expect(ambientTextureIndex(storage, landingOn(3)).get()).toBe(0);
   });
 
-  test.each([-1, 36, 2.5, NaN, Infinity])("%s is no texture's index, and changes nothing", (index) => {
+  test.each([-1, 52, 2.5, NaN, Infinity])("%s is no texture's index, and changes nothing", (index) => {
     const storage = tabStorage("7");
     const ambient = ambientTextureIndex(storage, landingOn(3));
     ambient.keep(index);
@@ -348,7 +348,8 @@ const KEYS = (
   "grid dots gingham sprinkles doodles stripes zigzag bubbles plaid alphabet " +
   "sakura seigaiha onigiri honeycomb argyle clouds asanoha cherries shippo terrazzo crossstitch paws waves " +
   "hearts brush pencil candylines jimmies minihearts dabs softcheck rainbowgrid swatches " +
-  "squiggles memphis shapes"
+  "squiggles memphis shapes " +
+  "kikko usagi kakinohana fuji sankuzushi kiku hishi raimon kanoko nami fundo ume komezashi uroko kasumi yagasuri"
 ).split(" ");
 
 /** The five blob tints, each under the name RoomTexture.swift gives it */
@@ -368,9 +369,9 @@ function tileSize(svg: string) {
 }
 
 describe("the list of textures", () => {
-  test("holds the 36 textures in the order rooms store them, each under its own key", () => {
-    expect(KEYS).toHaveLength(36);
-    expect(new Set(KEYS).size).toBe(36);
+  test("holds the 52 textures in the order rooms store them, each under its own key", () => {
+    expect(KEYS).toHaveLength(52);
+    expect(new Set(KEYS).size).toBe(52);
     expect(TEXTURES.map((texture) => texture.key)).toEqual(KEYS);
   });
 
@@ -379,7 +380,7 @@ describe("the list of textures", () => {
   test("five of them are retired, each in its place: doodles, alphabet, brush, pencil and candylines", () => {
     expect(RETIRED).toEqual([4, 9, 24, 25, 26]);
     expect(RETIRED.map((index) => KEYS[index])).toEqual(["doodles", "alphabet", "brush", "pencil", "candylines"]);
-    expect(PICKED).toHaveLength(31);
+    expect(PICKED).toHaveLength(47);
   });
 
   test("every texture has a name, and no two share one", () => {
@@ -422,9 +423,10 @@ describe("the texture a room is drawn with", () => {
   });
 
   // A room with no stored index is drawn by the FNV-1a hash of its join code, modulo ten: the first ten textures are
-  // the ones every build of the web page and the iPhone app has, so they all draw such a room alike. Taken modulo 36,
-  // the hash of every code here but 222222 lands on another texture than the one beside it. Two of the ten are
-  // retired, doodles and alphabet, and a code that lands on one is drawn with it: an installed build draws it so
+  // the ones every build of the web page and the iPhone app has, so they all draw such a room alike. Taken modulo 52,
+  // the length of the list, the hash of every code here but GHJKLM, 2A3B4C and QRSTUV lands on another texture than
+  // the one beside it. Two of the ten are retired, doodles and alphabet, and a code that lands on one is drawn with
+  // it: an installed build draws it so
   const BY_JOIN_CODE: Array<[joinCode: string, index: number, key: string]> = [
     ["ABC234", 0, "grid"],
     ["ZZZZZZ", 1, "dots"],
@@ -448,14 +450,14 @@ describe("the texture a room is drawn with", () => {
 
   // What a build is handed when the host's app has a texture it does not: every build that does not know the index
   // then draws the room by its join code
-  test.each([36, 37, 99, -1, 1.5, NaN, Infinity])("a stored %s is no texture here, and the room is drawn by its join code", (background) => {
+  test.each([52, 53, 99, -1, 1.5, NaN, Infinity])("a stored %s is no texture here, and the room is drawn by its join code", (background) => {
     for (const [joinCode, index] of BY_JOIN_CODE) {
       expect(textureForRoom({ background, joinCode }), joinCode).toBe(TEXTURES[index]);
     }
   });
 
   // The hash worked out here, apart from lib/textures.ts, for 1,024 codes that differ in their first two characters:
-  // each of the ten is reached, the two retired ones among them, and none of the other 26
+  // each of the ten is reached, the two retired ones among them, and none of the other 42
   test("the join code picks among all of the first ten, whichever of them are retired", () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const reached = new Set<number>();
@@ -472,7 +474,7 @@ describe("the texture a room is drawn with", () => {
   });
 
   test("with no join code either, and with no room at all, it is the grid", () => {
-    for (const room of [{}, { joinCode: "" }, { background: 36 }, { background: 36, joinCode: "" }, null, undefined]) {
+    for (const room of [{}, { joinCode: "" }, { background: 52 }, { background: 52, joinCode: "" }, null, undefined]) {
       expect(textureForRoom(room)).toBe(TEXTURES[0]);
     }
   });

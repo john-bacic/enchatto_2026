@@ -460,6 +460,182 @@ export const TEXTURES: RoomTexture[] = [
       `<g fill='none' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.6'><g transform='translate(64 38.8) rotate(76.8)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#ffd23f' stroke-opacity='0.58'/></g><g transform='translate(134 116.2) rotate(142.6)'><path d='M-5.5 3A6 6 0 0 1 5.5 3' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(145.1 29.1) rotate(168.5)'><circle r='2' fill='#3b6bff' fill-opacity='0.2'/></g><g transform='translate(42.1 143.4) rotate(226.9)'><path d='M-4.5 0L4.5 0' stroke='#ff7ab6' stroke-opacity='0.32'/></g><g transform='translate(16 75.1) rotate(236.7)'><circle r='2' fill='#a77bff' fill-opacity='0.32'/></g><g transform='translate(79 90.9) rotate(27.6)'><path d='M-4.5 0L4.5 0' stroke='#3b6bff' stroke-opacity='0.2'/></g><g transform='translate(98.5 2.2) rotate(201.1)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(98.5 170.2) rotate(201.1)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(115.8 65.9) rotate(19.9)'><path d='M0-6L5.8 4.4L-5.8 4.4Z' stroke='#ff7ab6' stroke-opacity='0.32'/></g><g transform='translate(29.2 26.2) rotate(163.5)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(155.1 158.5) rotate(90.8)'><path d='M-4.5 0L4.5 0' stroke='#a77bff' stroke-opacity='0.32'/></g><g transform='translate(77.1 135.9) rotate(264.6)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#ffd23f' stroke-opacity='0.58'/></g><g transform='translate(36.8 105.9) rotate(283.1)'><path d='M-5.5 3A6 6 0 0 1 5.5 3' stroke='#ffd23f' stroke-opacity='0.58'/></g><g transform='translate(147.5 85) rotate(201.8)'><circle r='2' fill='#3b6bff' fill-opacity='0.2'/></g><g transform='translate(55.2 7) rotate(78.7)'><path d='M-4.5 0L4.5 0' stroke='#a77bff' stroke-opacity='0.32'/></g><g transform='translate(55.2 175) rotate(78.7)'><path d='M-4.5 0L4.5 0' stroke='#a77bff' stroke-opacity='0.32'/></g><g transform='translate(53.8 68.6) rotate(74.9)'><circle r='2' fill='#ff7ab6' fill-opacity='0.32'/></g><g transform='translate(109.5 140.4) rotate(99.6)'><path d='M-5.5 3A6 6 0 0 1 5.5 3' stroke='#ff7ab6' stroke-opacity='0.32'/></g><g transform='translate(114.4 27.4) rotate(24.5)'><circle r='2' fill='#ffd23f' fill-opacity='0.58'/></g><g transform='translate(2.8 120.2) rotate(126.7)'><circle r='5' stroke='#3b6bff' stroke-opacity='0.2'/></g><g transform='translate(170.8 120.2) rotate(126.7)'><circle r='5' stroke='#3b6bff' stroke-opacity='0.2'/></g><g transform='translate(16.1 162.6) rotate(293.2)'><path d='M-4.5 0L4.5 0' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(16.1 -5.4) rotate(293.2)'><path d='M-4.5 0L4.5 0' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(107 98.6) rotate(87.1)'><path d='M-5.5 3A6 6 0 0 1 5.5 3' stroke='#a77bff' stroke-opacity='0.32'/></g><g transform='translate(92.3 42.6) rotate(3.5)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#a77bff' stroke-opacity='0.32'/></g><g transform='translate(97.6 120.6) rotate(252.7)'><path d='M-4.5 0L4.5 0' stroke='#3b6bff' stroke-opacity='0.2'/></g><g transform='translate(4 38.2) rotate(344.2)'><circle r='2' fill='#ff7ab6' fill-opacity='0.32'/></g><g transform='translate(172 38.2) rotate(344.2)'><circle r='2' fill='#ff7ab6' fill-opacity='0.32'/></g><g transform='translate(129 2.3) rotate(298.7)'><path d='M-4.5 0L4.5 0' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(129 170.3) rotate(298.7)'><path d='M-4.5 0L4.5 0' stroke='#3fdcb0' stroke-opacity='0.4'/></g><g transform='translate(137.5 54.7) rotate(90.3)'><rect x='-4.6' y='-4.6' width='9.2' height='9.2' rx='1.4' stroke='#ffd23f' stroke-opacity='0.58'/></g><g transform='translate(10.6 95.5) rotate(187.2)'><path d='M0-6L5.8 4.4L-5.8 4.4Z' stroke='#ff7ab6' stroke-opacity='0.32'/></g><g transform='translate(77.9 15.3) rotate(341)'><path d='M-5.5 3A6 6 0 0 1 5.5 3' stroke='#3b6bff' stroke-opacity='0.2'/></g><g transform='translate(27.8 52.1) rotate(137.2)'><circle r='5' stroke='#ffd23f' stroke-opacity='0.58'/></g><g transform='translate(54.7 122) rotate(211.7)'><path d='M-5.5 3A6 6 0 0 1 5.5 3' stroke='#a77bff' stroke-opacity='0.32'/></g><g transform='translate(125.8 90.9) rotate(205.9)'><path d='M0-6L5.8 4.4L-5.8 4.4Z' stroke='#3fdcb0' stroke-opacity='0.4'/></g></g>`
     ),
   },
+  {
+    key: "kikko",
+    name: "Kikko shells",
+    size: "60px 104px",
+    blobs: [M, P],
+    svg: tile(
+      60,
+      104,
+      `<path d='M15 -4.2L41.1 10.9L41.1 41.1L15 56.2L-11.1 41.1L-11.1 10.9ZM15 99.8L41.1 114.9L41.1 145.1L15 160.2L-11.1 145.1L-11.1 114.9ZM75 -4.2L101.1 10.9L101.1 41.1L75 56.2L48.9 41.1L48.9 10.9ZM75 99.8L101.1 114.9L101.1 145.1L75 160.2L48.9 145.1L48.9 114.9ZM-15 -56.2L11.1 -41.1L11.1 -10.9L-15 4.2L-41.1 -10.9L-41.1 -41.1ZM-15 47.8L11.1 62.9L11.1 93.1L-15 108.2L-41.1 93.1L-41.1 62.9ZM45 -56.2L71.1 -41.1L71.1 -10.9L45 4.2L18.9 -10.9L18.9 -41.1ZM45 47.8L71.1 62.9L71.1 93.1L45 108.2L18.9 93.1L18.9 62.9Z' fill='none' stroke='#3fdcb0' stroke-opacity='.28' stroke-width='2.5' stroke-linejoin='round'/><g fill='#ff7ab6' opacity='.22'><circle cx='20.4' cy='29.1' r='3.9'/><circle cx='15' cy='32.2' r='3.9'/><circle cx='9.6' cy='29.1' r='3.9'/><circle cx='9.6' cy='22.9' r='3.9'/><circle cx='15' cy='19.8' r='3.9'/><circle cx='20.4' cy='22.9' r='3.9'/></g><g fill='#a77bff' opacity='.22'><circle cx='50.4' cy='81.1' r='3.9'/><circle cx='45' cy='84.2' r='3.9'/><circle cx='39.6' cy='81.1' r='3.9'/><circle cx='39.6' cy='74.9' r='3.9'/><circle cx='45' cy='71.8' r='3.9'/><circle cx='50.4' cy='74.9' r='3.9'/></g><g fill='#ffd23f' fill-opacity='.55'><circle cx='15' cy='26' r='2.5'/><circle cx='45' cy='78' r='2.5'/></g>`
+    ),
+  },
+  {
+    key: "usagi",
+    name: "Moon bunnies",
+    size: "140px 132px",
+    blobs: [V, B],
+    svg: tile(
+      140,
+      132,
+      `<g transform='translate(36 42) rotate(-4)' fill='#ff7ab6' opacity='.26'><path d='M-9.5 9C-13 9-14 4-12 0C-15-1-17-4-16-7.5C-15-11-11-12.5-8-11C-4-12 4-11 9-7C14-3 15 5 11 9Z'/><path d='M-11-10C-12-16-9-22-5-24C-3-20-5-13-8-9.5ZM-6-10C-4-15 1-19 6-19C6-15 1-10-4-8.5Z'/><circle cx='13' cy='5' r='3'/></g><g transform='translate(104 104) rotate(4) scale(-1 1)' fill='#a77bff' opacity='.24'><path d='M-9.5 9C-13 9-14 4-12 0C-15-1-17-4-16-7.5C-15-11-11-12.5-8-11C-4-12 4-11 9-7C14-3 15 5 11 9Z'/><path d='M-11-10C-12-16-9-22-5-24C-3-20-5-13-8-9.5ZM-6-10C-4-15 1-19 6-19C6-15 1-10-4-8.5Z'/><circle cx='13' cy='5' r='3'/></g><g fill-opacity='.22'><circle cx='23.2' cy='37.9' r='1.4' fill='#1d1b4f'/><circle cx='116.8' cy='99.9' r='1.4' fill='#1d1b4f'/></g><g fill='#ffd23f' fill-opacity='.4'><circle cx='100' cy='36' r='13'/><path d='M38 92A12 12 0 1 0 50 108A10 10 0 0 1 38 92Z'/></g><g fill-opacity='.32'><circle cx='68' cy='20' r='2.2' fill='#3b6bff'/><circle cx='130' cy='66' r='2.4' fill='#ff7ab6'/><circle cx='70' cy='70' r='2.2' fill='#3fdcb0'/><circle cx='10' cy='76' r='2.2' fill='#a77bff'/><circle cx='72' cy='122' r='2.4' fill='#3b6bff'/></g>`
+    ),
+  },
+  {
+    key: "kakinohana",
+    name: "Persimmon flower",
+    size: "48px",
+    blobs: [Y, B],
+    svg: tile(
+      48,
+      48,
+      `<g fill='none' stroke-linecap='round' stroke-width='2'><path d='M34.5 1.6v5.8M46.5 1.6v5.8M37.6 10.5h5.8M37.6 22.5h5.8M34.5 25.6v5.8M46.5 25.6v5.8M1.6 34.5h5.8M25.6 34.5h5.8M10.5 37.6v5.8M22.5 37.6v5.8M1.6 46.5h5.8M25.6 46.5h5.8' stroke='#ff7ab6' stroke-opacity='.32'/><path d='M13.6 10.5h5.8M10.5 13.6v5.8M22.5 13.6v5.8M13.6 22.5h5.8' stroke='#ffd23f' stroke-opacity='.54'/></g>`
+    ),
+  },
+  {
+    key: "fuji",
+    name: "Little Fuji",
+    size: "136px 116px",
+    blobs: [B, P],
+    svg: tile(
+      136,
+      116,
+      `<g transform='translate(38 40)' fill='#3b6bff' stroke='#3b6bff' stroke-width='2' stroke-linejoin='round' stroke-linecap='round' opacity='.22'><path d='M-24 13Q-13 8-9.5-3L-5.5 1.5L-2.8-2.5L0 1.5L2.8-2.5L5.5 1.5L9.5-3Q13 8 24 13Z' fill-opacity='.5'/><path d='M-9.5-3L-6-12.5Q0-10.5 6-12.5L9.5-3' fill='none'/></g><g transform='translate(106 96)' fill='#a77bff' stroke='#a77bff' stroke-width='2' stroke-linejoin='round' stroke-linecap='round' opacity='.26'><path d='M-24 13Q-13 8-9.5-3L-5.5 1.5L-2.8-2.5L0 1.5L2.8-2.5L5.5 1.5L9.5-3Q13 8 24 13Z' fill-opacity='.5'/><path d='M-9.5-3L-6-12.5Q0-10.5 6-12.5L9.5-3' fill='none'/></g><g fill-opacity='.3'><circle cx='100' cy='28' r='7' fill='#ff7ab6'/><circle cx='34' cy='88' r='5' fill='#ff7ab6'/></g><path d='M70 54h16M78 60h14M4 104h14M-2 110h12M134 110h12M62 6h12' fill='none' stroke='#3fdcb0' stroke-opacity='.32' stroke-width='2.6' stroke-linecap='round'/><g fill-opacity='.55'><circle cx='70' cy='26' r='2.2' fill='#ffd23f'/><circle cx='126' cy='60' r='2.4' fill='#ffd23f'/><circle cx='60' cy='98' r='2.2' fill='#ffd23f'/></g>`
+    ),
+  },
+  {
+    key: "sankuzushi",
+    name: "Counting sticks",
+    size: "66px",
+    blobs: [Y, M],
+    svg: tile(
+      66,
+      66,
+      `<g fill='none' stroke-width='4' stroke-linecap='round'><path d='M5.5 5.5H27.5M5.5 16.5H27.5M5.5 27.5H27.5M38.5 38.5H60.5M38.5 49.5H60.5M38.5 60.5H60.5' stroke='#ffd23f' stroke-opacity='.32'/><path d='M38.5 5.5V27.5M49.5 5.5V27.5M60.5 5.5V27.5M5.5 38.5V60.5M16.5 38.5V60.5M27.5 38.5V60.5' stroke='#a77bff' stroke-opacity='.18'/></g>`
+    ),
+  },
+  {
+    key: "kiku",
+    name: "Kiku crests",
+    size: "136px",
+    blobs: [V, Y],
+    svg: tile(
+      136,
+      136,
+      `<g fill='#a77bff' fill-opacity='.22'><g transform='translate(34 34)'><path d='M0 -7C-1.8 -15 -5.4 -23.4 0 -23C5.4 -23.4 1.9 -15 0 -7ZM2.7 -6.5C4 -14.6 4 -23.7 8.8 -21.2C13.9 -19.6 7.4 -13.2 2.7 -6.5ZM4.9 -4.9C9.3 -11.9 12.8 -20.3 16.3 -16.3C20.3 -12.8 11.9 -9.3 4.9 -4.9ZM6.5 -2.7C13.2 -7.4 19.6 -13.9 21.2 -8.8C23.7 -4 14.6 -4 6.5 -2.7ZM7 0C15 -1.8 23.4 -5.4 23 0C23.4 5.4 15 1.9 7 0ZM6.5 2.7C14.6 4 23.7 4 21.2 8.8C19.6 13.9 13.2 7.4 6.5 2.7ZM4.9 4.9C11.9 9.3 20.3 12.8 16.3 16.3C12.8 20.3 9.3 11.9 4.9 4.9ZM2.7 6.5C7.4 13.2 13.9 19.6 8.8 21.2C4 23.7 4 14.6 2.7 6.5ZM0 7C1.9 15 5.4 23.4 0 23C-5.4 23.4 -1.8 15 0 7ZM-2.7 6.5C-4 14.6 -4 23.7 -8.8 21.2C-13.9 19.6 -7.4 13.2 -2.7 6.5ZM-4.9 4.9C-9.3 11.9 -12.8 20.3 -16.3 16.3C-20.3 12.8 -11.9 9.3 -4.9 4.9ZM-6.5 2.7C-13.2 7.4 -19.6 13.9 -21.2 8.8C-23.7 4 -14.6 4 -6.5 2.7ZM-7 0C-15 1.9 -23.4 5.4 -23 0C-23.4 -5.4 -15 -1.8 -7 0ZM-6.5 -2.7C-14.6 -4 -23.7 -4 -21.2 -8.8C-19.6 -13.9 -13.2 -7.4 -6.5 -2.7ZM-4.9 -4.9C-11.9 -9.3 -20.3 -12.8 -16.3 -16.3C-12.8 -20.3 -9.3 -11.9 -4.9 -4.9ZM-2.7 -6.5C-7.4 -13.2 -13.9 -19.6 -8.8 -21.2C-4 -23.7 -4 -14.6 -2.7 -6.5Z'/></g></g><g fill='#ff7ab6' fill-opacity='.23'><g transform='translate(102 102) rotate(11.3)'><path d='M0 -7C-1.8 -15 -5.4 -23.4 0 -23C5.4 -23.4 1.9 -15 0 -7ZM2.7 -6.5C4 -14.6 4 -23.7 8.8 -21.2C13.9 -19.6 7.4 -13.2 2.7 -6.5ZM4.9 -4.9C9.3 -11.9 12.8 -20.3 16.3 -16.3C20.3 -12.8 11.9 -9.3 4.9 -4.9ZM6.5 -2.7C13.2 -7.4 19.6 -13.9 21.2 -8.8C23.7 -4 14.6 -4 6.5 -2.7ZM7 0C15 -1.8 23.4 -5.4 23 0C23.4 5.4 15 1.9 7 0ZM6.5 2.7C14.6 4 23.7 4 21.2 8.8C19.6 13.9 13.2 7.4 6.5 2.7ZM4.9 4.9C11.9 9.3 20.3 12.8 16.3 16.3C12.8 20.3 9.3 11.9 4.9 4.9ZM2.7 6.5C7.4 13.2 13.9 19.6 8.8 21.2C4 23.7 4 14.6 2.7 6.5ZM0 7C1.9 15 5.4 23.4 0 23C-5.4 23.4 -1.8 15 0 7ZM-2.7 6.5C-4 14.6 -4 23.7 -8.8 21.2C-13.9 19.6 -7.4 13.2 -2.7 6.5ZM-4.9 4.9C-9.3 11.9 -12.8 20.3 -16.3 16.3C-20.3 12.8 -11.9 9.3 -4.9 4.9ZM-6.5 2.7C-13.2 7.4 -19.6 13.9 -21.2 8.8C-23.7 4 -14.6 4 -6.5 2.7ZM-7 0C-15 1.9 -23.4 5.4 -23 0C-23.4 -5.4 -15 -1.8 -7 0ZM-6.5 -2.7C-14.6 -4 -23.7 -4 -21.2 -8.8C-19.6 -13.9 -13.2 -7.4 -6.5 -2.7ZM-4.9 -4.9C-11.9 -9.3 -20.3 -12.8 -16.3 -16.3C-12.8 -20.3 -9.3 -11.9 -4.9 -4.9ZM-2.7 -6.5C-7.4 -13.2 -13.9 -19.6 -8.8 -21.2C-4 -23.7 -4 -14.6 -2.7 -6.5Z'/></g></g><g fill='#ffd23f' fill-opacity='.46'><g transform='translate(102 34)'><path d='M0 -4.6C-1.8 -8.8 -5.2 -13.4 0 -13C5.2 -13.4 1.8 -8.8 0 -4.6ZM2.7 -3.7C3.7 -8.2 3.7 -13.9 7.6 -10.5C12.1 -7.8 6.6 -6.1 2.7 -3.7ZM4.4 -1.4C7.8 -4.4 11.1 -9.1 12.4 -4C14.4 .8 8.9 -1 4.4 -1.4ZM4.4 1.4C8.9 1 14.4 -.8 12.4 4C11.1 9.1 7.8 4.4 4.4 1.4ZM2.7 3.7C6.6 6.1 12.1 7.8 7.6 10.5C3.7 13.9 3.7 8.2 2.7 3.7ZM0 4.6C1.8 8.8 5.2 13.4 0 13C-5.2 13.4 -1.8 8.8 0 4.6ZM-2.7 3.7C-3.7 8.2 -3.7 13.9 -7.6 10.5C-12.1 7.8 -6.6 6.1 -2.7 3.7ZM-4.4 1.4C-7.8 4.4 -11.1 9.1 -12.4 4C-14.4 -.8 -8.9 1 -4.4 1.4ZM-4.4 -1.4C-8.9 -1 -14.4 .8 -12.4 -4C-11.1 -9.1 -7.8 -4.4 -4.4 -1.4ZM-2.7 -3.7C-6.6 -6.1 -12.1 -7.8 -7.6 -10.5C-3.7 -13.9 -3.7 -8.2 -2.7 -3.7Z'/></g><g transform='translate(34 102) rotate(18)'><path d='M0 -4.6C-1.8 -8.8 -5.2 -13.4 0 -13C5.2 -13.4 1.8 -8.8 0 -4.6ZM2.7 -3.7C3.7 -8.2 3.7 -13.9 7.6 -10.5C12.1 -7.8 6.6 -6.1 2.7 -3.7ZM4.4 -1.4C7.8 -4.4 11.1 -9.1 12.4 -4C14.4 .8 8.9 -1 4.4 -1.4ZM4.4 1.4C8.9 1 14.4 -.8 12.4 4C11.1 9.1 7.8 4.4 4.4 1.4ZM2.7 3.7C6.6 6.1 12.1 7.8 7.6 10.5C3.7 13.9 3.7 8.2 2.7 3.7ZM0 4.6C1.8 8.8 5.2 13.4 0 13C-5.2 13.4 -1.8 8.8 0 4.6ZM-2.7 3.7C-3.7 8.2 -3.7 13.9 -7.6 10.5C-12.1 7.8 -6.6 6.1 -2.7 3.7ZM-4.4 1.4C-7.8 4.4 -11.1 9.1 -12.4 4C-14.4 -.8 -8.9 1 -4.4 1.4ZM-4.4 -1.4C-8.9 -1 -14.4 .8 -12.4 -4C-11.1 -9.1 -7.8 -4.4 -4.4 -1.4ZM-2.7 -3.7C-6.6 -6.1 -12.1 -7.8 -7.6 -10.5C-3.7 -13.9 -3.7 -8.2 -2.7 -3.7Z'/></g></g><g fill-opacity='.55'><circle cx='34' cy='34' r='3.8' fill='#ffd23f'/><circle cx='102' cy='102' r='3.8' fill='#ffd23f'/></g><g fill-opacity='.34'><circle cx='102' cy='34' r='2.6' fill='#ff7ab6'/><circle cx='34' cy='102' r='2.6' fill='#a77bff'/><circle cx='68' cy='68' r='2.3' fill='#3fdcb0'/><circle cx='68' cy='0' r='2.3' fill='#3fdcb0'/><circle cx='68' cy='136' r='2.3' fill='#3fdcb0'/><circle cx='0' cy='68' r='2.3' fill='#3fdcb0'/><circle cx='136' cy='68' r='2.3' fill='#3fdcb0'/><circle cx='0' cy='0' r='2.3' fill='#3fdcb0'/><circle cx='136' cy='0' r='2.3' fill='#3fdcb0'/><circle cx='0' cy='136' r='2.3' fill='#3fdcb0'/><circle cx='136' cy='136' r='2.3' fill='#3fdcb0'/></g>`
+    ),
+  },
+  {
+    key: "hishi",
+    name: "Hishi diamonds",
+    size: "72px 48px",
+    blobs: [M, Y],
+    svg: tile(
+      72,
+      48,
+      `<g fill='none' stroke-linecap='round' stroke-width='2'><path d='M12.6-2.6l-3.8 2.6M30.4-2.6l3.8 2.6M5.4 2.2l-3.8 2.6M37.6 2.2l3.8 2.6M44.8 7l3.8 2.6M70.2 7l-3.8 2.6M52 11.8l3.8 2.6M63 11.8l-3.8 2.6M55.8 16.6l-3.8 2.6M59.2 16.6l3.8 2.6M48.6 21.4l-3.8 2.6M66.4 21.4l3.8 2.6M1.6 26.2l3.8 2.6M41.4 26.2l-3.8 2.6M8.8 31l3.8 2.6M34.2 31l-3.8 2.6M16 35.8l3.8 2.6M27 35.8l-3.8 2.6M19.8 40.6l-3.8 2.6M23.2 40.6l3.8 2.6M12.6 45.4l-3.8 2.6M30.4 45.4l3.8 2.6' stroke='#3fdcb0' stroke-opacity='.27'/><path d='M46.5-3.7l3.8 2.6M68.5-3.7l-3.8 2.6M53.7 1.1l3.8 2.6M61.3 1.1l-3.8 2.6M21.5 3.3l-3.8 2.6M21.5 3.3l3.8 2.6M14.3 8.1l-3.8 2.6M28.7 8.1l3.8 2.6M7.1 12.9l-3.8 2.6M35.9 12.9l3.8 2.6M3.3 15.5l3.8 2.6M39.7 15.5l-3.8 2.6M10.5 20.3l3.8 2.6M32.5 20.3l-3.8 2.6M17.7 25.1l3.8 2.6M25.3 25.1l-3.8 2.6M57.5 27.3l-3.8 2.6M57.5 27.3l3.8 2.6M50.3 32.1l-3.8 2.6M64.7 32.1l3.8 2.6M-.1 36.9l3.8 2.6M43.1 36.9l-3.8 2.6M71.9 36.9l3.8 2.6M3.7 39.5l-3.8 2.6M39.3 39.5l3.8 2.6M75.7 39.5l-3.8 2.6M46.5 44.3l3.8 2.6M68.5 44.3l-3.8 2.6M53.7 49.1l3.8 2.6M61.3 49.1l-3.8 2.6' stroke='#ff7ab6' stroke-opacity='.26'/><path d='M21.5 12.9v5.2M18.9 15.5h5.2M57.5 36.9v5.2M54.9 39.5h5.2' stroke='#ffd23f' stroke-opacity='.46'/></g>`
+    ),
+  },
+  {
+    key: "raimon",
+    name: "Raimon maze",
+    size: "70px 63px",
+    blobs: [B, Y],
+    svg: tile(
+      70,
+      63,
+      `<path d='M17.5 17.5L24.5 17.5L24.5 10.5L10.5 10.5L10.5 24.5L31.5 24.5L31.5 3.5L3.5 3.5L3.5 31.5L66.5 31.5L66.5 59.5L38.5 59.5L38.5 38.5L59.5 38.5L59.5 52.5L45.5 52.5L45.5 45.5L52.5 45.5' fill='none' stroke='#3b6bff' stroke-opacity='.17' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/><g fill='#ffd23f' fill-opacity='.55'><circle cx='52.5' cy='14' r='2.6'/><circle cx='17.5' cy='49' r='2.6'/></g>`
+    ),
+  },
+  {
+    key: "kanoko",
+    name: "Kanoko spots",
+    size: "120px",
+    blobs: [P, V],
+    svg: tile(
+      120,
+      120,
+      `<g fill='none' stroke-width='3' stroke-linejoin='round'><path d='M57.9 12.7L51.8 18.6Q49.4 20.8 47.3 18.3L41.8 11.9Q39.7 9.3 42.1 7.1L48.2 1.6Q50.6 -0.6 52.8 1.8L58.2 8Q60.3 10.4 57.9 12.7ZM57.9 132.7L51.8 138.6Q49.4 140.8 47.3 138.3L41.8 131.9Q39.7 129.3 42.1 127.1L48.2 121.6Q50.6 119.4 52.8 121.8L58.2 128Q60.3 130.4 57.9 132.7ZM98 12.4L92.4 18.3Q90.2 20.6 87.8 18.2L81.9 12.1Q79.5 9.7 81.7 7.5L87.4 2Q89.6 -0.1 91.9 2.1L97.9 7.9Q100.2 10.1 98 12.4ZM98 132.4L92.4 138.3Q90.2 140.6 87.8 138.2L81.9 132.1Q79.5 129.7 81.7 127.5L87.4 122Q89.6 119.9 91.9 122.1L97.9 127.9Q100.2 130.1 98 132.4ZM78 32L71.8 37.8Q69.4 40 67.3 37.8L61.8 32Q59.6 29.8 62.1 27.6L68.2 22Q70.6 19.8 72.7 22L78.2 27.5Q80.4 29.7 78 32ZM-2.5 32L-8.3 37.7Q-10.6 40 -12.9 37.7L-18.8 32.1Q-21.1 29.8 -18.8 27.7L-12.9 22.2Q-10.5 20.1 -8.3 22.2L-2.4 27.6Q-0.2 29.7 -2.5 32ZM117.5 32L111.7 37.7Q109.4 40 107.1 37.7L101.2 32.1Q98.9 29.8 101.2 27.7L107.1 22.2Q109.5 20.1 111.7 22.2L117.6 27.6Q119.8 29.7 117.5 32ZM17.9 51.8L11.7 58Q9.3 60.5 7.1 58.2L1.3 52.5Q-1 50.2 1.3 48L7.1 42.3Q9.4 40.1 11.8 42.1L17.9 47.3Q20.3 49.3 17.9 51.8ZM137.9 51.8L131.7 58Q129.3 60.5 127.1 58.2L121.3 52.5Q119 50.2 121.3 48L127.1 42.3Q129.4 40.1 131.8 42.1L137.9 47.3Q140.3 49.3 137.9 51.8ZM98.5 52.2L92.6 58.4Q90.2 60.9 87.9 58.5L81.8 52.5Q79.5 50.2 81.8 47.8L87.9 41.5Q90.2 39.1 92.6 41.4L98.5 47.4Q100.8 49.7 98.5 52.2ZM37.6 72.3L32 78.5Q29.8 81 27.5 78.6L21.5 72.4Q19.2 70 21.6 67.7L27.7 61.8Q30.1 59.4 32.2 61.7L37.7 67.6Q39.8 69.9 37.6 72.3ZM-1.9 72L-8.1 78.1Q-10.5 80.5 -12.7 78.2L-18.4 72.2Q-20.6 69.9 -18.3 67.6L-12.4 62Q-10.1 59.7 -7.7 61.9L-1.8 67.5Q0.5 69.6 -1.9 72ZM118.1 72L111.9 78.1Q109.5 80.5 107.3 78.2L101.6 72.2Q99.4 69.9 101.7 67.6L107.6 62Q109.9 59.7 112.3 61.9L118.2 67.5Q120.5 69.6 118.1 72ZM18.8 92L12.9 98.1Q10.6 100.5 8.1 98.3L2 92.5Q-0.4 90.3 1.8 88L7.5 82.2Q9.8 79.9 12.3 82.1L18.6 87.4Q21.1 89.6 18.8 92ZM138.8 92L132.9 98.1Q130.6 100.5 128.1 98.3L122 92.5Q119.6 90.3 121.8 88L127.5 82.2Q129.8 79.9 132.3 82.1L138.6 87.4Q141.1 89.6 138.8 92ZM58 92.1L52.6 97.9Q50.5 100.2 48.1 98L42.1 92.4Q39.7 90.2 42.1 87.7L48.1 81.4Q50.4 78.9 52.6 81.3L58 87.4Q60.1 89.8 58 92.1ZM37.7 -7.8L31.9 -1.9Q29.6 0.5 27.4 -1.8L21.7 -7.7Q19.4 -10 21.7 -12.3L27.4 -18.2Q29.7 -20.5 32 -18.2L37.7 -12.4Q40 -10.2 37.7 -7.8ZM37.7 112.2L31.9 118.1Q29.6 120.5 27.4 118.2L21.7 112.3Q19.4 110 21.7 107.7L27.4 101.8Q29.7 99.5 32 101.8L37.7 107.6Q40 109.8 37.7 112.2ZM78.4 -8.2L72.1 -2.2Q69.7 0.1 67.3 -2.1L61.4 -7.9Q59.1 -10.2 61.6 -12.4L67.9 -18Q70.4 -20.3 72.7 -18.1L78.6 -12.7Q80.9 -10.6 78.4 -8.2ZM78.4 111.8L72.1 117.8Q69.7 120.1 67.3 117.9L61.4 112.1Q59.1 109.8 61.6 107.6L67.9 102Q70.4 99.7 72.7 101.9L78.6 107.3Q80.9 109.4 78.4 111.8Z' stroke='#ff7ab6' stroke-opacity='.26'/><path d='M18.5 12.1L12.7 18Q10.5 20.2 8 18L1.8 12.5Q-0.7 10.3 1.8 8L8 2.1Q10.4 -0.2 12.7 2L18.5 7.6Q20.7 9.8 18.5 12.1ZM18.5 132.1L12.7 138Q10.5 140.2 8 138L1.8 132.5Q-0.7 130.3 1.8 128L8 122.1Q10.4 119.8 12.7 122L18.5 127.6Q20.7 129.8 18.5 132.1ZM138.5 12.1L132.7 18Q130.5 20.2 128 18L121.8 12.5Q119.3 10.3 121.8 8L128 2.1Q130.4 -0.2 132.7 2L138.5 7.6Q140.7 9.8 138.5 12.1ZM138.5 132.1L132.7 138Q130.5 140.2 128 138L121.8 132.5Q119.3 130.3 121.8 128L128 122.1Q130.4 119.8 132.7 122L138.5 127.6Q140.7 129.8 138.5 132.1ZM37.9 32.6L32.6 38Q30.5 40.2 27.9 37.8L21.5 31.7Q18.9 29.3 21.4 27.2L27.8 21.7Q30.3 19.5 32.4 21.9L37.9 28.1Q40 30.5 37.9 32.6ZM58.8 52.3L52.8 58.7Q50.5 61.2 48.1 58.9L42.2 53Q39.8 50.6 42 48.2L47.5 42.1Q49.7 39.7 52.2 41.9L58.6 47.5Q61.1 49.7 58.8 52.3ZM77.8 72.5L72.3 78.3Q70.1 80.6 67.7 78.3L61.6 72.7Q59.2 70.5 61.4 68.2L67.1 62.3Q69.3 60 71.7 62.3L77.6 68Q79.9 70.3 77.8 72.5ZM98 92.2L92 98.2Q89.7 100.5 87.6 98.2L82.2 92.5Q80.1 90.3 82.3 88L88 82.3Q90.2 80 92.5 82.2L98.1 87.7Q100.4 89.9 98 92.2ZM-1.3 -7.3L-7.7 -1.7Q-10.2 0.5 -12.3 -1.7L-17.9 -7.3Q-20.1 -9.5 -17.8 -12L-12.1 -18.5Q-9.9 -21.1 -7.4 -18.5L-1.3 -12.1Q1.1 -9.6 -1.3 -7.3ZM-1.3 112.7L-7.7 118.3Q-10.2 120.5 -12.3 118.3L-17.9 112.7Q-20.1 110.5 -17.8 108L-12.1 101.5Q-9.9 98.9 -7.4 101.5L-1.3 107.9Q1.1 110.4 -1.3 112.7ZM118.7 -7.3L112.3 -1.7Q109.8 0.5 107.7 -1.7L102.1 -7.3Q99.9 -9.5 102.2 -12L107.9 -18.5Q110.1 -21.1 112.6 -18.5L118.7 -12.1Q121.1 -9.6 118.7 -7.3ZM118.7 112.7L112.3 118.3Q109.8 120.5 107.7 118.3L102.1 112.7Q99.9 110.5 102.2 108L107.9 101.5Q110.1 98.9 112.6 101.5L118.7 107.9Q121.1 110.4 118.7 112.7Z' stroke='#a77bff' stroke-opacity='.28'/></g><g fill='#ff7ab6' fill-opacity='.32'><circle cx='50.5' cy='10.3' r='2.4'/><circle cx='89.9' cy='9.6' r='2.1'/><circle cx='70.4' cy='30.5' r='2.4'/><circle cx='109.9' cy='30' r='2.5'/><circle cx='9.8' cy='49.8' r='2.5'/><circle cx='90.4' cy='50.6' r='2.6'/><circle cx='29.9' cy='70.2' r='2.6'/><circle cx='110' cy='69.7' r='2.4'/><circle cx='10' cy='90.3' r='2.1'/><circle cx='49.7' cy='90.6' r='2.2'/><circle cx='30.1' cy='109.6' r='2.5'/><circle cx='69.5' cy='110.4' r='2.3'/></g><g fill='#a77bff' fill-opacity='.34'><circle cx='9.5' cy='10.1' r='2.6'/><circle cx='29.7' cy='29.7' r='2.1'/><circle cx='49.6' cy='50.6' r='2.5'/><circle cx='69.6' cy='70' r='2.2'/><circle cx='90.2' cy='90.1' r='2.6'/><circle cx='109.6' cy='110.2' r='2.5'/></g>`
+    ),
+  },
+  {
+    key: "nami",
+    name: "Nami curls",
+    size: "64px 92px",
+    blobs: [M, B],
+    svg: tile(
+      64,
+      92,
+      `<g fill='none' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M-14.9 34C4.6 34 21.7 7.7 38.9 7.7A10.3 10.3 0 0 1 38.9 28.3A6.6 6.6 0 0 1 38.9 15A3.4 3.4 0 0 1 38.9 21.9M49.1 34C68.6 34 85.7 7.7 102.9 7.7A10.3 10.3 0 0 1 102.9 28.3A6.6 6.6 0 0 1 102.9 15A3.4 3.4 0 0 1 102.9 21.9' stroke='#3b6bff' stroke-opacity='.19'/><path d='M-46.9 80C-27.4 80 -10.3 53.7 6.9 53.7A10.3 10.3 0 0 1 6.9 74.3A6.6 6.6 0 0 1 6.9 61A3.4 3.4 0 0 1 6.9 67.9M17.1 80C36.6 80 53.7 53.7 70.9 53.7A10.3 10.3 0 0 1 70.9 74.3A6.6 6.6 0 0 1 70.9 61A3.4 3.4 0 0 1 70.9 67.9' stroke='#3fdcb0' stroke-opacity='.3'/></g><g fill-opacity='.5'><circle cx='53.7' cy='4.9' r='2.3' fill='#ffd23f'/><circle cx='60' cy='14' r='1.7' fill='#ff7ab6'/><circle cx='21.7' cy='50.9' r='2.3' fill='#ffd23f'/><circle cx='28' cy='60' r='1.7' fill='#ff7ab6'/></g>`
+    ),
+  },
+  {
+    key: "fundo",
+    name: "Fundo weights",
+    size: "64px",
+    blobs: [Y, V],
+    svg: tile(
+      64,
+      64,
+      `<path d='M0 0A22.6 22.6 0 0 1 32 0A22.6 22.6 0 0 0 32 32A22.6 22.6 0 0 1 0 32A22.6 22.6 0 0 0 0 0ZM0 64A22.6 22.6 0 0 1 32 64A22.6 22.6 0 0 0 32 96A22.6 22.6 0 0 1 0 96A22.6 22.6 0 0 0 0 64ZM32 32A22.6 22.6 0 0 1 64 32A22.6 22.6 0 0 0 64 64A22.6 22.6 0 0 1 32 64A22.6 22.6 0 0 0 32 32ZM32 -32A22.6 22.6 0 0 1 64 -32A22.6 22.6 0 0 0 64 0A22.6 22.6 0 0 1 32 0A22.6 22.6 0 0 0 32 -32Z' fill='#ff7ab6' fill-opacity='.09'/><g fill='none' stroke-linecap='round' stroke-width='2'><path d='M33.6 1.5l3.8 2.5M62.4 1.5l-3.8 2.5M1.5 1.6l2.5 3.8M30.5 1.6l-2.5 3.8M41.4 5.6l4.4 .9M54.6 5.6l-4.4 .9M5.6 9.4l.9 4.4M26.4 9.4l-.9 4.4M6.5 18.2l-.9 4.4M25.5 18.2l.9 4.4M45.8 25.5l-4.4 .9M50.2 25.5l4.4 .9M4 26.6l-2.5 3.8M28 26.6l2.5 3.8M37.4 28l-3.8 2.5M58.6 28l3.8 2.5M1.6 33.5l3.8 2.5M30.4 33.5l-3.8 2.5M33.5 33.6l2.5 3.8M62.5 33.6l-2.5 3.8M9.4 37.6l4.4 .9M22.6 37.6l-4.4 .9M37.6 41.4l.9 4.4M58.4 41.4l-.9 4.4M38.5 50.2l-.9 4.4M57.5 50.2l.9 4.4M13.8 57.5l-4.4 .9M18.2 57.5l4.4 .9M36 58.6l-2.5 3.8M60 58.6l2.5 3.8M5.4 60l-3.8 2.5M26.6 60l3.8 2.5' stroke='#ff7ab6' stroke-opacity='.32'/><path d='M45.6 16h4.8M13.6 48h4.8' stroke='#a77bff' stroke-opacity='.35'/></g>`
+    ),
+  },
+  {
+    key: "ume",
+    name: "Ume blossoms",
+    size: "132px",
+    blobs: [P, M],
+    svg: tile(
+      132,
+      132,
+      `<g transform='translate(30 30) rotate(10) scale(1.15)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#ff7ab6' fill-opacity='.25'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#ff7ab6' stroke-opacity='.4' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(98 52) rotate(-16) scale(0.8)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#a77bff' fill-opacity='.23'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#a77bff' stroke-opacity='.42' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(58 86) rotate(24) scale(0.95)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#ffd23f' fill-opacity='.4'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#ffd23f' stroke-opacity='.5' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(111 113) rotate(4) scale(1.05)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#ff7ab6' fill-opacity='.25'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#ff7ab6' stroke-opacity='.4' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(5 100) rotate(-8) scale(0.72)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#a77bff' fill-opacity='.23'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#a77bff' stroke-opacity='.42' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(137 100) rotate(-8) scale(0.72)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#a77bff' fill-opacity='.23'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#a77bff' stroke-opacity='.42' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(72 3) rotate(30) scale(0.62)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#ff7ab6' fill-opacity='.25'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#ff7ab6' stroke-opacity='.4' stroke-width='1.4' stroke-linecap='round'/></g><g transform='translate(72 135) rotate(30) scale(0.62)'><path d='M-6.5 -8.9A6.6 6.6 0 0 1 6.5 -8.9A6.6 6.6 0 0 1 10.5 3.4A6.6 6.6 0 0 1 0 11A6.6 6.6 0 0 1 -10.5 3.4A6.6 6.6 0 0 1 -6.5 -8.9Z' fill='#ff7ab6' fill-opacity='.25'/><path d='M0 -3.4L0 -7.2M3.2 -1.1L6.8 -2.2M2 2.8L4.2 5.8M-2 2.8L-4.2 5.8M-3.2 -1.1L-6.8 -2.2' fill='none' stroke='#ff7ab6' stroke-opacity='.4' stroke-width='1.4' stroke-linecap='round'/></g><g fill-opacity='.55'><circle cx='30' cy='30' r='2.6' fill='#ffd23f'/><circle cx='98' cy='52' r='1.8' fill='#ffd23f'/><circle cx='58' cy='86' r='2.2' fill='#ff7ab6'/><circle cx='111' cy='113' r='2.4' fill='#ffd23f'/><circle cx='5' cy='100' r='1.7' fill='#ffd23f'/><circle cx='72' cy='3' r='1.4' fill='#ffd23f'/></g><g fill-opacity='.4'><circle cx='64' cy='46' r='2.4' fill='#3fdcb0'/><circle cx='26' cy='66' r='2.2' fill='#3fdcb0'/><circle cx='96' cy='86' r='2.4' fill='#3fdcb0'/><circle cx='124' cy='22' r='2.2' fill='#3fdcb0'/><circle cx='40' cy='118' r='2.2' fill='#3fdcb0'/></g>`
+    ),
+  },
+  {
+    key: "komezashi",
+    name: "Rice stitch",
+    size: "40px",
+    blobs: [M, V],
+    svg: tile(
+      40,
+      40,
+      `<g fill='none' stroke-linecap='round' stroke-width='2'><path d='M10 4.2v11.6M6 6l8 8M14 6l-8 8M4.2 10h11.6' stroke='#a77bff' stroke-opacity='.32'/><path d='M30 24.2v11.6M26 26l8 8M34 26l-8 8M24.2 30h11.6' stroke='#3fdcb0' stroke-opacity='.38'/></g>`
+    ),
+  },
+  {
+    key: "uroko",
+    name: "Uroko scales",
+    size: "44px 76px",
+    blobs: [P, Y],
+    svg: tile(
+      44,
+      76,
+      `<g stroke-width='3' stroke-linejoin='round'><path d='M22 4L40.5 36L3.5 36Z' fill='#ff7ab6' stroke='#ff7ab6' opacity='.14'/><path d='M0 42L18.5 74L-18.5 74ZM44 42L62.5 74L25.5 74Z' fill='#ffd23f' stroke='#ffd23f' opacity='.21'/></g>`
+    ),
+  },
+  {
+    key: "kasumi",
+    name: "Kasumi mist",
+    size: "200px 152px",
+    blobs: [B, V],
+    svg: tile(
+      200,
+      152,
+      `<path d='M32.5 14h31a4.5 4.5 0 0 1 0 9h-31a4.5 4.5 0 0 1 0 -9zM14.5 23h69a4.5 4.5 0 0 1 0 9h-69a4.5 4.5 0 0 1 0 -9zM48.5 32h47a4.5 4.5 0 0 1 0 9h-47a4.5 4.5 0 0 1 0 -9z' fill='#a77bff' fill-opacity='.17'/><path d='M116.5 42h49a4.5 4.5 0 0 1 0 9h-49a4.5 4.5 0 0 1 0 -9zM142.5 51h45a4.5 4.5 0 0 1 0 9h-45a4.5 4.5 0 0 1 0 -9z' fill='#ff7ab6' fill-opacity='.17'/><path d='M74.5 84h37a4.5 4.5 0 0 1 0 9h-37a4.5 4.5 0 0 1 0 -9zM48.5 93h75a4.5 4.5 0 0 1 0 9h-75a4.5 4.5 0 0 1 0 -9zM32.5 102h41a4.5 4.5 0 0 1 0 9h-41a4.5 4.5 0 0 1 0 -9z' fill='#ffd23f' fill-opacity='.34'/><path d='M150.5 104h35a4.5 4.5 0 0 1 0 9h-35a4.5 4.5 0 0 1 0 -9zM126.5 113h67a4.5 4.5 0 0 1 0 9h-67a4.5 4.5 0 0 1 0 -9z' fill='#3b6bff' fill-opacity='.13'/><path d='M-7.5 126h45a4.5 4.5 0 0 1 0 9h-45a4.5 4.5 0 0 1 0 -9zM14.5 135h41a4.5 4.5 0 0 1 0 9h-41a4.5 4.5 0 0 1 0 -9zM192.5 126h45a4.5 4.5 0 0 1 0 9h-45a4.5 4.5 0 0 1 0 -9zM214.5 135h41a4.5 4.5 0 0 1 0 9h-41a4.5 4.5 0 0 1 0 -9z' fill='#3fdcb0' fill-opacity='.2'/><g fill-opacity='.55'><circle cx='100' cy='22' r='2.4' fill='#ffd23f'/><circle cx='26' cy='62' r='2' fill='#ffd23f'/><circle cx='186' cy='72' r='2.2' fill='#ffd23f'/><circle cx='98' cy='136' r='2.4' fill='#ffd23f'/></g>`
+    ),
+  },
+  {
+    key: "yagasuri",
+    name: "Arrow feathers",
+    size: "60px 56px",
+    blobs: [V, P],
+    svg: tile(
+      60,
+      56,
+      `<g stroke-width='3' stroke-linejoin='round'><path d='M2.5 2.2L12.5 22.2L12.5 45.8L2.5 25.8ZM27.5 2.2L17.5 22.2L17.5 45.8L27.5 25.8Z' fill='#a77bff' stroke='#a77bff' opacity='.16'/><path d='M32.5 30.2L42.5 10.2L42.5 33.8L32.5 53.8ZM57.5 30.2L47.5 10.2L47.5 33.8L57.5 53.8Z' fill='#ff7ab6' stroke='#ff7ab6' opacity='.15'/></g>`
+    ),
+  },
 ];
 
 // A room with no stored index is drawn with one of the first ten textures, chosen by its join code. Ten, however

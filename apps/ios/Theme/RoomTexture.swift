@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The 36 room backgrounds. Order must match apps/web/lib/textures.ts TEXTURES — rooms store an index.
+/// The 52 room backgrounds. Order must match apps/web/lib/textures.ts TEXTURES — rooms store an index.
 /// Tiles are @3x PNG renders of the web SVGs (Assets.xcassets/Textures).
 /// None is ever taken out: a texture that is no longer offered is marked `retired`, here, in TEXTURES and on the
 /// server (RETIRED_BACKGROUNDS in convex/rooms.ts), and keeps its place, its index and its tile.
@@ -54,6 +54,22 @@ struct RoomTexture {
         RoomTexture(key: "squiggles", blobA: yellow, blobB: pink),
         RoomTexture(key: "memphis", blobA: blue, blobB: pink),
         RoomTexture(key: "shapes", blobA: mint, blobB: violet),
+        RoomTexture(key: "kikko", blobA: mint, blobB: pink),
+        RoomTexture(key: "usagi", blobA: violet, blobB: blue),
+        RoomTexture(key: "kakinohana", blobA: yellow, blobB: blue),
+        RoomTexture(key: "fuji", blobA: blue, blobB: pink),
+        RoomTexture(key: "sankuzushi", blobA: yellow, blobB: mint),
+        RoomTexture(key: "kiku", blobA: violet, blobB: yellow),
+        RoomTexture(key: "hishi", blobA: mint, blobB: yellow),
+        RoomTexture(key: "raimon", blobA: blue, blobB: yellow),
+        RoomTexture(key: "kanoko", blobA: pink, blobB: violet),
+        RoomTexture(key: "nami", blobA: mint, blobB: blue),
+        RoomTexture(key: "fundo", blobA: yellow, blobB: violet),
+        RoomTexture(key: "ume", blobA: pink, blobB: mint),
+        RoomTexture(key: "komezashi", blobA: mint, blobB: violet),
+        RoomTexture(key: "uroko", blobA: pink, blobB: yellow),
+        RoomTexture(key: "kasumi", blobA: blue, blobB: violet),
+        RoomTexture(key: "yagasuri", blobA: violet, blobB: pink),
     ]
 
     /// How many textures the join code picks among: the first ten, however long the list is. Every build of the app
