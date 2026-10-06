@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -560,6 +561,67 @@ describe("the iPhone app's textures", () => {
       expect({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) }).toEqual({ width: width * 3, height: height * 3 });
     }
   );
+
+  test("the asset catalog holds a tile for each texture and no other", () => {
+    const imagesets = readdirSync(`${ios}Assets.xcassets/Textures`).filter((name) => name.endsWith(".imageset"));
+    expect(imagesets.sort()).toEqual(KEYS.map((key) => `tex-${key}.imageset`).sort());
+  });
+
+  /**
+   * The alpha of every pixel of a tile, row by row. The PNG is read as the tiles are written: 8 bits to the channel,
+   * red, green, blue and alpha, not interlaced
+   */
+  function alphaOf(png: Buffer) {
+    expect(png.toString("latin1", 0, 8)).toBe("\x89PNG\r\n\x1a\n");
+    // The header after the width and height: the bit depth at byte 24, the colour type at 25, where 6 is red, green,
+    // blue and alpha, and the interlacing at 28
+    expect({ depth: png[24], colourType: png[25], interlace: png[28] }).toEqual({ depth: 8, colourType: 6, interlace: 0 });
+    const width = png.readUInt32BE(16);
+    const height = png.readUInt32BE(20);
+    // A chunk is its length, its name, its bytes and a checksum. The pixels are the IDAT chunks end to end, deflated
+    const data: Buffer[] = [];
+    for (let at = 8; at < png.length; at += 12 + png.readUInt32BE(at)) {
+      if (png.toString("latin1", at + 4, at + 8) === "IDAT") data.push(png.subarray(at + 8, at + 8 + png.readUInt32BE(at)));
+    }
+    const rows = inflateSync(Buffer.concat(data));
+    // A row is a filter type and then four bytes to the pixel, each stored as what it differs by from what the filter
+    // makes of the bytes to its left, above it and above to its left
+    const stride = width * 4;
+    expect(rows.length).toBe(height * (stride + 1));
+    const alpha = new Uint8Array(width * height);
+    let above = new Uint8Array(stride);
+    for (let y = 0; y < height; y++) {
+      const filter = rows[y * (stride + 1)];
+      if (filter > 4) throw new Error(`Row ${y} has the filter type ${filter}`);
+      const row = Uint8Array.from(rows.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
+      // Type 0 stores the bytes as they are
+      for (let i = 0; filter > 0 && i < stride; i++) {
+        const left = i >= 4 ? row[i - 4] : 0;
+        const up = above[i];
+        const upLeft = i >= 4 ? above[i - 4] : 0;
+        let from = left;
+        if (filter === 2) from = up;
+        else if (filter === 3) from = (left + up) >> 1;
+        else if (filter === 4) {
+          const toLeft = Math.abs(up - upLeft);
+          const toUp = Math.abs(left - upLeft);
+          const toUpLeft = Math.abs(left + up - 2 * upLeft);
+          from = toLeft <= toUp && toLeft <= toUpLeft ? left : toUp <= toUpLeft ? up : upLeft;
+        }
+        row[i] = (row[i] + from) & 255;
+      }
+      for (let x = 0; x < width; x++) alpha[y * width + x] = row[x * 4 + 3];
+      above = row;
+    }
+    return alpha;
+  }
+
+  // The app lays the tile over the cream paper, and the paper is to show wherever the pattern has no ink: the tile's
+  // ground is clear. A tile drawn on a ground of its own has no clear pixel
+  test.each(KEYS)("the tile of %s has a clear ground", (key) => {
+    const alpha = alphaOf(readFileSync(`${ios}Assets.xcassets/Textures/tex-${key}.imageset/tex-${key}.png`));
+    expect(alpha.includes(0)).toBe(true);
+  });
 });
 
 // The server has no list of its own. It holds how many textures there are and which of them are retired, by index
