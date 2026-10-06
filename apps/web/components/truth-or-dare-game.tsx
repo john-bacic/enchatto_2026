@@ -323,8 +323,8 @@ export function TruthOrDareGame({
   const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
   const [submitting, setSubmitting] = useState<string | null>(null); // tracks which action is in-flight
-  // Hides the round break at once on the device that tapped Keep Playing.
-  // The server's roundBreakAckedTurns is what releases everyone else.
+  // Hides the round break at once on the device that tapped Keep Playing, until the tap's call has come back.
+  // The server's roundBreakAckedTurns is what releases everyone else, and this device from then on.
   const [dismissedRoundBreak, setDismissedRoundBreak] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawingCanvasRef = useRef<DrawingCanvasHandle>(null);
@@ -722,7 +722,9 @@ export function TruthOrDareGame({
                     className="ec-btn mint sm"
                     onClick={() => {
                       setDismissedRoundBreak(game.completedTurns);
-                      orUndo(onAdvanceTurn(game._id), () => setDismissedRoundBreak(0));
+                      // A call the server took has reached the page as roundBreakAckedTurns by the time it is back.
+                      // One that failed leaves the break up to tap again, also where a turn changed under the break
+                      void onAdvanceTurn(game._id).then(() => setDismissedRoundBreak(0));
                     }}
                     style={{ flex: 1.3 }}
                   >

@@ -2422,5 +2422,28 @@ describe("a Truth or Dare action that fails", () => {
       await movedOnQuietly(page, "ja");
       expect(logged()).toEqual(["Failed to skip turn:"]);
     });
+
+    test("Keep Playing that fails as the turn under the round break is skipped: the break is back for the host to go on from", async () => {
+      // The turn after the break is Sam's, who is away
+      const page = await openOn(gameAt(turn("turn11", 1, SAM, {}), { completedTurns: 10, totalTurns: 11 }), "ja", true);
+      const keep = `${t("Keep Playing", "ja")} ➜`;
+      const breaks = () => page.body.all((n) => n.nodeName === "H2" && n.textContent === t("Round Complete!", "ja")).length;
+      // The server skips Sam's turn and deals Yuki the next. No turn was completed, so the break stands for the room
+      refuses("truthOrDare:advanceTurn", undefined, later(300, (now) => ({ ...now, currentTurnIndex: 0, currentTurnParticipantId: YUKI, currentTurn: turn("turn12", 0, YUKI, {}), totalTurns: 12 })));
+      await page.tap(button(page, keep));
+      expect(breaks()).toBe(0);
+      await aSecond(page);
+      expect(told(page)).toEqual([]);
+      expect(breaks()).toBe(1);
+      expect(logged()).toEqual(["Failed to advance turn:"]);
+
+      takes("truthOrDare:advanceTurn", (now) => ({ ...now, roundBreakAckedTurns: 10 }));
+      await page.tap(button(page, keep));
+      expect(sent("truthOrDare:advanceTurn").length).toBe(2);
+      expect(breaks()).toBe(0);
+      expect(cards(page).length).toBe(2);
+      await toldNothing(page);
+      expect(breaks()).toBe(0);
+    });
   });
 });
