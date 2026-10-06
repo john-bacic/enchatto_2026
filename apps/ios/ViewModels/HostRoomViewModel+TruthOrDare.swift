@@ -30,22 +30,24 @@ extension HostRoomViewModel {
             DebugConsole.shared.trace(source: .network, action: "poll:truthOrDare:notCurrent")
             return
         }
-        applyTruthOrDareState(game, translationOnly: translationOnly)
+        if !translationOnly { applyTruthOrDareState(game) }
+        translateFinishedTruthOrDareAnswer(in: game)
     }
 
-    private func applyTruthOrDareState(_ game: TruthOrDareGame?, translationOnly: Bool) {
-        if !translationOnly {
-            // Every assignment publishes, and each view that observes the view model is then evaluated again,
-            // whether the game changed or not: only a game that differs from the one on screen is assigned
-            if game != activeTruthOrDareGame { activeTruthOrDareGame = game }
-            let needsFastPoll = game != nil && game!.status == .active
-            if needsFastPoll && truthOrDarePollTask == nil {
-                startTruthOrDareFastPoll()
-            } else if !needsFastPoll && truthOrDarePollTask != nil {
-                stopTruthOrDareFastPoll()
-            }
+    private func applyTruthOrDareState(_ game: TruthOrDareGame?) {
+        // Every assignment publishes, and each view that observes the view model is then evaluated again,
+        // whether the game changed or not: only a game that differs from the one on screen is assigned
+        if game != activeTruthOrDareGame { activeTruthOrDareGame = game }
+        let needsFastPoll = game != nil && game!.status == .active
+        if needsFastPoll && truthOrDarePollTask == nil {
+            startTruthOrDareFastPoll()
+        } else if !needsFastPoll && truthOrDarePollTask != nil {
+            stopTruthOrDareFastPoll()
         }
+    }
 
+    /// Sends the answer of the game's turn to be translated, when the turn is finished and has no translation
+    private func translateFinishedTruthOrDareAnswer(in game: TruthOrDareGame?) {
         // Auto-translate completed turn responses that lack a translation
         if let turn = game?.currentTurn,
            turn.status == .completed,
