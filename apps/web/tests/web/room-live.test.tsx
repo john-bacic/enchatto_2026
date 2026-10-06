@@ -35,6 +35,11 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 // And what the page prints about a guest's game: the step of Lost in Translation at each change, and each traced
 // action of Truth or Dare. A development build prints them; a production build prints nothing, and the debug panel
 // lists the traced actions in both.
+//
+// And what a Truth or Dare action that fails does to the screen. Each of the seven (starting the game, the choice,
+// an answer typed or drawn, Next Turn, Skip, End Game, a rating) tells the player in their language and leaves what
+// they had entered for another try. All but starting the game wait a second first, for the room to say whether the
+// game has moved on: an action the server refuses for that alone tells nothing, and neither does one it takes.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -89,6 +94,8 @@ const server = vi.hoisted(() => ({
   askedOf: {} as Record<string, string[]>,
   search: new URLSearchParams(),
   draws: { page: 0, list: 0, bubbles: {} as Record<string, number> },
+  /** How many drawing canvases have been mounted */
+  canvases: 0,
   noReactions: [] as never[],
 }));
 
@@ -196,12 +203,20 @@ vi.mock("@/components/message-list", async (importOriginal) => {
   return { ...actual, MessageList: counted(actual.MessageList, memo, () => void server.draws.list++) };
 });
 
-// A drawing sheet's canvas asks a browser for something to paint on. What stands in for it is its way out
+// A drawing sheet's canvas asks a browser for something to paint on. What stands in for it is its two ways out:
+// Cancel, and Send, which hands over a drawing. Each canvas carries the number it was mounted as: a canvas that is
+// still the one it was has kept what was drawn on it
 vi.mock("@/components/drawing-canvas", async () => {
-  const { createElement, forwardRef } = await import("react");
+  const { Fragment, createElement, forwardRef, useState } = await import("react");
   return {
-    DrawingCanvas: forwardRef(function DrawingCanvas({ onCancel }: { onCancel: () => void }, _ref) {
-      return createElement("button", { className: "sim-canvas-cancel", onClick: onCancel });
+    DrawingCanvas: forwardRef(function DrawingCanvas({ onSave, onCancel }: { onSave: (dataUrl: string) => void; onCancel: () => void }, _ref) {
+      const [canvas] = useState(() => ++server.canvases);
+      return createElement(
+        Fragment,
+        null,
+        createElement("button", { className: "sim-canvas-cancel", onClick: onCancel }),
+        createElement("button", { className: "sim-canvas-send", "data-canvas": canvas, onClick: () => onSave("data:image/jpeg;base64,AAAA") })
+      );
     }),
   };
 });
@@ -226,6 +241,7 @@ beforeEach(() => {
   server.askedOf = {};
   server.search = new URLSearchParams();
   server.draws = { page: 0, list: 0, bubbles: {} };
+  server.canvases = 0;
   browser = installBrowser();
   vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
   vi.stubEnv("NEXT_PUBLIC_CONVEX_LEGACY_URL", "");
@@ -1766,5 +1782,515 @@ describe("the debug lines about a guest's game", () => {
       ["[GAME] myActiveStep:", { id: "step2", type: "guess", round: 1, chain: "chain1" }],
     ]);
     expect(await traced(page)).toEqual(TRACED);
+  });
+});
+
+// ─── A Truth or Dare action that fails ───────────────────────────────────────
+
+describe("a Truth or Dare action that fails", () => {
+  const seat = (p: Person) => ({ participantId: p._id, nickname: p.nickname, avatarValue: p.avatar.value, online: p.online });
+  const GAME = "dare1" as Id<"truthOrDareGames">;
+  type Turn = NonNullable<DareGame["currentTurn"]>;
+  const turn = (id: string, turnIndex: number, participantId: PID, fields: Partial<Turn>): Turn => ({
+    _id: id as Id<"truthOrDareTurns">,
+    _creationTime: NOW,
+    gameId: GAME,
+    turnIndex,
+    participantId,
+    status: "waiting_for_choice",
+    createdAt: NOW,
+    responseMediaUrl: undefined,
+    responseStorageId: undefined,
+    ...fields,
+  });
+  /** The game of Yuki and Sam at the turn `currentTurn` */
+  const gameAt = (currentTurn: Turn, extra: Partial<DareGame> = {}): DareGame => ({
+    _id: GAME,
+    _creationTime: NOW,
+    roomId: ROOM,
+    status: "active",
+    hostParticipantId: HOST,
+    promptMode: "normal",
+    playerOrder: [YUKI, SAM],
+    currentTurnIndex: currentTurn.turnIndex,
+    currentTurnParticipantId: currentTurn.participantId,
+    createdAt: NOW,
+    currentTurn,
+    completedTurns: 0,
+    completedTurnsList: [],
+    totalTurns: 1,
+    playerInfo: [seat(yuki), seat(sam)],
+    ...extra,
+  });
+  const PROMPT = JSON.stringify({ en: "What is your favourite food?", ja: "好きな食べ物は？" });
+
+  // Yuki's turn, before she has chosen
+  const choosing = gameAt(turn("turn1", 0, YUKI, {}));
+  /** Yuki's turn once she has chosen truth: a question she answers in writing, or with a drawing */
+  const answering = (promptResponseType: "text" | "drawing") =>
+    gameAt(turn("turn1", 0, YUKI, { choice: "truth", promptText: PROMPT, promptResponseType, status: "waiting_for_response" }));
+  /** Sam's turn once he has answered, with the ratings the room has given his answer */
+  const answered = (ratings: NonNullable<Turn["ratings"]> = []) =>
+    gameAt(turn("turn2", 1, SAM, { choice: "truth", promptText: PROMPT, promptResponseType: "text", responseText: "Sushi", ratings, status: "completed", completedAt: NOW }), {
+      completedTurns: 1,
+      completedTurnsList: [{ _id: "turn2" as Id<"truthOrDareTurns">, participantId: SAM, choice: "truth", promptText: PROMPT, responseText: "Sushi", ratings, completedAt: NOW }],
+      totalTurns: 2,
+    });
+  // Ten turns have been played and the eleventh, Yuki's, is dealt: the round break stands until the host goes on
+  const roundBreak = gameAt(turn("turn11", 0, YUKI, {}), { completedTurns: 10, totalTurns: 11 });
+  /** The game with Sam's next turn dealt, as it is once Yuki's is over or skipped */
+  const samsTurn = (now: DareGame): DareGame => ({ ...now, currentTurnIndex: 1, currentTurnParticipantId: SAM, currentTurn: turn("turn2", 1, SAM, {}), totalTurns: now.totalTurns + 1 });
+
+  type Lang = "ja" | "en";
+  const LANGS: Lang[] = ["ja", "en"];
+  /** What the player is told, as lib/i18n.ts has it */
+  const FAILED = { en: "Something went wrong. Try again.", ja: "エラーが発生しました。もう一度お試しください。" };
+  /**
+   * A refusal of the mutation `name` as a client is handed it. With `thrown`, the sentence the function threw, it is
+   * worded as the dev deployment words it; without, as a production deployment does, which says "Server Error"
+   * whatever was thrown.
+   */
+  const refusal = (name: string, thrown?: string) =>
+    `[CONVEX M(${name})] [Request ID: 0123456789abcdef] Server Error\n${thrown ? `Uncaught Error: ${thrown}\n    at handler (../convex/truthOrDare.ts:444:13)\n\n` : ""}  Called by client`;
+
+  /**
+   * The page of Yuki, who reads `lang`, with `game` on. `asHost` makes her the one with the host's buttons: the
+   * game picker's Start, End Game, Next Turn and Keep Playing.
+   */
+  const openOn = (game: DareGame | null, lang: Lang, asHost = false) =>
+    open(
+      talking({
+        "rooms:getRoomState": { room, participants: [alex, { ...yuki, preferredLanguage: lang, role: asHost ? "host" : "participant" }, sam, mika] },
+        "truthOrDare:getActiveTruthOrDare": game,
+      })
+    );
+
+  /** The server refuses every call of the mutation `name`, having thrown `thrown` if that is given, and `then` happens besides */
+  function refuses(name: string, thrown?: string, then: () => void = () => {}) {
+    server.onCall = (called) => {
+      if (called !== name) return;
+      then();
+      throw new Error(refusal(name, thrown));
+    };
+  }
+  /** The server takes every call of the mutation `name`, and the game becomes what `change` makes of it */
+  function takes(name: string, change: (now: DareGame) => DareGame) {
+    server.onCall = (called) => {
+      if (called === name) tell("truthOrDare:getActiveTruthOrDare", (now) => change(now!));
+    };
+  }
+  /** The arguments of every call of the mutation `name` */
+  const sent = (name: string) => server.calls.filter((c) => c.name === name).map((c) => c.args);
+
+  /** What the page is telling the player: the words of each toast on screen */
+  const told = (page: Page) => page.body.all((n) => n.attributes.role === "status").map((n) => n.textContent);
+  /** The failures the page logged as errors since this was last asked. The check after each test finds none left */
+  function logged() {
+    const lines = complaints;
+    complaints = [];
+    return lines;
+  }
+  /** Five seconds pass, and at none of them is anything told. A toast stands for nearly three */
+  async function toldNothing(page: Page) {
+    for (let second = 0; second < 5; second++) {
+      expect(told(page)).toEqual([]);
+      await page.wait(1);
+    }
+    expect(told(page)).toEqual([]);
+  }
+  /** Nothing of a refusal is on the page: not what wraps it, and not `thrown`, the sentence the function threw */
+  function noRefusalWords(page: Page, thrown?: string) {
+    expect(page.body.textContent).not.toMatch(/CONVEX|Request ID|Server Error|Uncaught|handler|HTTP \d|Failed to/);
+    if (thrown) expect(page.body.textContent).not.toContain(thrown);
+  }
+
+  const button = (page: Page, text: string) => one(page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === text));
+  const buttons = (page: Page, text: string) => page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === text);
+  const off = (node: Sim) => "disabled" in node.attributes;
+  /** The Truth card and the Dare card */
+  const cards = (page: Page) => page.body.byClass("tod-card");
+  /** The field a written answer is typed in */
+  const field = (page: Page) => one(page.body.all((n) => n.nodeName === "INPUT" && n.hasClass("ec-field")));
+  /** How many of the five stars are lit */
+  const stars = (page: Page) =>
+    page.body
+      .all((n) => n.nodeName === "BUTTON" && /^[1-5]$/.test(n.attributes["aria-label"] ?? ""))
+      .filter((star) => String(one(star.all((n) => n.nodeName === "IMG")).style.filter).startsWith("drop-shadow")).length;
+  /** The drawing sheets on screen, each as the number of its canvas. A sheet that is put away while its drawing is sent is not on screen */
+  const sheets = (page: Page) =>
+    page.body
+      .byClass("sim-canvas-send")
+      .filter((send) => {
+        for (let node: Sim | null = send; node; node = node.parentNode) if (node.style.display === "none") return false;
+        return true;
+      })
+      .map((send) => Number(send.attributes["data-canvas"]));
+
+  // ─── Each action, refused ──────────────────────────────────────────────────
+
+  describe.each(LANGS)("for a guest who reads %s", (lang) => {
+    test("the choice: the player is told a second later, and the cards can be tapped again", async () => {
+      const page = await openOn(choosing, lang);
+      refuses("truthOrDare:submitChoice");
+      await page.tap(cards(page)[0]);
+      // Until then the screen is as it is while a choice is on its way
+      expect(cards(page).map(off)).toEqual([true, true]);
+      expect(buttons(page, t("Skip", lang)).length).toBe(0);
+      expect(told(page)).toEqual([]);
+
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page);
+      expect(cards(page).map(off)).toEqual([false, false]);
+      expect(buttons(page, t("Skip", lang)).length).toBe(1);
+      expect(logged()).toEqual(["Failed to submit choice:"]);
+      await page.wait(3);
+      expect(told(page)).toEqual([]);
+
+      // The second try is taken: the question comes, and nothing is told
+      takes("truthOrDare:submitChoice", () => answering("text"));
+      await page.tap(cards(page)[0]);
+      const choice = { gameId: GAME, participantId: YUKI, choice: "truth", token: undefined };
+      expect(sent("truthOrDare:submitChoice")).toEqual([choice, choice]);
+      expect(field(page).attributes.placeholder).toBe(t("Type your answer...", lang));
+      await toldNothing(page);
+    });
+
+    test("a written answer: it is back in its field, and Send Answer sends it again", async () => {
+      const page = await openOn(answering("text"), lang);
+      // The dev deployment hands over what the function threw: English, whoever reads it
+      refuses("truthOrDare:submitResponse", "Answer too long (max 2000 characters)");
+      field(page).value = "すしです";
+      await page.tap(button(page, t("Send Answer", lang)));
+      // As while an answer is on its way: the field is empty and the button is off
+      expect(field(page).value).toBe("");
+      expect(buttons(page, t("Send Answer", lang)).length).toBe(0);
+
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page, "Answer too long");
+      expect(field(page).value).toBe("すしです");
+      expect(off(button(page, t("Send Answer", lang)))).toBe(false);
+      expect(logged()).toEqual(["Failed to submit response:"]);
+      await page.wait(3);
+
+      takes("truthOrDare:submitResponse", (now) => ({ ...now, currentTurn: { ...now.currentTurn!, responseText: "すしです", status: "completed", completedAt: NOW } }));
+      await page.tap(button(page, t("Send Answer", lang)));
+      const answer = { gameId: GAME, participantId: YUKI, responseText: "すしです", responseMediaUrl: undefined, token: undefined };
+      expect(sent("truthOrDare:submitResponse")).toEqual([answer, answer]);
+      expect(page.body.all((n) => n.nodeName === "INPUT" && n.hasClass("ec-field")).length).toBe(0);
+      await toldNothing(page);
+    });
+
+    test("a drawn answer: its sheet is back on screen with the same canvas, and Send sends the drawing again", async () => {
+      const page = await openOn(answering("drawing"), lang);
+      const requests: { url: string; body: Record<string, unknown> }[] = [];
+      let answer = (): Response => new Response(JSON.stringify({ error: "Uncaught Error: Unsupported drawing\n    at handler (../convex/truthOrDare.ts:502:55)\n" }), { status: 400 });
+      vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+        requests.push({ url, body: JSON.parse(init.body as string) });
+        return answer();
+      });
+      await page.tap(button(page, t("Draw your answer", lang)));
+      expect(sheets(page)).toEqual([1]);
+      await page.tap(one(page.body.byClass("sim-canvas-send")));
+      // As while a drawing is on its way: no sheet on screen
+      expect(sheets(page)).toEqual([]);
+
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page, "Unsupported drawing");
+      expect(sheets(page)).toEqual([1]);
+      expect(logged()).toEqual(["Failed to submit response:"]);
+      await page.wait(3);
+
+      answer = () => {
+        tell("truthOrDare:getActiveTruthOrDare", (now) => ({ ...now!, currentTurn: { ...now!.currentTurn!, responseMediaUrl: file("answer"), status: "completed", completedAt: NOW } }));
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      };
+      await page.tap(one(page.body.byClass("sim-canvas-send")));
+      const request = {
+        url: "https://example.convex.site/api/truth-or-dare/submit-response",
+        body: { gameId: GAME, participantId: YUKI, responseMediaUrl: "data:image/jpeg;base64,AAAA" },
+      };
+      expect(requests).toEqual([request, request]);
+      expect(page.body.byClass("sim-canvas-send").length).toBe(0);
+      await toldNothing(page);
+      // The room is told that she draws for as long as a sheet is on screen
+      expect(server.calls.filter((c) => c.name === "participants:setTypingAction").map((c) => c.args.action ?? "clear")).toEqual(["clear", "drawing", "clear", "drawing", "clear"]);
+    });
+
+    test("a rating: the stars stay lit, and Submit Rating sends them again", async () => {
+      const page = await openOn(answered(), lang);
+      refuses("truthOrDare:submitRating", "Not a member of this room");
+      await page.tap(one(labelled(page, "4")));
+      await page.tap(button(page, t("Submit Rating", lang)));
+      expect(buttons(page, t("Submit Rating", lang)).length).toBe(0);
+
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page, "Not a member");
+      expect(stars(page)).toBe(4);
+      expect(off(button(page, t("Submit Rating", lang)))).toBe(false);
+      expect(logged()).toEqual(["Failed to submit rating:"]);
+      await page.wait(3);
+
+      takes("truthOrDare:submitRating", () => answered([{ participantId: YUKI, score: 4 }]));
+      await page.tap(button(page, t("Submit Rating", lang)));
+      const rating = { turnId: "turn2", participantId: YUKI, score: 4, token: undefined };
+      expect(sent("truthOrDare:submitRating")).toEqual([rating, rating]);
+      expect(buttons(page, t("Submit Rating", lang)).length).toBe(0);
+      await toldNothing(page);
+    });
+
+    test("Skip: the player is told, and can skip again", async () => {
+      const page = await openOn(choosing, lang);
+      refuses("truthOrDare:skipTurn");
+      await page.tap(button(page, t("Skip", lang)));
+      expect(told(page)).toEqual([]);
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page);
+      expect(logged()).toEqual(["Failed to skip turn:"]);
+      await page.wait(3);
+
+      // The server deals her a turn in place of the one she skipped
+      takes("truthOrDare:skipTurn", (now) => ({ ...now, currentTurn: turn("turn2", 0, YUKI, {}), totalTurns: 2 }));
+      await page.tap(button(page, t("Skip", lang)));
+      const skip = { gameId: GAME, participantId: YUKI, token: undefined };
+      expect(sent("truthOrDare:skipTurn")).toEqual([skip, skip]);
+      await toldNothing(page);
+    });
+
+    test("Next Turn, for the host: the button is on again", async () => {
+      const page = await openOn(answered([{ participantId: YUKI, score: 4 }]), lang, true);
+      const next = `${t("Next Turn", lang)} ➜`;
+      refuses("truthOrDare:advanceTurn", "Only the host can advance turns");
+      await page.tap(button(page, next));
+      expect(buttons(page, next).length).toBe(0);
+
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page, "Only the host");
+      expect(off(button(page, next))).toBe(false);
+      expect(logged()).toEqual(["Failed to advance turn:"]);
+      await page.wait(3);
+
+      takes("truthOrDare:advanceTurn", (now) => ({ ...now, currentTurnIndex: 0, currentTurnParticipantId: YUKI, currentTurn: turn("turn3", 0, YUKI, {}), totalTurns: 3 }));
+      await page.tap(button(page, next));
+      const advance = { gameId: GAME, participantId: YUKI, token: undefined };
+      expect(sent("truthOrDare:advanceTurn")).toEqual([advance, advance]);
+      expect(cards(page).length).toBe(2);
+      await toldNothing(page);
+    });
+
+    test("Keep Playing at the round break, for the host: the break is back", async () => {
+      const page = await openOn(roundBreak, lang, true);
+      const keep = `${t("Keep Playing", lang)} ➜`;
+      const breaks = () => page.body.all((n) => n.nodeName === "H2" && n.textContent === t("Round Complete!", lang)).length;
+      refuses("truthOrDare:advanceTurn");
+      await page.tap(button(page, keep));
+      // As while the host's tap is on its way: the break has left this screen
+      expect(breaks()).toBe(0);
+
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page);
+      expect(breaks()).toBe(1);
+      expect(logged()).toEqual(["Failed to advance turn:"]);
+      await page.wait(3);
+
+      takes("truthOrDare:advanceTurn", (now) => ({ ...now, roundBreakAckedTurns: 10 }));
+      await page.tap(button(page, keep));
+      expect(sent("truthOrDare:advanceTurn").length).toBe(2);
+      expect(breaks()).toBe(0);
+      await toldNothing(page);
+    });
+
+    test("End Game, for the host: the player is told, and can end it again", async () => {
+      const page = await openOn(choosing, lang, true);
+      refuses("truthOrDare:endGame", "Not authorised");
+      await page.tap(button(page, t("End Game", lang)));
+      await page.wait(1);
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page, "Not authorised");
+      expect(logged()).toEqual(["Failed to end Truth or Dare:"]);
+      await page.wait(3);
+
+      takes("truthOrDare:endGame", (now) => ({ ...now, status: "completed", completedAt: NOW }));
+      await page.tap(button(page, t("End Game", lang)));
+      const end = { gameId: GAME, participantId: YUKI, token: undefined };
+      expect(sent("truthOrDare:endGame")).toEqual([end, end]);
+      expect(cards(page).length).toBe(0);
+      await toldNothing(page);
+    });
+
+    test("starting the game, for the host: the player is told at once, and the picker stays open to start from again", async () => {
+      const page = await openOn(null, lang, true);
+      const pickers = () => page.body.byClass("ec-sheet").length;
+      await page.tap(one(labelled(page, t("Games", lang))));
+      await page.tap(one(page.body.all((n) => n.attributes.role === "button" && n.textContent.startsWith(t("Truth or Dare", lang)))));
+      refuses("truthOrDare:createGame", "Room is closed");
+      await page.tap(button(page, t("Start Game", lang)));
+      expect(told(page)).toEqual([FAILED[lang]]);
+      noRefusalWords(page, "Room is closed");
+      expect(pickers()).toBe(1);
+      expect(logged()).toEqual(["Failed to create Truth or Dare:"]);
+      await page.wait(3);
+      expect(told(page)).toEqual([]);
+
+      takes("truthOrDare:createGame", () => choosing);
+      await page.tap(button(page, t("Start Game", lang)));
+      const create = { roomId: ROOM, hostParticipantId: YUKI, promptMode: "normal", token: undefined };
+      expect(sent("truthOrDare:createGame")).toEqual([create, create]);
+      expect(pickers()).toBe(0);
+      expect(cards(page).length).toBe(2);
+      await toldNothing(page);
+    });
+  });
+
+  test("a written answer that failed is not put back over one the player has typed since", async () => {
+    const page = await openOn(answering("text"), "ja");
+    refuses("truthOrDare:submitResponse");
+    field(page).value = "すしです";
+    await page.tap(button(page, t("Send Answer", "ja")));
+    field(page).value = "ラーメン";
+    await page.wait(1);
+    expect(told(page)).toEqual([FAILED.ja]);
+    expect(field(page).value).toBe("ラーメン");
+    expect(logged()).toEqual(["Failed to submit response:"]);
+  });
+
+  test("a drawing that cannot be sent at all, the network being down: its sheet is back on screen too", async () => {
+    const page = await openOn(answering("drawing"), "ja");
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await page.tap(button(page, t("Draw your answer", "ja")));
+    await page.tap(one(page.body.byClass("sim-canvas-send")));
+    expect(sheets(page)).toEqual([]);
+    await page.wait(1);
+    expect(told(page)).toEqual([FAILED.ja]);
+    noRefusalWords(page);
+    expect(sheets(page)).toEqual([1]);
+    expect(logged()).toEqual(["Failed to submit response:"]);
+  });
+
+  // ─── An action the server takes ────────────────────────────────────────────
+
+  // The stand-in server takes each call and the room does not answer in these five seconds: nothing but the
+  // action's own coming back can change the screen
+  describe("an action the server takes tells nothing", () => {
+    const startGame = async (page: Page) => {
+      await page.tap(one(labelled(page, t("Games", "ja"))));
+      await page.tap(one(page.body.all((n) => n.attributes.role === "button" && n.textContent.startsWith(t("Truth or Dare", "ja")))));
+      await page.tap(button(page, t("Start Game", "ja")));
+    };
+    const rate = async (page: Page) => {
+      await page.tap(one(labelled(page, "5")));
+      await page.tap(button(page, t("Submit Rating", "ja")));
+    };
+
+    test.each<[string, DareGame | null, boolean, (page: Page) => Promise<void>, string, Record<string, unknown>]>([
+      ["the choice", choosing, false, (page) => page.tap(cards(page)[1]), "truthOrDare:submitChoice", { gameId: GAME, participantId: YUKI, choice: "dare" }],
+      ["a rating", answered(), false, rate, "truthOrDare:submitRating", { turnId: "turn2", participantId: YUKI, score: 5 }],
+      ["Skip", choosing, false, (page) => page.tap(button(page, t("Skip", "ja"))), "truthOrDare:skipTurn", { gameId: GAME, participantId: YUKI }],
+      ["Next Turn", answered([{ participantId: YUKI, score: 4 }]), true, (page) => page.tap(button(page, `${t("Next Turn", "ja")} ➜`)), "truthOrDare:advanceTurn", { gameId: GAME, participantId: YUKI }],
+      ["Keep Playing", roundBreak, true, (page) => page.tap(button(page, `${t("Keep Playing", "ja")} ➜`)), "truthOrDare:advanceTurn", { gameId: GAME, participantId: YUKI }],
+      ["End Game", choosing, true, (page) => page.tap(button(page, t("End Game", "ja"))), "truthOrDare:endGame", { gameId: GAME, participantId: YUKI }],
+      ["starting the game", null, true, startGame, "truthOrDare:createGame", { roomId: ROOM, hostParticipantId: YUKI, promptMode: "normal" }],
+    ])("%s", async (_, game, asHost, act, mutation, args) => {
+      const page = await openOn(game, "ja", asHost);
+      await act(page);
+      expect(sent(mutation)).toEqual([{ ...args, token: undefined }]);
+      await toldNothing(page);
+      expect(logged()).toEqual([]);
+    });
+
+    test("a written answer: the field empties as it is sent, and stays empty", async () => {
+      const page = await openOn(answering("text"), "ja");
+      field(page).value = "すしです";
+      await page.tap(button(page, t("Send Answer", "ja")));
+      expect(sent("truthOrDare:submitResponse")).toEqual([{ gameId: GAME, participantId: YUKI, responseText: "すしです", responseMediaUrl: undefined, token: undefined }]);
+      expect(field(page).value).toBe("");
+      await toldNothing(page);
+      expect(field(page).value).toBe("");
+      expect(logged()).toEqual([]);
+    });
+
+    test("a drawn answer: the sheet goes as it is sent and stays away, and the room is told once that she has stopped drawing", async () => {
+      const page = await openOn(answering("drawing"), "ja");
+      vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      await page.tap(button(page, t("Draw your answer", "ja")));
+      await page.tap(one(page.body.byClass("sim-canvas-send")));
+      expect(sheets(page)).toEqual([]);
+      await toldNothing(page);
+      expect(sheets(page)).toEqual([]);
+      expect(server.calls.filter((c) => c.name === "participants:setTypingAction").map((c) => c.args.action ?? "clear")).toEqual(["clear", "drawing", "clear"]);
+      expect(logged()).toEqual([]);
+    });
+  });
+
+  // ─── A refusal because the game had moved on ───────────────────────────────
+
+  // The server throws at an action that arrives for a turn that is no longer the player's, or for a game that is
+  // over. The room's answer that shows as much reaches the page with the refusal, or a moment after it
+  describe("an action the server refuses because the game had moved on tells nothing", () => {
+    /** The room answers `change` this many milliseconds after the refusal */
+    const later = (ms: number, change: (now: DareGame) => DareGame) => () => void setTimeout(() => tell("truthOrDare:getActiveTruthOrDare", (now) => change(now!)), ms);
+    /** Nothing is told in five seconds, and Sam's turn is on screen by then */
+    async function movedOnQuietly(page: Page, lang: Lang) {
+      await toldNothing(page);
+      expect(page.body.textContent).toContain(`${t("Waiting for", lang)} Sam ${t("to choose...", lang)}`);
+    }
+
+    test.each([
+      ["as the dev deployment words it", "Not your turn"],
+      ["as a production deployment words it", undefined],
+    ])("a choice for a turn that was skipped while the player was away, %s", async (_, thrown) => {
+      const page = await openOn(choosing, "ja");
+      refuses("truthOrDare:submitChoice", thrown, later(300, samsTurn));
+      await page.tap(cards(page)[0]);
+      await movedOnQuietly(page, "ja");
+      expect(logged()).toEqual(["Failed to submit choice:"]);
+    });
+
+    test("a choice that reaches a game the host has just ended: the screen goes", async () => {
+      const page = await openOn(choosing, "en");
+      refuses("truthOrDare:submitChoice", "Game is not active", later(300, (now) => ({ ...now, status: "completed", completedAt: NOW })));
+      await page.tap(cards(page)[0]);
+      await toldNothing(page);
+      expect(cards(page).length).toBe(0);
+      expect(logged()).toEqual(["Failed to submit choice:"]);
+    });
+
+    test("a written answer for a turn the host has skipped, the room's answer coming first", async () => {
+      const page = await openOn(answering("text"), "en");
+      refuses("truthOrDare:submitResponse", "Not your turn", () => tell("truthOrDare:getActiveTruthOrDare", (now) => samsTurn(now!)));
+      field(page).value = "Sushi";
+      await page.tap(button(page, t("Send Answer", "en")));
+      await movedOnQuietly(page, "en");
+      expect(logged()).toEqual(["Failed to submit response:"]);
+    });
+
+    test("a drawn answer for a turn the host has skipped: the sheet stays away", async () => {
+      const page = await openOn(answering("drawing"), "ja");
+      vi.stubGlobal("fetch", async () => {
+        setTimeout(() => tell("truthOrDare:getActiveTruthOrDare", (now) => samsTurn(now!)), 300);
+        return new Response(JSON.stringify({ error: "Uncaught Error: Not your turn\n    at handler (../convex/truthOrDare.ts:495:13)\n" }), { status: 400 });
+      });
+      await page.tap(button(page, t("Draw your answer", "ja")));
+      await page.tap(one(page.body.byClass("sim-canvas-send")));
+      await movedOnQuietly(page, "ja");
+      expect(page.body.byClass("sim-canvas-send").length).toBe(0);
+      expect(logged()).toEqual(["Failed to submit response:"]);
+    });
+
+    test("a guest's Skip for a turn that has moved on", async () => {
+      const page = await openOn(choosing, "ja");
+      refuses("truthOrDare:skipTurn", undefined, later(300, samsTurn));
+      await page.tap(button(page, t("Skip", "ja")));
+      await movedOnQuietly(page, "ja");
+      expect(logged()).toEqual(["Failed to skip turn:"]);
+    });
   });
 });

@@ -51,12 +51,13 @@ interface TruthOrDareGameProps {
   myParticipantId: string;
   isHost: boolean;
   lang?: string;
-  onSubmitChoice: (gameId: string, choice: "truth" | "dare") => void;
-  onSubmitResponse: (gameId: string, responseText?: string, responseMediaUrl?: string) => void;
-  onAdvanceTurn: (gameId: string) => void;
+  // The four that answer with a promise resolve to false when the action failed and the room page has told the player
+  onSubmitChoice: (gameId: string, choice: "truth" | "dare") => Promise<boolean>;
+  onSubmitResponse: (gameId: string, responseText?: string, responseMediaUrl?: string) => Promise<boolean>;
+  onAdvanceTurn: (gameId: string) => Promise<boolean>;
   onSkipTurn: (gameId: string) => void;
   onEndGame: (gameId: string) => void;
-  onSubmitRating: (turnId: string, score: number) => void;
+  onSubmitRating: (turnId: string, score: number) => Promise<boolean>;
   onDrawingStateChange?: (isDrawing: boolean) => void;
   onClose: () => void;
   onMinimize?: () => void;
@@ -286,6 +287,13 @@ const ghostChip: React.CSSProperties = {
 
 const softText: React.CSSProperties = { fontSize: 13.5, fontWeight: 900, opacity: 0.65, textAlign: "center" };
 
+/** Runs `undo` when the action `sent` comes back as failed, so that the player can try again */
+function orUndo(sent: Promise<boolean>, undo: () => void) {
+  void sent.then((ok) => {
+    if (!ok) undo();
+  });
+}
+
 export function TruthOrDareGame({
   game,
   myParticipantId,
@@ -305,6 +313,9 @@ export function TruthOrDareGame({
   const responseInputRef = useRef<HTMLInputElement>(null);
   const responseSectionRef = useRef<HTMLDivElement>(null);
   const [showDrawing, setShowDrawing] = useState(false);
+  // While the sheet's drawing is on its way to the server the sheet is off screen and still mounted, with the
+  // drawing on its canvas: a failure brings it back as it was
+  const [sendingDrawing, setSendingDrawing] = useState(false);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [starRating, setStarRating] = useState<number>(0);
   const [hasRated, setHasRated] = useState(false);
@@ -339,6 +350,7 @@ export function TruthOrDareGame({
     setHasRated(false);
     setSubmitting(null); // clear any stale submitting state
     setShowDrawing(false); // a turn skipped from under an open drawing sheet must not leave it open
+    setSendingDrawing(false);
     if (responseInputRef.current) responseInputRef.current.value = "";
   }, [game.currentTurn?._id, turnStatus]);
 
@@ -351,10 +363,11 @@ export function TruthOrDareGame({
     dismissedRoundBreak !== game.completedTurns;
 
   // Signal drawing state to other players via typing indicator
+  const sheetOnScreen = showDrawing && !sendingDrawing;
   useEffect(() => {
-    onDrawingStateChange?.(showDrawing);
+    onDrawingStateChange?.(sheetOnScreen);
     return () => { onDrawingStateChange?.(false); };
-  }, [showDrawing, onDrawingStateChange]);
+  }, [sheetOnScreen, onDrawingStateChange]);
 
   const isMyTurn = game.currentTurnParticipantId === myParticipantId;
   const currentPlayer = game.playerInfo.find(
@@ -380,11 +393,19 @@ export function TruthOrDareGame({
 
   const handleDrawingSave = useCallback(
     (dataUrl: string) => {
-      setShowDrawing(false);
-      onSubmitResponse(game._id, undefined, dataUrl);
+      setSendingDrawing(true);
+      orUndo(onSubmitResponse(game._id, undefined, dataUrl), () => setSendingDrawing(false));
     },
     [game._id, onSubmitResponse]
   );
+
+  // Undoes the send of a typed answer: the buttons work again, and the answer is back in the field unless the
+  // player has typed another since
+  const answerBack = (val: string) => () => {
+    setSubmitting(null);
+    const field = responseInputRef.current;
+    if (field && !field.value) field.value = val;
+  };
 
   // Game completed
   if (game.status === "completed" || game.status === "canceled") {
@@ -694,7 +715,7 @@ export function TruthOrDareGame({
                     className="ec-btn mint sm"
                     onClick={() => {
                       setDismissedRoundBreak(game.completedTurns);
-                      onAdvanceTurn(game._id);
+                      orUndo(onAdvanceTurn(game._id), () => setDismissedRoundBreak(0));
                     }}
                     style={{ flex: 1.3 }}
                   >
@@ -766,7 +787,7 @@ export function TruthOrDareGame({
                     if (submitting) return;
                     setSubmitting("choice");
                     todTrace({ source: "client", action: "btn:truth", detail: `turnStatus=${turn?.status} isMyTurn=${isMyTurn}` });
-                    onSubmitChoice(game._id, "truth");
+                    orUndo(onSubmitChoice(game._id, "truth"), () => setSubmitting(null));
                   } : undefined}
                 />
                 <span
@@ -801,7 +822,7 @@ export function TruthOrDareGame({
                     if (submitting) return;
                     setSubmitting("choice");
                     todTrace({ source: "client", action: "btn:dare", detail: `turnStatus=${turn?.status} isMyTurn=${isMyTurn}` });
-                    onSubmitChoice(game._id, "dare");
+                    orUndo(onSubmitChoice(game._id, "dare"), () => setSubmitting(null));
                   } : undefined}
                 />
               </div>
@@ -922,7 +943,7 @@ export function TruthOrDareGame({
                         const val = (e.target as HTMLInputElement).value.trim();
                         if (e.key === "Enter" && val && !submitting) {
                           setSubmitting("response");
-                          onSubmitResponse(game._id, val);
+                          orUndo(onSubmitResponse(game._id, val), answerBack(val));
                           (e.target as HTMLInputElement).value = "";
                         }
                       }}
@@ -938,7 +959,7 @@ export function TruthOrDareGame({
                           const val = responseInputRef.current?.value.trim() || "";
                           if (val && !submitting) {
                             setSubmitting("response");
-                            onSubmitResponse(game._id, val);
+                            orUndo(onSubmitResponse(game._id, val), answerBack(val));
                             if (responseInputRef.current) responseInputRef.current.value = "";
                           }
                         }}
@@ -951,7 +972,7 @@ export function TruthOrDareGame({
                         <button
                           className="ec-btn mint sm"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { if (!submitting) { setSubmitting("response"); onSubmitResponse(game._id, "✅ Done!"); } }}
+                          onClick={() => { if (!submitting) { setSubmitting("response"); orUndo(onSubmitResponse(game._id, "✅ Done!"), () => setSubmitting(null)); } }}
                           style={{ flex: 1, gap: 6 }}
                         >
                           <Icon name="g-ok" size={22} />
@@ -965,7 +986,8 @@ export function TruthOrDareGame({
                 {/* Drawing response */}
                 {turn.promptResponseType === "drawing" && (
                   <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
-                    <button className="ec-btn yellow" onClick={() => setShowDrawing(true)} style={{ width: "100%", gap: 8 }}>
+                    {/* Also brings back a sheet whose drawing is still on its way */}
+                    <button className="ec-btn yellow" onClick={() => { setShowDrawing(true); setSendingDrawing(false); }} style={{ width: "100%", gap: 8 }}>
                       <Icon name="g-pencil" size={28} />
                       {t("Draw your answer", lang)}
                     </button>
@@ -984,7 +1006,7 @@ export function TruthOrDareGame({
 
                 {/* Drawing overlay with prompt visible */}
                 {showDrawing && (
-                  <div className="ec-sheet-backdrop" style={{ zIndex: 300 }}>
+                  <div className="ec-sheet-backdrop" style={{ zIndex: 300, display: sendingDrawing ? "none" : undefined }}>
                     <div className="ec-sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480, padding: "18px 16px max(16px, env(safe-area-inset-bottom))" }}>
                       <div
                         className="ec-chunky"
@@ -1209,7 +1231,10 @@ export function TruthOrDareGame({
                           if (starRating > 0 && !submitting) {
                             setSubmitting("rating");
                             todTrace({ source: "client", action: "btn:submitRating", detail: `score=${starRating} turnId=${turn._id.slice(-6)}` });
-                            onSubmitRating(turn._id, starRating);
+                            orUndo(onSubmitRating(turn._id, starRating), () => {
+                              setSubmitting(null);
+                              setHasRated(false);
+                            });
                             setHasRated(true);
                           }
                         }}
@@ -1263,7 +1288,7 @@ export function TruthOrDareGame({
                   {isHost && allRated && (
                     <button
                       className={`ec-btn${submitting ? "" : " wiggle"}`}
-                      onClick={() => { if (!submitting) { setSubmitting("advance"); onAdvanceTurn(game._id); } }}
+                      onClick={() => { if (!submitting) { setSubmitting("advance"); orUndo(onAdvanceTurn(game._id), () => setSubmitting(null)); } }}
                       disabled={!!submitting}
                       style={{ minWidth: 220, marginTop: 4 }}
                     >
@@ -1274,7 +1299,7 @@ export function TruthOrDareGame({
                   {/* Host can force advance if someone is AFK */}
                   {isHost && !allRated && (
                     <button
-                      onClick={() => { if (!submitting) { setSubmitting("advance"); onAdvanceTurn(game._id); } }}
+                      onClick={() => { if (!submitting) { setSubmitting("advance"); orUndo(onAdvanceTurn(game._id), () => setSubmitting(null)); } }}
                       disabled={!!submitting}
                       style={{ ...ghostChip, fontSize: 12, cursor: submitting ? "default" : "pointer" }}
                     >

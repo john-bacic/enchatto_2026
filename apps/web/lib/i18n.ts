@@ -348,6 +348,7 @@ const translations: Record<string, Record<string, string>> = {
   "Done Dare": { ja: "チャレンジ完了" },
   "Normal": { ja: "ノーマル" },
   "Deep": { ja: "ディープ" },
+  "Something went wrong. Try again.": { ja: "エラーが発生しました。もう一度お試しください。" },
 
   // Emoji Bingo
   "Emoji Bingo": { ja: "絵文字ビンゴ" },
