@@ -165,6 +165,19 @@ export function WordRushGame({ roomId, participantId, lang, isRoomHost = false }
 
   if (state && active) seenActive.current.add(state._id);
 
+  // The results of a game this page did not see played show for RESULTS_WINDOW_MS after it ended. A finished game
+  // changes nothing here that would draw the component again, so a timer does when that time is up
+  const endedAt = state?.status === "completed" ? state.endedAt : null;
+  const [resultsCheck, setResultsCheck] = useState(0);
+  useEffect(() => {
+    if (endedAt == null) return;
+    const left = endedAt + RESULTS_WINDOW_MS - Date.now();
+    if (left <= 0) return;
+    // A timer asked for more than 2^31 - 1 ms runs at once
+    const timer = setTimeout(() => setResultsCheck((n) => n + 1), Math.min(left, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [endedAt, resultsCheck]);
+
   useEffect(() => {
     if (!state || state.status !== "active" || state.phase === "clues" || !state.card?.reveal) return;
     const id = state._id;

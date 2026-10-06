@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 import { isJapaneseText } from "@/components/message-item";
-import { computeVibe, type VibeMessage } from "@/lib/vibe";
+import { sameVibe, vibeAt, type VibeMessage } from "@/lib/vibe";
 
 interface Floater {
   id: number;
@@ -25,11 +25,10 @@ export function useVibe({
   participantId: string;
   roomState: FunctionReturnType<typeof api.rooms.getRoomState> | undefined;
 }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 5000);
-    return () => clearInterval(timer);
-  }, []);
+  // The meter's clock: when the page opened, then moved every 5 seconds
+  const clock = useRef<number | null>(null);
+  if (clock.current === null) clock.current = Date.now();
+  const [, redraw] = useState(0);
 
   const langOf = useCallback(
     (m: VibeMessage) => {
@@ -38,11 +37,22 @@ export function useVibe({
     },
     [participants]
   );
-  const { vibe, combo, mult, hype, recentCount, switches } = computeVibe(
-    messageList,
-    langOf,
-    Math.max(now, messageList[messageList.length - 1]?.createdAt ?? 0),
-  );
+  const shown = vibeAt(messageList, langOf, clock.current);
+  const { vibe, combo, mult, hype, recentCount, switches } = shown;
+
+  // Moving the clock draws the page again only when that changes a number the meter shows. Every drawing reads
+  // the clock where it stands, so the numbers are the ones a page drawn at each move would show
+  const drawn = useRef({ messageList, langOf, shown });
+  drawn.current = { messageList, langOf, shown };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      clock.current = Date.now();
+      const { messageList, langOf, shown } = drawn.current;
+      if (!sameVibe(shown, vibeAt(messageList, langOf, clock.current))) redraw((n) => n + 1);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
   const [showVibeInfo, setShowVibeInfo] = useState(false);
   const vibeRef = useRef<HTMLButtonElement>(null);
   const closeVibeInfo = useCallback(() => setShowVibeInfo(false), []);

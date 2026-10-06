@@ -34,6 +34,22 @@ export function computeVibe(messages: VibeMessage[], langOf: (m: VibeMessage) =>
   return { vibe, combo, mult, hype: vibe >= HYPE_AT, recentCount: recent.length, switches };
 }
 
+/** A reading of the meter: the numbers the room header and the hype layer show */
+export type Vibe = ReturnType<typeof computeVibe>;
+
+/**
+ * The meter as the page shows it when its clock was last moved at `clock`. A message newer than the clock counts
+ * from its own time, so one that arrives between two moves of the clock shows at once.
+ */
+export function vibeAt(messages: VibeMessage[], langOf: (m: VibeMessage) => string, clock: number): Vibe {
+  return computeVibe(messages, langOf, Math.max(clock, messages[messages.length - 1]?.createdAt ?? 0));
+}
+
+/** Whether two readings show the same numbers */
+export function sameVibe(a: Vibe, b: Vibe): boolean {
+  return (Object.keys(a) as (keyof Vibe)[]).every((key) => a[key] === b[key]);
+}
+
 export function formatVibe(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n);
 }
