@@ -32,7 +32,9 @@ extension HostRoomViewModel {
     }
 
     private func applyTruthOrDareState(_ game: TruthOrDareGame?) {
-        activeTruthOrDareGame = game
+        // Every assignment publishes, and each view that observes the view model is then evaluated again,
+        // whether the game changed or not: only a game that differs from the one on screen is assigned
+        if game != activeTruthOrDareGame { activeTruthOrDareGame = game }
         let needsFastPoll = game != nil && game!.status == .active
         if needsFastPoll && truthOrDarePollTask == nil {
             startTruthOrDareFastPoll()
@@ -66,7 +68,8 @@ extension HostRoomViewModel {
                     let game = try await self.api.getActiveTruthOrDare(roomId: self.roomId)
                     // Double-check submitting flag after await (action may have started during the API call)
                     guard !self.isTruthOrDareSubmitting else { continue }
-                    self.activeTruthOrDareGame = game
+                    // Once a second, and most answers are the game on screen: see applyTruthOrDareState
+                    if game != self.activeTruthOrDareGame { self.activeTruthOrDareGame = game }
                     if game == nil || game!.status != .active {
                         break
                     }

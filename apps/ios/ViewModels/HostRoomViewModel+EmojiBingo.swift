@@ -20,7 +20,9 @@ extension HostRoomViewModel {
     }
 
     func applyEmojiBingoState(_ game: EmojiBingoGame?) {
-        activeEmojiBingoGame = game
+        // Every assignment publishes, and each view that observes the view model is then evaluated again,
+        // whether the game changed or not: only a game that differs from the one on screen is assigned
+        if game != activeEmojiBingoGame { activeEmojiBingoGame = game }
         let needsFastPoll = game != nil &&
             (game!.status == .active || game!.status == .won || game!.status == .lobby)
         if needsFastPoll && emojiBingoPollTask == nil {
@@ -39,7 +41,8 @@ extension HostRoomViewModel {
                 guard !Task.isCancelled else { break }
                 do {
                     let game = try await self.api.getActiveEmojiBingo(roomId: self.roomId)
-                    self.activeEmojiBingoGame = game
+                    // Twice a second, and most answers are the game on screen: see applyEmojiBingoState
+                    if game != self.activeEmojiBingoGame { self.activeEmojiBingoGame = game }
                     if game == nil || game!.status == .completed || game!.status == .canceled {
                         break
                     }

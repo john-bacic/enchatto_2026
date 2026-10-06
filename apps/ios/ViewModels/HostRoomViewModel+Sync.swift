@@ -271,12 +271,12 @@ extension HostRoomViewModel {
                 await pollTruthOrDareState()
             }
 
-            isLoading = false
+            if isLoading { isLoading = false }
             // A poll counts as healthy only when the whole cycle completed
             clearPollFailures()
         } catch {
             if fromPollLoop { notePollFailure(error) }
-            isLoading = false
+            if isLoading { isLoading = false }
         }
     }
 
@@ -438,7 +438,7 @@ extension HostRoomViewModel {
         // Not shown when an action is under way or has been since the request left
         take(snapshot.truthOrDare, .truthOrDare) { applyTruthOrDareState($0, askedAt: asked.truthOrDare) }
 
-        isLoading = false
+        if isLoading { isLoading = false }
         return after
     }
 }

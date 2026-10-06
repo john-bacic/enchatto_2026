@@ -50,7 +50,9 @@ extension HostRoomViewModel {
         // The board to show: the server's, except that one which may be missing a flip leaves face-up
         // cards up, and one older than the screen's is not shown
         let game = emojiMatchBoard(server, askedAt: epoch)
-        activeEmojiMatchGame = game
+        // Every assignment publishes, and each view that observes the view model is then evaluated again,
+        // whether the board changed or not: only a board that differs from the one on screen is assigned
+        if game != activeEmojiMatchGame { activeEmojiMatchGame = game }
 
         // Start or stop fast polling based on game state
         let needsFastPoll = game != nil &&
@@ -72,7 +74,8 @@ extension HostRoomViewModel {
                 do {
                     let epoch = self.emojiMatchEpoch
                     let game = self.emojiMatchBoard(try await self.api.getActiveEmojiMatch(roomId: self.roomId), askedAt: epoch)
-                    self.activeEmojiMatchGame = game
+                    // Twice a second, and most answers are the board on screen: see applyEmojiMatchState
+                    if game != self.activeEmojiMatchGame { self.activeEmojiMatchGame = game }
                     // Stop fast polling if game ended
                     if game == nil || game!.status == .completed || game!.status == .canceled {
                         break
@@ -139,7 +142,7 @@ extension HostRoomViewModel {
         // which brings its face in the same answer.
         if let idx = game.board.firstIndex(where: { $0.cardId == cardId }), !game.board[idx].content.value.isEmpty {
             game.board[idx].isRevealed = true
-            activeEmojiMatchGame = game
+            if game != activeEmojiMatchGame { activeEmojiMatchGame = game }
         }
 
         // While this flip is unanswered, for two seconds at most, no board turns a face-up card back:
