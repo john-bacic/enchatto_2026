@@ -74,7 +74,7 @@ class HostStartRoomViewModel: ObservableObject {
 
     /// Never while there is a room to go back to: a room created then would leave that one open without its host
     var canCreate: Bool {
-        rejoinableRoom == nil && !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isCreating && !isRejoining
+        rejoinableRoom == nil && !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isCreating
     }
 
     func createRoom() async {
