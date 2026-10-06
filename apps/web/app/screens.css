@@ -1252,7 +1252,7 @@
 .ec-inputbar .ec-round-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
 .ec-inputbar .ec-round-btn .ec-icon { width: 28px; height: 28px; }
 .ec-inputbar .ec-round-btn:disabled { opacity: 0.4; cursor: default; }
-/* Tool colours and icon sizes match iOS toolButtons (HostConversationView.swift) */
+/* Tool colours and icon sizes match iOS toolButtons (HostConversationView+Input.swift) */
 .ec-round-btn.game { background: var(--pink-soft); }
 .ec-round-btn.draw { background: var(--yellow-soft); }
 .ec-round-btn.photo { background: var(--blue-soft); }
