@@ -11,7 +11,8 @@ import { TEXTURES, ambientTexture, ambientTextureIndex, keepAmbientTexture, text
 // ambientTextureIndex is one page load; the same storage handed to a second call is a reload of the tab.
 // RoomBackground puts the ambient texture on in an effect, and no effect runs here (see CLAUDE.md): what is tested of
 // it is the server's half, the markup the browser's first render has to match.
-// Then the list itself, the texture a room is drawn with, and the iPhone app's copy of the list, read from its files.
+// Then the list itself, the texture a room is drawn with, the iPhone app's copy of the list, read from its files, and
+// what the server holds of the list, read from the two copies of convex/rooms.ts.
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -378,4 +379,41 @@ describe("the iPhone app's textures", () => {
       expect({ width: png.readUInt32BE(16), height: png.readUInt32BE(20) }).toEqual({ width: width * 3, height: height * 3 });
     }
   );
+});
+
+// The server has no list of its own. It holds how many textures there are and which of them are retired, by index
+// (BACKGROUND_COUNT and RETIRED_BACKGROUNDS in convex/rooms.ts). The file is read here as text, and so is its
+// backup copy
+describe("the server's textures", () => {
+  const COPIES = ["../../convex/rooms.ts", "../../../convex/convex/rooms.ts"];
+
+  function onServer(copy: string) {
+    const source = readFileSync(fileURLToPath(new URL(copy, import.meta.url)), "utf8");
+    const count = /^const BACKGROUND_COUNT = (\d+);$/m.exec(source);
+    const retired = /^const RETIRED_BACKGROUNDS = \[([\d, ]*)\];$/m.exec(source);
+    if (!count || !retired) throw new Error(`No count or no retired textures in ${copy}`);
+    return { count: Number(count[1]), retired: retired[1].split(",").map((index) => Number(index.trim())) };
+  }
+
+  test.each(COPIES)("%s counts the textures there are", (copy) => {
+    expect(onServer(copy).count).toBe(TEXTURES.length);
+  });
+
+  test.each(COPIES)("%s names each retired texture once, by its index in the list", (copy) => {
+    const { count, retired } = onServer(copy);
+    expect(retired.length).toBeGreaterThan(0);
+    expect(new Set(retired).size).toBe(retired.length);
+    for (const index of retired) expect(Number.isInteger(index) && index >= 0 && index < count, String(index)).toBe(true);
+  });
+
+  // The server's own pick is made among the first ten that are not retired, and never lands on the texture of the
+  // room it is for, so two of the ten at least are left to it
+  test.each(COPIES)("%s leaves the server's pick two of the first ten at least", (copy) => {
+    const { retired } = onServer(copy);
+    expect(retired.filter((index) => index < 10).length).toBeLessThanOrEqual(8);
+  });
+
+  test("the two copies retire the same textures", () => {
+    expect(onServer(COPIES[1]).retired).toEqual(onServer(COPIES[0]).retired);
+  });
 });

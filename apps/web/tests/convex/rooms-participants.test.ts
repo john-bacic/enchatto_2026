@@ -124,6 +124,29 @@ function seedRandom(seed: number) {
 /** A device token in the shape APNs gives out: 64 hex characters */
 const DEVICE_TOKEN = "9e8d7c6b".repeat(8);
 
+/** The retired textures, by index: a room is given none of them any more, and one that has one keeps it */
+const RETIRED = [4, 9, 24, 25, 26];
+/** The textures the server's own pick is made among: the first ten, less the retired ones */
+const PICKED = [0, 1, 2, 3, 5, 6, 7, 8];
+
+/**
+ * A room that has `background`, whatever it is: a retired texture, as a room made before that one was retired
+ * can have, or none, as a room from before the index was stored.
+ */
+async function roomWith(t: Backend, background: number | undefined) {
+  const made = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 0 });
+  await t.run((ctx) => ctx.db.patch(made.roomId, { background }));
+  return made;
+}
+
+/**
+ * The draws that land in one texture's share of the range when the pick is made among `count` textures: one
+ * just inside each end of the share, and its middle.
+ */
+function drawsFor(k: number, count: number): number[] {
+  return [(k + 0.001) / count, (k + 0.5) / count, (k + 0.999) / count];
+}
+
 /**
  * Keeps console.warn out of the test's output and collects the lines a failed caller check writes:
  * "auth: <function> <reason>". `clear` forgets the lines so far.
@@ -306,7 +329,7 @@ describe("createRoom", () => {
     const t = newBackend();
     // Every one of these draws picks the same texture: without the rule every room would get it. They are
     // not one constant, so that the rooms' join codes, which come from the same draws, are not all alike
-    const sameTexture = [0.45, 0.48, 0.51, 0.54];
+    const sameTexture = [0.15, 0.17, 0.2, 0.23];
     let draws = 0;
     vi.spyOn(Math, "random").mockImplementation(() => sameTexture[draws++ % sameTexture.length]);
     const backgrounds: number[] = [];
@@ -322,9 +345,9 @@ describe("createRoom", () => {
     }
   });
 
-  test("the server's pick can be any of the first ten textures and no other, and createRoom answers with the one the room got", async () => {
+  test("the server's pick can be any of the first ten textures that are not retired and no other, and createRoom answers with the one the room got", async () => {
     const t = newBackend();
-    // These draws step through the whole range, so the picks reach both ends of those ten
+    // These draws step through the whole range, so the picks reach both ends of those eight
     let draws = 0;
     vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
     const picked = new Set<number>();
@@ -332,22 +355,55 @@ describe("createRoom", () => {
     for (let i = 0; i < 50; i++) {
       const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika" });
       expect((await roomRow(t, created.roomId)).background).toBe(created.background);
-      expect(Number.isInteger(created.background) && created.background >= 0 && created.background <= 9).toBe(true);
+      expect(PICKED).toContain(created.background);
       expect(created.background).not.toBe(last);
       last = created.background;
       picked.add(created.background);
     }
-    expect([...picked].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect([...picked].sort()).toEqual(PICKED);
   });
 
   // The host app chooses the texture, so that a room can look like the start screen it was made from
-  test("the room gets the background the app asks for, any of the 36 textures, and createRoom answers with it", async () => {
+  test("the room gets the background the app asks for, any of the 31 textures that are not retired, and createRoom answers with it", async () => {
     const t = newBackend();
-    for (let background = 0; background <= 35; background++) {
+    const random = vi.spyOn(Math, "random");
+    const asked = Array.from({ length: 36 }, (_, background) => background).filter((background) => !RETIRED.includes(background));
+    expect(asked).toHaveLength(31);
+    for (const background of asked) {
+      random.mockClear();
       const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background });
       expect(created.background).toBe(background);
+      // The six draws of the join code, and none for a pick
+      expect(random).toHaveBeenCalledTimes(6);
       expect((await roomRow(t, created.roomId)).background).toBe(background);
     }
+  });
+
+  // An installed build's list still offers the retired textures, and its start screen can be drawn on one
+  test("a retired background the app asks for is not a refusal: the room gets the server's pick, as if none was sent", async () => {
+    // The same draws for both backends, so the server picks the same textures in both
+    let draws = 0;
+    vi.spyOn(Math, "random").mockImplementation(() => (((draws++ * 37) % 128) + 0.5) / 128);
+    const unasked = newBackend();
+    const picks: number[] = [];
+    for (let i = 0; i < RETIRED.length; i++) {
+      picks.push((await unasked.mutation(api.rooms.createRoom, { hostNickname: "Mika" })).background);
+    }
+
+    draws = 0;
+    const t = newBackend();
+    const made = [];
+    for (const background of RETIRED) {
+      made.push(await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background }));
+    }
+    // Read once every room is made: looking into the backend takes a draw of its own
+    for (const [i, created] of made.entries()) {
+      const stored = (await roomRow(t, created.roomId)).background;
+      expect(PICKED).toContain(stored);
+      expect(created.background).toBe(stored);
+      expect(stored).toBe(picks[i]);
+    }
+    expect(await t.run((ctx) => ctx.db.query("rooms").collect())).toHaveLength(RETIRED.length);
   });
 
   test("the background the app asks for is kept when the room before has the same one: only the server's pick avoids it", async () => {
@@ -361,7 +417,7 @@ describe("createRoom", () => {
 
   test("the server's pick differs from the room before when the app chose that room's background", async () => {
     // Every one of these draws picks the same texture, as in the test of two rooms made one after the other
-    const sameTexture = [0.45, 0.48, 0.51, 0.54];
+    const sameTexture = [0.15, 0.17, 0.2, 0.23];
     let draws = 0;
     vi.spyOn(Math, "random").mockImplementation(() => sameTexture[draws++ % sameTexture.length]);
     // The texture those draws pick when no room is in the way
@@ -376,36 +432,68 @@ describe("createRoom", () => {
   });
 
   // A build that names no background has the tiles of the first ten textures only, so the server picks among
-  // those whatever the room before was given. A room before with one of the other 26 is in the way of none of the ten
-  test("the server's pick stays among the first ten textures after a room with any of the 36, and is never that room's", async () => {
+  // those, less the retired ones, whatever the room before has. A room before with any other texture is in the
+  // way of none of the eight
+  test("the server's pick stays among the first ten textures that are not retired after a room with any of the 36, and is never that room's", async () => {
     seedRandom(36);
     const t = newBackend();
-    // What leaves the pick to the server: no background, and a number that is not a texture
-    const unnamed = [undefined, 36, -1, 1.5, NaN];
-    const afterNewer = new Set<number>();
-    // Each texture is the room before 10 times, twice with each of the five above
-    for (let n = 0; n < 360; n++) {
+    // What leaves the pick to the server: no background, a retired one, and a number that is not a texture
+    const unnamed = [undefined, 36, 4, -1, 26, 1.5, NaN];
+    const afterOther = new Set<number>();
+    // Each texture is the room before 14 times, twice with each of the seven above
+    for (let n = 0; n < 36 * 14; n++) {
       const before = n % 36;
-      await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: before });
+      await roomWith(t, before);
       const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: unnamed[n % unnamed.length] });
       const picked = created.background;
-      expect(Number.isInteger(picked) && picked >= 0 && picked <= 9, `${picked} after ${before}`).toBe(true);
+      expect(PICKED, `${picked} after ${before}`).toContain(picked);
       expect(picked, `after ${before}`).not.toBe(before);
       expect((await roomRow(t, created.roomId)).background).toBe(picked);
-      if (before > 9) afterNewer.add(picked);
+      if (!PICKED.includes(before)) afterOther.add(picked);
     }
-    expect([...afterNewer].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect([...afterOther].sort()).toEqual(PICKED);
   });
 
-  // Texture 10 is the first one the pick cannot land on, so a room before with it is in the way of none of the ten:
-  // a draw in the top tenth of the range then picks texture 9. With one of the ten left out it would pick 8
-  test("the server's pick after a room with texture 10 is made among all of the first ten", async () => {
-    const t = newBackend();
-    await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 10 });
-    vi.spyOn(Math, "random").mockImplementation(() => 0.95);
-    const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika" });
-    expect(created.background).toBe(9);
-    expect((await roomRow(t, created.roomId)).background).toBe(9);
+  // The pick with its draw named: each texture it is made among has an equal share of the range, in the order of
+  // the list. The room before is in the way only with one of the eight: a retired texture and one past the first
+  // ten leave all eight, and so does a room with no stored background
+  describe("the server's pick, draw by draw", () => {
+    const BEFORE: Array<[what: string, background: number | undefined, has: boolean]> = [
+      ["no room", undefined, false],
+      ["a room with no stored background", undefined, true],
+      ...PICKED.map((background): [string, number, boolean] => [`a room with texture ${background}`, background, true]),
+      ["a room with the retired texture 4", 4, true],
+      ["a room with the retired texture 9", 9, true],
+      ["a room with the retired texture 24", 24, true],
+      ["a room with texture 10", 10, true],
+      ["a room with texture 35", 35, true],
+    ];
+
+    test.each(BEFORE)("after %s", async (_, before, hasRoom) => {
+      const random = seedRandom(8);
+      const t = newBackend();
+      if (hasRoom) await roomWith(t, before);
+      const among = PICKED.filter((background) => background !== before);
+      expect(among).toHaveLength(before !== undefined && PICKED.includes(before) ? 7 : 8);
+
+      // What leaves the pick to the server: no background, each retired one, and a number that is not a texture
+      for (const asked of [undefined, ...RETIRED, 36, -1, 1.5, NaN]) {
+        for (const [k, picked] of among.entries()) {
+          for (const draw of drawsFor(k, among.length)) {
+            random.mockReturnValueOnce(draw);
+            const created = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: asked });
+            // The room is taken away again, so that the one before it stays the last room made
+            const stored = await t.run(async (ctx) => {
+              const row = await ctx.db.get(created.roomId);
+              await ctx.db.delete(created.hostId);
+              await ctx.db.delete(created.roomId);
+              return row?.background;
+            });
+            expect({ asked, draw, answered: created.background, stored }).toEqual({ asked, draw, answered: picked, stored: picked });
+          }
+        }
+      }
+    });
   });
 
   // -1 and 36 are one past each end of the list, and NaN is neither below the list nor above it. The iOS host
@@ -1346,14 +1434,100 @@ describe("setRoomBackground", () => {
     expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(8);
   });
 
-  test("each of the 36 textures is taken", async () => {
+  test("each of the 31 textures that are not retired is taken, and nothing is picked", async () => {
     const t = newBackend();
-    // From the last texture, so that every one of the 36 below is a change
-    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 35 });
-    for (let background = 0; background <= 35; background++) {
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    const random = vi.spyOn(Math, "random");
+    // Down from the last texture, so that every one of the 31 is a change, the 3 the room starts with too
+    const asked = Array.from({ length: 36 }, (_, n) => 35 - n).filter((background) => !RETIRED.includes(background));
+    expect(asked).toHaveLength(31);
+    for (const background of asked) {
+      random.mockClear();
       expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background })).toEqual({ background });
+      expect(random).not.toHaveBeenCalled();
       expect((await roomRow(t, roomId)).background).toBe(background);
     }
+  });
+
+  // An installed build's Random button picks among its own whole list, which still offers the retired textures.
+  // The room then gets the server's pick: one of the first ten that are not retired, which every build has the
+  // tile of, and never the one the room has, so that the tap changes the room. The pick is made as createRoom's
+  // is: each texture it is made among has an equal share of the range, in the order of the list
+  describe("a retired texture is not refused: the room gets the server's pick, and the answer names it", () => {
+    const HAS: Array<[what: string, background: number | undefined]> = [
+      ...PICKED.map((background): [string, number] => [`texture ${background}`, background]),
+      ["the retired texture 4", 4],
+      ["the retired texture 9", 9],
+      ["the retired texture 25", 25],
+      ["texture 10", 10],
+      ["texture 35", 35],
+      ["no stored background", undefined],
+    ];
+
+    test.each(HAS)("in a room that has %s", async (_, has) => {
+      const random = seedRandom(9);
+      const t = newBackend();
+      const { roomId } = await roomWith(t, has);
+      const among = PICKED.filter((background) => background !== has);
+      expect(among).toHaveLength(has !== undefined && PICKED.includes(has) ? 7 : 8);
+
+      for (const asked of RETIRED) {
+        for (const [k, picked] of among.entries()) {
+          for (const draw of drawsFor(k, among.length)) {
+            random.mockReturnValueOnce(draw);
+            const answer = await t.mutation(api.rooms.setRoomBackground, { roomId, background: asked });
+            // The room is given back the background it had, for the next pick to be made from the same room
+            const stored = await t.run(async (ctx) => {
+              const row = await ctx.db.get(roomId);
+              await ctx.db.patch(roomId, { background: has });
+              return row?.background;
+            });
+            expect({ asked, draw, answer, stored }).toEqual({ asked, draw, answer: { background: picked }, stored: picked });
+          }
+        }
+      }
+    });
+
+    test("every reader of the room sees the texture the room got, and the rest of the room stays as it is", async () => {
+      seedRandom(4);
+      const t = newBackend();
+      const { roomId, joinCode } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+      await joinGuest(t, roomId, "Ana");
+      const before = await roomRow(t, roomId);
+
+      const { background } = await t.mutation(api.rooms.setRoomBackground, { roomId, background: 26 });
+      expect(PICKED.filter((picked) => picked !== 3)).toContain(background);
+
+      expect(await roomRow(t, roomId)).toEqual({ ...before, background });
+      expect((await t.query(api.rooms.getRoomState, { roomId }))?.room.background).toBe(background);
+      expect((await t.query(api.rooms.getRoomByJoinCode, { joinCode }))?.background).toBe(background);
+      expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(background);
+    });
+
+    test("it is the host's to ask for, like any other: under enforce a guest is refused and the room keeps its background", async () => {
+      authLog();
+      const { t, roomId, hostId, guestId } = await roomOfTwo();
+      vi.stubEnv("AUTH_MODE", "enforce");
+      await expect(
+        t.mutation(api.rooms.setRoomBackground, { roomId, background: 4, callerId: guestId, token: GUEST })
+      ).rejects.toThrow(/Not authorised/);
+      expect((await roomRow(t, roomId)).background).toBe(3);
+
+      const answer = await t.mutation(api.rooms.setRoomBackground, { roomId, background: 4, callerId: hostId, token: HOST });
+      expect(PICKED.filter((picked) => picked !== 3)).toContain(answer.background);
+      expect((await roomRow(t, roomId)).background).toBe(answer.background);
+    });
+
+    test("a closed room keeps its background, and a room that does not exist is reported as not found", async () => {
+      const t = newBackend();
+      const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+      await t.mutation(api.rooms.closeRoom, { roomId });
+      await expect(t.mutation(api.rooms.setRoomBackground, { roomId, background: 9 })).rejects.toThrow(/Room is closed/);
+      expect((await roomRow(t, roomId)).background).toBe(3);
+      await expect(
+        t.mutation(api.rooms.setRoomBackground, { roomId: await deletedRoom(t), background: 9 })
+      ).rejects.toThrow(/Room not found/);
+    });
   });
 
   // A request whose answer is lost leaves the app showing the background from before, and its next pick can
@@ -1577,6 +1751,48 @@ describe("setRoomBackground", () => {
       }
       expect(log.lines(), modeName(mode)).toEqual([]);
     }
+  });
+});
+
+// ─── A room that has a retired background ────────────────────────────────────
+
+// No stored row is rewritten when a texture is retired: the room goes on being drawn with it, by every build
+// that knows the index, until its host gives it another
+describe("a room that has a retired background", () => {
+  test.each(RETIRED)("keeps texture %i, and every reader of the room is given it", async (background) => {
+    const t = newBackend();
+    const { roomId, hostId, joinCode } = await roomWith(t, background);
+    const ana = await joinGuest(t, roomId, "Ana");
+    const before = await roomRow(t, roomId);
+    expect(before.background).toBe(background);
+
+    // What goes on in a room and beside it: another room is made, the settings change, people come and go
+    await t.mutation(api.rooms.createRoom, { hostNickname: "Ken" });
+    await t.mutation(api.rooms.updateRoomSettings, { roomId, settings: settings({ maxParticipants: 12 }) });
+    await heartbeat(t, hostId);
+    await leave(t, ana);
+    await joinGuest(t, roomId, "Ben", { avatar: "cat" });
+    await t.mutation(internal.rooms.closeAbandonedRooms);
+    expect(await roomRow(t, roomId)).toEqual({ ...before, settings: settings({ maxParticipants: 12 }) });
+
+    expect((await t.query(api.rooms.getRoomState, { roomId }))?.room.background).toBe(background);
+    expect((await t.query(api.rooms.getRoomByJoinCode, { joinCode }))?.background).toBe(background);
+    expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(background);
+    const snapshot = await post(t, "/api/rooms/snapshot", { roomId, participantId: hostId });
+    expect(snapshot.status).toBe(200);
+    expect(snapshot.body.room.background).toBe(background);
+
+    // Closed, it has it still
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    expect((await roomRow(t, roomId)).background).toBe(background);
+    expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(background);
+  });
+
+  test("is given the texture its host asks for, as any room is", async () => {
+    const t = newBackend();
+    const { roomId } = await roomWith(t, 24);
+    expect(await t.mutation(api.rooms.setRoomBackground, { roomId, background: 17 })).toEqual({ background: 17 });
+    expect((await roomRow(t, roomId)).background).toBe(17);
   });
 });
 
@@ -2268,18 +2484,19 @@ describe("/api/rooms/* and /api/participants/*", () => {
 
   test("rooms/create gives the room the background in the body when it is a number, and answers with the one the room got", async () => {
     const t = newBackend();
-    for (const background of [7, 0, 9, 10, 35]) {
+    for (const background of [7, 0, 8, 10, 35]) {
       const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
       expect(res.status).toBe(200);
       expect(res.body.background).toBe(background);
       expect((await roomRow(t, res.body.roomId)).background).toBe(background);
     }
-    // A number that is not a texture is still a room, with the server's pick, one of the first ten
-    for (const background of [-1, 36, 1.5]) {
+    // A number that is not a texture is still a room, with the server's pick, and so is a retired texture
+    for (const background of [-1, 36, 1.5, ...RETIRED]) {
       const res = await post(t, "/api/rooms/create", { hostNickname: "Mika", background });
       expect(res.status).toBe(200);
-      const stored = (await roomRow(t, res.body.roomId)).background ?? -1;
-      expect(Number.isInteger(stored) && stored >= 0 && stored <= 9).toBe(true);
+      expect(Object.keys(res.body).sort()).toEqual(["background", "hostId", "joinCode", "roomId"]);
+      const stored = (await roomRow(t, res.body.roomId)).background;
+      expect(PICKED, String(background)).toContain(stored);
       expect(res.body.background).toBe(stored);
     }
   });
@@ -2411,6 +2628,27 @@ describe("/api/rooms/* and /api/participants/*", () => {
     // What the host app polls, and what the guests' pages subscribe to
     expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(8);
     expect((await t.query(api.rooms.getRoomState, { roomId }))?.room.background).toBe(8);
+    expect((await roomRow(t, other.roomId)).background).toBe(3);
+  });
+
+  // What an installed build's Random button can send. The app reads nothing of the answer: it draws its own pick
+  // and takes the room's background from its next refresh of the room
+  test("rooms/background answers 200 to a retired texture, with the background the room got in its place", async () => {
+    const t = newBackend();
+    const { roomId } = await t.mutation(api.rooms.createRoom, { hostNickname: "Mika", background: 3 });
+    const other = await t.mutation(api.rooms.createRoom, { hostNickname: "Ken", background: 3 });
+    let has = 3;
+    for (const background of [...RETIRED, ...RETIRED]) {
+      const res = await post(t, "/api/rooms/background", { roomId, background });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toMatch(/application\/json/);
+      expect(res.body).toEqual({ background: expect.any(Number) });
+      // One of the first ten that are not retired, and not the one the room had
+      expect(PICKED.filter((picked) => picked !== has), `${background} in a room with ${has}`).toContain(res.body.background);
+      has = res.body.background;
+      expect((await post(t, "/api/rooms/state", { roomId })).body.room.background).toBe(has);
+      expect((await roomRow(t, roomId)).background).toBe(has);
+    }
     expect((await roomRow(t, other.roomId)).background).toBe(3);
   });
 

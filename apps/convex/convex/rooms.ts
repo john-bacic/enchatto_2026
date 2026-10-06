@@ -7,8 +7,12 @@ import { deleteStoredFile, isSupportedLanguage, registerToken, requireHost } fro
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 36;
-// The textures createRoom picks among when the app names none: the first ten. An iPhone build that sends no
-// background has the tiles of those ten only: given any other, its host would not see the room as the guests do.
+// The retired textures, by index: the ones the two lists mark retired. A retired texture keeps its place in the
+// lists and is still drawn for a room that has it, and no room is given it any more.
+const RETIRED_BACKGROUNDS = [4, 9, 24, 25, 26];
+// The server's own pick is made among the first ten textures, less the retired ones. Every build has the tiles of
+// those ten, and an iPhone build that sends no background has no others: given any other, its host would not see
+// the room as the guests do.
 const PICKED_BACKGROUND_COUNT = 10;
 
 export const createRoom = mutation({
@@ -56,19 +60,12 @@ export const createRoom = mutation({
     }
 
     // The app names the texture, so that a room can look like the start screen it was made from. A value that
-    // is not one of the textures is no reason to refuse the room: the pick is then made here, as for a build
-    // that sends none, at random among the textures every build draws and different from the last room's
+    // is not one of the textures, or a retired texture, is no reason to refuse the room: the pick is then made
+    // here, as for a build that sends none, and different from the last room's
     let background = args.background;
-    if (!isBackground(background)) {
+    if (!isBackground(background) || isRetired(background)) {
       const lastRoom = await ctx.db.query("rooms").order("desc").first();
-      const last = lastRoom?.background;
-      if (last !== undefined && last < PICKED_BACKGROUND_COUNT) {
-        background = Math.floor(Math.random() * (PICKED_BACKGROUND_COUNT - 1));
-        if (background >= last) background++;
-      } else {
-        // No room before this one, or one whose texture the pick cannot land on: there is none to avoid
-        background = Math.floor(Math.random() * PICKED_BACKGROUND_COUNT);
-      }
+      background = pickBackground(lastRoom?.background);
     }
 
     // After every check above, so a room that is refused has not looked anything up
@@ -417,7 +414,8 @@ export const updateRoomSettings = mutation({
 
 /**
  * The host gives an open room another texture. Every guest's page draws the index stored on the room, so
- * they follow by themselves. Answers with the index the room now has.
+ * they follow by themselves. Answers with the index the room now has, which is the server's own pick when
+ * the one asked for is retired.
  */
 export const setRoomBackground = mutation({
   args: {
@@ -434,9 +432,12 @@ export const setRoomBackground = mutation({
     await requireHost(ctx, args.roomId, args.callerId, args.token, "rooms.setRoomBackground");
     // Refused, where createRoom makes its own pick: the room has a background to keep
     if (!isBackground(args.background)) throw new Error("Unknown background");
+    // A retired texture is asked for by a build whose own list still offers it. That is not refused, which
+    // would fail its host's tap: the room gets another texture, never the one it has
+    const background = isRetired(args.background) ? pickBackground(room.background) : args.background;
 
-    await ctx.db.patch(args.roomId, { background: args.background });
-    return { background: args.background };
+    await ctx.db.patch(args.roomId, { background });
+    return { background };
   },
 });
 
@@ -450,12 +451,29 @@ function isSeatCount(value: number): boolean {
 }
 
 /**
- * A background a room may be given: the index of one of the textures, a whole number from 0 to
- * BACKGROUND_COUNT - 1. Whole for the reason a seat count is: the iOS app decodes the room's background as
- * an Int. NaN and Infinity are not whole numbers either.
+ * The index of one of the textures, a retired one included: a whole number from 0 to BACKGROUND_COUNT - 1.
+ * Whole for the reason a seat count is: the iOS app decodes the room's background as an Int. NaN and
+ * Infinity are not whole numbers either.
  */
 function isBackground(value: number | undefined): value is number {
   return value !== undefined && Number.isInteger(value) && value >= 0 && value < BACKGROUND_COUNT;
+}
+
+/** A texture that is still drawn for a room that has it, and that no room is given any more */
+function isRetired(background: number): boolean {
+  return RETIRED_BACKGROUNDS.includes(background);
+}
+
+/**
+ * The server's own pick of a background: at random among the first ten textures that are not retired, and
+ * never `avoid`, the background of the last room made or of the room the pick is for.
+ */
+function pickBackground(avoid: number | undefined): number {
+  const among: number[] = [];
+  for (let background = 0; background < PICKED_BACKGROUND_COUNT; background++) {
+    if (!isRetired(background) && background !== avoid) among.push(background);
+  }
+  return among[Math.floor(Math.random() * among.length)];
 }
 
 function generateJoinCode(): string {
