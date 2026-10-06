@@ -117,7 +117,8 @@ interface ReplyTo {
 export interface MessageInputHandle {
   /**
    * Puts a suggestion in the field in place of whatever the field holds, as if it had been typed by hand. Nothing is
-   * sent. A dictation that is running ends first, as its Cancel ends it.
+   * sent. A dictation that is running ends first, as its Cancel ends it. While a voice message is being recorded
+   * nothing is done: the recording runs on.
    */
   fill: (suggestion: string) => void;
 }
@@ -290,12 +291,15 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   };
 
   // A suggestion takes the place of whatever the field holds, and from there on the field is as if the suggestion
-  // had been typed by hand: the person sends it, or edits it first. A dictation that is running ends as its Cancel
-  // ends it, the words it heard and its recording dropped, and the suggestion is sent as it reads, whatever was
-  // dictated before it
+  // had been typed by hand: the person sends it, or edits it first. A dictation of words for the field ends as its
+  // Cancel ends it, the words it heard dropped with the recording that runs beside them, and the suggestion is sent
+  // as it reads, whatever was dictated before it
   const fill = (suggestion: string) => {
     // A chip with nothing on it leaves the field as it is
     if (!suggestion.trim()) return;
+    // A voice message that is being recorded is no text of the field's, and once dropped it cannot be had back:
+    // it runs on, to be sent or cancelled from its own pill, and the tap does nothing
+    if (sendingVoice) return;
     voiceClip.discard();
     // stop() hands over the last transcript before it returns, so the text is set after it
     if (isListening) stopVoice();

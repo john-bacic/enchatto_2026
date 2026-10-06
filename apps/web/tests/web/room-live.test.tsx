@@ -25,9 +25,9 @@ import { installBrowser, Sim, type SimBrowser } from "./dom";
 //
 // And what a tap on a suggestion under a message does. The message box holds the suggestion in place of whatever it
 // held, as if she had typed it: Send and Clear are there, the field is fitted to it, the room hears that she is
-// typing, and nothing is sent until she sends it. A dictation that is running ends with the tap, its words and its
-// recording dropped. A phone's keyboard stays as it is, and a computer's field takes the focus. A tap, like a
-// keystroke, draws the box and nothing else.
+// typing, and nothing is sent until she sends it. A dictation that is running ends with the tap, its words dropped.
+// A voice message that is being recorded runs on, and the tap does nothing. A phone's keyboard stays as it is, and
+// a computer's field takes the focus. A tap, like a keystroke, draws the box and nothing else.
 //
 // And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
 // opens and when it closes, and not each time the page is drawn. While it is open, the signal is written once more
@@ -1321,7 +1321,29 @@ describe("a tap on a suggestion under a message", () => {
     expect(sent()).toEqual([asText("ありがとう")]);
   });
 
-  test("while she records a voice message: the recording is thrown away and the microphone let go, and Send sends the suggestion as text", async () => {
+  test("while she dictates words on a browser that records beside them: the tap ends both, and the microphone is let go", async () => {
+    const recognisers = canDictate();
+    const { track, recorders } = canRecord();
+    const page = await open(offered());
+    await page.tap(micButton(page));
+    // The recording is hers to send in the words' place if she switches to a voice message. Send sends the words
+    expect(one(recorders).state).toBe("recording");
+    expect(labelled(page, t("Send voice message", "ja")).length).toBe(0);
+    await page.act(() => one(recognisers).hears("おはよう"));
+
+    await press(page, chips(page, "hello")[1]);
+    expect(one(recorders).state).toBe("inactive");
+    expect(one(recognisers).running).toBe(false);
+    expect(page.body.byClass("ec-voice-pill").length).toBe(0);
+    expect(held(page)).toBe("よろしくね");
+    expect(sent()).toEqual([]);
+    await page.wait(2);
+    expect(track.readyState).toBe("ended");
+    await page.tap(sendButton(page));
+    expect(sent()).toEqual([asText("よろしくね")]);
+  });
+
+  test("while she records a voice message the tap does nothing: the recording runs on, hers to send or to cancel", async () => {
     const recognisers = canDictate();
     const { track, recorders } = canRecord();
     // The mode she last dictated in: the recording is what Send sends
@@ -1333,20 +1355,37 @@ describe("a tap on a suggestion under a message", () => {
     expect(page.body.byClass("ec-voice-timer").length).toBe(1);
     await page.act(() => one(recognisers).hears("おはよう"));
 
+    const focused = vi.spyOn(Sim.prototype, "focus");
     await press(page, chips(page, "hello")[1]);
-    expect(one(recorders).state).toBe("inactive");
-    expect(one(recognisers).running).toBe(false);
-    expect(page.body.byClass("ec-voice-pill").length).toBe(0);
-    expect(held(page)).toBe("よろしくね");
-    expect(labelled(page, t("Send voice message", "ja")).length).toBe(0);
+    expect(one(recorders).state).toBe("recording");
+    expect(one(recognisers).running).toBe(true);
+    expect(track.readyState).toBe("live");
+    expect(page.body.byClass("ec-voice-pill").length).toBe(1);
+    expect(page.body.byClass("ec-voice-timer").length).toBe(1);
+    expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
+    expect(live(page)).toBe("おはよう。");
+    expect(fields(page).length).toBe(0);
+    expect(signals()).toEqual(["voicing"]);
+    expect(focused).not.toHaveBeenCalled();
     expect(sent()).toEqual([]);
-    await page.wait(2);
-    expect(track.readyState).toBe("ended");
+    // It goes on hearing her
+    await page.act(() => one(recognisers).hears("おはようございます"));
+    expect(live(page)).toBe("おはようございます。");
 
+    // She cancels it herself: the box is back, empty as it was before she recorded, and a tap fills it
+    await page.tap(one(labelled(page, t("Cancel", "ja"))));
+    expect(one(recorders).state).toBe("inactive");
+    expect(held(page)).toBe("");
+    await press(page, chips(page, "hello")[1]);
+    expect(held(page)).toBe("よろしくね");
     await page.tap(sendButton(page));
     expect(sent()).toEqual([asText("よろしくね")]);
-    // The mode is hers to change: the next dictation records again
-    expect(localStorage.getItem("enchatto_voiceMode")).toBe("voice");
+
+    // The mode is hers to change, and a tap that fills the box leaves it: the next dictation records a voice message
+    await page.tap(micButton(page));
+    expect(recorders.length).toBe(2);
+    expect(recorders[1].state).toBe("recording");
+    expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
   });
 
   test("on Android, between two runs of its recogniser: the tap ends dictation, and no run starts after it", async () => {
@@ -1368,7 +1407,7 @@ describe("a tap on a suggestion under a message", () => {
     expect(sent()).toEqual([asText("よろしくね")]);
   });
 
-  test("on Android, while she records a voice message, which runs without the recogniser: the recording is thrown away, and Send sends the suggestion as text", async () => {
+  test("on Android, where a voice message is recorded without the recogniser, the tap does nothing to it either", async () => {
     onAndroid();
     const recognisers = canDictate();
     const { track, recorders } = canRecord();
@@ -1381,13 +1420,14 @@ describe("a tap on a suggestion under a message", () => {
     expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
 
     await press(page, chips(page, "hello")[1]);
-    expect(one(recorders).state).toBe("inactive");
-    expect(page.body.byClass("ec-voice-pill").length).toBe(0);
-    expect(held(page)).toBe("よろしくね");
-    await page.wait(2);
-    expect(track.readyState).toBe("ended");
-    await page.tap(sendButton(page));
-    expect(sent()).toEqual([asText("よろしくね")]);
+    expect(one(recorders).state).toBe("recording");
+    expect(track.readyState).toBe("live");
+    expect(page.body.byClass("ec-voice-pill").length).toBe(1);
+    expect(live(page)).toBe(t("Recording...", "ja"));
+    expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
+    expect(fields(page).length).toBe(0);
+    expect(signals()).toEqual(["voicing"]);
+    expect(sent()).toEqual([]);
   });
 
   test("on a computer, a tap that ends dictation gives the focus to the field that comes back", async () => {
