@@ -1242,12 +1242,19 @@ describe("a tap on a suggestion under a message", () => {
     expect(held(page)).toBe("よろしくね");
   });
 
-  test("on a computer the field takes the focus, and Enter sends the suggestion", async () => {
+  test("on a computer the field takes the focus, and Enter sends the suggestion: an Enter she presses, not one still held from choosing the chip", async () => {
     const page = await open(offered());
     const focused = vi.spyOn(Sim.prototype, "focus");
     await press(page, chips(page, "hello")[0]);
     expect(focused.mock.contexts.length).toBe(1);
     expect(focused.mock.contexts[0]).toBe(field(page));
+    // Enter chooses a chip from the keyboard as it goes down, and held, it repeats in the field that has taken the
+    // focus. That sends nothing, and puts no new line in the field either
+    let lineKept = false;
+    await page.act(() => void (lineKept = field(page).fire("keydown", { key: "Enter", repeat: true })));
+    expect(lineKept).toBe(true);
+    expect(sent()).toEqual([]);
+    expect(held(page)).toBe("こんにちは！");
     await page.act(() => void field(page).fire("keydown", { key: "Enter" }));
     expect(sent()).toEqual([asText("こんにちは！")]);
     expect(held(page)).toBe("");

@@ -667,6 +667,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 if (isImeComposing(e)) return;
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
+                  // A held Enter sends once. One that went down on a chip is still down when the field takes the
+                  // focus with the suggestion, and what it repeats here does not send it
+                  if (e.repeat) return;
                   handleSubmit();
                   if (window.matchMedia("(pointer: coarse)").matches) e.currentTarget.blur();
                 }
