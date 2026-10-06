@@ -323,6 +323,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     usedVoiceRef.current = false;
     preVoiceTextRef.current = "";
     dictatedRef.current = "";
+    // The text is replaced where it stands, also under a conversion the keyboard still has open (kana not yet
+    // confirmed, the word Gboard is composing), as Clear replaces it: the field keeps the focus, and nothing here
+    // ends the conversion or waits for it
     setText(suggestion);
     setToolsOpen(false);
     signalTyping();
