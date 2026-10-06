@@ -24,9 +24,11 @@ interface EmojiMatchGameProps {
   onMinimize?: () => void;
 }
 
+// The game's name and the two buttons of its results are worded here, for these screens alone: an entry of
+// lib/i18n.ts words every screen that asks for the same English, as the game picker and Emoji Bingo's results do
 const COPY = {
-  en: { pairs: "pairs", you: "YOU", findPair: "Find a pair", pair: "PAIR! +1", turns: (n: number) => `${n} ${n === 1 ? "turn" : "turns"}` },
-  ja: { pairs: "ペア", you: "あなた", findPair: "ペアを探そう", pair: "ペア！+1", turns: (n: number) => `${n}回` },
+  en: { name: "Emoji Match", pairs: "pairs", you: "YOU", findPair: "Find a pair", pair: "PAIR! +1", turns: (n: number) => `${n} ${n === 1 ? "turn" : "turns"}`, exit: "Exit", playAgain: "Play Again" },
+  ja: { name: "絵文字マッチ", pairs: "ペア", you: "あなた", findPair: "ペアを探そう", pair: "ペア！+1", turns: (n: number) => `${n}回`, exit: "閉じる", playAgain: "もう一回" },
 };
 const copy = (lang?: string) => (lang === "ja" ? COPY.ja : COPY.en);
 
@@ -214,7 +216,7 @@ function LobbyView({
     <ModalCard>
       <Icon name="o-cherry" size={64} style={{ animation: "ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)" }} />
       <h2 className="ec-chunky" style={{ fontSize: 24, margin: "4px 0", textShadow: "0 3px 0 var(--violet)" }}>
-        {t("Emoji Match", lang)}
+        {copy(lang).name}
       </h2>
       <p style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.75, marginBottom: 14, lineHeight: 1.45 }}>
         {t("Match English and Japanese words! Flip cards to pair translations.", lang)}
@@ -403,7 +405,7 @@ function GameBoardView({
             }}
           >
             <Icon name="o-cherry" size={24} />
-            {t("Emoji Match", lang)}
+            {c.name}
           </span>
           <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 900, opacity: 0.6, whiteSpace: "nowrap" }}>
             {game.matchedPairCount}/{game.totalPairs} {c.pairs}
@@ -843,10 +845,10 @@ function CompletedView({
 
       <div style={{ display: "flex", gap: 10 }}>
         <button className="ec-btn white" style={{ flex: 1, fontSize: 17 }} onClick={onClose}>
-          {t("Exit", lang)}
+          {copy(lang).exit}
         </button>
         <button className="ec-btn pink wiggle" style={{ flex: 1.3, fontSize: 17 }} onClick={onPlayAgain}>
-          {t("Play Again", lang)}
+          {copy(lang).playAgain}
         </button>
       </div>
     </ModalCard>
