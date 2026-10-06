@@ -1307,7 +1307,7 @@ describe("what a first render of the page does not reach, each view component by
         );
       });
 
-    // The screen's own words (Won!, you, Exit, Play Again) have no Japanese in lib/i18n.ts, so Yuki reads them in English
+    // Yuki reads the screen's own words in Japanese: the headline that names the winner, "you", Exit and Play Again
     test("for Yuki, who came second: the results, Alex's five pairs above her three", async () => {
       expect(await layer(yuki, { emojiMatchOnScreen: true, dismissedEmojiMatchId: null })).toMatchSnapshot();
     });

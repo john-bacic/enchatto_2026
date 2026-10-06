@@ -480,7 +480,7 @@ function GameBoardView({
                 {t("Your turn!", lang)} <span style={{ color: "var(--pink)" }}>{c.findPair}</span>
               </span>
             ) : (
-              <span>{`${currentPlayer?.nickname ?? "?"}'s ${t("turn", lang)}`}</span>
+              <span>{`${currentPlayer?.nickname ?? "?"}${t("'s turn", lang)}`}</span>
             )}
           </div>
           {timeLeft !== null && (
@@ -783,7 +783,8 @@ function CompletedView({
     const winner = game.players.find(
       (p: any) => p.participantId === result?.winnerParticipantIds?.[0]
     );
-    headline = `${winner?.nickname ?? "?"} ${t("Won!", lang)}`;
+    // The name is put in by a function: as a replacement string, a "$" in a name would be read as a pattern
+    headline = t("{name} Won!", lang).replace("{name}", () => winner?.nickname ?? "?");
   }
   const celebrate = !isCanceled && (isWinner || isSolo);
 

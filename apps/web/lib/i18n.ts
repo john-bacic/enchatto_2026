@@ -374,6 +374,23 @@ const translations: Record<string, Record<string, string>> = {
   "min": { ja: "分" },
   "Game Started: Emoji Bingo": { ja: "ゲーム開始：絵文字ビンゴ" },
 
+  // Emoji Match
+  "Emoji Match": { ja: "絵文字マッチ" },
+  "Match English and Japanese words! Flip cards to pair translations.": {
+    ja: "英語と日本語のことばを合わせよう！カードをめくって、同じ意味のペアを探してね。",
+  },
+  "Players": { ja: "プレイヤー" },
+  "HOST": { ja: "ホスト" },
+  "Your turn!": { ja: "あなたの番！" },
+  "'s turn": { ja: "の番" },
+  "You Won!": { ja: "あなたの勝ち！" },
+  "{name} Won!": { ja: "{name}の勝ち！" },
+  "It's a Tie!": { ja: "引き分け！" },
+  "Board Cleared!": { ja: "ぜんぶクリア！" },
+  "you": { ja: "あなた" },
+  "Exit": { ja: "閉じる" },
+  "Play Again": { ja: "もう一回" },
+
   // Game summaries
   "Game": { ja: "ゲーム" },
   "game": { ja: "ゲーム" },

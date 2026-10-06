@@ -628,8 +628,8 @@ markup
    </div>
    <div style="margin:14px 0 16px;font-size:12px;font-weight:900;opacity:0.6">ライン · 48 コール済み</div>
    <div style="display:flex;gap:10px">
-    <button class="ec-btn white" style="flex:1;font-size:17px">Exit</button>
-    <button class="ec-btn pink wiggle" style="flex:1.3;font-size:17px">Play Again</button>
+    <button class="ec-btn white" style="flex:1;font-size:17px">閉じる</button>
+    <button class="ec-btn pink wiggle" style="flex:1.3;font-size:17px">もう一回</button>
    </div>
   </div>
  </div>
@@ -1971,17 +1971,17 @@ markup
  <div class="ec-sheet-backdrop" style="z-index:95;align-items:center;padding:16px">
   <div class="ec-card" style="width:100%;max-width:360px;max-height:90dvh;overflow-y:auto;padding:22px 18px 18px;text-align:center;background:var(--paper);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)">
    <img src="/icons/o-cherry.png" alt="" draggable="false" class="ec-icon" style="width:64px;height:64px;animation:ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)"/>
-   <h2 class="ec-chunky" style="font-size:24px;margin:4px 0;text-shadow:0 3px 0 var(--violet)">Emoji Match</h2>
-   <p style="font-size:12.5px;font-weight:700;opacity:0.75;margin-bottom:14px;line-height:1.45">Match English and Japanese words! Flip cards to pair translations.</p>
+   <h2 class="ec-chunky" style="font-size:24px;margin:4px 0;text-shadow:0 3px 0 var(--violet)">絵文字マッチ</h2>
+   <p style="font-size:12.5px;font-weight:700;opacity:0.75;margin-bottom:14px;line-height:1.45">英語と日本語のことばを合わせよう！カードをめくって、同じ意味のペアを探してね。</p>
    <div style="padding:8px 10px;margin-bottom:16px;border:2.5px solid var(--ink);border-radius:16px;background:#fff;max-height:200px;overflow-y:auto;text-align:left">
-    <div style="font-size:11px;font-weight:900;opacity:0.6;margin-bottom:6px">Players (2/30)</div>
+    <div style="font-size:11px;font-weight:900;opacity:0.6;margin-bottom:6px">プレイヤー (2/30)</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
      <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px 2px 2px;border:2px solid var(--ink);border-radius:999px;background:var(--violet-soft);font-size:12.5px;font-weight:900;animation:ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)">
       <span style="display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--ink);background:#fde68a;overflow:hidden">
        <img src="/icons/av-hamster.png" alt="Hamster" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
       </span>
       Alex
-      <span class="ec-chunky" style="font-size:9px;color:var(--violet)">HOST</span>
+      <span class="ec-chunky" style="font-size:9px;color:var(--violet)">ホスト</span>
      </span>
      <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px 2px 2px;border:2px solid var(--ink);border-radius:999px;background:var(--paper);font-size:12.5px;font-weight:900;animation:ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)">
       <span style="display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--ink);background:#d9e4ff;overflow:hidden">
@@ -7997,17 +7997,17 @@ markup
  <div class="ec-sheet-backdrop" style="z-index:95;align-items:center;padding:16px">
   <div class="ec-card" style="width:100%;max-width:360px;max-height:90dvh;overflow-y:auto;padding:22px 18px 18px;text-align:center;background:var(--paper);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)">
    <img src="/icons/o-cherry.png" alt="" draggable="false" class="ec-icon" style="width:64px;height:64px;animation:ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)"/>
-   <h2 class="ec-chunky" style="font-size:24px;margin:4px 0;text-shadow:0 3px 0 var(--violet)">Emoji Match</h2>
-   <p style="font-size:12.5px;font-weight:700;opacity:0.75;margin-bottom:14px;line-height:1.45">Match English and Japanese words! Flip cards to pair translations.</p>
+   <h2 class="ec-chunky" style="font-size:24px;margin:4px 0;text-shadow:0 3px 0 var(--violet)">絵文字マッチ</h2>
+   <p style="font-size:12.5px;font-weight:700;opacity:0.75;margin-bottom:14px;line-height:1.45">英語と日本語のことばを合わせよう！カードをめくって、同じ意味のペアを探してね。</p>
    <div style="padding:8px 10px;margin-bottom:16px;border:2.5px solid var(--ink);border-radius:16px;background:#fff;max-height:200px;overflow-y:auto;text-align:left">
-    <div style="font-size:11px;font-weight:900;opacity:0.6;margin-bottom:6px">Players (2/30)</div>
+    <div style="font-size:11px;font-weight:900;opacity:0.6;margin-bottom:6px">プレイヤー (2/30)</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
      <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px 2px 2px;border:2px solid var(--ink);border-radius:999px;background:var(--violet-soft);font-size:12.5px;font-weight:900;animation:ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)">
       <span style="display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--ink);background:#fde68a;overflow:hidden">
        <img src="/icons/av-hamster.png" alt="Hamster" draggable="false" style="width:84%;height:84%;object-fit:contain;pointer-events:none"/>
       </span>
       Alex
-      <span class="ec-chunky" style="font-size:9px;color:var(--violet)">HOST</span>
+      <span class="ec-chunky" style="font-size:9px;color:var(--violet)">ホスト</span>
      </span>
      <span style="display:inline-flex;align-items:center;gap:5px;padding:2px 10px 2px 2px;border:2px solid var(--ink);border-radius:999px;background:var(--paper);font-size:12.5px;font-weight:900;animation:ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)">
       <span style="display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--ink);background:#d9e4ff;overflow:hidden">
@@ -8210,7 +8210,7 @@ markup
 <div class="ec-sheet-backdrop" style="z-index:95;align-items:center;padding:16px">
  <div class="ec-card" style="width:100%;max-width:360px;max-height:90dvh;overflow-y:auto;padding:22px 18px 18px;text-align:center;background:var(--paper);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1)">
   <img src="/icons/g-crown.png" alt="" draggable="false" class="ec-icon" style="width:64px;height:64px;animation:ec-drop-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1)"/>
-  <h2 class="ec-chunky" style="font-size:24px;margin:6px 0 14px">Alex Won!</h2>
+  <h2 class="ec-chunky" style="font-size:24px;margin:6px 0 14px">Alexの勝ち！</h2>
   <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
    <div style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:2.5px solid var(--ink);border-radius:999px;background:var(--yellow-soft);box-shadow:0 3px 0 var(--ink);animation:ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) 0s both">
     <span class="ec-chunky" style="width:22px;font-size:14px;text-align:center">
@@ -8230,15 +8230,15 @@ markup
     </span>
     <span style="flex:1;min-width:0;text-align:left;font-size:13.5px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
      Yuki
-     <span style="color:var(--pink);margin-left:4px">(you)</span>
+     <span style="color:var(--pink);margin-left:4px">(あなた)</span>
     </span>
     <span style="font-size:11px;font-weight:900;opacity:0.55">5/3/8</span>
     <span class="ec-chunky" style="font-size:18px">3</span>
    </div>
   </div>
   <div style="display:flex;gap:10px">
-   <button class="ec-btn white" style="flex:1;font-size:17px">Exit</button>
-   <button class="ec-btn pink wiggle" style="flex:1.3;font-size:17px">Play Again</button>
+   <button class="ec-btn white" style="flex:1;font-size:17px">閉じる</button>
+   <button class="ec-btn pink wiggle" style="flex:1.3;font-size:17px">もう一回</button>
   </div>
  </div>
 </div>"
