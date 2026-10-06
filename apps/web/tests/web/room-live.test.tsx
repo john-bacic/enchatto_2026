@@ -1890,13 +1890,23 @@ describe("a Truth or Dare action that fails", () => {
     complaints = [];
     return lines;
   }
-  /** Five seconds pass, and at none of them is anything told. A toast stands for nearly three */
+  /** A tenth of a second passes, and the page is drawn with whatever of the room has reached it by then */
+  const tenth = (page: Page) => page.act(() => void vi.advanceTimersByTime(100));
+  /** Five seconds pass a tenth at a time, and at none of them is anything told. A toast stands for nearly three */
   async function toldNothing(page: Page) {
-    for (let second = 0; second < 5; second++) {
+    for (let tenths = 0; tenths < 50; tenths++) {
       expect(told(page)).toEqual([]);
-      await page.wait(1);
+      await tenth(page);
     }
     expect(told(page)).toEqual([]);
+  }
+  /** The second after a failure passes a tenth at a time, and nothing is told before the last of them */
+  async function aSecond(page: Page) {
+    for (let tenths = 1; tenths < 10; tenths++) {
+      await tenth(page);
+      expect(told(page)).toEqual([]);
+    }
+    await tenth(page);
   }
   /** Nothing of a refusal is on the page: not what wraps it, and not `thrown`, the sentence the function threw */
   function noRefusalWords(page: Page, thrown?: string) {
@@ -1938,7 +1948,7 @@ describe("a Truth or Dare action that fails", () => {
       expect(buttons(page, t("Skip", lang)).length).toBe(0);
       expect(told(page)).toEqual([]);
 
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page);
       expect(cards(page).map(off)).toEqual([false, false]);
@@ -1966,7 +1976,7 @@ describe("a Truth or Dare action that fails", () => {
       expect(field(page).value).toBe("");
       expect(buttons(page, t("Send Answer", lang)).length).toBe(0);
 
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page, "Answer too long");
       expect(field(page).value).toBe("すしです");
@@ -1996,7 +2006,7 @@ describe("a Truth or Dare action that fails", () => {
       // As while a drawing is on its way: no sheet on screen
       expect(sheets(page)).toEqual([]);
 
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page, "Unsupported drawing");
       expect(sheets(page)).toEqual([1]);
@@ -2026,7 +2036,7 @@ describe("a Truth or Dare action that fails", () => {
       await page.tap(button(page, t("Submit Rating", lang)));
       expect(buttons(page, t("Submit Rating", lang)).length).toBe(0);
 
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page, "Not a member");
       expect(stars(page)).toBe(4);
@@ -2047,7 +2057,7 @@ describe("a Truth or Dare action that fails", () => {
       refuses("truthOrDare:skipTurn");
       await page.tap(button(page, t("Skip", lang)));
       expect(told(page)).toEqual([]);
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page);
       expect(logged()).toEqual(["Failed to skip turn:"]);
@@ -2068,7 +2078,7 @@ describe("a Truth or Dare action that fails", () => {
       await page.tap(button(page, next));
       expect(buttons(page, next).length).toBe(0);
 
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page, "Only the host");
       expect(off(button(page, next))).toBe(false);
@@ -2092,7 +2102,7 @@ describe("a Truth or Dare action that fails", () => {
       // As while the host's tap is on its way: the break has left this screen
       expect(breaks()).toBe(0);
 
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page);
       expect(breaks()).toBe(1);
@@ -2110,7 +2120,7 @@ describe("a Truth or Dare action that fails", () => {
       const page = await openOn(choosing, lang, true);
       refuses("truthOrDare:endGame", "Not authorised");
       await page.tap(button(page, t("End Game", lang)));
-      await page.wait(1);
+      await aSecond(page);
       expect(told(page)).toEqual([FAILED[lang]]);
       noRefusalWords(page, "Not authorised");
       expect(logged()).toEqual(["Failed to end Truth or Dare:"]);
@@ -2154,7 +2164,7 @@ describe("a Truth or Dare action that fails", () => {
     field(page).value = "すしです";
     await page.tap(button(page, t("Send Answer", "ja")));
     field(page).value = "ラーメン";
-    await page.wait(1);
+    await aSecond(page);
     expect(told(page)).toEqual([FAILED.ja]);
     expect(field(page).value).toBe("ラーメン");
     expect(logged()).toEqual(["Failed to submit response:"]);
@@ -2168,7 +2178,7 @@ describe("a Truth or Dare action that fails", () => {
     await page.tap(button(page, t("Draw your answer", "ja")));
     await page.tap(one(page.body.byClass("sim-canvas-send")));
     expect(sheets(page)).toEqual([]);
-    await page.wait(1);
+    await aSecond(page);
     expect(told(page)).toEqual([FAILED.ja]);
     noRefusalWords(page);
     expect(sheets(page)).toEqual([1]);
