@@ -1,7 +1,9 @@
-// What one poll costs. The iOS host has no subscription: every 2 seconds HostRoomViewModel.refresh() asks
-// for the whole room again, ten or eleven requests one after another, and every 1.5 seconds a loop of its
-// own asks for the messages left for it to translate. Each answer is worked out and sent whole every time,
-// so what a request reads and what it sends is paid again on every poll of every open room.
+// What one poll costs. The iOS host has no subscription: HostRoomViewModel.refresh() asks for the whole room
+// again, 2 seconds after its last answer, and every 1.5 seconds a loop of its own asks for the messages left
+// for it to translate. A refresh is one request to /api/rooms/snapshot; a build from before that route, and
+// the app against a server without it, make ten or eleven requests one after another. Each answer is worked
+// out and sent whole every time, so what a request reads and what it sends is paid again on every poll of
+// every open room.
 //
 // One room is measured at three moments: idle after a long chat, after a finished game of Lost in
 // Translation, and in the middle of a second game. Every request of the poll has a ceiling on the bytes of
@@ -10,9 +12,9 @@
 // report, and rounded up by less than one percent where it is a size (the room's own answer by more, as
 // its row says). A change that makes a poll cheaper lowers the ceilings it has earned, in the same commit.
 //
-// /api/rooms/snapshot answers in one request what a refresh asks for in all of its requests but the replay.
-// No build calls it yet. It is measured beside them at each moment: its answer against theirs put together,
-// and what it reads against what they read.
+// /api/rooms/snapshot answers in one request what a refresh without it asks for in all of its requests but
+// the replay. It is measured beside them at each moment: its answer against theirs put together, and what it
+// reads against what they read.
 //
 // The last describe is a chat long enough to meet one of the limits Convex puts on a single function, in a
 // room whose reactions carry its id and in one from before they did.
@@ -337,14 +339,15 @@ async function roomInASecondGame(): Promise<Room> {
 
 // ─── The poll ────────────────────────────────────────────────────────────────
 
-/** The one request of a refresh that the snapshot does not stand for: the app goes on asking for it by itself */
+/** The one request of a refresh that the snapshot does not stand for: the app asks for it by itself, once for each finished game */
 const REPLAY = "/api/games/replay";
 
 /**
- * The requests of one HostRoomViewModel.refresh(), in its order and on its conditions: the game's status
- * only while a game is running, the replay only once the latest game is complete. The answer to "nothing
- * here" is {"ok":true}. Gives the bytes of each answer by its path. `replay: false` leaves the replay
- * out: what is left is what a snapshot stands for.
+ * The requests of one HostRoomViewModel.refresh() that makes them one by one, in its order and on its
+ * conditions: the game's status only while a game is running, the replay only once the latest game is
+ * complete. A build that keeps the replay it has asks for it in the first such refresh only; an earlier
+ * build asks in every one. The answer to "nothing here" is {"ok":true}. Gives the bytes of each answer by
+ * its path. `replay: false` leaves the replay out: what is left is what a snapshot stands for.
  */
 async function refresh(room: Room, options: { replay?: boolean } = {}): Promise<Map<string, number>> {
   const sizes = new Map<string, number>();
@@ -589,7 +592,8 @@ describe("the same room after a finished game of Lost in Translation", () => {
 
   test("one refresh is those eleven requests, and at most 278,000 bytes in all", () => {
     expect([...sizes.keys()]).toEqual(REFRESH.map(([path]) => path));
-    // Sent every 2 seconds for as long as the finished game is the room's latest
+    // What a refresh that asks for the replay is sent: the first one after the game, and from a build that
+    // does not keep the replay every one for as long as the finished game is the room's latest
     expect(total(sizes)).toBeLessThanOrEqual(278_000);
   });
 
@@ -840,9 +844,10 @@ describe("a long chat, on a backend with Convex's own limits", { shuffle: false 
       });
 
       // The snapshot runs the same query and is refused the same summaries, but it does not let them take
-      // the room with them: the request is answered, with the summaries left out and named, so a host app
-      // that refreshes from it goes on following the room and only its reactions stand still. The limit is
-      // not a failure worth repeating, which would be a 503 for the whole request: asked again, it is met
+      // the room with them: the request is answered, with the summaries left out and named. What a client
+      // makes of that is its own: the host app shows nothing of a refresh that came without the summaries,
+      // as when their own route refuses, so its screen stops following such a room all the same. The limit
+      // is not a failure worth repeating, which would be a 503 for the whole request: asked again, it is met
       // again.
       test("the snapshot is answered with the room and its messages, and names the reaction summaries as refused", async () => {
         const answer = await askSnapshot(older);

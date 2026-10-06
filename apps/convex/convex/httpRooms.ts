@@ -7,9 +7,13 @@ import { isTransient, jsonAction } from "./httpShared";
  * /api/rooms/snapshot: what one refresh of the host app reads in ten or eleven requests, in one answer.
  *
  * Body: { roomId, participantId, skip? }, and the callerId and callerToken every request carries.
- * Answer: { v: 1, the sections, errors }. Each section is the result of the public query its own route runs,
- * called with the arguments that route passes, so the switches (LOST_IN_TRANSLATION_HIDE_ANSWER,
- * EMOJI_MATCH_HIDE_CARDS) and the caller's token act on a section exactly as they do on its route:
+ * Answer: { v: 1, the sections, errors }. `v` stays 1: the host app does not read it, and a build in the
+ * field cannot be changed. A section keeps its name and its meaning for good; what means something else is
+ * a new section, which a build that does not know it ignores.
+ *
+ * Each section is the result of the public query its own route runs, called with the arguments that route
+ * passes, so the switches (LOST_IN_TRANSLATION_HIDE_ANSWER, EMOJI_MATCH_HIDE_CARDS) and the caller's token
+ * act on a section exactly as they do on its route:
  *
  *   room, participants   /api/rooms/state                rooms.getRoomState
  *   messages             /api/messages/list              messages.getRoomMessages
@@ -37,10 +41,10 @@ import { isTransient, jsonAction } from "./httpShared";
  * section's own route would. The host app slows its polling on a 503; a 200 with a section left out would
  * keep it asking at full speed a server that is asking for less.
  *
- * The reactions are not among the sections that fail the request, although the app today shows nothing of
- * a refresh whose reactions request failed. In a room without `reactionsByRoom` their query is refused for
- * good from the room's 4,095th message on (one index range for each message: reactions.ts,
- * poll-cost.test.ts), and here that costs the reactions, not the room.
+ * The reactions are not among the sections that fail the request. In a room without `reactionsByRoom` their
+ * query is refused for good from the room's 4,095th message on (one index range for each message:
+ * reactions.ts, poll-cost.test.ts), and here that costs the reactions, not the room. The host app shows
+ * nothing of a refresh that came without them, as when their own route refuses.
  *
  * The queries run one after another, in the order the app asks today, never together. The game's status
  * is only asked for when there is a session to have one. A host holds one query at a time today, and a

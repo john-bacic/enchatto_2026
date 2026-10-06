@@ -1,6 +1,6 @@
 // /api/rooms/snapshot (convex/httpRooms.ts): what one refresh of the host app reads in ten or eleven requests,
-// in one answer. No build calls it yet. The build that does is to decode each section as today's builds decode
-// the body of its route (apps/ios/Services/API/RealEnchattoAPI.swift), so this file holds every section equal
+// in one answer. The host app refreshes from it and decodes each section as it decodes the body of that
+// section's route (apps/ios/Services/API/RealEnchattoAPI.swift), so this file holds every section equal
 // to the body of the route it stands for: both are asked in the same instant, with the same caller and token,
 // in each state a room can be in and under each switch. Three things are the snapshot's own and are tested as
 // such: "nothing here" is null where a route answers {"ok":true}; the Word Rush section is the game itself
