@@ -67,7 +67,7 @@ struct QRCodeFloatingPanel: View {
             .frame(maxWidth: .infinity)
             .background {
                 // The texture of the room behind it
-                RoomBackground(index: roomTextureIndex)
+                RoomBackground(index: roomTextureIndex, blobs: false)
                     .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
             .ecCard(fill: .clear, radius: 28, border: 3.5, shadow: 8)

@@ -79,16 +79,20 @@ struct RoomTexture {
     }
 }
 
-/// Paper + tiled texture + two soft colour blobs (web: .ec-paper)
+/// Paper + tiled texture + two soft colour blobs (web: .ec-paper). A panel or a sheet shown over a screen
+/// passes `blobs: false`: the texture alone, without a circle cut off at two of its corners
 struct RoomBackground: View {
     let texture: RoomTexture
+    let blobs: Bool
 
-    init(index: Int) {
+    init(index: Int, blobs: Bool = true) {
         texture = RoomTexture.all[RoomTexture.all.indices.contains(index) ? index : 0]
+        self.blobs = blobs
     }
 
     init(room: Room?) {
         texture = RoomTexture.forRoom(room)
+        blobs = true
     }
 
     var body: some View {
@@ -97,14 +101,16 @@ struct RoomBackground: View {
                 EC.paper
                 Image("tex-\(texture.key)")
                     .resizable(resizingMode: .tile)
-                Circle()
-                    .fill(texture.blobA)
-                    .frame(width: 220, height: 220)
-                    .position(x: geo.size.width * 0.1, y: geo.size.height * 0.16)
-                Circle()
-                    .fill(texture.blobB)
-                    .frame(width: 300, height: 300)
-                    .position(x: geo.size.width * 0.92, y: geo.size.height * 0.82)
+                if blobs {
+                    Circle()
+                        .fill(texture.blobA)
+                        .frame(width: 220, height: 220)
+                        .position(x: geo.size.width * 0.1, y: geo.size.height * 0.16)
+                    Circle()
+                        .fill(texture.blobB)
+                        .frame(width: 300, height: 300)
+                        .position(x: geo.size.width * 0.92, y: geo.size.height * 0.82)
+                }
             }
         }
         .allowsHitTesting(false)
@@ -114,12 +120,13 @@ struct RoomBackground: View {
 /// A RoomBackground that cross-fades to the new texture when its index changes, as the start screen's does
 struct FadingRoomBackground: View {
     let index: Int
+    var blobs = true
 
     var body: some View {
         // Bare paper underneath, so a change of texture fades over paper and not over whatever is behind
         ZStack {
             EC.paper
-            RoomBackground(index: index)
+            RoomBackground(index: index, blobs: blobs)
                 .id(index)
                 .transition(.opacity)
         }

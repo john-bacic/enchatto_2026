@@ -391,7 +391,7 @@ extension HostConversationView {
                         .padding(.bottom, 12)
                 }
             }
-            .background(FadingRoomBackground(index: shownTextureIndex).ignoresSafeArea())
+            .background(FadingRoomBackground(index: shownTextureIndex, blobs: false).ignoresSafeArea())
             .tint(EC.blue)
             .navigationTitle(L.t("Settings", hostLanguage))
             .navigationBarTitleDisplayMode(.inline)
