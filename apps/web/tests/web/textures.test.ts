@@ -159,7 +159,9 @@ describe("a tab whose last room has a retired texture", () => {
 
   // Every index a tab can hold, from storage or kept by the page load, against random numbers across the whole range
   test("whatever is kept and whatever the random source gives, the screen never shows a retired texture", () => {
-    const draws = [0, 1 - Number.EPSILON, ...Array.from({ length: 471 }, (_, n) => (n + 0.5) / 471)];
+    // Ten draws to each texture a pick is made among and one more, spread evenly over the range
+    const steps = PICKED.length * 10 + 1;
+    const draws = [0, 1 - Number.EPSILON, ...Array.from({ length: steps }, (_, n) => (n + 0.5) / steps)];
     for (const index of TEXTURES.keys()) {
       for (const draw of draws) {
         const fromStorage = ambientTextureIndex({ getItem: () => String(index), setItem: () => {} }, () => draw);
@@ -481,7 +483,7 @@ describe("the texture a room is drawn with", () => {
   });
 
   // The hash worked out here, apart from lib/textures.ts, for 1,024 codes that differ in their first two characters:
-  // each of the ten is reached, the two retired ones among them, and none of the other 42
+  // each of the ten is reached, the two retired ones among them, and no texture past them
   test("the join code picks among all of the first ten, whichever of them are retired", () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const reached = new Set<number>();
