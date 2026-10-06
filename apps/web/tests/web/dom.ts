@@ -203,8 +203,8 @@ export interface SimBrowser {
 }
 
 /**
- * Puts a browser in place: an empty document, storage that holds nothing, the network up, a mouse to point with.
- * Call it before react-dom is imported, which looks for a document when it loads.
+ * Puts a browser in place: an empty document at an empty address, storage that holds nothing, the network up, a
+ * mouse to point with. Call it before react-dom is imported, which looks for a document when it loads.
  */
 export function installBrowser(): SimBrowser {
   const document = new SimDocument();
@@ -216,6 +216,9 @@ export function installBrowser(): SimBrowser {
     window: globalThis,
     document,
     navigator,
+    // The page's address, an empty one. react-dom reads its protocol as it loads in a browser that calls itself
+    // Chrome, and dictation reads its query
+    location: { href: "about:blank", protocol: "about:", search: "" },
     localStorage: new SimStorage(),
     sessionStorage: new SimStorage(),
     addEventListener: windowEvents.addEventListener.bind(windowEvents),
