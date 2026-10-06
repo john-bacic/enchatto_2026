@@ -573,7 +573,10 @@ export function ambientTextureIfAny(): RoomTexture | undefined {
   return index === undefined ? undefined : TEXTURES[index];
 }
 
-/** Makes a room's texture the ambient one, so the screens that follow the room look like it */
+/**
+ * Makes a room's texture the ambient one, so the screens that follow the room look like it. A retired texture is
+ * kept like any other and counts as none: the screens that follow its room show a random one
+ */
 export function keepAmbientTexture(texture: RoomTexture) {
   ambient.keep(TEXTURES.indexOf(texture));
 }
