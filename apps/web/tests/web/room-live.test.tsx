@@ -28,6 +28,8 @@ import { installBrowser, type Sim, type SimBrowser } from "./dom";
 //
 // And what the page does by its clock alone. The vibe meter in the header shows at each 5-second move of its
 // clock the numbers a page drawn at every move would show, and a move draws the page only when it changes one.
+// The results of a Word Rush game that ended before the page opened go three minutes after the game ended, by
+// the game's own timer.
 
 // ─── The page's surroundings ─────────────────────────────────────────────────
 
@@ -38,6 +40,7 @@ type Reactions = FunctionReturnType<typeof api.reactions.getReactionSummary>;
 type RoomReactions = FunctionReturnType<typeof api.reactions.getRoomReactionSummaries>;
 type Session = NonNullable<FunctionReturnType<typeof api.games.getActiveGameSession>>;
 type DareGame = NonNullable<FunctionReturnType<typeof api.truthOrDare.getActiveTruthOrDare>>;
+type RushGame = NonNullable<FunctionReturnType<typeof api.wordRush.getState>>;
 
 /** What each function the page subscribes to answers. One that is left out has not answered yet */
 interface Answers {
@@ -46,7 +49,7 @@ interface Answers {
   "games:getActiveGameSession"?: Session | null;
   "games:getMyActiveStep"?: null;
   "games:getLatestGameSession"?: Session | null;
-  "wordRush:getState"?: null;
+  "wordRush:getState"?: RushGame | null;
   "emojiMatch:getActiveEmojiMatch"?: null;
   "emojiBingo:getActiveEmojiBingo"?: null;
   "truthOrDare:getActiveTruthOrDare"?: DareGame | null;
@@ -850,6 +853,58 @@ describe("what a game leaves in the list", () => {
     await page.answer("truthOrDare:getActiveTruthOrDare", () => ended);
     expect(one(page.body.byClass("ec-summary")).byClass("ec-podium-tile").map((tile) => tile.textContent)).toEqual(["Yuki★ 4", "Sam—"]);
     expect(drawnAgain()).toMatchObject({ list: 1, bubbles: [] });
+  });
+});
+
+// ─── A game that ended before the page opened ────────────────────────────────
+
+describe("the results of a Word Rush game the page did not see played", () => {
+  const seat = (p: Person, learning: "en" | "ja", score: number) => ({
+    participantId: p._id,
+    nickname: p.nickname,
+    avatarValue: p.avatar.value,
+    learning,
+    score,
+    streak: 0,
+    bestStreak: 2,
+    correct: score,
+    sayItBonus: 0,
+  });
+  // Alex and Yuki played ten cards, and the game ended a minute before the page opened
+  const ended: RushGame = {
+    _id: "rush1" as Id<"wordRushGames">,
+    roomId: ROOM,
+    status: "completed",
+    hostParticipantId: HOST,
+    pack: "mix",
+    sayIt: false,
+    cardsReady: true,
+    players: [seat(alex, "ja", 4), seat(yuki, "en", 3)],
+    totalCards: 10,
+    cardIndex: 9,
+    phase: "reveal",
+    phaseSeq: 30,
+    phaseStartedAt: ago(65),
+    phaseEndsAt: ago(60),
+    emojiStepMs: 2500,
+    card: null,
+    answers: [],
+    performer: null,
+    votedIds: [],
+    verdict: null,
+    teachClip: null,
+    endedAt: ago(60),
+  };
+
+  test("they stand until three minutes after the game ended, and go then in a room where nothing draws the page", async () => {
+    const page = await open(talking({ "wordRush:getState": ended }));
+    const results = () => page.body.byClass("wr-overlay").length;
+    expect(results()).toBe(1);
+    await page.wait(119);
+    expect(results()).toBe(1);
+    await page.wait(2);
+    expect(results()).toBe(0);
+    expect(drawnAgain().page).toBe(0);
   });
 });
 
