@@ -1,18 +1,21 @@
-import { createElement } from "react";
+// @vitest-environment node
+import { act, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { InlineReactionPills } from "@/components/message-item";
 import { ReactionBarPills } from "@/components/reaction-bar";
 import { EmojiArt } from "@/components/ui/icon";
-import { NO_REACTIONS, byMessageId, reactionsByMessage, reactionsOf, type MessageReactions, type ReactionSummary } from "@/lib/reactions";
-import { stableList } from "@/lib/stable";
+import { NO_REACTIONS, reactionsByMessage, reactionsOf, useReactionsByMessage, type MessageReactions, type ReactionSummary, type ReactionsByMessage } from "@/lib/reactions";
+import { installBrowser } from "./dom";
 
 // lib/reactions.ts: the room page asks a room that keeps its reactions by room for all of them at once, and the
-// message list hands each bubble its own message's out of the map made here. Then the two parts that draw a
-// message's reactions, the pills under its bubble (InlineReactionPills) and the row in its sheet
-// (ReactionBarPills), rendered with react-dom/server from an entry of that map: neither subscribes to anything, so
-// there is no server to stand in for. Nothing is tapped here, and no pill pops: the page with its subscriptions,
-// and what a tap sends, are in room-live.test.tsx.
+// message list hands each bubble its own message's out of the map made here. The hook that keeps the map from one
+// answer of the server to the next (useReactionsByMessage) is mounted by itself with react-dom/client in the
+// stand-in browser (dom.ts) and handed the answers. Then the two parts that draw a message's reactions, the pills
+// under its bubble (InlineReactionPills) and the row in its sheet (ReactionBarPills), rendered with
+// react-dom/server from an entry of that map: neither subscribes to anything, so there is no server to stand in
+// for. Nothing is tapped here, and no pill pops: the page with its subscriptions, and what a tap sends, are in
+// room-live.test.tsx.
 
 const YUKI = "yuki";
 const SAM = "sam";
@@ -77,46 +80,72 @@ describe("the room's reactions by message", () => {
 });
 
 describe("the room answers again", () => {
-  /** The map of `next`, each entry that holds what it held in `previous` kept, as the page's hook keeps them */
-  const mapAfter = (previous: MessageReactions[], next: MessageReactions[]) => reactionsByMessage(stableList(previous, next, byMessageId));
+  afterEach(() => vi.unstubAllGlobals());
 
-  test("with what it said before: every message has the list it had", () => {
+  /** The page's hook, mounted and handed one answer of the server after the other: the map it gave for each */
+  async function mapsFor(...answers: (MessageReactions[] | undefined)[]) {
+    const browser = installBrowser();
+    const { createRoot } = await import("react-dom/client");
+    const maps: ReactionsByMessage[] = [];
+    function Room({ summaries }: { summaries: MessageReactions[] | undefined }) {
+      maps.push(useReactionsByMessage(summaries));
+      return null;
+    }
+    const root = createRoot(browser.document.createElement("div") as unknown as Element);
+    for (const summaries of answers) await act(async () => root.render(createElement(Room, { summaries })));
+    await act(async () => root.unmount());
+    expect(maps.length).toBe(answers.length);
+    return maps;
+  }
+
+  test("for the first time: until then no message has an entry, and then each has the list the server sent", async () => {
     const first = answer();
-    const byMessage = mapAfter(first, again(first));
+    const [before, byMessage] = await mapsFor(undefined, first);
+    expect(before.size).toBe(0);
+    expect(reactionsOf(before, "m1")).toBe(NO_REACTIONS);
     expect(reactionsOf(byMessage, "m1")).toBe(first[0].reactions);
     expect(reactionsOf(byMessage, "m2")).toBe(first[1].reactions);
   });
 
-  test("with a reaction given to one message: that message has another list, and every other the one it had", () => {
+  test("with what it said before: every message has the list it had, in the map there was", async () => {
+    const first = answer();
+    const [before, byMessage] = await mapsFor(first, again(first));
+    expect(reactionsOf(byMessage, "m1")).toBe(first[0].reactions);
+    expect(reactionsOf(byMessage, "m2")).toBe(first[1].reactions);
+    expect(byMessage).toBe(before);
+  });
+
+  test("with a reaction given to one message: that message has another list, and every other the one it had", async () => {
     const first = answer();
     const next = again(first);
     next[1].reactions.push(given("👍", YUKI));
     next.push({ messageId: "m3", reactions: [given("🔥", YUKI)] });
-    const byMessage = mapAfter(first, next);
+    const [before, byMessage] = await mapsFor(first, next);
     expect(reactionsOf(byMessage, "m1")).toBe(first[0].reactions);
     expect(reactionsOf(byMessage, "m2")).toBe(next[1].reactions);
     expect(reactionsOf(byMessage, "m3")).toBe(next[2].reactions);
+    expect(byMessage).not.toBe(before);
   });
 
-  test("with one more person on an emoji: the count and the people are compared, not just the emoji", () => {
+  test("with one more person on an emoji: the count and the people are compared, not just the emoji", async () => {
     const first = answer();
     const next = again(first);
     next[0].reactions[1] = given("🔥", MIKA, SAM);
-    const byMessage = mapAfter(first, next);
+    const [, byMessage] = await mapsFor(first, next);
     expect(reactionsOf(byMessage, "m1")).toBe(next[0].reactions);
     expect(reactionsOf(byMessage, "m2")).toBe(first[1].reactions);
   });
 
-  test("with a message's last reaction taken back: it is handed the empty list, and the others the lists they had", () => {
+  test("with a message's last reaction taken back: it is handed the empty list, and the others the lists they had", async () => {
     const first = answer();
-    const byMessage = mapAfter(first, again(first).slice(1));
+    const [, byMessage] = await mapsFor(first, again(first).slice(1));
     expect(reactionsOf(byMessage, "m1")).toBe(NO_REACTIONS);
     expect(reactionsOf(byMessage, "m2")).toBe(first[1].reactions);
   });
 
-  test("with the entries in another order: every message has the list it had", () => {
+  test("with the entries in another order: every message has the list it had", async () => {
     const first = answer();
-    const byMessage = mapAfter(first, again(first).reverse());
+    const [, byMessage] = await mapsFor(first, again(first).reverse());
     expect(reactionsOf(byMessage, "m1")).toBe(first[0].reactions);
     expect(reactionsOf(byMessage, "m2")).toBe(first[1].reactions);
   });
