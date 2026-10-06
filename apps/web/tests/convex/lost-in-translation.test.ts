@@ -2851,7 +2851,11 @@ describe("a drawing sent through the submit-step route", () => {
   // ── What is not stored ──
 
   type Request = { body: Record<string, unknown>; answer: unknown };
-  const refusal = (words: RegExp) => ({ status: 400, body: { error: expect.stringMatching(words) } });
+  /** A refusal in exactly these words. A pattern is for an argument validator's message, whose wording is convex-test's own */
+  const refusal = (words: string | RegExp) => ({
+    status: 400,
+    body: { error: typeof words === "string" ? words : expect.stringMatching(words) },
+  });
 
   /**
    * Requests the route does not store a file for. Each is passed on as it came, and `answer` is what the step
@@ -2894,7 +2898,7 @@ describe("a drawing sent through the submit-step route", () => {
       build: async (t) => {
         const { stepId, body } = await drawingStep(t);
         await t.run(async (ctx) => await ctx.db.delete(stepId));
-        return { body, answer: refusal(/Step not found/) };
+        return { body, answer: refusal("Step not found") };
       },
     },
     {
@@ -2902,7 +2906,7 @@ describe("a drawing sent through the submit-step route", () => {
       stepDeclines: true,
       build: async (t) => {
         const { ann, body } = await drawingStep(t);
-        return { body: { ...body, participantId: ann }, answer: refusal(/Not your step/) };
+        return { body: { ...body, participantId: ann }, answer: refusal("Not your step") };
       },
     },
     {
@@ -2911,7 +2915,7 @@ describe("a drawing sent through the submit-step route", () => {
       build: async (t) => {
         const { body } = await drawingStep(t, true);
         vi.stubEnv("AUTH_MODE", "enforce");
-        return { body, answer: refusal(/Not authorised/) };
+        return { body, answer: refusal("Not authorised") };
       },
     },
     {
@@ -2920,7 +2924,7 @@ describe("a drawing sent through the submit-step route", () => {
       build: async (t) => {
         const { body } = await drawingStep(t, true);
         vi.stubEnv("AUTH_MODE", "enforce");
-        return { body: { ...body, callerToken: ANN_TOKEN }, answer: refusal(/Not authorised/) };
+        return { body: { ...body, callerToken: ANN_TOKEN }, answer: refusal("Not authorised") };
       },
     },
     {
@@ -2941,21 +2945,21 @@ describe("a drawing sent through the submit-step route", () => {
       what: "no drawing",
       build: async (t) => {
         const { hostId, stepId } = await drawingStep(t);
-        return { body: { stepId, participantId: hostId }, answer: refusal(/Drawing is missing/) };
+        return { body: { stepId, participantId: hostId }, answer: refusal("Drawing is missing") };
       },
     },
     {
       what: "a link",
       build: async (t) => {
         const { body } = await drawingStep(t);
-        return { body: { ...body, outputDrawingUrl: "https://example.com/drawing.png" }, answer: refusal(/Unsupported drawing/) };
+        return { body: { ...body, outputDrawingUrl: "https://example.com/drawing.png" }, answer: refusal("Unsupported drawing") };
       },
     },
     {
       what: "an SVG data URL",
       build: async (t) => {
         const { body } = await drawingStep(t);
-        return { body: { ...body, outputDrawingUrl: "data:image/svg+xml;base64,PHN2Zy8+" }, answer: refusal(/Unsupported drawing/) };
+        return { body: { ...body, outputDrawingUrl: "data:image/svg+xml;base64,PHN2Zy8+" }, answer: refusal("Unsupported drawing") };
       },
     },
     {
@@ -2963,7 +2967,7 @@ describe("a drawing sent through the submit-step route", () => {
       what: "a PNG data URL over 1 MiB",
       build: async (t) => {
         const { body } = await drawingStep(t);
-        return { body: { ...body, outputDrawingUrl: "data:image/png;base64," + "A".repeat(1024 * 1024) }, answer: refusal(/Unsupported drawing/) };
+        return { body: { ...body, outputDrawingUrl: "data:image/png;base64," + "A".repeat(1024 * 1024) }, answer: refusal("Unsupported drawing") };
       },
     },
     {
@@ -3075,7 +3079,7 @@ describe("a drawing sent through the submit-step route", () => {
     const { stepId, body } = await drawingStep(t);
     const handedOver = handovers();
 
-    expect(await post(t, SUBMIT, { ...body, outputText: "x".repeat(501) })).toEqual(refusal(/Answer too long/));
+    expect(await post(t, SUBMIT, { ...body, outputText: "x".repeat(501) })).toEqual(refusal("Answer too long"));
 
     expect(handedOver).toHaveBeenCalledTimes(1);
     expect(await filesIn(t)).toEqual([]);
