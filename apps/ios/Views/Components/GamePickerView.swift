@@ -7,6 +7,17 @@ enum GamePickerTab: String, CaseIterable {
     case emojiMatch = "Emoji Match"
     case truthOrDare = "Truth or Dare"
 
+    /// A random game to open on: playable with who's here, and not the one the picker opened on last time
+    static func openingPick(playerCount: Int) -> GamePickerTab {
+        let key = "enchatto_pickerOpening"
+        let last = UserDefaults.standard.string(forKey: key)
+        let playable = allCases.filter { playerCount >= 2 || ($0 != .lostInTranslation && $0 != .truthOrDare) }
+        let fresh = playable.filter { $0.rawValue != last }
+        let pick = (fresh.isEmpty ? playable : fresh).randomElement() ?? .wordRush
+        UserDefaults.standard.set(pick.rawValue, forKey: key)
+        return pick
+    }
+
     var icon: String {
         switch self {
         case .wordRush: return "g-bolt"
@@ -192,7 +203,10 @@ struct GamePickerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(EC.paper.ignoresSafeArea())
-        .onAppear { follow(teamInputs) }
+        .onAppear {
+            if isHost { selectedGame = GamePickerTab.openingPick(playerCount: playerCount) }
+            follow(teamInputs)
+        }
         // The sheet stays open while people come, go and change language: the offer follows the room
         .onChange(of: teamInputs) { follow($0) }
     }

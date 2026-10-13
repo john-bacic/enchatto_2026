@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "@/lib/i18n";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon } from "@/components/ui/icon";
@@ -92,6 +92,20 @@ const MIN_PLAYERS: Record<GameTab, number> = {
   "truth-or-dare": 2,
 };
 
+const OPENING_KEY = "enchatto_pickerOpening";
+
+/** A random game to open on: playable with who's here, and not the one the picker opened on last time */
+function openingPick(playerCount: number): GameTab {
+  const all = TILES.map((tile) => tile.id);
+  const playable = all.filter((id) => playerCount >= MIN_PLAYERS[id]);
+  const last = localStorage.getItem(OPENING_KEY);
+  const fresh = playable.filter((id) => id !== last);
+  const pool = fresh.length ? fresh : playable.length ? playable : all;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  localStorage.setItem(OPENING_KEY, pick);
+  return pick;
+}
+
 const chipStyle = (on: boolean, extra?: React.CSSProperties): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
@@ -128,6 +142,11 @@ export function GamePickerModal({
   const [todMode, setTodMode] = useState<"normal" | "deep">("normal");
   const [pack, setPack] = useState("mix");
   const [sayIt, setSayIt] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) setSelectedGame(openingPick(playerCount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
