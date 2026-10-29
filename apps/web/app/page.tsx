@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QrScanner } from "@/components/qr-scanner";
 import { Logo } from "@/components/ui/logo";
@@ -173,6 +174,18 @@ export default function HomePage() {
           {t("JOIN!", lang)}
         </button>
       </div>
+
+      <Link className="ec-guide-link" href={`/guide?lang=${lang}`}>
+        <span className="ec-guide-tag">{t("GUIDE", lang)}</span>
+        <Chatto size={44} wave={false} />
+        <span className="ec-guide-text">
+          <small>{t("First time here?", lang)}</small>
+          {t("See what Enchatto can do", lang)}
+        </span>
+        <span className="ec-guide-arrow" aria-hidden>
+          →
+        </span>
+      </Link>
 
       <div className="ec-version" style={{ marginTop: "auto", paddingTop: 24 }}>
         v{(process.env.NEXT_PUBLIC_GIT_SHA || "dev").slice(0, 7)}

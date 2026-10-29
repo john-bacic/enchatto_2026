@@ -15,6 +15,9 @@ const translations: Record<string, Record<string, string>> = {
   "Hello!": { ja: "こんにちは！" },
   "Room code": { ja: "ルームコード" },
   "Switch language": { ja: "言語を切り替える" },
+  "First time here?": { ja: "はじめての方へ" },
+  "See what Enchatto can do": { ja: "Enchattoでできることを見る" },
+  "GUIDE": { ja: "ガイド" },
 
   // QR Scanner
   "Point your camera at the room's QR code": { ja: "ルームのQRコードにカメラを向けてね" },
