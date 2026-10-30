@@ -100,6 +100,11 @@
   margin: 28px auto 0;
   padding: 34px 16px 18px;
   rotate: -1deg;
+  background:
+    radial-gradient(circle at 8% 14%, var(--blob-a) 0 90px, transparent 91px),
+    radial-gradient(circle at 94% 88%, var(--blob-b) 0 120px, transparent 121px),
+    var(--tex-img) 0 0 / var(--tex-size),
+    var(--paper);
 }
 .gd-demo-tag {
   position: absolute;

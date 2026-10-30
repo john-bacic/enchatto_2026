@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { Chatto } from "@/components/ui/chatto";
 import { RoomBackground } from "@/components/ui/effects";
+import { TEXTURES, textureStyle } from "@/lib/textures";
 import "../screens.css";
 import "./guide.css";
 
@@ -13,6 +14,8 @@ export const metadata: Metadata = {
 };
 
 type Lang = "en" | "ja";
+
+const DEMO_TEXTURE = TEXTURES.find((t) => t.key === "sakura") ?? TEXTURES[0];
 
 interface Card {
   icon: string;
@@ -359,7 +362,7 @@ export default function GuidePage({ searchParams }: { searchParams: { lang?: str
         </div>
       </header>
 
-      <section className="gd-demo ec-card" aria-label={c.demoLabel}>
+      <section className="gd-demo ec-card" style={textureStyle(DEMO_TEXTURE)} aria-label={c.demoLabel}>
         <span className="gd-demo-tag">{c.demoLabel}</span>
         {DEMO.map((m, i) => (
           <div key={i} className={`gd-msg ${m.side}`} style={{ "--i": i } as React.CSSProperties}>
