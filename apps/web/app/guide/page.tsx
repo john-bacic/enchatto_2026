@@ -5,6 +5,7 @@ import { Logo } from "@/components/ui/logo";
 import { Chatto } from "@/components/ui/chatto";
 import { RoomBackground } from "@/components/ui/effects";
 import { TEXTURES, textureStyle } from "@/lib/textures";
+import { GameCarousel } from "./game-carousel";
 import "../screens.css";
 import "./guide.css";
 
@@ -426,7 +427,7 @@ export default function GuidePage({ searchParams }: { searchParams: { lang?: str
 
       <Section title={c.gamesTitle} sub={c.gamesSub}>
         <p className="gd-swipe">{c.swipe} →</p>
-        <div className="gd-games">
+        <GameCarousel labels={c.games.map((game) => game.name)}>
           {c.games.map((game, i) => (
             <article key={game.name} className="gd-game">
               <Phone shot={GAMES[i].shot} alt={game.name} />
@@ -444,7 +445,7 @@ export default function GuidePage({ searchParams }: { searchParams: { lang?: str
               </div>
             </article>
           ))}
-        </div>
+        </GameCarousel>
       </Section>
 
       <Section title={c.hostTitle} sub={c.hostSub}>
