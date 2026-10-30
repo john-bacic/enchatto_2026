@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { Chatto } from "@/components/ui/chatto";
@@ -52,12 +53,14 @@ const DEMO = [
 ] as const;
 
 const GAMES = [
-  { icon: "o-flower", color: "var(--yellow)", min: 2 },
-  { icon: "g-pencil", color: "var(--blue-soft)", min: 2 },
-  { icon: "g-clover", color: "var(--mint-soft)", min: 1 },
-  { icon: "o-cherry", color: "var(--violet-soft)", min: 1 },
-  { icon: "g-question", color: "var(--pink-soft)", min: 2 },
+  { icon: "o-flower", color: "var(--yellow)", min: 2, shot: "word-rush" },
+  { icon: "g-pencil", color: "var(--blue-soft)", min: 2, shot: "lost-in-translation" },
+  { icon: "g-clover", color: "var(--mint-soft)", min: 1, shot: "emoji-bingo" },
+  { icon: "o-cherry", color: "var(--violet-soft)", min: 1, shot: "emoji-match" },
+  { icon: "g-question", color: "var(--pink-soft)", min: 2, shot: "truth-or-dare" },
 ];
+
+const DRAW_SHOTS = ["draw-canvas", "draw-chat"];
 
 const STEP_ICONS = ["o-house", "ui-camera", "re-laugh"];
 const FEATURE_ICONS = ["g-arrows", "ui-camera", "g-ear", "ui-photo", "re-heart", "g-bolt", "o-tv", "re-peace"];
@@ -133,8 +136,12 @@ const COPY = {
         perk: "Know who's listening",
       },
     ],
+    drawTitle: "Draw it, send it",
+    drawSub: "Tap the pencil, pick a colour and pen size, and send your sketch to the room. Everyone can react to it.",
+    drawSteps: ["Doodle", "Send & react"],
     gamesTitle: "Party games built for two languages",
     gamesSub: "Tap the game button in any room. Everyone plays in their own language.",
+    swipe: "Swipe for more",
     games: [
       {
         name: "Word Rush",
@@ -246,8 +253,12 @@ const COPY = {
         perk: "だれが見ているかわかる",
       },
     ],
+    drawTitle: "描いて、送ろう",
+    drawSub: "鉛筆ボタンをタップして、色とペンの太さを選んで描くだけ。描いた絵はルームのみんなに届いて、リアクションももらえます。",
+    drawSteps: ["描く", "送ってリアクション"],
     gamesTitle: "2つの言語で遊べるパーティーゲーム",
     gamesSub: "ルームのゲームボタンをタップ。みんな自分の言葉でプレイできます。",
+    swipe: "スワイプしてもっと見る",
     games: [
       {
         name: "ワードラッシュ",
@@ -290,6 +301,14 @@ function Section({ title, sub, children }: { title: string; sub?: string; childr
       {sub && <p className="gd-sub">{sub}</p>}
       {children}
     </section>
+  );
+}
+
+function Phone({ shot, alt }: { shot: string; alt: string }) {
+  return (
+    <span className="gd-phone">
+      <Image src={`/guide/${shot}.jpg`} alt={alt} width={560} height={1212} sizes="(max-width: 560px) 64vw, 300px" />
+    </span>
   );
 }
 
@@ -388,19 +407,37 @@ export default function GuidePage({ searchParams }: { searchParams: { lang?: str
         <CardGrid cards={c.features.map((f, i) => ({ ...f, icon: FEATURE_ICONS[i] }))} />
       </Section>
 
+      <Section title={c.drawTitle} sub={c.drawSub}>
+        <div className="gd-draw">
+          {DRAW_SHOTS.map((shot, i) => (
+            <figure key={shot} className="gd-draw-shot">
+              <Phone shot={shot} alt={c.drawSteps[i]} />
+              <figcaption>
+                <span className="gd-step-num">{i + 1}</span>
+                {c.drawSteps[i]}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </Section>
+
       <Section title={c.gamesTitle} sub={c.gamesSub}>
+        <p className="gd-swipe">{c.swipe} →</p>
         <div className="gd-games">
           {c.games.map((game, i) => (
             <article key={game.name} className="gd-game">
-              <span className="gd-game-tile" style={{ background: GAMES[i].color }}>
-                <img src={icon(GAMES[i].icon)} alt="" />
-              </span>
-              <div>
-                <h3>
-                  {game.name}
-                  <span className="gd-players">{c.players(GAMES[i].min)}</span>
-                </h3>
-                <p>{game.body}</p>
+              <Phone shot={GAMES[i].shot} alt={game.name} />
+              <div className="gd-game-info">
+                <span className="gd-game-tile" style={{ background: GAMES[i].color }}>
+                  <img src={icon(GAMES[i].icon)} alt="" />
+                </span>
+                <div>
+                  <h3>
+                    {game.name}
+                    <span className="gd-players">{c.players(GAMES[i].min)}</span>
+                  </h3>
+                  <p>{game.body}</p>
+                </div>
               </div>
             </article>
           ))}
