@@ -73,6 +73,45 @@ class MockEnchattoAPI: EnchattoAPI {
         return CreateRoomResult(roomId: roomId, joinCode: joinCode, hostId: hostId, hostToken: nil, background: background)
     }
 
+    func joinRoom(joinCode: String, nickname: String, avatarId: String, language: String) async throws -> JoinRoomResult {
+        guard let room = rooms.values.first(where: { $0.joinCode == joinCode.uppercased() }) else { throw APIError.roomNotFound }
+        guard room.status != .closed else { throw APIError.serverError("Room is closed") }
+        let guest = Participant(
+            id: UUID().uuidString,
+            roomId: room.id,
+            nickname: nickname,
+            role: .participant,
+            platform: .ios,
+            avatar: AvatarConfig(type: .preset, value: avatarId),
+            preferredLanguage: language,
+            online: true,
+            lastSeenAt: Date(),
+            joinedAt: Date()
+        )
+        participants[room.id, default: []].append(guest)
+        return JoinRoomResult(roomId: room.id, joinCode: room.joinCode, participantId: guest.id, token: nil, background: room.background)
+    }
+
+    func leaveRoom(participantId: String) async throws {
+        for roomId in participants.keys {
+            if let index = participants[roomId]?.firstIndex(where: { $0.id == participantId }) {
+                participants[roomId]?[index].online = false
+            }
+        }
+    }
+
+    func transferHost(roomId: String, participantId: String) async throws {
+        guard rooms[roomId] != nil, let people = participants[roomId] else { throw APIError.roomNotFound }
+        for index in people.indices {
+            if people[index].id == participantId {
+                participants[roomId]?[index].role = .host
+            } else if people[index].role == .host {
+                participants[roomId]?[index].role = .participant
+            }
+        }
+        rooms[roomId]?.hostId = participantId
+    }
+
     func setCaller(hostId: String?, token: String?) {}
 
     func getRoomState(roomId: String) async throws -> (room: Room, participants: [Participant]) {
@@ -134,10 +173,10 @@ class MockEnchattoAPI: EnchattoAPI {
         }
     }
 
-    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?) async throws -> String {
+    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?, processing: ProcessingState?) async throws -> String {
         if let clientId, let existing = messages[roomId]?.first(where: { $0.clientId == clientId }) { return existing.id }
         let messageId = UUID().uuidString
-        let message = Message(
+        var message = Message(
             id: messageId,
             roomId: roomId,
             senderId: senderId,
@@ -148,6 +187,11 @@ class MockEnchattoAPI: EnchattoAPI {
             createdAt: Date(),
             clientId: clientId
         )
+        if let processing, processing.translatedText != nil {
+            message.status = .processed
+            message.processing = processing
+            message.processedAt = Date()
+        }
         messages[roomId, default: []].append(message)
         return messageId
     }

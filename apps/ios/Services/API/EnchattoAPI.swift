@@ -13,6 +13,17 @@ struct CreateRoomResult {
     let background: Int?
 }
 
+/// Result of joining a room as a guest
+struct JoinRoomResult {
+    let roomId: String
+    let joinCode: String
+    let participantId: String
+    /// What the API registered for the guest, sent back with every request made as the guest. nil from the mock
+    let token: String?
+    /// Index into RoomTexture.all the room is drawn on. nil when the server names none
+    let background: Int?
+}
+
 /// A room as one request reads it (/api/rooms/snapshot): what a refresh of the room screen shows, all but a
 /// finished game's replay. The room, its participants, its messages and their reactions are always here: an
 /// answer without one of them makes no snapshot. Each game section is here or not on its own
@@ -51,8 +62,17 @@ protocol EnchattoAPI {
     /// `background` asks for that index into RoomTexture.all; nil leaves the pick to the server
     func createRoom(hostNickname: String, hostAvatarId: String, hostLanguage: String, settings: RoomSettings, background: Int?) async throws -> CreateRoomResult
 
-    /// Who this device acts as from now on: the host's participant id, and the token registered when this device
-    /// created the room (nil for a room made by a build that sent none). Sent with every request. nil hostId: no room is open
+    /// Join a room by its code, as a guest on the app. Throws the server's "Room not found" or "Room is closed"
+    func joinRoom(joinCode: String, nickname: String, avatarId: String, language: String) async throws -> JoinRoomResult
+
+    /// Leave the room for good, as a guest: the others see "left", and this device has no way back but to join again
+    func leaveRoom(participantId: String) async throws
+
+    /// Make another participant, someone in the room on the app, the host. This device's participant stays as a guest
+    func transferHost(roomId: String, participantId: String) async throws
+
+    /// Who this device acts as from now on: its participant id in the room, and the token registered when this device
+    /// created or joined the room (nil for a room made by a build that sent none). Sent with every request. nil hostId: no room is open
     func setCaller(hostId: String?, token: String?)
 
     /// Fetch the current room state (room + participants)
@@ -75,8 +95,9 @@ protocol EnchattoAPI {
     /// Mark a message as failed
     func markMessageFailed(messageId: String, error: String) async throws
 
-    /// Send a text message from the host. A send repeated with the same clientId (here and in the three sends below) returns the first message's id
-    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?) async throws -> String
+    /// Send a text message from this device. A send repeated with the same clientId (here and in the three sends below) returns the first message's id.
+    /// `processing` is this device's own translation: the message then arrives translated, and the server does not translate it
+    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?, processing: ProcessingState?) async throws -> String
 
     /// Generate a presigned upload URL for Convex storage
     func generateUploadUrl() async throws -> String

@@ -64,6 +64,15 @@ export const sendTextMessage = mutation({
     replyToId: v.optional(v.id("messages")),
     clientId: v.optional(v.string()),
     token: v.optional(v.string()),
+    // The sender's own translation, made on its device (an iPhone guest with the language packs). The message is
+    // then processed as it arrives and the server does not translate it. The sender writes the text anyway, so
+    // taking its word on the translation trusts it with nothing more
+    processing: v.optional(
+      v.object({
+        translatedText: v.string(),
+        romaji: v.optional(v.string()),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
@@ -85,20 +94,27 @@ export const sendTextMessage = mutation({
       throw new Error(TOO_FAST);
     }
 
+    const own = args.processing;
+    if (own) checkProcessingSize(own);
+    const translatedText = own?.translatedText.trim();
+
     const now = Date.now();
 
     const messageId = await ctx.db.insert("messages", {
       roomId: args.roomId,
       senderId: args.senderId,
       kind: "text",
-      status: "pending",
       text,
       replyToId: args.replyToId,
       clientId: args.clientId || undefined,
       createdAt: now,
+      ...(translatedText
+        ? { status: "processed" as const, processing: { translatedText, romaji: own?.romaji || undefined }, processedAt: now }
+        : { status: "pending" as const }),
     });
+    if (translatedText) return messageId;
 
-    // Always translate server-side (EN↔JA + romaji)
+    // Translated server-side (EN↔JA + romaji), and by the iOS host
     await ctx.scheduler.runAfter(0, internal.messages.translateMessageServerSide, {
       messageId,
       roomId: args.roomId,
@@ -600,6 +616,19 @@ async function applyProcessingFailure(ctx: MutationCtx, messageId: Id<"messages"
   });
 }
 
+/**
+ * A 2000-character message translates and romanises to well under these. They stop a megabyte being pushed to
+ * every subscriber.
+ */
+function checkProcessingSize(p: { translatedText?: string; romaji?: string; suggestions?: string[] }) {
+  if ((p.translatedText?.length ?? 0) > 20_000 || (p.romaji?.length ?? 0) > 20_000) {
+    throw new Error("Translation too long (max 20000 characters)");
+  }
+  if (p.suggestions && (p.suggestions.length > 10 || p.suggestions.some((s) => s.length > 500))) {
+    throw new Error("Too many or too long suggestions");
+  }
+}
+
 export const submitProcessedMessage = mutation({
   args: {
     messageId: v.id("messages"),
@@ -617,14 +646,7 @@ export const submitProcessedMessage = mutation({
     if (!message) return; // as before: applyProcessedResult ignores a missing message
     await requireHost(ctx, message.roomId, args.callerId, args.token, "messages.submitProcessedMessage");
     const p = args.processing;
-    // A 2000-character message translates and romanises to well under these. They stop a megabyte being
-    // pushed to every subscriber.
-    if ((p.translatedText?.length ?? 0) > 20_000 || (p.romaji?.length ?? 0) > 20_000) {
-      throw new Error("Translation too long (max 20000 characters)");
-    }
-    if (p.suggestions && (p.suggestions.length > 10 || p.suggestions.some((s) => s.length > 500))) {
-      throw new Error("Too many or too long suggestions");
-    }
+    checkProcessingSize(p);
     // A diagnostic is cut rather than refused
     await applyProcessedResult(ctx, args.messageId, p.error === undefined ? p : { ...p, error: p.error.slice(0, 500) });
   },

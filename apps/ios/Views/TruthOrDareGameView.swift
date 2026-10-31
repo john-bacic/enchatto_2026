@@ -901,14 +901,16 @@ struct TruthOrDareGameView: View {
                 HStack(spacing: 10) {
                     Button(L.t("Close", lang)) { onDismiss() }
                         .buttonStyle(.chunky(EC.blue))
-                    Button("\(L.t("Play Again", lang)) →") {
-                        Haptics.thump()
-                        Task {
-                            await viewModel.createTruthOrDare(promptMode: game.promptMode ?? "normal")
+                    if viewModel.isHost {
+                        Button("\(L.t("Play Again", lang)) →") {
+                            Haptics.thump()
+                            Task {
+                                await viewModel.createTruthOrDare(promptMode: game.promptMode ?? "normal")
+                            }
                         }
+                        .buttonStyle(.chunky(EC.pink))
+                        .gkWiggle(angle: 1.2, duration: 0.4)
                     }
-                    .buttonStyle(.chunky(EC.pink))
-                    .gkWiggle(angle: 1.2, duration: 0.4)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)

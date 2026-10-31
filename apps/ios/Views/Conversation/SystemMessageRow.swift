@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - System message (join/leave divider)
+// MARK: - System message (join/leave/new host divider)
 
 struct SystemMessageRow: View {
     let text: String
@@ -15,6 +15,8 @@ struct SystemMessageRow: View {
             return lang == "ja" ? "\(name)\(L.t("has joined", lang))" : "\(name) \(L.t("has joined", lang))"
         } else if action == "leave" {
             return lang == "ja" ? "\(name)\(L.t("has left", lang))" : "\(name) \(L.t("has left", lang))"
+        } else if action == "host" {
+            return lang == "ja" ? "\(name)\(L.t("is now the host", lang))" : "\(name) \(L.t("is now the host", lang))"
         } else if action == "game" {
             // name is like "Lost in Translation Level 2" or "Word Rush" or "Emoji Match"
             if name.hasPrefix("Emoji Bingo") {
@@ -78,6 +80,8 @@ struct SystemMessageRow: View {
         HStack(spacing: 6) {
             if text.hasPrefix("join:") {
                 PackIcon("re-wave", size: 18)
+            } else if text.hasPrefix("host:") {
+                PackIcon("g-crown", size: 18)
             } else if let icon = p.icon {
                 if let asset = Self.iconOverrides[icon] {
                     PackIcon(asset, size: 18)

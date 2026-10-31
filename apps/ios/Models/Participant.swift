@@ -30,7 +30,7 @@ struct Participant: Identifiable, Codable, Equatable {
     let id: String
     let roomId: String
     let nickname: String
-    let role: ParticipantRole
+    var role: ParticipantRole
     let platform: ParticipantPlatform
     let avatar: AvatarConfig
     var preferredLanguage: String

@@ -35,6 +35,7 @@
 		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		502560E4361ECD12FB5B8835 /* ZenMaruGothic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C4C83263DD333D3A24763D95 /* ZenMaruGothic-Bold.ttf */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
+		A1B2C3D4E5F60718293A4B5D /* JoinRoomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */; };
 		513047DE7709D9D978CC800E /* EmojiBingoGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E11FCFFF6377C51AD234A05 /* EmojiBingoGameView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
 		5718E78DEE601BCE2326427C /* EmojiMatchGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */; };
@@ -119,6 +120,7 @@
 		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
 		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
 		190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostQRCodeRoomView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinRoomSheet.swift; sourceTree = "<group>"; };
 		1B9E22737F11C2559A4DF261 /* HostRoomViewModel+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+Sync.swift"; sourceTree = "<group>"; };
 		1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTranslator.swift; sourceTree = "<group>"; };
 		1DC00ADF95392C392B69EB66 /* RomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RomajiService.swift; sourceTree = "<group>"; };
@@ -421,6 +423,7 @@
 				5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */,
 				C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */,
 				190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */,
+				A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */,
 				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
 				26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */,
 				B31B444E0CDA0E640973C616 /* Components */,
@@ -565,6 +568,7 @@
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
 				DC12B20A48FDBF4D0D5D0E93 /* HostMessageRow.swift in Sources */,
 				511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5D /* JoinRoomSheet.swift in Sources */,
 				DF014C42CD7679839D745227 /* HostRoomViewModel+EmojiBingo.swift in Sources */,
 				D24475BE71F76DD4ECF769A3 /* HostRoomViewModel+EmojiMatch.swift in Sources */,
 				FC969E65AB4BD06E8B44615F /* HostRoomViewModel+LostInTranslation.swift in Sources */,
@@ -638,7 +642,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = V823NAB7CT;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto uses the camera to send photos and to scan a room's QR code";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto uses the microphone for voice input and to record your pronunciation in games like Word Rush";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";
@@ -732,7 +736,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = V823NAB7CT;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto needs camera access to send photos";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto uses the camera to send photos and to scan a room's QR code";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto uses the microphone for voice input and to record your pronunciation in games like Word Rush";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Enchatto needs photo library access to send images";

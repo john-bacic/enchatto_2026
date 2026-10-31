@@ -130,7 +130,7 @@ struct EmojiMatchGameView: View {
 
     private func lobbyView(game: EmojiMatchGame) -> some View {
         let amJoined = game.players.contains { $0.participantId == viewModel.hostId }
-        let amHost = game.hostParticipantId == viewModel.hostId
+        let amHost = viewModel.isHost
         let players = game.players.map {
             GKPlayer(
                 id: $0.participantId, nickname: $0.nickname, avatarValue: $0.avatarValue,

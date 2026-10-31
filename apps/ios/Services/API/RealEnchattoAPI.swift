@@ -52,6 +52,34 @@ class RealEnchattoAPI: EnchattoAPI {
         return CreateRoomResult(roomId: response.roomId, joinCode: response.joinCode, hostId: response.hostId, hostToken: hostToken, background: response.background?.index)
     }
 
+    func joinRoom(joinCode: String, nickname: String, avatarId: String, language: String) async throws -> JoinRoomResult {
+        struct Response: Decodable {
+            let roomId: String
+            let joinCode: String
+            let participantId: String
+            let background: Int?
+        }
+        // As for a room this device creates: made here, and kept by the server for the participant it makes
+        let token = ConvexHTTPClient.makeToken()
+        let body: [String: Any] = [
+            "joinCode": joinCode,
+            "nickname": nickname,
+            "avatarId": avatarId,
+            "language": language,
+            "callerToken": token,
+        ]
+        let response: Response = try await client.post("/api/rooms/join", body: body)
+        return JoinRoomResult(roomId: response.roomId, joinCode: response.joinCode, participantId: response.participantId, token: token, background: response.background)
+    }
+
+    func leaveRoom(participantId: String) async throws {
+        try await client.postVoid("/api/participants/leave", body: ["participantId": participantId], retriesOn5xx: 1)
+    }
+
+    func transferHost(roomId: String, participantId: String) async throws {
+        try await client.postVoid("/api/rooms/transfer-host", body: ["roomId": roomId, "participantId": participantId], retriesOn5xx: 1)
+    }
+
     func setCaller(hostId: String?, token: String?) {
         ConvexHTTPClient.caller = hostId.map { (id: $0, token: token) }
     }
@@ -154,7 +182,7 @@ class RealEnchattoAPI: EnchattoAPI {
         return messages
     }
 
-    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?) async throws -> String {
+    func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?, processing: ProcessingState?) async throws -> String {
         struct Response: Decodable {
             let messageId: String
         }
@@ -168,6 +196,11 @@ class RealEnchattoAPI: EnchattoAPI {
             body["replyToId"] = replyToId
         }
         if let clientId { body["clientId"] = clientId }
+        if let translatedText = processing?.translatedText {
+            var own: [String: Any] = ["translatedText": translatedText]
+            if let romaji = processing?.romaji { own["romaji"] = romaji }
+            body["processing"] = own
+        }
 
         let response: Response = try await client.post("/api/messages/send-text", body: body)
         return response.messageId

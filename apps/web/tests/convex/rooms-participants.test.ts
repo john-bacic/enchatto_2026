@@ -2847,3 +2847,194 @@ describe("/api/rooms/* and /api/participants/*", () => {
     expect((await roomRow(t, roomId)).status).toBe("waiting");
   });
 });
+
+// ─── iPhone guests and host handover ─────────────────────────────────────────
+
+/** Joins the way the iPhone app does as a guest: by code, through its route */
+async function joinFromApp(t: Backend, joinCode: string, nickname: string, token: string) {
+  return await post(t, "/api/rooms/join", { joinCode, nickname, avatarId: "cat", language: "ja", callerToken: token });
+}
+
+describe("iPhone guests", () => {
+  test("join by code, in any case, as an iPhone participant with their token", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    const res = await joinFromApp(t, ` ${joinCode.toLowerCase()} `, "Mia", tokenFor(7));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ roomId, joinCode });
+    expect(typeof res.body.background).toBe("number");
+    expect(await person(t, res.body.participantId)).toMatchObject({
+      nickname: "Mia",
+      role: "participant",
+      platform: "ios",
+      preferredLanguage: "ja",
+      avatar: { type: "preset", value: "cat" },
+    });
+    // The token is the one on record: leaving with it works, and says so
+    expect((await post(t, "/api/participants/leave", { participantId: res.body.participantId, callerToken: tokenFor(7) })).status).toBe(200);
+    expect(await announcements(t, roomId)).toEqual(["join:Mia", "leave:Mia"]);
+  });
+
+  test("an unknown code or a closed room is refused", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    expect((await joinFromApp(t, "ZZZZZZ", "Mia", tokenFor(7))).body.error).toMatch(/Room not found/);
+    await t.mutation(api.rooms.closeRoom, { roomId });
+    expect((await joinFromApp(t, joinCode, "Mia", tokenFor(7))).body.error).toMatch(/Room is closed/);
+  });
+});
+
+describe("transferHost", () => {
+  test("makes an iPhone guest the host, the old host a guest, and says so in the chat", async () => {
+    const t = newBackend();
+    const { roomId, joinCode, hostId } = await createRoom(t, { hostToken: tokenFor(1) });
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    await t.run((ctx) => ctx.db.insert("hostPushTokens", { roomId, token: "ab".repeat(32) }));
+
+    const res = await post(t, "/api/rooms/transfer-host", { roomId, participantId: mia, callerId: hostId, callerToken: tokenFor(1) });
+    expect(res.status).toBe(200);
+    expect((await roomRow(t, roomId)).hostId).toBe(mia);
+    expect((await person(t, mia)).role).toBe("host");
+    expect((await person(t, hostId)).role).toBe("participant");
+    expect(await announcements(t, roomId)).toEqual(["join:Mia", "host:Mia"]);
+    // The old host's device is no longer told of joins
+    expect(await t.run((ctx) => ctx.db.query("hostPushTokens").collect())).toEqual([]);
+
+    // The new host has the host's powers, the old one has not
+    vi.stubEnv("AUTH_MODE", "enforce");
+    const oldHostCloses = await post(t, "/api/rooms/close", { roomId, callerId: hostId, callerToken: tokenFor(1) });
+    expect(oldHostCloses.status).toBe(400);
+    expect((await roomRow(t, roomId)).status).toBe("active");
+    expect((await post(t, "/api/rooms/close", { roomId, callerId: mia, callerToken: tokenFor(2) })).status).toBe(200);
+    expect((await roomRow(t, roomId)).status).toBe("closed");
+  });
+
+  test("only to someone on the iPhone app who is in the room now", async () => {
+    const t = newBackend();
+    const { roomId, joinCode, hostId } = await createRoom(t, { hostToken: tokenFor(1) });
+    const ana = await joinGuest(t, roomId, "Ana");
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    const asHost = { callerId: hostId, token: tokenFor(1) };
+    await expect(t.mutation(api.participants.transferHost, { roomId, participantId: ana, ...asHost })).rejects.toThrow(
+      /iPhone app/
+    );
+    await heartbeat(t, mia, "away");
+    await expect(t.mutation(api.participants.transferHost, { roomId, participantId: mia, ...asHost })).rejects.toThrow(
+      /iPhone app/
+    );
+    expect((await roomRow(t, roomId)).hostId).toBe(hostId);
+  });
+
+  test("is refused to anyone but the host with their token, even in log mode", async () => {
+    const t = newBackend();
+    const { roomId, joinCode, hostId } = await createRoom(t, { hostToken: tokenFor(1) });
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    const attempts = [
+      { callerId: mia, callerToken: tokenFor(2) },
+      { callerId: hostId, callerToken: tokenFor(2) },
+      { callerId: hostId },
+      {},
+    ];
+    for (const caller of attempts) {
+      const res = await post(t, "/api/rooms/transfer-host", { roomId, participantId: mia, ...caller });
+      expect(res.status).toBe(400);
+    }
+    expect((await roomRow(t, roomId)).hostId).toBe(hostId);
+  });
+
+  test("is refused for a host who has no token", async () => {
+    const t = newBackend();
+    const { roomId, joinCode, hostId } = await createRoom(t);
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    await expect(t.mutation(api.participants.transferHost, { roomId, participantId: mia, callerId: hostId })).rejects.toThrow(
+      /Not authorised/
+    );
+  });
+});
+
+describe("closeAbandonedRooms hands the room over", () => {
+  test("to the iPhone guest here longest once the host has been silent five minutes", async () => {
+    const t = newBackend();
+    const { roomId, joinCode, hostId } = await createRoom(t);
+    await joinGuest(t, roomId, "Ana");
+    clockTo(MINUTE);
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    clockTo(2 * MINUTE);
+    const kai = (await joinFromApp(t, joinCode, "Kai", tokenFor(3))).body.participantId as Id<"participants">;
+
+    clockTo(5 * MINUTE);
+    await heartbeat(t, mia, "online");
+    await heartbeat(t, kai, "online");
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(0);
+    expect((await roomRow(t, roomId)).hostId).toBe(hostId); // exactly five minutes
+
+    clockTo(5 * MINUTE + 1);
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(0);
+    expect(await roomRow(t, roomId)).toMatchObject({ hostId: mia, status: "active" });
+    expect((await person(t, hostId)).role).toBe("participant");
+    expect((await person(t, kai)).role).toBe("participant");
+  });
+
+  test("not to an iPhone guest who is away, and the room still closes at 15 minutes", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    clockTo(15 * MINUTE + 1);
+    await heartbeat(t, mia, "away");
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(1);
+    expect((await roomRow(t, roomId)).status).toBe("closed");
+  });
+
+  test("and the room the new host keeps up is not closed", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    clockTo(6 * MINUTE);
+    await heartbeat(t, mia, "online");
+    await t.mutation(internal.rooms.closeAbandonedRooms);
+    clockTo(20 * MINUTE);
+    await heartbeat(t, mia, "online");
+    expect(await t.mutation(internal.rooms.closeAbandonedRooms)).toBe(0);
+    expect(await roomRow(t, roomId)).toMatchObject({ hostId: mia, status: "active" });
+  });
+});
+
+describe("a text the sender translated itself", () => {
+  test("arrives processed, with no translation scheduled", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    const before = (await scheduled(t)).length;
+    const res = await post(t, "/api/messages/send-text", {
+      roomId,
+      senderId: mia,
+      text: "こんにちは",
+      callerToken: tokenFor(2),
+      processing: { translatedText: "Hello", romaji: "konnichiwa" },
+    });
+    expect(res.status).toBe(200);
+    const message = await t.run((ctx) => ctx.db.get(res.body.messageId as Id<"messages">));
+    expect(message).toMatchObject({ status: "processed", processing: { translatedText: "Hello", romaji: "konnichiwa" } });
+    expect((await scheduled(t)).length).toBe(before);
+  });
+
+  test("a translation that is empty or not a string is ignored, and the server translates as before", async () => {
+    const t = newBackend();
+    const { roomId, joinCode } = await createRoom(t);
+    const mia = (await joinFromApp(t, joinCode, "Mia", tokenFor(2))).body.participantId as Id<"participants">;
+    for (const processing of [{ translatedText: "  " }, { translatedText: 3 }, "Hello"]) {
+      const res = await post(t, "/api/messages/send-text", { roomId, senderId: mia, text: "hi", callerToken: tokenFor(2), processing });
+      expect(res.status).toBe(200);
+      const message = await t.run((ctx) => ctx.db.get(res.body.messageId as Id<"messages">));
+      expect(message?.status).toBe("pending");
+    }
+  });
+
+  test("one too long is refused", async () => {
+    const t = newBackend();
+    const { roomId, hostId } = await createRoom(t);
+    await expect(
+      t.mutation(api.messages.sendTextMessage, { roomId, senderId: hostId, text: "hi", processing: { translatedText: "x".repeat(20_001) } })
+    ).rejects.toThrow(/Translation too long/);
+  });
+});

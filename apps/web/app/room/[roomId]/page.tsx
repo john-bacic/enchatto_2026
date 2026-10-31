@@ -205,7 +205,7 @@ function RoomContent() {
 
   const { offlineQueue, queuedAsMessages, handleSend, handleSendImage, handleSendVoice, handleSendDrawing } = useOutbox({ roomId, participantId, isOnline, replyTo, setReplyTo, lang, convexSiteUrl });
 
-  // Filter out host's own join/leave/away/back system messages (keep game messages)
+  // Filter out host's own join/leave/away/back system messages (keep game messages and the handover's)
   const roomHostId = roomState?.room?.hostId;
   // A message the server sent again as it was is the object the list already has
   const shownMessages = useStableList(messageList, byId);
@@ -214,7 +214,7 @@ function RoomContent() {
       [...shownMessages, ...queuedAsMessages].filter((m) => {
         if (m.kind === "system" && roomHostId && m.senderId === roomHostId) {
           const text = m.text ?? "";
-          if (text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:") || text.startsWith("game_summary:") || text.startsWith("emoji_match_summary:") || text.startsWith("emoji_match_complete:")) return true;
+          if (text.startsWith("host:") || text.startsWith("game:") || text.startsWith("game_cancelled:") || text.startsWith("game_correct:") || text.startsWith("game_wrong:") || text.startsWith("game_summary:") || text.startsWith("emoji_match_summary:") || text.startsWith("emoji_match_complete:")) return true;
           return false;
         }
         return true;

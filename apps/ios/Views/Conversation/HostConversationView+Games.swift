@@ -101,8 +101,12 @@ extension HostConversationView {
                         Button(L.t("Quit", hostLanguage), role: .destructive) {
                             showGameTask = false
                             quitOnStepId = viewModel.myActiveStep?.id
-                            Task {
-                                await viewModel.cancelGame()
+                            // Only the host can end the game. A guest who quits steps out of it, and the game's
+                            // timer moves past them
+                            if viewModel.isHost {
+                                Task {
+                                    await viewModel.cancelGame()
+                                }
                             }
                         }
                     } message: {
@@ -116,13 +120,14 @@ extension HostConversationView {
                         replay: replay,
                         lang: hostLanguage,
                         onDismiss: { showGameReplay = false },
-                        onNextLevel: { timerSeconds in
+                        // The next level is the host's to start
+                        onNextLevel: viewModel.isHost ? { (timerSeconds: Int) -> Void in
                             let nextLevel = (viewModel.latestGameSession?.level ?? 1) + 1
                             showGameReplay = false
                             // The next level is played as this one was: by the same teams, or individually
                             let teams = replay.session.teams.map(GameTeamsRequest.split)
                             Task { await viewModel.startGame(gameType: "lost-in-translation", level: nextLevel, timerSeconds: timerSeconds, teams: teams) }
-                        },
+                        } : nil,
                         // As the picker counts (GamePickerView.teamsAvailable): under four the server plays individually
                         playersHere: viewModel.gamePlayers.count
                     )

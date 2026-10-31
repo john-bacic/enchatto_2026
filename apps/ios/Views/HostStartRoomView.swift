@@ -4,6 +4,8 @@ struct HostStartRoomView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = HostStartRoomViewModel()
     @FocusState private var nameFocused: Bool
+    @State private var showJoin = false
+    @State private var joinCode = ""
 
     private var lang: String { viewModel.hostLanguage }
 
@@ -66,7 +68,9 @@ struct HostStartRoomView: View {
                         .buttonStyle(.chunky(EC.pink))
                         .disabled(busy)
                         .padding(.top, 4)
-                    } else {
+                    }
+                    // A room this device is only a guest in does not keep it from making one of its own
+                    if viewModel.rejoinableRoom?.isHost != true {
                         Button {
                             nameFocused = false
                             Haptics.thump()
@@ -86,6 +90,17 @@ struct HostStartRoomView: View {
                         .disabled(!viewModel.canCreate)
                         .padding(.top, 4)
                     }
+
+                    Button {
+                        nameFocused = false
+                        Haptics.tap()
+                        showJoin = true
+                    } label: {
+                        Label(L.t("Join a Room", lang), systemImage: "qrcode.viewfinder")
+                            .textCase(.uppercase)
+                    }
+                    .buttonStyle(.chunky(.white, size: .small))
+                    .disabled(!viewModel.canJoin)
 
                     Text("v\(GitInfo.commitSHA)")
                         .font(.round(9, .medium))
@@ -112,10 +127,27 @@ struct HostStartRoomView: View {
                 set: { if !$0 { viewModel.createdRoomId = nil } }
             )) {
                 if let roomId = viewModel.createdRoomId, let hostId = viewModel.createdHostId {
-                    HostConversationView(roomId: roomId, hostId: hostId, textureIndex: viewModel.textureIndex)
+                    HostConversationView(roomId: roomId, hostId: hostId, enteredAsHost: viewModel.enteredAsHost, textureIndex: viewModel.textureIndex)
                 }
             }
             .task { await viewModel.checkSavedRoom(tapped: false) }
+            .sheet(isPresented: $showJoin) {
+                JoinRoomSheet(viewModel: viewModel, code: $joinCode)
+            }
+        }
+        // A room's join link (its QR code, scanned with the Camera app) opens the app where it is installed. With a
+        // nickname to join under it goes straight in; otherwise the join sheet waits with the code filled in
+        .onOpenURL { url in
+            guard let code = HostStartRoomViewModel.joinCode(in: url.absoluteString), viewModel.createdRoomId == nil else { return }
+            joinCode = code
+            if viewModel.canJoin {
+                Task {
+                    let joined = await viewModel.joinRoom(code)
+                    if !joined { showJoin = true }
+                }
+            } else {
+                showJoin = true
+            }
         }
         // Back in the foreground, a room the server could not be reached about is asked about again. In a room, or
         // with none saved, the check does nothing
@@ -125,7 +157,10 @@ struct HostStartRoomView: View {
         }
         // A room entered without a tap, while the nickname is being typed: the keyboard does not follow into it
         .onChange(of: viewModel.createdRoomId) { roomId in
-            if roomId != nil { nameFocused = false }
+            guard roomId != nil else { return }
+            nameFocused = false
+            showJoin = false
+            joinCode = ""
         }
         // What is shown from this screen draws ecPaperBackground() on this screen's texture
         .environment(\.roomTextureIndex, viewModel.textureIndex)

@@ -124,7 +124,7 @@ struct EmojiBingoGameView: View {
     // MARK: - Lobby
 
     private func lobbyView(game: EmojiBingoGame) -> some View {
-        let amHost = game.hostParticipantId == viewModel.hostId
+        let amHost = viewModel.isHost
         let players = game.players.map {
             GKPlayer(
                 id: $0.participantId, nickname: $0.nickname, avatarValue: $0.avatarValue,

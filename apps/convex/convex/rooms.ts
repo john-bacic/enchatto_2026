@@ -3,7 +3,14 @@ import { IndexNames, NamedIndex, NamedTableInfo } from "convex/server";
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { DataModel, Doc, Id, TableNames } from "./_generated/dataModel";
-import { deleteStoredFile, isSupportedLanguage, registerToken, requireHost } from "./participants";
+import {
+  deleteStoredFile,
+  handOverHost,
+  isSupportedLanguage,
+  registerToken,
+  requireHost,
+  successorFor,
+} from "./participants";
 
 // Must match the texture lists on web (lib/textures.ts) and iOS (RoomTexture.swift).
 const BACKGROUND_COUNT = 52;
@@ -142,14 +149,22 @@ export const closeRoom = mutation({
  * Long enough to survive a locked phone or a quick switch to another app mid-conversation.
  */
 const HOST_GONE_MS = 15 * 60 * 1000;
+/**
+ * A room whose host has been silent this long is handed to an iPhone guest who is in it, rather than left to
+ * close. Shorter than HOST_GONE_MS: the room has someone who can host it. The cron runs every five minutes, so
+ * the handover comes five to ten minutes after the host's last heartbeat
+ */
+const HOST_HANDOVER_MS = 5 * 60 * 1000;
 /** Keeps one run well inside mutation limits; a backlog drains over successive runs */
 const MAX_CLOSES_PER_RUN = 100;
 
+/** Returns how many rooms it closed. Rooms handed to another host are not among them */
 export const closeAbandonedRooms = internalMutation({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {
-    const cutoff = Date.now() - HOST_GONE_MS;
+    const now = Date.now();
+    let changed = 0;
     let closed = 0;
     for (const status of ["waiting", "active"] as const) {
       const rooms = await ctx.db
@@ -157,11 +172,20 @@ export const closeAbandonedRooms = internalMutation({
         .withIndex("by_status", (q) => q.eq("status", status))
         .collect();
       for (const room of rooms) {
-        if (closed >= MAX_CLOSES_PER_RUN) return closed;
+        if (changed >= MAX_CLOSES_PER_RUN) return closed;
         const hostId = ctx.db.normalizeId("participants", room.hostId);
         const host = hostId ? await ctx.db.get(hostId) : null;
-        if (host && host.lastSeenAt >= cutoff) continue;
+        const heardFrom = host?.lastSeenAt ?? 0;
+        if (heardFrom >= now - HOST_HANDOVER_MS) continue;
+        const successor = await successorFor(ctx, room._id, now);
+        if (successor) {
+          await handOverHost(ctx, room, successor);
+          changed++;
+          continue;
+        }
+        if (heardFrom >= now - HOST_GONE_MS) continue;
         await closeRoomNow(ctx, room._id);
+        changed++;
         closed++;
       }
     }

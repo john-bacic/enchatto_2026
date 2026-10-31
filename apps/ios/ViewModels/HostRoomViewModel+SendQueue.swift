@@ -10,12 +10,26 @@ extension HostRoomViewModel {
     /// A waiting message has already failed once: sending is held up although the phone reports a connection
     var isSendDelayed: Bool { offlineQueue.contains { $0.isWaiting && $0.attempts > 0 } }
 
+    /// How long a guest's text waits for its translation on this device. Translating a message takes a fraction of
+    /// a second; one that has none by then goes as it is, and the server and the host translate it
+    private static let ownTranslationWait: TimeInterval = 2
+
+    /// A guest with the language packs translates what it sends, on this device, and the message arrives translated.
+    /// The host's texts are translated by the server, as are a guest's when it has no packs
+    var translatesOwnMessages: Bool { !isHost && onDeviceTranslatorReady }
+
     func enqueue(_ queued: QueuedMessage) {
+        var queued = queued
+        let ownTranslation = queued.kind == .text && translatesOwnMessages
+        // Held back until its translation is here, or the wait is over (translateQueueBatch lets it go)
+        if ownTranslation, networkMonitor.isConnected, !isSendDelayed {
+            queued.nextAttemptAt = Date().addingTimeInterval(Self.ownTranslationWait)
+        }
         offlineQueue.append(queued)
         mergeQueueIntoMessages()
-        // On-device translation is for a message that has to wait (offline, or behind one being retried).
-        // One that goes straight out is translated by the server and the host pipeline, as before.
-        if queued.kind == .text, !networkMonitor.isConnected || isSendDelayed {
+        // On-device translation is for a message that has to wait (offline, or behind one being retried), and for
+        // a guest's own. The host's that go straight out are translated by the server and the host pipeline.
+        if queued.kind == .text, ownTranslation || !networkMonitor.isConnected || isSendDelayed {
             // Signal OfflineTranslator to re-trigger .translationTask via invalidate()
             offlineQueueVersion += 1
         }
@@ -90,6 +104,8 @@ extension HostRoomViewModel {
                     suggestions: nil
                 )
                 offlineQueue[index].processingAttempted = true
+                // A message held back for its translation goes now. One waiting out a retry keeps its time
+                if offlineQueue[index].attempts == 0 { offlineQueue[index].nextAttemptAt = .distantPast }
                 didTranslate = true
             } catch {
                 // Translation failed — leave processingAttempted false so it retries
@@ -98,6 +114,7 @@ extension HostRoomViewModel {
         }
         if didTranslate {
             mergeQueueIntoMessages()
+            kickFlush()
         }
     }
 
@@ -170,11 +187,7 @@ extension HostRoomViewModel {
             offlineQueue[index].sentMessageId = messageId
             offlineQueue[index].attempts = 0
             sentIds[queued.id] = messageId
-            let processing = offlineQueue[index].processing
             mergeQueueIntoMessages()
-            if queued.kind == .text, let processing {
-                try? await api.submitProcessedMessage(messageId: messageId, processing: processing)
-            }
             return .sent
         } catch {
             // Stopping the pass is not a failure of the message
@@ -217,12 +230,14 @@ extension HostRoomViewModel {
         let replyToId = serverMessageId(queued.replyToId)
         switch queued.kind {
         case .text:
+            // The translation made on this device goes with the message, which then arrives translated
             return try await api.sendTextMessage(
                 roomId: roomId,
                 senderId: hostId,
                 text: queued.text ?? "",
                 replyToId: replyToId,
-                clientId: queued.clientId
+                clientId: queued.clientId,
+                processing: queued.processing
             )
         case .image:
             let storageId: String

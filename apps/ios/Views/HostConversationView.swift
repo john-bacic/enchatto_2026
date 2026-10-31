@@ -24,6 +24,8 @@ struct HostConversationView: View {
     /// Not @State: row frames change every scroll frame and must not re-render the room
     @State var messageFrames = MessageFrameStore()
     @State var messageToDelete: String?
+    /// The guest the host asked to make the host, while the dialog asks first
+    @State var hostCandidate: Participant?
     @AppStorage("enchatto_showEnglish") var showEnglish = true
     @AppStorage("enchatto_showJapanese") var showJapanese = true
     @AppStorage("enchatto_showRomaji") var showRomaji = true
@@ -63,11 +65,11 @@ struct HostConversationView: View {
     @State var screenOpenedAt = Date()
     @State var knownParticipantIds: Set<String> = []
 
-    init(roomId: String, hostId: String, textureIndex: Int = 0) {
+    init(roomId: String, hostId: String, enteredAsHost: Bool = true, textureIndex: Int = 0) {
         self.roomId = roomId
         self.hostId = hostId
         self.textureIndex = textureIndex
-        _viewModel = StateObject(wrappedValue: HostRoomViewModel(roomId: roomId, hostId: hostId))
+        _viewModel = StateObject(wrappedValue: HostRoomViewModel(roomId: roomId, hostId: hostId, enteredAsHost: enteredAsHost))
     }
 
     /// Index into RoomTexture.all this screen is drawn on: the room's own once its state is here

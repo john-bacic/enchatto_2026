@@ -133,6 +133,39 @@ export function registerRoomRoutes(http: HttpRouter): void {
     }),
   });
 
+  // The iPhone app joining a room as a guest, by its code. The app makes the token, as it does for a room it creates
+  http.route({
+    path: "/api/rooms/join",
+    method: "POST",
+    handler: jsonAction(async (ctx, body) => {
+      const joinCode = typeof body.joinCode === "string" ? body.joinCode.trim().toUpperCase() : "";
+      const room = joinCode ? await ctx.runQuery(api.rooms.getRoomByJoinCode, { joinCode }) : null;
+      if (!room) throw new Error("Room not found");
+      const participantId = await ctx.runMutation(api.participants.joinRoom, {
+        roomId: room._id,
+        nickname: body.nickname,
+        platform: "ios",
+        avatar: { type: "preset", value: body.avatarId },
+        preferredLanguage: body.language,
+        token: typeof body.callerToken === "string" ? body.callerToken : undefined,
+      });
+      return { roomId: room._id, joinCode: room.joinCode, participantId, background: room.background ?? null };
+    }),
+  });
+
+  http.route({
+    path: "/api/rooms/transfer-host",
+    method: "POST",
+    handler: jsonAction(async (ctx, body) => {
+      await ctx.runMutation(api.participants.transferHost, {
+        roomId: body.roomId,
+        participantId: body.participantId,
+        callerId: body.callerId,
+        token: body.callerToken,
+      });
+    }),
+  });
+
   http.route({
     path: "/api/rooms/close",
     method: "POST",
@@ -195,6 +228,17 @@ export function registerRoomRoutes(http: HttpRouter): void {
         participantId: body.participantId,
         online: body.online,
         presence: body.presence,
+        token: body.callerToken,
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/participants/leave",
+    method: "POST",
+    handler: jsonAction(async (ctx, body) => {
+      await ctx.runMutation(api.participants.leaveRoom, {
+        participantId: body.participantId,
         token: body.callerToken,
       });
     }),

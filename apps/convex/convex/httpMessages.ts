@@ -4,6 +4,15 @@ import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { checkDrawingBodySize, corsHeaders, decodeDrawing, jsonAction } from "./httpShared";
 
+/** The sender's own translation, or none: one that is not a translation is no reason to refuse the message */
+function ownProcessing(value: any): { translatedText: string; romaji?: string } | undefined {
+  if (typeof value?.translatedText !== "string" || !value.translatedText.trim()) return undefined;
+  return {
+    translatedText: value.translatedText,
+    romaji: typeof value.romaji === "string" ? value.romaji : undefined,
+  };
+}
+
 export function registerMessageRoutes(http: HttpRouter): void {
   // --- Messages ---
 
@@ -18,6 +27,7 @@ export function registerMessageRoutes(http: HttpRouter): void {
         replyToId: body.replyToId,
         clientId: body.clientId,
         token: body.callerToken,
+        processing: ownProcessing(body.processing),
       });
       return { messageId };
     }),

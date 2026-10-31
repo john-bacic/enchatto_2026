@@ -48,8 +48,9 @@ extension HostRoomViewModel {
 
     // MARK: - Observation
 
-    private func registerForPushIfNeeded() {
-        guard !pushRegistered else { return }
+    /// Asks once, as the host: the server sends the host a push when someone joins while it is not looking
+    func registerForPushIfNeeded() {
+        guard isHost, !pushRegistered else { return }
         pushRegistered = true
         Task {
             guard let token = await PushManager.shared.requestToken() else { return }
@@ -91,7 +92,8 @@ extension HostRoomViewModel {
             processingTask = Task { [weak self] in
                 guard let self else { return }
                 while !Task.isCancelled {
-                    if self.networkMonitor.isConnected {
+                    // The server takes the translations of the host only. A guest's loop idles, ready for a handover
+                    if self.isHost, self.networkMonitor.isConnected {
                         await self.processPendingMessages()
                     }
                     // Follows the room poll's backoff while the server is in trouble
@@ -194,7 +196,7 @@ extension HostRoomViewModel {
 
             room = roomOnScreen(state.room, askedAt: epoch)
             // Closed is final: this device has nothing to come back to
-            if state.room.status == .closed { SavedHostRoom.clear(roomId: roomId) }
+            if state.room.status == .closed { SavedRoom.clear(roomId: roomId) }
             participants = state.participants
             syncHostLanguage()
             messages = msgs.sorted { $0.createdAt < $1.createdAt }
@@ -385,7 +387,7 @@ extension HostRoomViewModel {
 
         room = roomOnScreen(snapshot.room, askedAt: asked.background)
         // Closed is final: this device has nothing to come back to
-        if snapshot.room.status == .closed { SavedHostRoom.clear(roomId: roomId) }
+        if snapshot.room.status == .closed { SavedRoom.clear(roomId: roomId) }
         participants = snapshot.participants
         syncHostLanguage()
         messages = snapshot.messages.sorted { $0.createdAt < $1.createdAt }

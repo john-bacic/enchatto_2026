@@ -19,7 +19,8 @@ struct MessageContextMenuOverlay: View {
     var onReply: () -> Void
     var onCopy: () -> Void
     var onSave: (() -> Void)?
-    var onDelete: () -> Void
+    /// nil for a guest: only the host deletes messages
+    var onDelete: (() -> Void)?
 
     @State private var appeared = false
 
@@ -162,15 +163,17 @@ struct MessageContextMenuOverlay: View {
                 }
             }
 
-            actionDivider
+            if let onDelete {
+                actionDivider
 
-            actionButton(
-                title: L.t("Delete", preferredLanguage),
-                icon: "trash",
-                isDestructive: true
-            ) {
-                onDelete()
-                dismiss()
+                actionButton(
+                    title: L.t("Delete", preferredLanguage),
+                    icon: "trash",
+                    isDestructive: true
+                ) {
+                    onDelete()
+                    dismiss()
+                }
             }
         }
         .padding(.vertical, 4)

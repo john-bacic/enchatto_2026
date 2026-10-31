@@ -499,6 +499,8 @@ export const MessageList = memo(function MessageList({
               line = { text: personLine(name, "is away", lang), avatarId: senderAvatar };
             } else if (action === "back") {
               line = { text: personLine(name, "is back", lang), avatarId: senderAvatar };
+            } else if (action === "host") {
+              line = { text: personLine(name, "is now the host", lang), avatarId: senderAvatar };
             } else if (action === "game") {
               // name is like "Lost in Translation Level 2", "Word Rush", "Emoji Match"…
               if (name.startsWith("Word Rush")) {

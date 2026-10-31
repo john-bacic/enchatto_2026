@@ -63,7 +63,7 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
         INFOPLIST_KEY_UIRequiresFullScreen: YES
-        INFOPLIST_KEY_NSCameraUsageDescription: "Enchatto needs camera access to send photos"
+        INFOPLIST_KEY_NSCameraUsageDescription: "Enchatto uses the camera to send photos and to scan a room's QR code"
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Enchatto needs photo library access to send images"
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Enchatto needs permission to save images to your photo library"
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Enchatto uses the microphone for voice input and to record your pronunciation in games like Word Rush"

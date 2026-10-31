@@ -187,6 +187,7 @@ const translations: Record<string, Record<string, string>> = {
   "has left": { ja: "が退出しました" },
   "is away": { ja: "は離席中です" },
   "is back": { ja: "が戻りました" },
+  "is now the host": { ja: "がホストになりました" },
 
   // Reply preview
   "Photo": { ja: "写真" },

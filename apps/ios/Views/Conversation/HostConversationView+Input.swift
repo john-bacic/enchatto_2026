@@ -66,8 +66,10 @@ extension HostConversationView {
 
     private var toolButtons: some View {
         HStack(spacing: 8) {
-            // Game button — End Game when active, Start Game otherwise
-            if viewModel.activeGameSession != nil {
+            // Game button — End Game when active, Start Game otherwise. The host's: a guest plays what the host starts
+            if !viewModel.isHost {
+                EmptyView()
+            } else if viewModel.activeGameSession != nil {
                 Button {
                     showEndGameConfirm = true
                 } label: {

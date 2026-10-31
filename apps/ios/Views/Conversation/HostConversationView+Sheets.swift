@@ -153,7 +153,7 @@ extension HostConversationView {
     // MARK: - In this room / Settings sheets
 
     /// One member as a chunky card (matches web "In this room"); guests carry their avatar tint
-    private func personCard(_ participant: Participant, onRemove: (() -> Void)? = nil) -> some View {
+    private func personCard(_ participant: Participant, onRemove: (() -> Void)? = nil, onMakeHost: (() -> Void)? = nil) -> some View {
         let away = participant.online && participant.isAway
         let status = participant.online ? (away ? "Away" : "Online") : "Offline"
         let dot = participant.online ? (away ? EC.yellow : EC.mint) : EC.inkSoft
@@ -187,11 +187,21 @@ extension HostConversationView {
             if participant.role == .host {
                 ECChip(text: L.t("host", hostLanguage).uppercased(), fill: EC.violet)
             }
-            if let onRemove {
-                Button(role: .destructive, action: onRemove) {
-                    Text(L.t("Remove", hostLanguage))
+            if onRemove != nil || onMakeHost != nil {
+                VStack(alignment: .trailing, spacing: 4) {
+                    if let onMakeHost {
+                        Button(action: onMakeHost) {
+                            Text(L.t("Make host", hostLanguage))
+                        }
+                        .buttonStyle(.chunky(EC.violet, size: .mini, fullWidth: false))
+                    }
+                    if let onRemove {
+                        Button(role: .destructive, action: onRemove) {
+                            Text(L.t("Remove", hostLanguage))
+                        }
+                        .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
+                    }
                 }
-                .buttonStyle(.chunky(EC.red, size: .mini, fullWidth: false))
             }
         }
         .padding(.leading, 8)
@@ -242,10 +252,19 @@ extension HostConversationView {
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach(roomMembers) { participant in
-                        personCard(participant, onRemove: participant.role == .host || viewModel.isClosed ? nil : {
-                            Haptics.tap()
-                            Task { await viewModel.kickParticipant(participant.id) }
-                        })
+                        // Removing someone and handing the room over are the host's
+                        let hostActs = viewModel.isHost && !viewModel.isClosed
+                        personCard(
+                            participant,
+                            onRemove: !hostActs || participant.role == .host ? nil : {
+                                Haptics.tap()
+                                Task { await viewModel.kickParticipant(participant.id) }
+                            },
+                            onMakeHost: hostActs && viewModel.canBeHost(participant) ? {
+                                Haptics.tap()
+                                hostCandidate = participant
+                            } : nil
+                        )
                     }
                 }
                 .padding(.horizontal, 2)
@@ -262,11 +281,54 @@ extension HostConversationView {
         .background(EC.paper.ignoresSafeArea())
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .confirmationDialog(
+            String(format: L.t("Make %@ the host?", hostLanguage), hostCandidate?.nickname ?? ""),
+            isPresented: Binding(get: { hostCandidate != nil }, set: { if !$0 { hostCandidate = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(L.t("Make host", hostLanguage)) {
+                guard let id = hostCandidate?.id else { return }
+                Task { await viewModel.makeHost(id) }
+            }
+        } message: {
+            Text(L.t("They'll translate, start games and can close the room. You stay in as a guest.", hostLanguage))
+        }
     }
 
-    /// Close Room, on "In this room" and on Settings, with the dialog that asks first. The dialog is attached to the
-    /// button, so it is inside whichever sheet is up: a dialog is presented from what is in front
+    /// Close Room, on "In this room" and on Settings, with the dialog that asks first; Leave Room for a guest. The
+    /// dialog is attached to the button, so it is inside whichever sheet is up: a dialog is presented from what is in front
+    @ViewBuilder
     private var closeRoomButton: some View {
+        if viewModel.isHost {
+            hostCloseRoomButton
+        } else {
+            leaveRoomButton
+        }
+    }
+
+    private var leaveRoomButton: some View {
+        Button {
+            Haptics.tap()
+            showCloseConfirmation = true
+        } label: {
+            Text(L.t("Leave Room", hostLanguage))
+        }
+        .buttonStyle(.chunky(EC.red, size: .mini))
+        .confirmationDialog(L.t("Leave this room?", hostLanguage), isPresented: $showCloseConfirmation, titleVisibility: .visible) {
+            Button(L.t("Leave Room", hostLanguage), role: .destructive) {
+                showInRoom = false
+                viewModel.showParticipantSheet = false
+                Task {
+                    await viewModel.leaveRoom()
+                    dismiss()
+                }
+            }
+        } message: {
+            Text(L.t("You can join again with the room's code.", hostLanguage))
+        }
+    }
+
+    private var hostCloseRoomButton: some View {
         Button {
             Haptics.tap()
             showCloseConfirmation = true
@@ -314,7 +376,7 @@ extension HostConversationView {
                         viewModel.setHostLanguage(newValue)
                     }
 
-                    if !viewModel.isClosed {
+                    if !viewModel.isClosed, viewModel.isHost {
                         HStack(spacing: 10) {
                             Text(L.t("Background", hostLanguage))
                                 .font(.round(15, .bold))
@@ -404,8 +466,8 @@ extension HostConversationView {
                 }
             }
         }
-        // An open room has the background row and Close Room besides
-        .presentationDetents([.height(viewModel.isClosed ? 320 : 440)])
+        // An open room has Close Room or Leave Room besides, and the host the background row
+        .presentationDetents([.height(viewModel.isClosed ? 320 : viewModel.isHost ? 440 : 390)])
         .presentationDragIndicator(.visible)
         // The room screen's alert again, inside the sheet: an alert is presented from what is in front, and a
         // background the server refused comes back while this sheet is up

@@ -16,6 +16,17 @@ enum L {
         "Create Room": ["ja": "ルームを作成"],
         "Rejoin room": ["ja": "ルームに戻る"],
         "Couldn't reach the room. Try again.": ["ja": "ルームに接続できませんでした。もう一度お試しください。"],
+        "Join a Room": ["ja": "ルームに参加"],
+        "Join": ["ja": "参加"],
+        "Room code": ["ja": "ルームコード"],
+        "Enter the 6-letter code": ["ja": "6文字のコードを入力"],
+        "Scan QR code": ["ja": "QRコードを読み取る"],
+        "Point the camera at the room's QR code": ["ja": "ルームのQRコードにカメラを向けてください"],
+        "Camera access is off. Turn it on in Settings to scan.": ["ja": "カメラへのアクセスがオフです。読み取るには設定でオンにしてください。"],
+        "That's not a room code": ["ja": "ルームコードではありません"],
+        "No room with that code": ["ja": "そのコードのルームはありません"],
+        "This room is full": ["ja": "このルームは満員です"],
+        "You're hosting a room. Close it before joining another.": ["ja": "ルームをホスト中です。別のルームに参加する前に閉じてください。"],
 
         // Conversation
         "Loading...": ["ja": "読み込み中…"],
@@ -38,6 +49,15 @@ enum L {
         "All participants will be disconnected. This cannot be undone.": [
             "ja": "すべての参加者が切断されます。この操作は元に戻せません。"
         ],
+        "Leave Room": ["ja": "ルームを退出"],
+        "Leave this room?": ["ja": "このルームを退出しますか？"],
+        "You can join again with the room's code.": ["ja": "ルームコードでまた参加できます。"],
+        "Make host": ["ja": "ホストにする"],
+        "Make %@ the host?": ["ja": "%@さんをホストにしますか？"],
+        "They'll translate, start games and can close the room. You stay in as a guest.": [
+            "ja": "翻訳やゲームの開始、ルームを閉じることができるようになります。あなたはゲストとして残ります。"
+        ],
+        "is now the host": ["ja": "がホストになりました"],
 
         // Closed banner
         "This room has been closed": ["ja": "このルームは閉鎖されました"],

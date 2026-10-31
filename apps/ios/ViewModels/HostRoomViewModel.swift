@@ -10,10 +10,11 @@ import AVFoundation
 @MainActor
 class HostRoomViewModel: ObservableObject {
     @Published var room: Room? {
-        // The saved record keeps the background the room is drawn on: the start screen shows it on the way back out
         didSet {
+            if let room, room.hostId != oldValue?.hostId { hostChanged() }
+            // The saved record keeps the background the room is drawn on: the start screen shows it on the way back out
             guard let texture = textureIndex, texture != Self.textureIndex(of: oldValue) else { return }
-            SavedHostRoom.setBackground(texture, roomId: roomId)
+            SavedRoom.setBackground(texture, roomId: roomId)
         }
     }
     @Published var participants: [Participant] = []
@@ -78,7 +79,11 @@ class HostRoomViewModel: ObservableObject {
     var beepPlayer: AVAudioPlayer?
 
     let roomId: String
+    /// This device's participant in the room: the host's for a room created here, a guest's for one joined from the
+    /// app. Which of the two it is now is `isHost`: the host can hand the room over, and a guest be handed it
     let hostId: String
+    /// Whether this device came into the room as its host, which stands for `isHost` until the room's state is here
+    let enteredAsHost: Bool
     let api: EnchattoAPI
     let processor: MessageProcessor
     var pollTask: Task<Void, Never>?
@@ -112,17 +117,22 @@ class HostRoomViewModel: ObservableObject {
 
     /// Whether the on-device en↔ja translation packs are installed.
     @Published var translationPacksInstalled = true
+    /// The packs are installed and the OfflineTranslator's sessions are set up: a message given to it is translated.
+    /// Never on a phone older than iOS 18, which has no OfflineTranslator
+    @Published var onDeviceTranslatorReady = false
     /// Set to true from the download banner; the OfflineTranslator observes this.
     @Published var requestTranslationDownload = false
 
     init(
         roomId: String,
         hostId: String,
+        enteredAsHost: Bool = true,
         api: EnchattoAPI = AppConfig.makeAPI(),
         processor: MessageProcessor = MessageProcessor()
     ) {
         self.roomId = roomId
         self.hostId = hostId
+        self.enteredAsHost = enteredAsHost
         self.api = api
         self.processor = processor
 
@@ -138,17 +148,27 @@ class HostRoomViewModel: ObservableObject {
             }
         }
 
-        // Close room when the app is killed while still running. iOS usually kills a suspended app
-        // without this notification; the server closes those rooms once the host's heartbeat stops.
+        // The app is killed while still running. The host closes the room, or hands it to an iPhone guest who is in
+        // it; a guest leaves. iOS usually kills a suspended app without this notification; the server then hands
+        // the room over or closes it once the host's heartbeat stops (rooms.closeAbandonedRooms).
         NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)
             .sink { [weak self] _ in
-                guard let self else { return }
+                guard let self, !self.isClosed else { return }
                 let roomId = self.roomId
+                let me = self.hostId
                 let api = self.api
+                let hosting = self.isHost
+                let successor = hosting ? self.successor?.id : nil
                 // The process ends when this returns, so wait (briefly) for the request to go out
                 let done = DispatchSemaphore(value: 0)
                 Task.detached {
-                    try? await api.closeRoom(roomId: roomId)
+                    if let successor {
+                        try? await api.transferHost(roomId: roomId, participantId: successor)
+                    } else if hosting {
+                        try? await api.closeRoom(roomId: roomId)
+                    } else {
+                        try? await api.leaveRoom(participantId: me)
+                    }
                     done.signal()
                 }
                 _ = done.wait(timeout: .now() + 2)
@@ -208,6 +228,34 @@ class HostRoomViewModel: ObservableObject {
 
     func participant(for id: String) -> Participant? {
         participants.first { $0.id == id }
+    }
+
+    /// Whether this device hosts the room: it translates what the server could not, starts the games, and can close
+    /// the room, remove someone and change the background
+    var isHost: Bool {
+        room.map { $0.hostId == hostId } ?? enteredAsHost
+    }
+
+    /// Whether the host can hand the room to this participant: someone in the room now, on the app. The server's
+    /// own rule (participants.ts: canHost)
+    func canBeHost(_ participant: Participant) -> Bool {
+        participant.platform == .ios && participant.role != .host && participant.online && !participant.isAway
+            && Date().timeIntervalSince(participant.lastSeenAt) < 45
+    }
+
+    /// Who the host hands the room to on its way out: the iPhone guest here longest, as the server picks
+    var successor: Participant? {
+        participants.filter(canBeHost).min { $0.joinedAt < $1.joinedAt }
+    }
+
+    /// The room has another host, or its first state is here. The saved record follows, so the start screen knows
+    /// whether a join link may take this device to another room, and a device that has become the host asks to
+    /// be told of joins
+    private func hostChanged() {
+        SavedRoom.setHosting(isHost, roomId: roomId)
+        // The server dropped the device token with the handover: a device handed the room back registers again
+        if !isHost { pushRegistered = false }
+        if isHost, pollTask != nil { registerForPushIfNeeded() }
     }
 
     var onlineCount: Int {

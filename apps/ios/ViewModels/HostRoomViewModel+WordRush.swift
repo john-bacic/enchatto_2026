@@ -8,9 +8,9 @@ extension HostRoomViewModel {
         let points: Int
     }
 
-    /// This app only ever runs as the room host, and the server lets the room host start, skip and end
-    /// any Word Rush game in its room, whoever the game host is.
-    var canControlWordRush: Bool { true }
+    /// The server lets the room host start, skip and end any Word Rush game in its room, whoever the game host is,
+    /// and a guest none
+    var canControlWordRush: Bool { isHost }
 
     /// Word Rush game the full-screen cover should show: a live game, or a finished one this
     /// device watched live, played in, and hasn't closed yet.

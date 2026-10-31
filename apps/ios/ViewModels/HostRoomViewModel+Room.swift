@@ -10,6 +10,23 @@ extension HostRoomViewModel {
         }
     }
 
+    /// Hands the room to another iPhone in it. This device stays in the room as a guest
+    func makeHost(_ participantId: String) async {
+        do {
+            try await api.transferHost(roomId: roomId, participantId: participantId)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// A guest leaving for good. The record goes first: whatever the server answers, the start screen offers no way back
+    func leaveRoom() async {
+        SavedRoom.clear(roomId: roomId)
+        stopObserving()
+        try? await api.leaveRoom(participantId: hostId)
+    }
+
     func kickParticipant(_ participantId: String) async {
         do {
             try await api.kickParticipant(participantId: participantId, roomId: roomId)

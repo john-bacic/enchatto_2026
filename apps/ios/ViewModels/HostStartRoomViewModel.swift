@@ -21,12 +21,12 @@ class HostStartRoomViewModel: ObservableObject {
         didSet {
             guard createdRoomId == nil else { return }
             api.setCaller(hostId: nil, token: nil)
-            let saved = SavedHostRoom.load()
+            let saved = SavedRoom.load()
             // A room whose record is still kept is the one to go back to. A room that closed has left none
             rejoinableRoom = saved
             // The background the room's screen was last drawn on, which the host can change from inside the room.
             // The room's record has it: still saved while the room is open, set aside when it closed
-            if let record = saved ?? SavedHostRoom.dropped, record.roomId == oldValue {
+            if let record = saved ?? SavedRoom.dropped, record.roomId == oldValue {
                 textureIndex = RoomTexture.index(background: record.background, joinCode: record.joinCode)
                 textureIsFromRoom = true
             }
@@ -35,14 +35,18 @@ class HostStartRoomViewModel: ObservableObject {
         }
     }
     @Published var createdJoinCode: String?
+    /// This device's participant in the room on screen: its host's for a room created here, a guest's for one joined
     @Published var createdHostId: String?
+    /// Whether this device went into the room on screen as its host
+    @Published private(set) var enteredAsHost = true
+    @Published private(set) var isJoining = false
 
-    /// The room there is to go back to: the saved room this device hosts, read from its record when this screen is
-    /// made, at each check and on the way back out of a room, until the server says it is closed or gone. While
-    /// there is one this screen offers no Create Room: it goes back into that room, or offers "Rejoin room" when the
-    /// server cannot be reached. It stays on the way into that room and while the host is in it, with this screen
-    /// still there underneath
-    @Published private(set) var rejoinableRoom: SavedHostRoom?
+    /// The room there is to go back to: the saved room this device hosts or is a guest in, read from its record when
+    /// this screen is made, at each check and on the way back out of a room, until the server says it is closed or
+    /// gone. This screen goes back into that room, or offers "Rejoin room" when the server cannot be reached. While
+    /// this device hosts it there is no Create Room. It stays on the way into that room and while this device is in
+    /// it, with this screen still there underneath
+    @Published private(set) var rejoinableRoom: SavedRoom?
     /// The server is being asked about that room
     @Published private(set) var isRejoining = false
 
@@ -61,7 +65,7 @@ class HostStartRoomViewModel: ObservableObject {
         self.hostNickname = UserDefaults.standard.string(forKey: "enchatto_lastNickname") ?? ""
         self.hostAvatarId = UserDefaults.standard.string(forKey: "enchatto_lastAvatarId") ?? "fox"
         self.hostLanguage = UserDefaults.standard.string(forKey: "enchatto_lastLanguage") ?? "en"
-        if let saved = SavedHostRoom.load() {
+        if let saved = SavedRoom.load() {
             self.textureIndex = RoomTexture.index(background: saved.background, joinCode: saved.joinCode)
             self.textureIsFromRoom = true
             // From the first frame, before the server has been asked
@@ -72,9 +76,10 @@ class HostStartRoomViewModel: ObservableObject {
         }
     }
 
-    /// Never while there is a room to go back to: a room created then would leave that one open without its host
+    /// Never while there is a room this device hosts to go back to: a room created then would leave that one open
+    /// without its host. A room it is a guest in is left for the new one
     var canCreate: Bool {
-        rejoinableRoom == nil && !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isCreating
+        rejoinableRoom?.isHost != true && !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isCreating && !isJoining
     }
 
     func createRoom() async {
@@ -83,6 +88,7 @@ class HostStartRoomViewModel: ObservableObject {
 
         isCreating = true
         error = nil
+        await leaveSavedGuestRoom()
 
         // The room looks like the screen it is entered from
         let background = textureIndex
@@ -98,12 +104,13 @@ class HostStartRoomViewModel: ObservableObject {
             // What the room screen will draw. A server that names no background is taken to have given the one asked for
             let texture = RoomTexture.index(background: result.background ?? background, joinCode: result.joinCode)
             // The only record there is: a room is not created while an earlier one's is kept (canCreate)
-            SavedHostRoom(roomId: result.roomId, hostId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, hostToken: result.hostToken, background: texture).save()
+            SavedRoom(roomId: result.roomId, participantId: result.hostId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, token: result.hostToken, background: texture, hosting: true).save()
             // Before the room screen exists: its first requests already go out as the host
             api.setCaller(hostId: result.hostId, token: result.hostToken)
             // Coming back out of the room, this screen is drawn on the room's background
             textureIndex = texture
             textureIsFromRoom = true
+            enteredAsHost = true
             createdRoomId = result.roomId
             createdJoinCode = result.joinCode
             createdHostId = result.hostId
@@ -114,14 +121,103 @@ class HostStartRoomViewModel: ObservableObject {
         isCreating = false
     }
 
-    /// Asks the server about the room saved by the last createRoom. Open, with this device as its host: goes back in.
+    // MARK: - Joining
+
+    /// The join code in what was typed or scanned: the code itself, or a room's join link
+    /// (https://enchatto.vercel.app/join/CODE, what the room's QR code holds). nil when there is none
+    nonisolated static func joinCode(in input: String) -> String? {
+        var candidate = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: candidate), url.scheme != nil {
+            let parts = url.pathComponents
+            guard let at = parts.firstIndex(of: "join"), at + 1 < parts.count else { return nil }
+            candidate = parts[at + 1]
+        }
+        let code = candidate.uppercased()
+        let alphabet = Set("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        return code.count == 6 && code.allSatisfy(alphabet.contains) ? code : nil
+    }
+
+    var canJoin: Bool {
+        !hostNickname.trimmingCharacters(in: .whitespaces).isEmpty && !isJoining && !isCreating && createdRoomId == nil
+    }
+
+    /// Joins a room as a guest, by its code or join link, and goes in. Not while this device hosts a room: that one
+    /// would be left without its host. A room this device is a guest in already is gone back into; another one it
+    /// was a guest in is left first. Says false when it did not go in, with `error` saying why
+    @discardableResult
+    func joinRoom(_ input: String) async -> Bool {
+        guard canJoin else { return false }
+        guard let code = Self.joinCode(in: input) else {
+            error = L.t("That's not a room code", hostLanguage)
+            return false
+        }
+        if let saved = SavedRoom.load() {
+            if saved.joinCode == code {
+                await checkSavedRoom(tapped: true)
+                return createdRoomId != nil
+            }
+            if saved.isHost {
+                error = L.t("You're hosting a room. Close it before joining another.", hostLanguage)
+                return false
+            }
+        }
+
+        isJoining = true
+        error = nil
+        defer { isJoining = false }
+        await leaveSavedGuestRoom()
+        do {
+            let result = try await api.joinRoom(
+                joinCode: code,
+                nickname: hostNickname.trimmingCharacters(in: .whitespaces),
+                avatarId: hostAvatarId,
+                language: hostLanguage
+            )
+            let texture = RoomTexture.index(background: result.background, joinCode: result.joinCode)
+            SavedRoom(roomId: result.roomId, participantId: result.participantId, joinCode: result.joinCode, deployment: AppConfig.convexDeploymentURL, token: result.token, background: texture, hosting: false).save()
+            rejoinableRoom = SavedRoom.load()
+            api.setCaller(hostId: result.participantId, token: result.token)
+            textureIndex = texture
+            textureIsFromRoom = true
+            enteredAsHost = false
+            createdJoinCode = result.joinCode
+            createdHostId = result.participantId
+            createdRoomId = result.roomId
+            return true
+        } catch {
+            let message = error.localizedDescription
+            if message.contains("Room not found") {
+                self.error = L.t("No room with that code", hostLanguage)
+            } else if message.contains("Room is closed") {
+                self.error = L.t("This room has been closed", hostLanguage)
+            } else if message.contains("Room is full") {
+                self.error = L.t("This room is full", hostLanguage)
+            } else {
+                self.error = message
+            }
+            return false
+        }
+    }
+
+    /// Leaves the room this device was last a guest in, for one it creates or joins. Whatever the server says, this
+    /// device is done with it
+    private func leaveSavedGuestRoom() async {
+        guard let saved = SavedRoom.load(), !saved.isHost else { return }
+        api.setCaller(hostId: saved.participantId, token: saved.token)
+        try? await api.leaveRoom(participantId: saved.participantId)
+        api.setCaller(hostId: nil, token: nil)
+        SavedRoom.clear(roomId: saved.roomId)
+        rejoinableRoom = nil
+    }
+
+    /// Asks the server about the room saved by the last createRoom or joinRoom. Open, with this device in it: goes back in.
     /// Closed or gone: forgets it, and the screen offers Create Room. Anything else: keeps it, and the screen offers
     /// "Rejoin room" so the host can retry. One check at a time: a second one asked for meanwhile does nothing.
     /// `tapped` is the check that button asks for: it says why the host is not in the room, and a refusal from the
     /// server forgets the room too
     func checkSavedRoom(tapped: Bool) async {
         guard createdRoomId == nil, !isCreating, !isRejoining else { return }
-        guard let saved = SavedHostRoom.load() else {
+        guard let saved = SavedRoom.load() else {
             rejoinableRoom = nil
             pickFreshTexture()
             return
@@ -134,11 +230,14 @@ class HostStartRoomViewModel: ObservableObject {
         var open = false
         var unreachable = false
         var texture: Int?
+        var hosting = saved.isHost
         do {
             let state = try await api.getRoomState(roomId: saved.roomId)
+            // Host or guest: a host the room was handed away from while it was gone goes back in as a guest. A
+            // guest who was removed is no longer in it
             open = state.room.status != .closed
-                && state.room.hostId == saved.hostId
-                && state.participants.contains { $0.id == saved.hostId }
+                && state.participants.contains { $0.id == saved.participantId }
+            hosting = state.room.hostId == saved.participantId
             texture = RoomTexture.index(background: state.room.background, joinCode: state.room.joinCode)
         } catch {
             // A cancelled check says nothing about the room
@@ -161,7 +260,7 @@ class HostStartRoomViewModel: ObservableObject {
         // The answer is about the record that was asked about. With the host in a room by now, or with the record
         // gone or another room's, it changes nothing. A record that only has another background since is still
         // about this room
-        guard createdRoomId == nil, SavedHostRoom.load()?.roomId == saved.roomId else { return }
+        guard createdRoomId == nil, SavedRoom.load()?.roomId == saved.roomId else { return }
 
         if open {
             // The room's own word on its background, which a record saved by a build that stored none could only
@@ -170,17 +269,20 @@ class HostStartRoomViewModel: ObservableObject {
                 textureIndex = texture
                 textureIsFromRoom = true
             }
-            // The token saved at creation; nil for a room an earlier build made, whose host the server takes by id alone
-            api.setCaller(hostId: saved.hostId, token: saved.hostToken)
+            // The token saved at creation or joining; nil for a room an earlier build made, whose host the server takes
+            // by id alone
+            api.setCaller(hostId: saved.participantId, token: saved.token)
+            SavedRoom.setHosting(hosting, roomId: saved.roomId)
             // The room is there: what an earlier tap was told about it is taken away
             error = nil
+            enteredAsHost = hosting
             createdJoinCode = saved.joinCode
-            createdHostId = saved.hostId
+            createdHostId = saved.participantId
             createdRoomId = saved.roomId
         } else if unreachable {
             if tapped { self.error = L.t("Couldn't reach the room. Try again.", hostLanguage) }
         } else {
-            SavedHostRoom.clear(roomId: saved.roomId)
+            SavedRoom.clear(roomId: saved.roomId)
             rejoinableRoom = nil
             pickFreshTexture()
             // Said only after a tap. A check without one also takes away what an earlier tap was told about the room

@@ -76,5 +76,6 @@ struct OfflineTranslator: View {
                 target: Locale.Language(identifier: "en")
             )
         }
+        viewModel.onDeviceTranslatorReady = viewModel.translationPacksInstalled && enJaConfig != nil
     }
 }

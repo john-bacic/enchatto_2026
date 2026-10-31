@@ -673,6 +673,83 @@ export const kickParticipant = mutation({
   },
 });
 
+// ─── Host handover ───────────────────────────────────────────────────────────
+
+/**
+ * Whether this participant can take the room over. Hosting is the iPhone app's: it translates what the server
+ * could not, closes the room and is told of joins. A web guest has none of that.
+ */
+export function canHost(p: Doc<"participants">, now: number): boolean {
+  return p.platform === "ios" && p.role !== "host" && isPresent(p, now);
+}
+
+/** Who takes over from a host that is gone: the iPhone guest here longest, or nobody */
+export async function successorFor(ctx: QueryCtx | MutationCtx, roomId: Id<"rooms">, now: number) {
+  const participants = await ctx.db
+    .query("participants")
+    .withIndex("by_roomId", (q) => q.eq("roomId", roomId))
+    .collect();
+  const candidates = participants.filter((p) => canHost(p, now)).sort((a, b) => a.joinedAt - b.joinedAt);
+  return candidates[0] ?? null;
+}
+
+/**
+ * Makes `to` the host of `room`. A host is both the room's hostId and a participant's role, and the checks read
+ * one or the other, so both change. The old host stays as a guest. Its push token goes: notifications follow the
+ * host, and the new one registers its own device when its app sees it has become the host
+ */
+export async function handOverHost(ctx: MutationCtx, room: Doc<"rooms">, to: Doc<"participants">): Promise<void> {
+  const fromId = ctx.db.normalizeId("participants", room.hostId);
+  if (fromId && (await ctx.db.get(fromId))) await ctx.db.patch(fromId, { role: "participant" });
+  await ctx.db.patch(to._id, { role: "host" });
+  await ctx.db.patch(room._id, { hostId: to._id });
+  const pushTokens = await ctx.db
+    .query("hostPushTokens")
+    .withIndex("by_roomId", (q) => q.eq("roomId", room._id))
+    .collect();
+  for (const row of pushTokens) await ctx.db.delete(row._id);
+  const now = Date.now();
+  await ctx.db.insert("messages", {
+    roomId: room._id,
+    senderId: to._id,
+    kind: "system",
+    status: "processed",
+    text: `host:${to.nickname}`,
+    createdAt: now,
+    processedAt: now,
+  });
+}
+
+/** The host hands the room to an iPhone guest who is in it ("Make host", or the host's app closing) */
+export const transferHost = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    // Who becomes the host. The host handing over is callerId, or the room's own host when none is named
+    participantId: v.id("participants"),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status === "closed") throw new Error("Room is closed");
+    await requireHost(ctx, args.roomId, args.callerId, args.token, "participants.transferHost");
+    // Refused in "log" mode too: no build that predates tokens calls this, and in that mode requireHost would let
+    // any guest make themselves the host
+    const callerId = args.callerId ?? ctx.db.normalizeId("participants", room.hostId);
+    if (!callerId || callerId !== room.hostId || (await callerProof(ctx, callerId, args.token)) !== "token") {
+      throw new Error("Not authorised");
+    }
+    const to = await ctx.db.get(args.participantId);
+    if (!to || to.roomId !== args.roomId) throw new Error("Participant not in room");
+    if (to._id === room.hostId) return null;
+    if (!canHost(to, Date.now())) throw new Error("Only someone in the room on the iPhone app can be the host");
+    await handOverHost(ctx, room, to);
+    return null;
+  },
+});
+
 export const getRoomParticipants = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {

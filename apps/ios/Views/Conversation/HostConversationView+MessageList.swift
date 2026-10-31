@@ -148,13 +148,13 @@ extension HostConversationView {
                         } catch {}
                     }
                 } : nil,
-                onDelete: {
+                onDelete: viewModel.isHost ? {
                     let idToDelete = message.id
                     contextMenuMessageId = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         messageToDelete = idToDelete
                     }
-                }
+                } : nil
             )
         }
     }

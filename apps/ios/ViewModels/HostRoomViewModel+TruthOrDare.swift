@@ -161,6 +161,8 @@ extension HostRoomViewModel {
 
     /// Detect language and translate to the other language (en↔ja)
     private func translateTruthOrDareResponse(text: String, turnId: String) async {
+        // The server takes a turn's translation from the host only
+        guard isHost else { return }
         do {
             // Detect language
             let recognizer = NLLanguageRecognizer()

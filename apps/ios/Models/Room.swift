@@ -27,7 +27,8 @@ struct Room: Identifiable, Codable {
     let joinCode: String
     var status: RoomStatus
     var settings: RoomSettings
-    let hostId: String
+    /// The host's participant id. Changes when the host hands the room over
+    var hostId: String
     let createdAt: Date
     var closedAt: Date?
     /// Index into RoomTexture.all, assigned server-side at creation (older rooms: nil → hashed from joinCode)
@@ -39,27 +40,41 @@ struct Room: Identifiable, Codable {
     }
 }
 
-/// The room this device is hosting, kept across launches so a relaunched app can get back into it
-struct SavedHostRoom: Codable, Equatable {
+/// The room this device is in, kept across launches so a relaunched app can get back into it: one it created, or one
+/// it joined as a guest
+struct SavedRoom: Codable, Equatable {
     let roomId: String
-    let hostId: String
+    /// This device's participant in the room
+    let participantId: String
     let joinCode: String
     /// AppConfig.convexDeploymentURL the room was made on: a Debug build's room does not exist on production
     let deployment: String
-    /// What this device registered for the host when it created the room. nil for a room saved by a build that
-    /// registered none. In UserDefaults with the rest of the record: it is good for this one room only, and the
-    /// record is dropped when the room closes
-    let hostToken: String?
+    /// What this device registered for its participant when it created or joined the room. nil for a room saved by
+    /// a build that registered none. In UserDefaults with the rest of the record: it is good for this one room only,
+    /// and the record is dropped when the room closes
+    let token: String?
     /// Index into RoomTexture.all of the room's background, which the start screen shows for it: the one the room
     /// was created with, then whatever the room screen has drawn it on since. nil for a room saved by a build
     /// that stored none: the index is then worked out from the join code
     let background: Int?
+    /// Whether this device hosts the room, as the room screen last saw: the host can hand the room over, and be
+    /// handed it. nil in a record from before guests joined from the app, when every record was a host's
+    let hosting: Bool?
+
+    var isHost: Bool { hosting ?? true }
+
+    enum CodingKeys: String, CodingKey {
+        // The names a record was saved under when only a host kept one
+        case participantId = "hostId"
+        case token = "hostToken"
+        case roomId, joinCode, deployment, background, hosting
+    }
 
     private static let key = "enchatto_hostRoom"
 
-    static func load() -> SavedHostRoom? {
+    static func load() -> SavedRoom? {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let saved = try? JSONDecoder().decode(SavedHostRoom.self, from: data) else { return nil }
+              let saved = try? JSONDecoder().decode(SavedRoom.self, from: data) else { return nil }
         guard saved.deployment == AppConfig.convexDeploymentURL else {
             UserDefaults.standard.removeObject(forKey: key)
             return nil
@@ -77,13 +92,19 @@ struct SavedHostRoom: Codable, Equatable {
     static func setBackground(_ background: Int, roomId: String) {
         let saved = load()
         guard let record = saved ?? dropped, record.roomId == roomId, record.background != background else { return }
-        let drawn = SavedHostRoom(roomId: record.roomId, hostId: record.hostId, joinCode: record.joinCode, deployment: record.deployment, hostToken: record.hostToken, background: background)
+        let drawn = SavedRoom(roomId: record.roomId, participantId: record.participantId, joinCode: record.joinCode, deployment: record.deployment, token: record.token, background: background, hosting: record.hosting)
         if saved == nil { dropped = drawn } else { drawn.save() }
     }
 
+    /// Stores whether this device hosts the room now, only if the record is still about this room
+    static func setHosting(_ hosting: Bool, roomId: String) {
+        guard let record = load(), record.roomId == roomId, record.hosting != hosting else { return }
+        SavedRoom(roomId: record.roomId, participantId: record.participantId, joinCode: record.joinCode, deployment: record.deployment, token: record.token, background: record.background, hosting: hosting).save()
+    }
+
     /// The record `clear` last forgot, kept while the app runs: the start screen reads the background a room had
-    /// last from it when the room closed with the host inside
-    private(set) static var dropped: SavedHostRoom?
+    /// last from it when the room closed with this device inside
+    private(set) static var dropped: SavedRoom?
 
     /// Forgets the record only if it is still about this room
     static func clear(roomId: String) {
