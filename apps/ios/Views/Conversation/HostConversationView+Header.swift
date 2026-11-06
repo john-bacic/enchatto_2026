@@ -66,7 +66,7 @@ extension HostConversationView {
                         text: L.t("Enchatto", hostLanguage),
                         size: 22,
                         hopTrigger: logoHop,
-                        hot: vibeHot && viewModel.room?.status != .closed,
+                        hot: vibe.hype && viewModel.room?.status != .closed,
                         hopOnTap: true
                     )
                     .onChange(of: latestDeliveredMessage?.id) { _ in
@@ -115,14 +115,9 @@ extension HostConversationView {
             HStack(spacing: 8) {
                 VibeBadge(
                     messages: viewModel.messages,
-                    languageOf: { message in
-                        if message.kind == .text, let text = message.text {
-                            return VibeScore.isJapanese(text) ? "ja" : "en"
-                        }
-                        return viewModel.participant(for: message.senderId)?.preferredLanguage ?? "en"
-                    },
+                    languageOf: vibeLanguage(of:),
                     language: hostLanguage,
-                    hot: $vibeHot,
+                    reading: $vibe,
                     onHype: fireVibeConfetti
                 )
                 .fixedSize()
@@ -203,24 +198,13 @@ extension HostConversationView {
         .animation(.easeInOut(duration: 0.3), value: viewModel.isSendDelayed)
     }
 
-    private func fireVibeConfetti() {
+    func fireVibeConfetti() {
         Haptics.thump()
         vibeConfetti += 1
-    }
-
-    /// Web parity: a new arrival while the room is hot gets a confetti welcome
-    private func confettiForNewArrivals(_ ids: [String]) {
-        let arrived = Set(ids).subtracting(knownParticipantIds)
-        let isFirstLoad = knownParticipantIds.isEmpty
-        knownParticipantIds.formUnion(ids)
-        if !isFirstLoad, vibeHot, arrived.contains(where: { $0 != hostId }) {
-            fireVibeConfetti()
-        }
     }
 
     var vibeConfettiLayer: some View {
         ConfettiBurst(trigger: vibeConfetti, count: 50)
             .ignoresSafeArea()
-            .onChange(of: viewModel.participants.map(\.id)) { confettiForNewArrivals($0) }
     }
 }

@@ -45,6 +45,8 @@ struct VibeScore {
         multiplier = mult
     }
 
+    var reading: VibeReading { VibeReading(hype: hype, combo: combo, multiplier: multiplier) }
+
     static func isJapanese(_ text: String) -> Bool {
         text.unicodeScalars.contains {
             (0x3040...0x309F).contains($0.value) || (0x30A0...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value)
@@ -52,11 +54,18 @@ struct VibeScore {
     }
 }
 
+/// What the room's screen shows of the meter besides the badge: party mode, and the back-and-forth combo
+struct VibeReading: Equatable {
+    var hype = false
+    var combo = 0
+    var multiplier = 1.0
+}
+
 struct VibeBadge: View {
     let messages: [Message]
     let languageOf: (Message) -> String
     let language: String
-    @Binding var hot: Bool
+    @Binding var reading: VibeReading
     /// Fired when the meter crosses into hype while the room is open
     var onHype: () -> Void = {}
 
@@ -86,9 +95,9 @@ struct VibeBadge: View {
             }
             .nudge(on: score.vibe, active: score.vibe > 0, angle: 6, hop: 4)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: score.vibe)
-            .onAppear { hot = score.hype }
+            .onAppear { reading = score.reading }
+            .onChange(of: score.reading) { reading = $0 }
             .onChange(of: score.hype) { isHype in
-                hot = isHype
                 if isHype, Date().timeIntervalSince(shownAt) > 3 { onHype() }
             }
             .contentShape(Capsule())

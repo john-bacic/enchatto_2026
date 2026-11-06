@@ -141,19 +141,28 @@ func cubicBezier(_ x: Double, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Do
     return curve(t, y1, y2)
 }
 
-/// Value of a looping CSS keyframe track at `seconds`, eased per segment with the web's
-/// overshooting spring `cubic-bezier(0.3, 1.6, 0.5, 1)`. Stops must start at 0 and end at 1.
+/// Value of a looping CSS keyframe track at `seconds`, eased per segment with `ease`, a CSS `cubic-bezier`: by
+/// default the web's overshooting spring `cubic-bezier(0.3, 1.6, 0.5, 1)`. Stops must start at 0 and end at 1.
 /// `lead` mirrors a negative CSS animation-delay (starts the loop that far in).
-func keyframed(_ seconds: Double, period: Double, lead: Double = 0, _ stops: [(at: Double, value: Double)]) -> Double {
+func keyframed(
+    _ seconds: Double,
+    period: Double,
+    lead: Double = 0,
+    _ stops: [(at: Double, value: Double)],
+    ease: (Double, Double, Double, Double) = (0.3, 1.6, 0.5, 1)
+) -> Double {
     let raw = (seconds + lead) / period
     let p = raw - floor(raw)
     for i in 1..<stops.count where p <= stops[i].at {
         let a = stops[i - 1], b = stops[i]
         let local = (p - a.at) / (b.at - a.at)
-        return a.value + (b.value - a.value) * cubicBezier(local, 0.3, 1.6, 0.5, 1)
+        return a.value + (b.value - a.value) * cubicBezier(local, ease.0, ease.1, ease.2, ease.3)
     }
     return stops[stops.count - 1].value
 }
+
+/// CSS `ease-in-out`, for `keyframed`
+let cssEaseInOut = (0.42, 0.0, 0.58, 1.0)
 
 /// One-shot damped wiggle/hop, replayed whenever `trigger` changes. Finite, so nothing loops.
 private struct NudgeEffect: GeometryEffect {

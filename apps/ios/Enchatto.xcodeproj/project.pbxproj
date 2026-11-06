@@ -70,6 +70,7 @@
 		92EE0C46879D83ED51272062 /* ThemeExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B32D520EA7A655815D6A38C /* ThemeExtras.swift */; };
 		93B38FF21A17897E2EB72F8D /* DelaGothicOne-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E8613E8DAB74204DF7411021 /* DelaGothicOne-Regular.ttf */; };
 		9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0A2E1624785B94728152B /* NetworkMonitor.swift */; };
+		950E2659EDE16BE0B5E7F0FD /* PartyMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0363550F6725F75374ED4D /* PartyMode.swift */; };
 		960FF4E2C06901B18594FA1E /* WordRushAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575FC39C531C3DA8A6BC487F /* WordRushAudio.swift */; };
 		9711E732A5357FD6818AB998 /* GameStatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805997E063B44F481ED0804E /* GameStatusBarView.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
@@ -81,6 +82,7 @@
 		B1E85E6E128CB9A1EE497571 /* RomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC00ADF95392C392B69EB66 /* RomajiService.swift */; };
 		BA13DB6CE58980105FAAA9F1 /* ReplyIdeas.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16223E135BC983A203C887A /* ReplyIdeas.swift */; };
 		BA9DD8C7D397DD42561B6089 /* StubRomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AACB3B6A1340D1952C612D /* StubRomajiService.swift */; };
+		BB0022D246CA87CD4C790052 /* HostConversationView+Party.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5F653B3916CA74B1C4254D /* HostConversationView+Party.swift */; };
 		BD3F8FB2F9E2C27A772FBD88 /* WordRushCluesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498940C98484A76EDF68D44F /* WordRushCluesView.swift */; };
 		BF5A76945EF4EBFF68CE1CE5 /* IPADic in Frameworks */ = {isa = PBXBuildFile; productRef = E3BA5400A395C97C1F8F8E33 /* IPADic */; };
 		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
@@ -193,6 +195,7 @@
 		D48B720FB7353CAAFD592E8E /* ZenMaruGothic-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ZenMaruGothic-Black.ttf"; sourceTree = "<group>"; };
 		D4FC9108C84B71431E861972 /* HostMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostMessageRow.swift; sourceTree = "<group>"; };
 		D84049D72180662ED722A668 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		DB0363550F6725F75374ED4D /* PartyMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartyMode.swift; sourceTree = "<group>"; };
 		DB81AA41A28AEC5A7734BECE /* HostRoomViewModel+Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+Room.swift"; sourceTree = "<group>"; };
 		DCF756E413CA17E5688861E0 /* IconPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPack.swift; sourceTree = "<group>"; };
 		DE8A65E420080A4D962D1117 /* HostConversationView+Sheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Sheets.swift"; sourceTree = "<group>"; };
@@ -204,6 +207,7 @@
 		E8613E8DAB74204DF7411021 /* DelaGothicOne-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DelaGothicOne-Regular.ttf"; sourceTree = "<group>"; };
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
+		EF5F653B3916CA74B1C4254D /* HostConversationView+Party.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Party.swift"; sourceTree = "<group>"; };
 		F013B0EC839930D9DBC16C24 /* GameTaskOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTaskOverlayView.swift; sourceTree = "<group>"; };
 		F20BA2EEE450CBE0082F402A /* HostConversationView+Games.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Games.swift"; sourceTree = "<group>"; };
 		F276BA0039A8F6CCD86D2EA1 /* HostRoomViewModel+EmojiMatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+EmojiMatch.swift"; sourceTree = "<group>"; };
@@ -325,9 +329,11 @@
 				01FF0C1D7C150819904768EA /* HostConversationView+Header.swift */,
 				C6259930981CC30D9654C2A6 /* HostConversationView+Input.swift */,
 				6773AC8E4BFE2AF15155D119 /* HostConversationView+MessageList.swift */,
+				EF5F653B3916CA74B1C4254D /* HostConversationView+Party.swift */,
 				2ED4D19D5BAB24799B0DD6A1 /* HostConversationView+Presentations.swift */,
 				DE8A65E420080A4D962D1117 /* HostConversationView+Sheets.swift */,
 				1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */,
+				DB0363550F6725F75374ED4D /* PartyMode.swift */,
 				0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */,
 				C7B1A6A4B92FBB2111452006 /* SuggestionStrip.swift */,
 				F99E5D261E1A967AE06FABBD /* SystemMessageRow.swift */,
@@ -583,6 +589,7 @@
 				368DFF4A3BC39705BB22763D /* HostConversationView+Header.swift in Sources */,
 				75FAFD5B8836E37425055B45 /* HostConversationView+Input.swift in Sources */,
 				E2D67129E1C1D232B7BEE59F /* HostConversationView+MessageList.swift in Sources */,
+				BB0022D246CA87CD4C790052 /* HostConversationView+Party.swift in Sources */,
 				25F3865F32205B8D43036DBB /* HostConversationView+Presentations.swift in Sources */,
 				1A6AADFD54D654F2A130E814 /* HostConversationView+Sheets.swift in Sources */,
 				5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */,
@@ -617,6 +624,7 @@
 				A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */,
 				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
 				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,
+				950E2659EDE16BE0B5E7F0FD /* PartyMode.swift in Sources */,
 				1D92719769BB289CD81B2984 /* PromptGenerator.swift in Sources */,
 				D95BEFE67672B4760E3DAF3D /* QRCodeFloatingPanel.swift in Sources */,
 				350C092A952FF2233079A3ED /* RealEnchattoAPI.swift in Sources */,

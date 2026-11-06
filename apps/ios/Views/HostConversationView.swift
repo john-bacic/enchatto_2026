@@ -64,11 +64,15 @@ struct HostConversationView: View {
     @State var toolsOpen = false
     @State var preVoiceText = ""
     @State var transcribingDictation = false
-    @State var vibeHot = false
+    @State var vibe = VibeReading()
     @State var vibeConfetti = 0
     @State var logoHop = 0
     @State var screenOpenedAt = Date()
-    @State var knownParticipantIds: Set<String> = []
+    /// Messages looked over for party mode (partyForNewMessages); nil until the first load is over
+    @State var partySeenIds: Set<String>?
+    @State var vibeFloaters: [VibeFloater] = []
+    @State var joinCutIn: JoinCutIn?
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
 
     init(roomId: String, hostId: String, enteredAsHost: Bool = true, textureIndex: Int = 0) {
         self.roomId = roomId
@@ -130,6 +134,7 @@ struct HostConversationView: View {
             updateHiddenOfflineIds(participants: participants)
         }
         .onChange(of: replyToId) { viewModel.considerReplyIdeas(replyingTo: $0) }
+        .onChange(of: messagesArrival) { _ in partyForNewMessages() }
         .alert("Error", isPresented: .init(
             get: { viewModel.error != nil },
             set: { if !$0 { viewModel.error = nil } }
@@ -150,6 +155,7 @@ struct HostConversationView: View {
         .overlay {
             ZStack {
                 vibeConfettiLayer
+                joinCutInLayer
                 fullScreenImageOverlay
             }
         }

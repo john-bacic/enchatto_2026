@@ -222,6 +222,7 @@ extension HostConversationView {
 
     var messageListView: some View {
         ScrollViewReader { proxy in
+            let litId = vibe.hype ? filteredMessages.last(where: { $0.kind != .system })?.id : nil
             ScrollView {
                 LazyVStack(spacing: 14) {
                     ForEach(filteredMessages) { message in
@@ -264,7 +265,8 @@ extension HostConversationView {
                                 onImageTap: { url in fullScreenImage = (url: url, messageId: message.id) },
                                 onRetrySend: { viewModel.retrySend(id: message.id) },
                                 onDeleteUnsent: { Task { await viewModel.deleteMessage(messageId: message.id) } },
-                                replacesPlaceholder: viewModel.wasSentFromThisDevice(message.id)
+                                replacesPlaceholder: viewModel.wasSentFromThisDevice(message.id),
+                                highlight: message.id == litId
                             )
                             .id(message.id)
                             .background(
@@ -288,14 +290,17 @@ extension HostConversationView {
                         TypingBubble(participant: participant, lang: hostLanguage, timerSeconds: viewModel.latestGameSession?.timerEnabled ?? viewModel.myActiveStep?.timerEnabled ?? 20)
                     }
 
-                    // Scroll anchor — extra height so last item isn't clipped
-                    Color.clear.frame(height: 16).id("bottom-anchor")
+                    // Scroll anchor — extra height so last item isn't clipped, and in party mode clear of the crowd
+                    Color.clear.frame(height: vibe.hype ? 56 : 16).id("bottom-anchor")
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 14)
+                // Clear of the bunting in party mode
+                .padding(.top, vibe.hype ? 40 : 14)
                 .background(ScrollDragKeyboardDismisser())
             }
             .scrollDismissesKeyboard(.interactively)
+            .background { partyBackdrop }
+            .overlay { partyFront }
             .onPreferenceChange(MessageFramePreferenceKey.self) { frames in
                 messageFrames.frames = frames
             }

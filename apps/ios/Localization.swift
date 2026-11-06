@@ -112,6 +112,8 @@ enum L {
         "Party mode is on!": ["ja": "パーティーモード中！"],
         "Party mode at 150: confetti for every new message": ["ja": "150でパーティーモード：新しいメッセージごとに紙吹雪"],
         "Only the last minute counts, so it cools off when the chat goes quiet.": ["ja": "直近1分だけをカウントするので、静かになると下がります。"],
+        "BACK & FORTH!": ["ja": "ことばのラリー！"],
+        "{name} JOINED!": ["ja": "{name}がきた！"],
         "Photo": ["ja": "写真"],
         "Drawing": ["ja": "お絵描き"],
         "Processing failed": ["ja": "処理に失敗しました"],

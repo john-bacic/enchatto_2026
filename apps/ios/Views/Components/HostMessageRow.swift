@@ -29,6 +29,8 @@ struct HostMessageRow: View {
     var onDeleteUnsent: (() -> Void)?
     /// The server's copy of a message this device sent, taking the place of its placeholder
     var replacesPlaceholder = false
+    /// Marquee lights round the bubble: the room's newest, in party mode. Not round a photo or a drawing
+    var highlight = false
 
     private var isAudio: Bool { message.kind == .audio }
     /// A voice message's transcript (and its translation) stays collapsed until "Show text"
@@ -221,6 +223,11 @@ struct HostMessageRow: View {
                 )
             )
             .background(bubbleShape.fill(isPending ? EC.blue.opacity(0.5) : EC.ink).offset(y: 5))
+            .overlay {
+                if highlight && message.kind != .image && message.kind != .drawing {
+                    MarqueeLights().padding(-7)
+                }
+            }
             .padding(.bottom, 5)
     }
 
