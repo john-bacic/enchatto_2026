@@ -187,6 +187,19 @@ export function registerMessageRoutes(http: HttpRouter): void {
   });
 
   http.route({
+    path: "/api/messages/suggested-replies",
+    method: "POST",
+    handler: jsonAction(async (ctx, body) => {
+      await ctx.runMutation(api.messages.setSuggestedReplies, {
+        messageId: body.messageId,
+        replies: body.replies,
+        callerId: body.callerId,
+        token: body.callerToken,
+      });
+    }),
+  });
+
+  http.route({
     path: "/api/messages/mark-failed",
     method: "POST",
     handler: jsonAction(async (ctx, body) => {

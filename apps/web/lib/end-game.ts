@@ -11,7 +11,8 @@ import { t } from "@/lib/i18n";
 /**
  * What the room's End Game button needs: whether this is the host with a game on, and the function that ends one
  * once the host has confirmed. It ends the first of these that is on: Truth or Dare, Emoji Bingo, Emoji Match,
- * Word Rush; with none of them on it cancels Lost in Translation. Anyone but the host gets no function.
+ * Word Rush; with none of them on it cancels Lost in Translation. Anyone but the host gets no function. And whether
+ * a game is on at all, lobbies too, whoever asks.
  */
 export function endGameRule({
   wordRushGame,
@@ -45,7 +46,8 @@ export function endGameRule({
   roomId: string;
 }) {
   const wordRushLive = wordRushGame != null && (wordRushGame.status === "lobby" || wordRushGame.status === "active");
-  const isGameActive = (activeGameSession != null || wordRushLive || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active")) && me?.role === "host";
+  const gameOn = activeGameSession != null || wordRushLive || (emojiMatchGame != null && emojiMatchGame.status !== "completed" && emojiMatchGame.status !== "canceled") || (emojiBingoGame != null && !["completed", "canceled"].includes(emojiBingoGame.status)) || (truthOrDareGame != null && truthOrDareGame.status === "active");
+  const isGameActive = gameOn && me?.role === "host";
   const onEndGame = me?.role === "host" ? async () => {
     if (confirm(t("This will end the game for all players and show results.", lang))) {
       if (truthOrDareGame && truthOrDareGame.status === "active") {
@@ -65,5 +67,5 @@ export function endGameRule({
       }
     }
   } : undefined;
-  return { isGameActive, onEndGame };
+  return { gameOn, isGameActive, onEndGame };
 }

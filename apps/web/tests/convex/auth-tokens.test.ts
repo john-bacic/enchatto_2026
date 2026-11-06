@@ -2384,12 +2384,15 @@ describe("a registered token never comes back", () => {
     const messageId = await t.mutation(api.messages.sendTextMessage, { roomId, senderId: guestId, text: "hello", token: GUEST });
     await t.mutation(api.messages.sendDrawingMessage, { roomId, senderId: hostId, mediaUrl: PNG, token: HOST });
     await t.mutation(api.reactions.addReaction, { messageId, participantId: secondId, emoji: "👍", token: SECOND_GUEST });
+    const replies = [{ en: "Hi!", ja: "やあ！", romaji: "yaa!" }];
+    await t.mutation(api.messages.setSuggestedReplies, { messageId, replies, callerId: hostId, token: HOST });
     await ask(api.rooms.getRoomByJoinCode, { joinCode });
     await ask(api.rooms.getRoomState, { roomId });
     await ask(api.participants.getRoomParticipants, { roomId });
     await ask(api.messages.getRoomMessages, { roomId });
     await ask(api.messages.getMessageById, { messageId });
     await ask(api.messages.getPendingMessagesForProcessor, { roomId });
+    await ask(api.messages.getSuggestedReplies, { roomId });
     await ask(api.reactions.getReactionsForMessage, { messageId });
     await ask(api.reactions.getReactionSummary, { messageId });
     await ask(api.reactions.getRoomReactionSummaries, { roomId });

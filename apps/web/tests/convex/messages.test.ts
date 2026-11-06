@@ -2310,6 +2310,109 @@ describe("deleteMessage", () => {
   });
 });
 
+// ─── Replies the host's phone wrote ──────────────────────────────────────────
+
+const IDEA = { en: "Sounds fun!", ja: "楽しそう！", romaji: "tanoshisou!" };
+
+describe("suggested replies", () => {
+  test("the host writes them for a message, everyone in the room reads them, and writing again replaces them", async () => {
+    const { t, roomId, guestId } = await openRoom();
+    const messageId = await sendText(t, { roomId, senderId: guestId, text: "I went to Kyoto" });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([]);
+
+    await t.mutation(api.messages.setSuggestedReplies, { messageId, replies: [IDEA] });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([{ messageId, replies: [IDEA] }]);
+
+    const better = [IDEA, { en: "How was it?", ja: "どうだった？", romaji: "dou datta?" }];
+    await t.mutation(api.messages.setSuggestedReplies, { messageId, replies: better });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([{ messageId, replies: better }]);
+    expect(await t.run(async (ctx) => (await ctx.db.query("suggestedReplies").collect()).length)).toBe(1);
+    // Written beside the message, never into it: the room's message list is not sent again for them
+    expect((await stored(t, messageId))?.processing).toBeUndefined();
+  });
+
+  test("a room reads the replies of its five newest messages, newest first, and none of another room's", async () => {
+    const { t, roomId, guestId } = await openRoom();
+    const other = await otherRoom(t);
+    const ids: Id<"messages">[] = [];
+    for (let i = 0; i < 7; i++) {
+      ids.push(await sendText(t, { roomId, senderId: guestId, text: `message ${i}` }));
+      await t.mutation(api.messages.setSuggestedReplies, { messageId: ids[i], replies: [IDEA] });
+    }
+    const outside = await sendText(t, { roomId: other.roomId, senderId: other.guestId });
+    await t.mutation(api.messages.setSuggestedReplies, { messageId: outside, replies: [IDEA] });
+
+    const read = await t.query(api.messages.getSuggestedReplies, { roomId });
+    expect(read.map((row) => row.messageId)).toEqual(ids.slice(2).reverse());
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId: other.roomId })).toEqual([{ messageId: outside, replies: [IDEA] }]);
+  });
+
+  test("more than three, or one longer than 300 characters, are refused and nothing is written", async () => {
+    const { t, roomId, guestId } = await openRoom();
+    const messageId = await sendText(t, { roomId, senderId: guestId });
+    const long = "あ".repeat(301);
+
+    for (const replies of [[IDEA, IDEA, IDEA, IDEA], [{ ...IDEA, en: long }], [{ ...IDEA, ja: long }], [{ ...IDEA, romaji: long }]]) {
+      await expect(t.mutation(api.messages.setSuggestedReplies, { messageId, replies })).rejects.toThrow(/Too many or too long/);
+    }
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([]);
+    await t.mutation(api.messages.setSuggestedReplies, { messageId, replies: [IDEA, IDEA, { ...IDEA, romaji: "r".repeat(300) }] });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toHaveLength(1);
+  });
+
+  test("deleting a message deletes the replies written for it, and only those", async () => {
+    const { t, roomId, guestId } = await openRoom();
+    const doomed = await sendText(t, { roomId, senderId: guestId, text: "delete me" });
+    const kept = await sendText(t, { roomId, senderId: guestId, text: "keep me" });
+    await t.mutation(api.messages.setSuggestedReplies, { messageId: doomed, replies: [IDEA] });
+    await t.mutation(api.messages.setSuggestedReplies, { messageId: kept, replies: [IDEA] });
+
+    await t.mutation(api.messages.deleteMessage, { messageId: doomed });
+
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([{ messageId: kept, replies: [IDEA] }]);
+    expect(await t.run(async (ctx) => (await ctx.db.query("suggestedReplies").collect()).length)).toBe(1);
+  });
+
+  test("replies for a message deleted while the phone wrote them are dropped without an error", async () => {
+    const { t, roomId, guestId } = await openRoom();
+    const messageId = await sendText(t, { roomId, senderId: guestId });
+    await t.mutation(api.messages.deleteMessage, { messageId });
+
+    await t.mutation(api.messages.setSuggestedReplies, { messageId, replies: [IDEA] });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([]);
+  });
+
+  test("under enforce only the host writes them, with the host's token", async () => {
+    const { t, roomId, hostId, guestId } = await enforcedRoom();
+    const messageId = await sendText(t, { roomId, senderId: guestId, token: GUEST_TOKEN });
+    const other = await createRoom(t, { hostNickname: "Other host", hostToken: tokenFor(3) });
+
+    for (const caller of [
+      { callerId: guestId, token: GUEST_TOKEN },
+      { callerId: hostId, token: GUEST_TOKEN },
+      { callerId: other.hostId, token: tokenFor(3) },
+      {},
+    ]) {
+      await expect(t.mutation(api.messages.setSuggestedReplies, { messageId, replies: [IDEA], ...caller })).rejects.toThrow(/Not authorised/);
+    }
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([]);
+
+    await t.mutation(api.messages.setSuggestedReplies, { messageId, replies: [IDEA], callerId: hostId, token: HOST_TOKEN });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([{ messageId, replies: [IDEA] }]);
+  });
+
+  test("the route takes what the iOS host posts: the message id, the replies and the caller", async () => {
+    const { t, roomId, hostId, guestId } = await enforcedRoom();
+    const messageId = await sendText(t, { roomId, senderId: guestId, token: GUEST_TOKEN });
+
+    const res = await post(t, "/api/messages/suggested-replies", { messageId, replies: [IDEA], callerId: hostId, callerToken: HOST_TOKEN });
+    expect(res).toEqual({ status: 200, body: { ok: true } });
+    expect(await t.query(api.messages.getSuggestedReplies, { roomId })).toEqual([{ messageId, replies: [IDEA] }]);
+    expect((await post(t, "/api/messages/suggested-replies", { messageId, replies: [IDEA], callerId: guestId, callerToken: GUEST_TOKEN })).status).toBe(400);
+    expect((await post(t, "/api/messages/suggested-replies", { messageId, replies: [{ en: "no Japanese" }], callerId: hostId, callerToken: HOST_TOKEN })).status).toBe(400);
+  });
+});
+
 // ─── Who may call (AUTH_MODE) ────────────────────────────────────────────────
 
 describe("caller checks", () => {

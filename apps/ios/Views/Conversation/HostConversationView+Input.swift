@@ -410,8 +410,62 @@ extension HostConversationView {
         .onChange(of: speechRecognizer.clipActive) { nudgeModeSwitchIfNew($0) }
     }
 
+    // MARK: - Things to say
+
+    /// Out of the way while she writes words of her own, and while a voice message records. Kept, not removed, so
+    /// that a chip she hid stays hidden and the topics she shuffled stay shuffled
+    private var stripHidden: Bool {
+        sendingVoice
+            || (!speechRecognizer.isRecording && !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && messageText != stripFilled)
+    }
+
+    @ViewBuilder
+    private var suggestionSlot: some View {
+        if viewModel.room?.settings.suggestionsEnabled == true, showSuggestions {
+            SuggestionStrip(
+                messages: viewModel.messages,
+                people: viewModel.participants,
+                meId: viewModel.hostId,
+                hostId: viewModel.room?.hostId,
+                lang: hostLanguage,
+                practice: suggestInPractice,
+                showRomaji: showRomaji,
+                replyTo: replyToId.flatMap { viewModel.message(withId: $0) },
+                gameOn: viewModel.gameOn,
+                ideas: viewModel.replyIdeas,
+                onPick: fillSuggestion,
+                onGame: viewModel.isHost ? { showGamePicker = true } : nil
+            )
+            .frame(height: stripHidden ? 0 : nil, alignment: .top)
+            .clipped()
+            .opacity(stripHidden ? 0 : 1)
+            .allowsHitTesting(!stripHidden)
+            .accessibilityHidden(stripHidden)
+            .animation(.easeOut(duration: 0.15), value: stripHidden)
+        }
+    }
+
+    /// A chip's words take the place of whatever the field holds, as if typed: she sends them, or edits them first.
+    /// A dictation ends with what it heard dropped, and the chip's words are sent as they read
+    private func fillSuggestion(_ suggestion: String) {
+        // A voice message that records is no text of the field's: it runs on, to be sent or cancelled from its pill
+        guard !suggestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !sendingVoice else { return }
+        if speechRecognizer.isRecording {
+            speechRecognizer.stopRecording()
+            speechRecognizer.discardClip()
+        }
+        // stopRecording publishes the last transcript; cleared so the isRecording handler doesn't put it back
+        speechRecognizer.transcript = ""
+        preVoiceText = ""
+        messageText = suggestion
+        stripFilled = suggestion
+        toolsOpen = false
+    }
+
     var inputBar: some View {
         VStack(spacing: 0) {
+            suggestionSlot
             if speechRecognizer.isRecording {
                 voiceLiveLine
             }

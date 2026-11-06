@@ -822,6 +822,8 @@ const BELONGS: { [T in TableNames]: (keyof Doc<T> & string) | null } = {
   messages: "roomId",
   // messageId -> messages.roomId. A reaction's own roomId, where it has one, names that room too
   reactions: "messageId",
+  // messageId -> messages.roomId. Its own roomId names that room too
+  suggestedReplies: "messageId",
   // roomId: Lost in Translation and Emojifyr sessions
   gameSessions: "roomId",
   // gameSessionId -> gameSessions.roomId
@@ -1002,6 +1004,14 @@ async function buildRichRoom(t: Backend, seed: number) {
   await react(storedDrawing, alice, "😂");
   await react(inlineDrawing, bob, "😢");
   await react(voice, alice, "👍");
+  // Replies the host's phone wrote for Alice's message, posted where the app posts them
+  const suggested = await post(t, "/api/messages/suggested-replies", {
+    messageId: text,
+    replies: [{ en: "Hi Alice!", ja: "アリスさん、こんにちは！", romaji: "arisu san, konnichiwa!" }],
+    callerId: host.id,
+    callerToken: host.token,
+  });
+  if (suggested.status !== 200) throw new Error(`fixture: suggested replies refused: ${suggested.body.error}`);
 
   // Someone the host removed: the participant and its secret are gone, the message and the reaction stay
   const dave = await join("Dave", "bear", "en", 4);

@@ -1,13 +1,31 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@/convex/_generated/api";
 import { TodDebugPanel } from "@/components/tod-debug-panel";
 import { AvatarDisc } from "@/components/ui/avatar";
-import { LangBadge } from "@/components/ui/icon";
+import { EmojiArt, LangBadge } from "@/components/ui/icon";
 import { CHAT_SIZES, type useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { t } from "@/lib/i18n";
+
+function ToggleRow({ badge, label, on, toggle }: { badge: ReactNode; label: string; on: boolean; toggle: () => void }) {
+  return (
+    <label className="ec-toggle-row">
+      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {badge}
+        {label}
+      </span>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={toggle}
+        style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
+      />
+      <span className={`ec-switch${on ? " on" : ""}`} aria-hidden />
+    </label>
+  );
+}
 
 export function DisplaySettingsSheet({
   setShowDisplaySettings,
@@ -19,6 +37,9 @@ export function DisplaySettingsSheet({
   showRomaji,
   chatSize,
   pickChatSize,
+  showSuggestions,
+  suggestInPractice,
+  toggleSuggestPref,
   setShowLeaveConfirm,
   convexUrl,
   roomId,
@@ -32,6 +53,9 @@ export function DisplaySettingsSheet({
   showRomaji: boolean;
   chatSize: ReturnType<typeof useDisplayPrefs>["chatSize"];
   pickChatSize: ReturnType<typeof useDisplayPrefs>["pickChatSize"];
+  showSuggestions: boolean;
+  suggestInPractice: boolean;
+  toggleSuggestPref: ReturnType<typeof useDisplayPrefs>["toggleSuggestPref"];
   setShowLeaveConfirm: Dispatch<SetStateAction<boolean>>;
   convexUrl: string;
   roomId: string;
@@ -56,23 +80,19 @@ export function DisplaySettingsSheet({
               { key: "ja", label: t("Japanese", lang), value: showJapanese, toggle: () => toggleDisplay("showJapanese") },
               { key: "romaji", label: t("Romaji", lang), value: showRomaji, toggle: () => toggleDisplay("showRomaji") },
             ] as const).map((item) => (
-              <label key={item.key} className="ec-toggle-row">
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {item.key === "romaji" ? (
+              <ToggleRow
+                key={item.key}
+                badge={
+                  item.key === "romaji" ? (
                     <span className="ec-lang-badge" style={{ width: 26, height: 26, fontSize: 12, background: "var(--pink-soft)" }}>Ro</span>
                   ) : (
                     <LangBadge lang={item.key} />
-                  )}
-                  {item.label}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={item.value}
-                  onChange={item.toggle}
-                  style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
-                />
-                <span className={`ec-switch${item.value ? " on" : ""}`} aria-hidden />
-              </label>
+                  )
+                }
+                label={item.label}
+                on={item.value}
+                toggle={item.toggle}
+              />
             ))}
             <div className="ec-toggle-row" style={{ cursor: "default" }}>
               <span>{t("Chat text size", lang)}</span>
@@ -92,6 +112,24 @@ export function DisplaySettingsSheet({
                 ))}
               </div>
             </div>
+            <ToggleRow
+              badge={
+                <span className="ec-lang-badge" style={{ width: 26, height: 26, background: "var(--yellow-soft)" }}>
+                  <EmojiArt emoji="💡" size={18} />
+                </span>
+              }
+              label={t("Things to say", lang)}
+              on={showSuggestions}
+              toggle={() => toggleSuggestPref("show")}
+            />
+            {showSuggestions && (
+              <ToggleRow
+                badge={<LangBadge lang={lang === "ja" ? "en" : "ja"} />}
+                label={t(lang === "ja" ? "Say it in English" : "Say it in Japanese", lang)}
+                on={suggestInPractice}
+                toggle={() => toggleSuggestPref("practice")}
+              />
+            )}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button className="ec-btn red sm" style={{ flex: 1 }} onClick={() => { setShowDisplaySettings(false); setShowLeaveConfirm(true); }}>

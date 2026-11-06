@@ -252,7 +252,6 @@ extension HostConversationView {
                                 reactions: viewModel.reactionSummaries[message.id] ?? [],
                                 preferredLanguage: hostLanguage,
                                 onReply: { replyToId = message.id },
-                                onSuggestionTap: { messageText = $0 },
                                 onReact: nil,
                                 onLongPress: {
                                     let impact = UIImpactFeedbackGenerator(style: .medium)

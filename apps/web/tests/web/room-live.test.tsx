@@ -23,12 +23,14 @@ import { installBrowser, Sim, type SimBrowser } from "./dom";
 // show the same pills, and neither shows a reaction before the server has answered for it. Where the server
 // refuses the room's query, each bubble asks for its own as well, and the conversation stands.
 //
-// And what a tap on a suggestion under a message does. The message box holds the suggestion in place of whatever it
-// held, as if she had typed it: Send and Clear are there, the field is fitted to it, the room hears that she is
-// typing, and nothing is sent until she sends it. A dictation that is running ends with the tap, its words dropped.
-// A voice message that is being recorded runs on, and the tap does nothing. A phone's keyboard stays as it is, and
-// a computer's field takes the focus. A tap, like a keystroke, draws neither the list nor a bubble: it draws the
-// box, and the page once the room answers its typing notice.
+// And the things to say over the message box (lib/conversation-starters.ts picks them): what they offer as the
+// room talks, falls silent, plays and welcomes, in which language, and what a tap on one does. The message box holds
+// the chip's words in place of whatever it held, as if she had typed them: Send and Clear are there, the field is
+// fitted to them, the room hears that she is typing, and nothing is sent until she sends it. Words of her own,
+// typed or dictated, and a voice message being recorded put the strip out of sight. A dictation that is running
+// ends with the tap, its words dropped. A phone's keyboard stays as it is, and a computer's field takes the focus.
+// A tap, like a keystroke, draws neither the list nor a bubble: it draws the box, and the page once the room
+// answers its typing notice. The clock that turns the strip from answers to topics draws the strip alone.
 //
 // And what the page tells the room it is doing: the drawing sheet of Truth or Dare is written to the room when it
 // opens and when it closes, and not each time the page is drawn. While it is open, the signal is written once more
@@ -76,6 +78,8 @@ interface Answers {
   "reactions:getReactionSummary"?: Record<string, Reactions>;
   /** Asked once for the room: an entry for each message that has reactions */
   "reactions:getRoomReactionSummaries"?: RoomReactions;
+  /** The replies the host's phone wrote for the room's newest messages */
+  "messages:getSuggestedReplies"?: FunctionReturnType<typeof api.messages.getSuggestedReplies>;
 }
 
 // Shared with the mocks below, which vitest lifts above the imports
@@ -990,21 +994,31 @@ describe("what a bubble is handed to call", () => {
   });
 });
 
-// ─── The suggestions under a message ─────────────────────────────────────────
+// ─── Things to say, over the message box ─────────────────────────────────────
 
-describe("a tap on a suggestion under a message", () => {
-  const HELLO = ["こんにちは！", "よろしくね"];
-  // A word no dictation would leave without its full stop, an emoji the chip draws as a picture, and a chip with
-  // nothing on it
-  const WELCOME = ["ありがとう", "👍", "  "];
-  /** `messages` where the message `id` offers `suggestions` */
-  const offering = (messages: Message[], id: string, suggestions: string[]) =>
-    messages.map((m) => (m._id === id ? { ...m, processing: { ...m.processing, suggestions } } : m));
-  /** The conversation where Sam's hello and Alex's welcome each offer Yuki replies */
-  const offered = (extra: Answers = {}) => talking({ "messages:getRoomMessages": offering(offering(chat, "hello", HELLO), "welcome", WELCOME), ...extra });
+describe("a tap on a thing to say, over the message box", () => {
+  // What the server offered Yuki to answer Sam's question with: a word no dictation would leave without its full
+  // stop, a second, an emoji the chip draws as a picture, and one with nothing on it, which is no chip
+  const OFFERED = ["こんにちは！", "よろしくね", "👍", "  "];
+  /** Sam's yes-or-no question, a second before the page opened, offering `suggestions` */
+  const asking = (suggestions = OFFERED, id = "ramen", secondsAgo = 1) => {
+    const asked = said(id, SAM, secondsAgo, "Do you like ramen?", "ラーメン好き？", "raamen suki?");
+    return { ...asked, processing: { ...asked.processing, suggestions } };
+  };
+  /** The conversation, then Sam's question */
+  const offered = (extra: Answers = {}) => talking({ "messages:getRoomMessages": [...chat, asking()], ...extra });
+  /** The answers to Sam's question from the deck, as Yuki is shown them: the English she practises, her Japanese under it */
+  const ANSWERS = ["Kind of!", "Not really… how about you?", "Yes! How about you?"];
+  const ANSWERS_JA = ["あんまり…Samさんは？", "うん！Samさんは？", "まあまあかな！"];
 
-  /** The chips under the message `id`, as buttons */
-  const chips = (page: Page, id: string) => one(bubble(page, id).byClass("ec-chips")).all((n) => n.nodeName === "BUTTON");
+  /** The strip's chips, as buttons */
+  const chips = (page: Page) => one(page.body.byClass("ec-suggest")).byClass("ec-suggest-chip");
+  /** What a chip says, and the line under it */
+  const sayOf = (chip: Sim) => one(chip.byClass("say")).textContent;
+  const subOf = (chip: Sim) => one(chip.byClass("sub")).textContent;
+  /** Whether the strip is there and in sight */
+  const inSight = (page: Page) =>
+    page.body.byClass("ec-suggest").length === 1 && !("hidden" in one(page.body.byClass("ec-suggest-slot")).attributes);
   const fields = (page: Page) => page.body.all((n) => n.nodeName === "TEXTAREA");
   /** The message field */
   const field = (page: Page) => one(fields(page));
@@ -1125,9 +1139,43 @@ describe("a tap on a suggestion under a message", () => {
   /** The words dictation shows above its pill while it listens */
   const live = (page: Page) => one(page.body.byClass("ec-voice-live")).textContent;
 
+  test("Sam's question: what came with it first, then the deck's answers in the English Yuki practises, her Japanese under each", async () => {
+    const page = await open(offered());
+    expect(inSight(page)).toBe(true);
+    expect(one(page.body.all((n) => n.attributes.role === "group")).attributes["aria-label"]).toBe(t("Things to say", "ja"));
+    const [hello, nice, thumbsUp, ...answers] = chips(page);
+    expect([hello.textContent, nice.textContent]).toEqual(["こんにちは！", "よろしくね"]);
+    expect(one(thumbsUp.all((n) => n.nodeName === "IMG")).attributes.alt).toBe("👍");
+    // He asked yes or no: the answers hand the question back to him, by name in Japanese
+    expect(answers.map(sayOf).sort()).toEqual(ANSWERS);
+    expect(answers.map(subOf).sort()).toEqual(ANSWERS_JA);
+
+    await press(page, answers[0]);
+    expect(held(page)).toBe(sayOf(answers[0]));
+    await press(page, thumbsUp);
+    expect(held(page)).toBe("👍");
+  });
+
+  test("replies the host's phone wrote for Sam's question come first, in place of what came with it, in the English Yuki practises", async () => {
+    const written = [
+      { en: "I love ramen!", ja: "ラーメン大好き！", romaji: "raamen daisuki!" },
+      { en: "Not so much", ja: "そんなに", romaji: "sonna ni" },
+    ];
+    const elsewhere = { messageId: "hello" as Id<"messages">, replies: [{ en: "Hi Sam!", ja: "サムさん、こんにちは！", romaji: "samu san, konnichiwa!" }] };
+    const page = await open(offered({ "messages:getSuggestedReplies": [{ messageId: "ramen" as Id<"messages">, replies: written }, elsewhere] }));
+
+    const [love, notSo, ...answers] = chips(page);
+    expect([love, notSo].map((chip) => [sayOf(chip), subOf(chip)])).toEqual([
+      ["I love ramen!", "ラーメン大好き！"],
+      ["Not so much", "そんなに"],
+    ]);
+    expect(answers.map(sayOf).sort()).toEqual(ANSWERS);
+    await press(page, love);
+    expect(held(page)).toBe("I love ramen!");
+  });
+
   test("the empty box holds the suggestion, fitted to it, with Send and Clear beside it; the room hears of typing, and nothing is sent", async () => {
     const page = await open(offered());
-    expect(chips(page, "hello").map((chip) => chip.textContent)).toEqual(HELLO);
     expect(held(page)).toBe("");
     expect("disabled" in sendButton(page).attributes).toBe(true);
     expect(labelled(page, t("Clear", "ja")).length).toBe(0);
@@ -1135,7 +1183,7 @@ describe("a tap on a suggestion under a message", () => {
     // The height a browser finds the field's text to need, which nothing here lays out
     field(page).scrollHeight = 64;
 
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(held(page)).toBe("よろしくね");
     expect(field(page).style.height).toBe("64px");
     expect("disabled" in sendButton(page).attributes).toBe(false);
@@ -1153,7 +1201,7 @@ describe("a tap on a suggestion under a message", () => {
     // The tools she has brought back out fold away again under the next suggestion, as under a key
     await page.tap(one(labelled(page, t("More tools", "ja"))));
     expect(one(page.body.byClass("ec-tools")).hasClass("collapsed")).toBe(false);
-    await press(page, chips(page, "hello")[0]);
+    await press(page, chips(page)[0]);
     expect(one(page.body.byClass("ec-tools")).hasClass("collapsed")).toBe(true);
   });
 
@@ -1166,7 +1214,7 @@ describe("a tap on a suggestion under a message", () => {
     const before = field(page).style.height;
     field(page).scrollHeight = 64;
 
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(tools.hasClass("collapsed")).toBe(true);
     expect(held(page)).toBe("よろしくね");
     expect(field(page).style.height).toBe(before);
@@ -1183,42 +1231,37 @@ describe("a tap on a suggestion under a message", () => {
     expect(field(page).style.height).toBe("85px");
   });
 
-  test("what was typed is replaced by the suggestion, not added to", async () => {
+  test("words she types herself put the strip out of sight, so that no tap can replace them; emptied, the box shows it again", async () => {
     const page = await open(offered());
     await type(page, "ねえ、");
-    expect(held(page)).toBe("ねえ、");
-    await press(page, chips(page, "hello")[0]);
+    expect(inSight(page)).toBe(false);
+    await type(page, "");
+    expect(inSight(page)).toBe(true);
+    // A chip's words are no words of her own: another chip replaces them, and so does the same one
+    await press(page, chips(page)[0]);
+    expect(inSight(page)).toBe(true);
+    await press(page, chips(page)[1]);
+    expect(held(page)).toBe("よろしくね");
+    await press(page, chips(page)[1]);
+    expect(held(page)).toBe("よろしくね");
+    // Once she edits them they are
+    await type(page, "よろしくね、サム");
+    expect(inSight(page)).toBe(false);
+    await page.tap(one(labelled(page, t("Clear", "ja"))));
+    expect(inSight(page)).toBe(true);
+    await press(page, chips(page)[0]);
     expect(held(page)).toBe("こんにちは！");
-    // Another chip, under another message, replaces that in turn
-    await press(page, chips(page, "welcome")[0]);
-    expect(held(page)).toBe("ありがとう");
     expect(sent()).toEqual([]);
   });
 
-  test("the same chip fills the box each time: after Clear, after an edit, and twice running", async () => {
-    const page = await open(offered());
-    const chip = () => chips(page, "hello")[0];
-    await press(page, chip());
-    expect(held(page)).toBe("こんにちは！");
-    await page.tap(one(labelled(page, t("Clear", "ja"))));
-    expect(held(page)).toBe("");
-    await press(page, chip());
-    expect(held(page)).toBe("こんにちは！");
-    await type(page, "こんにちは！ サム");
-    await press(page, chip());
-    expect(held(page)).toBe("こんにちは！");
-    await press(page, chip());
-    expect(held(page)).toBe("こんにちは！");
-  });
-
-  test("Send sends the suggestion as an ordinary message and empties the box; one that was edited first is sent as edited", async () => {
+  test("Send sends the suggestion as an ordinary message and empties the box. Then the others have the floor: no strip until one of them speaks", async () => {
     const page = await open(offered());
     // The server takes each message as the page sends it
     server.onCall = (name, args) => {
       if (name !== "messages:sendTextMessage") return;
       tell("messages:getRoomMessages", (now) => [...now, message(`sent${now.length}`, YUKI, 0, { kind: "text", status: "pending", text: args.text as string })]);
     };
-    await press(page, chips(page, "hello")[0]);
+    await press(page, chips(page)[0]);
     await page.tap(sendButton(page));
     expect(sent()).toEqual([asText("こんにちは！")]);
     expect(held(page)).toBe("");
@@ -1227,31 +1270,26 @@ describe("a tap on a suggestion under a message", () => {
     // The room is told at once that she has stopped typing
     expect(signals()).toEqual(["typing", "clear"]);
     expect(page.body.byClass("ec-msg").at(-1)!.textContent).toBe(`こんにちは！${t("translating", "ja")}`);
+    expect(page.body.byClass("ec-suggest").length).toBe(0);
 
-    await press(page, chips(page, "hello")[1]);
+    // Sam asks again, and the strip answers him. A suggestion she edits first is sent as edited
+    await page.answer("messages:getRoomMessages", (now) => [...now, asking(["またね"], "again", 0)]);
+    expect(chips(page)[0].textContent).toBe("またね");
+    await press(page, chips(page)[0]);
     await type(page, `${held(page)}、サム`);
     await page.tap(sendButton(page));
-    expect(sent()).toEqual([asText("こんにちは！"), asText("よろしくね、サム")]);
+    expect(sent()).toEqual([asText("こんにちは！"), asText("またね、サム")]);
     expect(held(page)).toBe("");
   });
 
-  test("a chip drawn as a picture puts its emoji in the box, and a chip with nothing on it leaves the box as it is", async () => {
+  test("✕ puts the strip away until something new happens in the room", async () => {
     const page = await open(offered());
-    const [, thumbsUp, empty] = chips(page, "welcome");
-    // Over an empty box the chip with nothing on it leaves the box empty, and the room is told nothing
-    await press(page, empty);
-    expect(held(page)).toBe("");
-    expect(labelled(page, t("Clear", "ja")).length).toBe(0);
-    expect(signals()).toEqual([]);
-
-    expect(one(thumbsUp.all((n) => n.nodeName === "IMG")).attributes.alt).toBe("👍");
-    await press(page, thumbsUp);
-    expect(held(page)).toBe("👍");
-
-    // Over what she has typed it leaves that
-    await type(page, "ねえ");
-    await press(page, empty);
-    expect(held(page)).toBe("ねえ");
+    drawnAgain();
+    await press(page, one(labelled(page, t("Hide suggestions", "ja"))));
+    expect(page.body.byClass("ec-suggest").length).toBe(0);
+    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
+    await page.answer("messages:getRoomMessages", (now) => [...now, asking(["またね"], "again", 0)]);
+    expect(chips(page)[0].textContent).toBe("またね");
   });
 
   test("the room hears of a key as it hears of a tap, and at once of a field she empties by hand", async () => {
@@ -1264,26 +1302,49 @@ describe("a tap on a suggestion under a message", () => {
     expect(signals()).toEqual(["typing", "clear"]);
   });
 
-  test("a reply she is writing stays: the suggestion is sent as that reply", async () => {
-    const page = await open(offered());
-    await page.tap(one(bubble(page, "hello").byClass("ec-react-add")));
+  /** Opens the reply to the message `id` from its bubble's heart */
+  async function replyTo(page: Page, id: string) {
+    await page.tap(one(bubble(page, id).byClass("ec-react-add")));
     await page.tap(one(page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === t("↩ Reply", "ja"))));
     expect(page.body.byClass("ec-reply-bar").length).toBe(1);
+  }
 
-    await press(page, chips(page, "welcome")[0]);
+  test("a reply she is writing stays: the suggestion is sent as that reply", async () => {
+    const page = await open(offered());
+    await replyTo(page, "ramen");
+    await press(page, chips(page)[1]);
     expect(page.body.byClass("ec-reply-bar").length).toBe(1);
-    expect(held(page)).toBe("ありがとう");
+    expect(held(page)).toBe("よろしくね");
     await page.tap(sendButton(page));
-    expect(sent()).toEqual([asText("ありがとう", "hello")]);
+    expect(sent()).toEqual([asText("よろしくね", "ramen")]);
     expect(page.body.byClass("ec-reply-bar").length).toBe(0);
   });
 
-  test("a keystroke and a tap draw the box alone: not the page, the list or a bubble", async () => {
+  test("a reply to an older message: the strip answers that one instead, and goes back to Sam's question once the reply is cancelled", async () => {
     const page = await open(offered());
-    await type(page, "ね");
-    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
-    await press(page, chips(page, "hello")[0]);
+    // Mika's voice message, ten minutes ago, asked nothing: reactions in English, Yuki's Japanese under them
+    await replyTo(page, "voice");
+    const reactions = chips(page);
+    expect(reactions.length).toBe(4);
+    expect(reactions.map(sayOf)).not.toContain("こんにちは！");
+    expect(reactions.every((chip) => subOf(chip) !== "")).toBe(true);
+    // The clock changes nothing while she replies
+    await page.wait(40);
+    expect(chips(page).map(sayOf)).toEqual(reactions.map(sayOf));
+    await press(page, reactions[0]);
+    expect(held(page)).toBe(sayOf(reactions[0]));
+
+    await page.tap(one(page.body.all((n) => n.nodeName === "BUTTON" && n.textContent === t("Cancel", "ja"))));
+    // Forty seconds on, Sam's question has given way to topics
+    expect(chips(page).map(sayOf)).not.toEqual(reactions.map(sayOf));
+  });
+
+  test("a tap and a keystroke draw the box alone: not the page, the list or a bubble", async () => {
+    const page = await open(offered());
+    await press(page, chips(page)[0]);
     expect(held(page)).toBe("こんにちは！");
+    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
+    await type(page, "こんにちは！ね");
     expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
   });
 
@@ -1293,8 +1354,8 @@ describe("a tap on a suggestion under a message", () => {
     server.onCall = (name, args) => {
       if (name === "participants:setTypingAction") tell("rooms:getRoomState", person(args.participantId as PID, { typingAction: args.action as Person["typingAction"] }));
     };
-    // A tap, a keystroke and a tap, each left until the room has been told that she stopped
-    const steps = [() => press(page, chips(page, "hello")[0]), () => page.wait(3), () => type(page, "こんにちは！ サム"), () => page.wait(3), () => press(page, chips(page, "hello")[1])];
+    // A tap, a tap and a keystroke, each left until the room has been told that she stopped
+    const steps = [() => press(page, chips(page)[1]), () => page.wait(3), () => press(page, chips(page)[0]), () => page.wait(3), () => type(page, "こんにちは！ サム")];
     for (const step of steps) {
       await step();
       const { page: pageDrawn, ...rest } = drawnAgain();
@@ -1302,13 +1363,13 @@ describe("a tap on a suggestion under a message", () => {
       expect(rest).toEqual({ list: 0, bubbles: [] });
     }
     expect(signals()).toEqual(["typing", "clear", "typing", "clear", "typing"]);
-    expect(held(page)).toBe("よろしくね");
+    expect(held(page)).toBe("こんにちは！ サム");
   });
 
   test("on a computer the field takes the focus, and Enter sends the suggestion: an Enter she presses, not one still held from choosing the chip", async () => {
     const page = await open(offered());
     const focused = vi.spyOn(Sim.prototype, "focus");
-    await press(page, chips(page, "hello")[0]);
+    await press(page, chips(page)[0]);
     expect(focused.mock.contexts.length).toBe(1);
     expect(focused.mock.contexts[0]).toBe(field(page));
     // Enter chooses a chip from the keyboard as it goes down, and held, it repeats in the field that has taken the
@@ -1329,11 +1390,11 @@ describe("a tap on a suggestion under a message", () => {
     const focused = vi.spyOn(Sim.prototype, "focus");
     const blurred = vi.spyOn(Sim.prototype, "blur");
     // The keyboard is down: nothing brings it up
-    expect(await press(page, chips(page, "hello")[0])).toBe(true);
+    expect(await press(page, chips(page)[0])).toBe(true);
     expect(held(page)).toBe("こんにちは！");
     // The keyboard is up, the field having the focus: the tap does not take it away
     await page.act(() => void field(page).fire("focusin"));
-    expect(await press(page, chips(page, "hello")[1])).toBe(true);
+    expect(await press(page, chips(page)[1])).toBe(true);
     expect(held(page)).toBe("よろしくね");
     expect(focused).not.toHaveBeenCalled();
     expect(blurred).not.toHaveBeenCalled();
@@ -1353,7 +1414,7 @@ describe("a tap on a suggestion under a message", () => {
     expect(live(page)).toBe("おはよう。");
     expect(signals()).toEqual(["voicing"]);
 
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(page.body.byClass("ec-voice-pill").length).toBe(0);
     expect(page.body.byClass("ec-voice-live").length).toBe(0);
     expect(held(page)).toBe("よろしくね");
@@ -1383,7 +1444,7 @@ describe("a tap on a suggestion under a message", () => {
     // Held for 0.45 s, the button starts a voice message. The tap comes 0.2 s in
     await page.act(() => void micButton(page).fire("pointerdown"));
     await page.act(() => void vi.advanceTimersByTime(200));
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(held(page)).toBe("よろしくね");
     await page.wait(1);
     expect(recognisers.length).toBe(0);
@@ -1392,18 +1453,22 @@ describe("a tap on a suggestion under a message", () => {
     expect(signals()).toEqual(["typing"]);
   });
 
-  test("after dictation was stopped with its words in the field: the suggestion replaces them, and is sent as it reads", async () => {
+  test("dictation stopped with its words in the field: they are hers as typed ones are, and the strip is out of sight until Clear", async () => {
     const recognisers = canDictate();
     const page = await open(offered());
     await page.tap(micButton(page));
+    // While it listens the strip stays: a tap ends dictation in the suggestion's favour
+    expect(inSight(page)).toBe(true);
     await page.act(() => one(recognisers).hears("おはよう"));
     await page.tap(one(labelled(page, t("Stop", "ja"))));
     expect(held(page)).toBe("おはよう。 ");
+    expect(inSight(page)).toBe(false);
 
-    await press(page, chips(page, "welcome")[0]);
-    expect(held(page)).toBe("ありがとう");
+    await page.tap(one(labelled(page, t("Clear", "ja"))));
+    expect(inSight(page)).toBe(true);
+    await press(page, chips(page)[0]);
     await page.tap(sendButton(page));
-    expect(sent()).toEqual([asText("ありがとう")]);
+    expect(sent()).toEqual([asText("こんにちは！")]);
   });
 
   test("while she dictates words on a browser that records beside them: the tap ends both, and the microphone is let go", async () => {
@@ -1416,7 +1481,7 @@ describe("a tap on a suggestion under a message", () => {
     expect(labelled(page, t("Send voice message", "ja")).length).toBe(0);
     await page.act(() => one(recognisers).hears("おはよう"));
 
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(one(recorders).state).toBe("inactive");
     expect(one(recognisers).running).toBe(false);
     expect(page.body.byClass("ec-voice-pill").length).toBe(0);
@@ -1428,7 +1493,7 @@ describe("a tap on a suggestion under a message", () => {
     expect(sent()).toEqual([asText("よろしくね")]);
   });
 
-  test("while she records a voice message the tap does nothing: the recording runs on, hers to send or to cancel", async () => {
+  test("while she records a voice message the strip is out of sight, and a tap that reaches it all the same does nothing: the recording runs on, hers to send or to cancel", async () => {
     const recognisers = canDictate();
     const { track, recorders } = canRecord();
     // The mode she last dictated in: the recording is what Send sends
@@ -1438,10 +1503,11 @@ describe("a tap on a suggestion under a message", () => {
     expect(one(recorders).state).toBe("recording");
     expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
     expect(page.body.byClass("ec-voice-timer").length).toBe(1);
+    expect(inSight(page)).toBe(false);
     await page.act(() => one(recognisers).hears("おはよう"));
 
     const focused = vi.spyOn(Sim.prototype, "focus");
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(one(recorders).state).toBe("recording");
     expect(one(recognisers).running).toBe(true);
     expect(track.readyState).toBe("live");
@@ -1461,7 +1527,8 @@ describe("a tap on a suggestion under a message", () => {
     await page.tap(one(labelled(page, t("Cancel", "ja"))));
     expect(one(recorders).state).toBe("inactive");
     expect(held(page)).toBe("");
-    await press(page, chips(page, "hello")[1]);
+    expect(inSight(page)).toBe(true);
+    await press(page, chips(page)[1]);
     expect(held(page)).toBe("よろしくね");
     await page.tap(sendButton(page));
     expect(sent()).toEqual([asText("よろしくね")]);
@@ -1486,7 +1553,7 @@ describe("a tap on a suggestion under a message", () => {
     await page.tap(one(labelled(page, t("Send voice message", "ja"))));
     expect(sent()).toEqual([]);
 
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(held(page)).toBe("よろしくね");
     await page.act(() => one(recorders).handOver());
     await page.wait(1);
@@ -1508,7 +1575,7 @@ describe("a tap on a suggestion under a message", () => {
     expect(live(page)).toBe("おはよう。");
 
     const focused = vi.spyOn(Sim.prototype, "focus");
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(held(page)).toBe("よろしくね");
     await page.wait(1);
     expect(recognisers.length).toBe(1);
@@ -1530,8 +1597,9 @@ describe("a tap on a suggestion under a message", () => {
     expect(one(recorders).state).toBe("recording");
     expect(live(page)).toBe(t("Recording...", "ja"));
     expect(labelled(page, t("Send voice message", "ja")).length).toBe(1);
+    expect(inSight(page)).toBe(false);
 
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(one(recorders).state).toBe("recording");
     expect(track.readyState).toBe("live");
     expect(page.body.byClass("ec-voice-pill").length).toBe(1);
@@ -1547,7 +1615,7 @@ describe("a tap on a suggestion under a message", () => {
     const page = await open(offered());
     await page.tap(micButton(page));
     const focused = vi.spyOn(Sim.prototype, "focus");
-    await press(page, chips(page, "hello")[0]);
+    await press(page, chips(page)[0]);
     expect(focused.mock.contexts.length).toBe(1);
     expect(focused.mock.contexts[0]).toBe(field(page));
   });
@@ -1555,19 +1623,113 @@ describe("a tap on a suggestion under a message", () => {
   test("in a room that keeps its reactions by room, whose list stands under the component that reads them, the tap fills the box too", async () => {
     const page = await open(offered({ "rooms:getRoomState": { room: keptByRoom, participants: [alex, yuki, sam, mika] }, [PER_ROOM]: [] }));
     expect(server.reactionsOpen).toEqual({ [PER_ROOM]: 1 });
-    await press(page, chips(page, "hello")[1]);
+    await press(page, chips(page)[1]);
     expect(held(page)).toBe("よろしくね");
     expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
   });
 
-  test("a closed room has no box: its chips are shown, and a tap on one does nothing", async () => {
+  test("a closed room has no box, and nothing to say", async () => {
     const page = await open(offered({ "rooms:getRoomState": { room: { ...room, status: "closed" }, participants: [alex, yuki, sam, mika] } }));
     expect(fields(page).length).toBe(0);
-    expect(chips(page, "hello").map((chip) => chip.textContent)).toEqual(HELLO);
-    await press(page, chips(page, "hello")[0]);
-    expect(fields(page).length).toBe(0);
-    expect(sent()).toEqual([]);
-    expect(signals()).toEqual([]);
+    expect(page.body.byClass("ec-suggest").length).toBe(0);
+  });
+
+  test("a room whose host turned suggestions off has none", async () => {
+    const off = { ...room, settings: { ...room.settings, suggestionsEnabled: false } };
+    const page = await open(offered({ "rooms:getRoomState": { room: off, participants: [alex, yuki, sam, mika] } }));
+    expect(fields(page).length).toBe(1);
+    expect(page.body.byClass("ec-suggest").length).toBe(0);
+  });
+
+  test("while a game is on there is nothing to say: the game does the talking", async () => {
+    const page = await open(offered({ "games:getActiveGameSession": session }));
+    expect(page.body.byClass("ec-suggest").length).toBe(0);
+    await page.answer("games:getActiveGameSession", () => null);
+    expect(chips(page)[0].textContent).toBe("こんにちは！");
+  });
+
+  test("the display settings: her own language instead, then none at all, and back; kept in her browser", async () => {
+    const page = await open(offered());
+    await page.tap(one(labelled(page, t("Display settings", "ja"))));
+    const sheetInputs = () => one(page.body.byClass("ec-sheet")).all((n) => n.nodeName === "INPUT");
+    const [, , , show, practice] = sheetInputs();
+    drawnAgain();
+
+    await page.tap(practice);
+    const answers = chips(page).slice(3);
+    expect(answers.map((chip) => chip.textContent).sort()).toEqual(ANSWERS_JA);
+    expect(answers.flatMap((chip) => chip.byClass("sub"))).toEqual([]);
+    expect(drawnAgain()).toMatchObject({ list: 0, bubbles: [] });
+
+    await page.tap(show);
+    expect(page.body.byClass("ec-suggest").length).toBe(0);
+    // Which language they would be in is no question without them
+    expect(one(page.body.byClass("ec-sheet")).textContent).not.toContain(t("Say it in English", "ja"));
+    expect(drawnAgain()).toMatchObject({ list: 0, bubbles: [] });
+
+    await page.tap(show);
+    expect(chips(page).slice(3).map((chip) => chip.textContent).sort()).toEqual(ANSWERS_JA);
+    expect(JSON.parse(localStorage.getItem("enchatto_suggestPrefs")!)).toEqual({ show: true, practice: false });
+  });
+
+  test("a guest who reads English is shown Japanese to practise, its romaji and her English under it, and a tap puts the Japanese in the box", async () => {
+    const page = await open(offered());
+    await page.answer("rooms:getRoomState", person(YUKI, { preferredLanguage: "en" }));
+    const answers = chips(page).slice(3);
+    expect(answers.map(sayOf).sort()).toEqual(ANSWERS_JA);
+    expect(answers.map((chip) => one(chip.byClass("romaji")).textContent).sort()).toEqual(["anmari... Sam san wa?", "maamaa kana!", "un! Sam san wa?"]);
+    expect(answers.map(subOf).sort()).toEqual(ANSWERS);
+    await press(page, answers[0]);
+    expect(held(page)).toBe(sayOf(answers[0]));
+  });
+
+  test("someone new arrives: Yuki is offered welcomes with their name", async () => {
+    const page = await open(talking());
+    await page.answer("messages:getRoomMessages", (now) => [...now, message("joinedKen", "ken" as PID, 0, { kind: "system", status: "processed", text: "join:Ken" })]);
+    const welcomes = chips(page);
+    expect(welcomes.length).toBe(3);
+    expect(welcomes.every((chip) => sayOf(chip).includes("Ken") && subOf(chip).includes("Kenさん"))).toBe(true);
+  });
+
+  test("left unanswered, Sam's question gives way after half a minute to topics for the room, and the clock draws neither the list nor a bubble", async () => {
+    const page = await open(offered());
+    drawnAgain();
+    await page.wait(28);
+    expect(chips(page)[0].textContent).toBe("こんにちは！");
+    await page.wait(1);
+    expect(chips(page).length).toBe(3);
+    expect(labelled(page, t("Other topics", "ja")).length).toBe(1);
+    expect(drawnAgain()).toMatchObject({ list: 0, bubbles: [] });
+  });
+
+  test("a silence: topics, which 🎲 changes, and after a minute and a half a game, whose chip opens the games. Only the strip is drawn for them", async () => {
+    // Ken came in seventy seconds before the page opened, and nobody has said a word since. An arrival is nothing to
+    // the vibe meter, whose clock would draw the page as a message grew too old for its combo
+    const arrived = message("joinedKen", "ken" as PID, 70, { kind: "system", status: "processed", text: "join:Ken" });
+    const page = await open(talking({ "messages:getRoomMessages": [...chat, arrived] }));
+    drawnAgain();
+    const topics = chips(page).map(sayOf);
+    expect(topics.length).toBe(3);
+    // October: the season's topic first
+    expect(["Dressing up for Halloween?", "Seen the autumn leaves yet?"]).toContain(topics[0]);
+
+    await press(page, one(labelled(page, t("Other topics", "ja"))));
+    const others = chips(page).map(sayOf);
+    expect(others.length).toBe(3);
+    expect(others.filter((topic) => topics.includes(topic))).toEqual([]);
+    expect(held(page)).toBe("");
+    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
+
+    await page.wait(19);
+    expect(chips(page).length).toBe(3);
+    await page.wait(1);
+    const game = chips(page).at(-1)!;
+    expect(game.textContent).toBe(t("Play a game?", "ja"));
+    expect(drawnAgain()).toEqual({ page: 0, list: 0, bubbles: [] });
+
+    await press(page, game);
+    expect(held(page)).toBe("");
+    expect(page.body.all((n) => n.attributes.role === "button" && n.textContent.startsWith(t("Truth or Dare", "ja"))).length).toBe(1);
   });
 });
 

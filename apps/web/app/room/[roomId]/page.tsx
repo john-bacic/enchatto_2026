@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { MessageList } from "@/components/message-list";
 import { MessageInput, type MessageInputHandle } from "@/components/message-input";
+import { SuggestionStrip } from "@/components/suggestion-strip";
 import { GamePickerModal } from "@/components/game-picker-modal";
 import { GameStatusBar } from "@/components/game-status-bar";
 import { WordRushGame } from "@/components/word-rush-game";
@@ -120,7 +121,7 @@ function RoomContent() {
   const addReaction = useAuthedMutation(api.reactions.addReaction);
   const removeReaction = useAuthedMutation(api.reactions.removeReaction);
 
-  const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize } = useDisplayPrefs(participantId);
+  const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize, showSuggestions, suggestInPractice, toggleSuggestPref } = useDisplayPrefs(participantId);
 
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
@@ -194,12 +195,13 @@ function RoomContent() {
     setReplyTo(null);
   };
 
-  // A tap on a suggestion under a message puts it in the message box. The box keeps its own text, so it is asked
+  // A tap on a thing to say, over the message box, puts it in the box. The box keeps its own text, so it is asked
   // through its handle: the handler is one function for the life of the page, so a tap draws neither the list nor
   // a bubble. The tap itself draws the box alone; the page is drawn when the room answers the typing notice the tap
-  // sends, as it is for a keystroke. A closed room has no box, and a tap there does nothing
+  // sends, as it is for a keystroke. A closed room has no box, and no things to say
   const messageInput = useRef<MessageInputHandle>(null);
   const handleSuggestionTap = useCallback((suggestion: string) => messageInput.current?.fill(suggestion), []);
+  const openGamePicker = useCallback(() => setShowGamePicker(true), []);
 
   const handleViewGameResults = useCallback(() => setShowGameReplay(true), []);
 
@@ -251,7 +253,7 @@ function RoomContent() {
   const awayCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "away").length;
   const crowd = allVisible.filter((p) => (p as any).online).slice(0, 6);
 
-  const { isGameActive, onEndGame } = endGameRule({ wordRushGame, activeGameSession, emojiMatchGame, emojiBingoGame, truthOrDareGame, me, lang, endTruthOrDare, participantId, cancelEmojiBingo, cancelEmojiMatch, cancelWordRush, cancelGameMutation, roomId });
+  const { gameOn, isGameActive, onEndGame } = endGameRule({ wordRushGame, activeGameSession, emojiMatchGame, emojiBingoGame, truthOrDareGame, me, lang, endTruthOrDare, participantId, cancelEmojiBingo, cancelEmojiMatch, cancelWordRush, cancelGameMutation, roomId });
 
   const chatScale = CHAT_SIZES.find((s) => s.key === chatSize)?.scale ?? 1;
 
@@ -263,7 +265,6 @@ function RoomContent() {
     preferredLanguage: lang,
     onReply: handleReply,
     onToggleReaction: isOnline ? handleToggleReaction : undefined,
-    onSuggestionTap: handleSuggestionTap,
     typingParticipants,
     lang,
     showEnglish,
@@ -326,13 +327,32 @@ function RoomContent() {
           onSendImage={handleSendImage}
           onSendDrawing={handleSendDrawing}
           onSendVoice={handleSendVoice}
-          onGameTap={() => setShowGamePicker(true)}
+          onGameTap={openGamePicker}
           isGameActive={isGameActive}
           onEndGame={onEndGame}
           replyTo={replyMessage ?? null}
           onCancelReply={handleCancelReply}
           onTypingChange={handleTypingChange}
           lang={lang}
+          suggestions={
+            roomState.room.settings.suggestionsEnabled && showSuggestions ? (
+              <SuggestionStrip
+                roomId={roomId as Id<"rooms">}
+                messages={shownMessages}
+                queued={queuedAsMessages}
+                people={shownParticipants}
+                meId={participantId}
+                hostId={roomHostId}
+                lang={lang}
+                practice={suggestInPractice}
+                showRomaji={showRomaji}
+                replyTo={replyMessage ?? null}
+                gameOn={gameOn}
+                onPick={handleSuggestionTap}
+                onGame={openGamePicker}
+              />
+            ) : undefined
+          }
         />
       ) : (
         <div className="ec-inputbar" style={{ textAlign: "center", fontSize: 13, fontWeight: 900, opacity: 0.85 }}>
@@ -342,7 +362,7 @@ function RoomContent() {
 
       {/* Language display settings sheet */}
       {showDisplaySettings && (
-        <DisplaySettingsSheet setShowDisplaySettings={setShowDisplaySettings} me={me} lang={lang} showEnglish={showEnglish} toggleDisplay={toggleDisplay} showJapanese={showJapanese} showRomaji={showRomaji} chatSize={chatSize} pickChatSize={pickChatSize} setShowLeaveConfirm={setShowLeaveConfirm} convexUrl={convexUrl} roomId={roomId} />
+        <DisplaySettingsSheet setShowDisplaySettings={setShowDisplaySettings} me={me} lang={lang} showEnglish={showEnglish} toggleDisplay={toggleDisplay} showJapanese={showJapanese} showRomaji={showRomaji} chatSize={chatSize} pickChatSize={pickChatSize} showSuggestions={showSuggestions} suggestInPractice={suggestInPractice} toggleSuggestPref={toggleSuggestPref} setShowLeaveConfirm={setShowLeaveConfirm} convexUrl={convexUrl} roomId={roomId} />
       )}
 
       {/* Word Rush (lobby, game and results manage their own visibility) */}

@@ -686,10 +686,69 @@ export const deleteMessage = mutation({
     for (const reaction of reactions) {
       await ctx.db.delete(reaction._id);
     }
+    const suggested = await suggestedRepliesFor(ctx, args.messageId);
+    if (suggested) await ctx.db.delete(suggested._id);
 
     if (message.audioStorageId) await deleteStoredFile(ctx, message.audioStorageId);
     if (message.mediaStorageId) await deleteStoredFile(ctx, message.mediaStorageId);
     await ctx.db.delete(args.messageId);
+  },
+});
+
+// --- Replies the host's phone wrote ---
+
+/** Lines, three of them, as the strip over the message box shows at most. Romaji runs about three times the Japanese */
+const SUGGESTED_REPLIES_MAX = 3;
+const SUGGESTED_REPLY_MAX_CHARS = 300;
+/** The strip answers the newest message, or the one somebody is replying to: a few messages back is plenty */
+const SUGGESTED_REPLIES_SHOWN = 5;
+
+/** A message has one row at most: setSuggestedReplies replaces the first */
+function suggestedRepliesFor(ctx: MutationCtx, messageId: Id<"messages">) {
+  return ctx.db
+    .query("suggestedReplies")
+    .withIndex("by_messageId", (q) => q.eq("messageId", messageId))
+    .first();
+}
+
+/**
+ * Replies for a message, written by the iOS host's phone with Apple's on-device model, which costs nothing per
+ * call. Offered first on everyone else's strip, the web's included. Only the host writes them; written again for
+ * the same message, they replace the first ones.
+ */
+export const setSuggestedReplies = mutation({
+  args: {
+    messageId: v.id("messages"),
+    replies: v.array(v.object({ en: v.string(), ja: v.string(), romaji: v.string() })),
+    callerId: v.optional(v.id("participants")),
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return; // deleted while the phone was writing
+    await requireHost(ctx, message.roomId, args.callerId, args.token, "messages.setSuggestedReplies");
+    if (
+      args.replies.length > SUGGESTED_REPLIES_MAX ||
+      args.replies.some((r) => [r.en, r.ja, r.romaji].some((text) => text.length > SUGGESTED_REPLY_MAX_CHARS))
+    ) {
+      throw new Error("Too many or too long suggested replies");
+    }
+    const existing = await suggestedRepliesFor(ctx, args.messageId);
+    if (existing) await ctx.db.patch(existing._id, { replies: args.replies });
+    else await ctx.db.insert("suggestedReplies", { roomId: message.roomId, messageId: args.messageId, replies: args.replies });
+  },
+});
+
+/** The replies written for the room's newest messages, newest first */
+export const getSuggestedReplies = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("suggestedReplies")
+      .withIndex("by_roomId", (q) => q.eq("roomId", args.roomId))
+      .order("desc")
+      .take(SUGGESTED_REPLIES_SHOWN);
+    return rows.map(({ messageId, replies }) => ({ messageId, replies }));
   },
 });
 

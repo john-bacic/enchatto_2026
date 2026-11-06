@@ -182,6 +182,14 @@ const translations: Record<string, Record<string, string>> = {
   "Large": { ja: "大" },
   "Done": { ja: "完了" },
 
+  // Things to say (over the message box)
+  "Things to say": { ja: "おすすめの一言" },
+  "Say it in Japanese": { ja: "日本語で言う" },
+  "Say it in English": { ja: "英語で言ってみる" },
+  "Play a game?": { ja: "ゲームする？" },
+  "Other topics": { ja: "ほかの話題" },
+  "Hide suggestions": { ja: "おすすめを隠す" },
+
   // System messages
   "has joined": { ja: "が参加しました" },
   "has left": { ja: "が退出しました" },

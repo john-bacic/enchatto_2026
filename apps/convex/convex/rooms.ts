@@ -313,6 +313,7 @@ async function purgeRoomRows(ctx: MutationCtx, roomId: Id<"rooms">, budget: Purg
       for (const id of [...game.storageIds, game.clipStorageId, game.teachClip?.storageId]) await file(id);
       return true;
     })) &&
+    (await where("suggestedReplies", "by_roomId", "roomId", roomId)) &&
     (await where("messages", "by_roomId", "roomId", roomId, async (message) =>
       (await where("reactions", "by_messageId", "messageId", message._id)) &&
       (await file(message.audioStorageId)) &&

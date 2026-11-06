@@ -60,6 +60,8 @@ extension HostRoomViewModel {
 
     func startObserving() {
         registerForPushIfNeeded()
+        // The on-device model that writes replies for the strip over the message box, loaded before a message needs it
+        if #available(iOS 26.0, *), ReplyIdeaWriter.isAvailable { ReplyIdeaWriter.prewarm() }
 
         // Poll for room state and messages. Self is held for one poll at a time, and the wait backs off while polls fail.
         if pollTask == nil {

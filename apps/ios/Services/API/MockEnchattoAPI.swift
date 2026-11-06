@@ -173,6 +173,13 @@ class MockEnchattoAPI: EnchattoAPI {
         }
     }
 
+    /// What setSuggestedReplies was given, by message
+    private(set) var suggestedReplies: [String: [StarterPhrase]] = [:]
+
+    func setSuggestedReplies(messageId: String, replies: [StarterPhrase]) async throws {
+        suggestedReplies[messageId] = replies
+    }
+
     func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?, processing: ProcessingState?) async throws -> String {
         if let clientId, let existing = messages[roomId]?.first(where: { $0.clientId == clientId }) { return existing.id }
         let messageId = UUID().uuidString

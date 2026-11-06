@@ -10,6 +10,7 @@ exports[`Emoji Bingo > a game in play, for a player who waits for the host to ro
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -126,6 +127,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -357,6 +359,7 @@ exports[`Emoji Bingo > a game that ran out of emojis: unlike Emoji Match, its re
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -500,6 +503,29 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">One more round?</span>
+      <span class="sub">もう1回やる？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">So close! 😆</span>
+      <span class="sub">惜しかった！😆</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">Good game!</span>
+      <span class="sub">おつかれ！</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -647,6 +673,7 @@ exports[`Emoji Bingo > after the first bingo, for the host who plays on for seco
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -763,6 +790,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn end-game" aria-label="End Game">
@@ -1011,6 +1039,7 @@ exports[`Emoji Bingo > the lobby, for someone in the room who has not joined it 
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "sam", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -1123,6 +1152,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="Games">
@@ -1192,6 +1222,7 @@ exports[`Emoji Match > a finished game the page did not see being played: no res
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -1335,6 +1366,32 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="Things to say">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="ja">おつかれ！</span>
+      <span class="romaji">otsukare!</span>
+      <span class="sub">Good game!</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="ja">楽しかった！</span>
+      <span class="romaji">tanoshikatta!</span>
+      <span class="sub">That was fun!</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="ja">もう1回やる？</span>
+      <span class="romaji">mou 1 kai yaru?</span>
+      <span class="sub">One more round?</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="Hide suggestions">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="Games">
@@ -1378,6 +1435,7 @@ exports[`Emoji Match > a game in play, for the host whose turn it is: one pair f
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -1494,6 +1552,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn end-game" aria-label="End Game">
@@ -1827,6 +1886,7 @@ exports[`Emoji Match > the lobby, for a player who has joined it 1`] = `
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -1939,6 +1999,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -2010,6 +2071,7 @@ exports[`Lost in Translation > a game the host ended after one round: its summar
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m4"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -2188,6 +2250,36 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">Nice to meet you all!</span>
+      <span class="sub">みなさん、はじめまして！</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">Dressing up for Halloween?</span>
+      <span class="sub">ハロウィン、仮装する？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">What&#x27;s your favorite movie?</span>
+      <span class="sub">好きな映画は？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <span class="say" lang="en">What music are you into lately?</span>
+      <span class="sub">最近ハマってる音楽は？</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -2231,6 +2323,7 @@ exports[`Lost in Translation > a game the host ended after one round: its summar
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m4"}
   reactions:getReactionSummary {messageId: "m6"}
   rooms:getRoomState {roomId: "room1"}
@@ -2435,6 +2528,36 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">Hi, I&#x27;m Yuki! Nice to meet you</span>
+      <span class="sub">Yukiです！よろしくね</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">Seen the autumn leaves yet?</span>
+      <span class="sub">紅葉もう見た？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">What music are you into lately?</span>
+      <span class="sub">最近ハマってる音楽は？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <span class="say" lang="en">What&#x27;s your go-to konbini snack?</span>
+      <span class="sub">コンビニでよく買うお菓子は？</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -2478,6 +2601,7 @@ exports[`Lost in Translation > a guess: Alex's drawing with four answers in the 
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m4"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -2668,6 +2792,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -2768,6 +2893,7 @@ exports[`Lost in Translation > a team game: both teams in the status bar, and th
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m6"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -2983,6 +3109,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -3084,6 +3211,7 @@ exports[`Lost in Translation > round 2, which Yuki draws > for Yuki: the word, i
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m4"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -3274,6 +3402,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -3424,6 +3553,7 @@ exports[`Lost in Translation > round 2, which Yuki draws > for the host, who wai
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m4"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -3620,6 +3750,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn end-game" aria-label="End Game">
@@ -3663,6 +3794,7 @@ exports[`Truth or Dare > a game the host ended: no screen, and one summary card 
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -3812,6 +3944,29 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">One more round?</span>
+      <span class="sub">もう1回やる？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">So close! 😆</span>
+      <span class="sub">惜しかった！😆</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">Good game!</span>
+      <span class="sub">おつかれ！</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -3855,6 +4010,7 @@ exports[`Truth or Dare > another player's turn, for the host: Yuki chose truth a
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -3971,6 +4127,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn end-game" aria-label="End Game">
@@ -4083,6 +4240,7 @@ exports[`Truth or Dare > my turn: truth or dare? 1`] = `
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -4199,6 +4357,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -4313,6 +4472,7 @@ exports[`Word Rush > a lobby a guest opened, for the room's host: the room's hos
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -4430,6 +4590,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn end-game" aria-label="End Game">
@@ -4572,6 +4733,7 @@ exports[`Word Rush > the first card, a second and a half into its clues, for a p
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -4692,6 +4854,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -5353,6 +5516,7 @@ exports[`before the room is on screen > the same link in the browser that holds 
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: "5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -5465,6 +5629,40 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">Nice to meet you all!</span>
+      <span class="sub">みなさん、はじめまして！</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">Seen the autumn leaves yet?</span>
+      <span class="sub">紅葉もう見た？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">Coffee or tea?</span>
+      <span class="sub">コーヒーとお茶、どっちが好き？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <span class="say" lang="en">Where do you want to travel next?</span>
+      <span class="sub">次に旅行したい場所は？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip game" style="--c:var(--pink-soft);animation-delay:200ms">
+      <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
+      <span class="say">ゲームする？</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -5508,6 +5706,7 @@ exports[`the chat > a browser that is offline while a game is on: the banner, ab
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m4"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -5710,6 +5909,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -5753,6 +5953,7 @@ exports[`the chat > a browser that is offline: the banner 1`] = `
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -5877,6 +6078,40 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">Nice to meet you all!</span>
+      <span class="sub">みなさん、はじめまして！</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">Seen the autumn leaves yet?</span>
+      <span class="sub">紅葉もう見た？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">Coffee or tea?</span>
+      <span class="sub">コーヒーとお茶、どっちが好き？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <span class="say" lang="en">Where do you want to travel next?</span>
+      <span class="sub">次に旅行したい場所は？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip game" style="--c:var(--pink-soft);animation-delay:200ms">
+      <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
+      <span class="say">ゲームする？</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -5920,6 +6155,7 @@ exports[`the chat > a guest who reads Japanese, with a message of every kind 1`]
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m11"}
   reactions:getReactionSummary {messageId: "m3"}
   reactions:getReactionSummary {messageId: "m4"}
@@ -6077,12 +6313,6 @@ markup
      <button class="ec-react-add" title="リアクションまたは返信">
       <img src="/icons/re-heart.png" alt="" draggable="false" class="ec-icon" style="width:16px;height:16px"/>
      </button>
-    </div>
-    <div style="margin-left:50px">
-     <div class="ec-chips">
-      <button style="--c:var(--pink-soft);animation-delay:0s">こんにちは！</button>
-      <button style="--c:var(--blue-soft);animation-delay:0.06s">よろしくね</button>
-     </div>
     </div>
    </div>
    <div class="ec-msg own">
@@ -6271,6 +6501,36 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="en">Seen the autumn leaves yet?</span>
+      <span class="sub">紅葉もう見た？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="en">What do you usually eat for breakfast?</span>
+      <span class="sub">朝ごはんはいつも何食べる？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="en">If you could live anywhere, where?</span>
+      <span class="sub">どこにでも住めるなら、どこがいい？</span>
+     </button>
+     <button type="button" class="ec-suggest-chip game" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
+      <span class="say">ゲームする？</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -6314,6 +6574,7 @@ exports[`the chat > ten quick messages back and forth between two languages: the
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m10"}
   reactions:getReactionSummary {messageId: "m11"}
   reactions:getReactionSummary {messageId: "m12"}
@@ -6678,6 +6939,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -6721,6 +6983,7 @@ exports[`the chat > the same conversation for a guest who reads English 1`] = `
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "sam", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m11"}
   reactions:getReactionSummary {messageId: "m3"}
   reactions:getReactionSummary {messageId: "m4"}
@@ -6878,12 +7141,6 @@ markup
      <button class="ec-react-add" title="React or reply">
       <img src="/icons/re-heart.png" alt="" draggable="false" class="ec-icon" style="width:16px;height:16px"/>
      </button>
-    </div>
-    <div style="margin-left:50px">
-     <div class="ec-chips">
-      <button style="--c:var(--pink-soft);animation-delay:0s">こんにちは！</button>
-      <button style="--c:var(--blue-soft);animation-delay:0.06s">よろしくね</button>
-     </div>
     </div>
    </div>
    <div class="ec-msg">
@@ -7052,6 +7309,39 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="Things to say">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="ja">ハロウィン、仮装する？</span>
+      <span class="romaji">harowin, kasou suru?</span>
+      <span class="sub">Dressing up for Halloween?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="ja">最近やってるゲームある？</span>
+      <span class="romaji">saikin yatteru geemu aru?</span>
+      <span class="sub">What game are you playing lately?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="ja">料理する？得意料理は？</span>
+      <span class="romaji">ryouri suru? tokui ryouri wa?</span>
+      <span class="sub">Do you cook? What&#x27;s your best dish?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip game" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
+      <span class="say">Play a game?</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="Other topics">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="Hide suggestions">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="Games">
@@ -7095,6 +7385,7 @@ exports[`the chat > the same conversation for the host 1`] = `
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m11"}
   reactions:getReactionSummary {messageId: "m3"}
   reactions:getReactionSummary {messageId: "m4"}
@@ -7242,12 +7533,6 @@ markup
         </span>
        </button>
       </div>
-     </div>
-    </div>
-    <div style="margin-left:0">
-     <div class="ec-chips">
-      <button style="--c:var(--pink-soft);animation-delay:0s">こんにちは！</button>
-      <button style="--c:var(--blue-soft);animation-delay:0.06s">よろしくね</button>
      </div>
     </div>
    </div>
@@ -7461,6 +7746,39 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="Things to say">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="ja">紅葉もう見た？</span>
+      <span class="romaji">kouyou mou mita?</span>
+      <span class="sub">Seen the autumn leaves yet?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="ja">料理する？得意料理は？</span>
+      <span class="romaji">ryouri suru? tokui ryouri wa?</span>
+      <span class="sub">Do you cook? What&#x27;s your best dish?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="ja">今日ちょっと嬉しかったことは？</span>
+      <span class="romaji">kyou chotto ureshikatta koto wa?</span>
+      <span class="sub">Something that made you happy today?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip game" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
+      <span class="say">Play a game?</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="Other topics">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="Hide suggestions">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="Games">
@@ -7504,6 +7822,7 @@ exports[`the games together > a canceled Emoji Match lobby and a canceled Emoji 
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "alex", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
@@ -7620,6 +7939,44 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot">
+   <div class="ec-suggest">
+    <div class="ec-suggest-row" role="group" aria-label="Things to say">
+     <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
+      <span class="say" lang="ja">みなさん、はじめまして！</span>
+      <span class="romaji">minasan, hajimemashite!</span>
+      <span class="sub">Nice to meet you all!</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
+      <span class="say" lang="ja">紅葉もう見た？</span>
+      <span class="romaji">kouyou mou mita?</span>
+      <span class="sub">Seen the autumn leaves yet?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
+      <span class="say" lang="ja">趣味は何？</span>
+      <span class="romaji">shumi wa nani?</span>
+      <span class="sub">What&#x27;s your hobby?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
+      <span class="say" lang="ja">ペット飼ってる？</span>
+      <span class="romaji">petto katteru?</span>
+      <span class="sub">Do you have any pets?</span>
+     </button>
+     <button type="button" class="ec-suggest-chip game" style="--c:var(--pink-soft);animation-delay:200ms">
+      <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
+      <span class="say">Play a game?</span>
+     </button>
+    </div>
+    <button type="button" class="ec-suggest-btn" aria-label="Other topics">
+     <span style="font-size:17px;line-height:1">🎲</span>
+    </button>
+    <button type="button" class="ec-suggest-btn" aria-label="Hide suggestions">
+     <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1.5 1.5l7 7M8.5 1.5l-7 7"></path>
+     </svg>
+    </button>
+   </div>
+  </div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="Games">
@@ -7663,6 +8020,7 @@ exports[`the games together > all five open at once, which the server allows: ev
   games:getLatestGameSession {roomId: "room1"}
   games:getMyActiveStep {participantId: "yuki", token: undefined}
   messages:getRoomMessages {roomId: "room1"}
+  messages:getSuggestedReplies {roomId: "room1"}
   reactions:getReactionSummary {messageId: "m5"}
   rooms:getRoomState {roomId: "room1"}
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
@@ -7862,6 +8220,7 @@ markup
   </div>
  </div>
  <div class="ec-inputbar">
+  <div class="ec-suggest-slot"></div>
   <div class="ec-input-row">
    <div class="ec-tools">
     <button class="ec-round-btn game" aria-label="ゲーム">
@@ -8264,7 +8623,7 @@ markup
 </div>"
 `;
 
-exports[`what a first render of the page does not reach, each view component by itself > the display settings sheet of a guest who reads Japanese, with romaji off and medium text: the debug panel closed, asking for nothing 1`] = `
+exports[`what a first render of the page does not reach, each view component by itself > the display settings sheet of a guest who reads Japanese, with romaji off, medium text, and things to say in her own language: the debug panel closed, asking for nothing 1`] = `
 "queries
   emojiMatch:getEmTraceByRoom skip
   truthOrDare:getTraceByRoom skip
@@ -8314,6 +8673,24 @@ markup
       <button role="radio" aria-checked="false" aria-label="大" style="font-size:19px">A</button>
      </div>
     </div>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;background:var(--yellow-soft)">
+       <img src="/icons/g-bulb.png" alt="💡" draggable="false" class="ec-icon" style="width:18px;height:18px"/>
+      </span>
+      おすすめの一言
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none" checked=""/>
+     <span class="ec-switch on" aria-hidden="true"></span>
+    </label>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;font-size:13px">A</span>
+      英語で言ってみる
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none"/>
+     <span class="ec-switch" aria-hidden="true"></span>
+    </label>
    </div>
    <div style="display:flex;gap:10px;margin-top:16px">
     <button class="ec-btn red sm" style="flex:1">ルームを退出</button>
@@ -8466,7 +8843,7 @@ markup
 </div>"
 `;
 
-exports[`what a first render of the page does not reach, each view component by itself > the same sheet in a deployed build, for a guest who reads English: the build's commit and address under the deployment's name 1`] = `
+exports[`what a first render of the page does not reach, each view component by itself > the same sheet in a deployed build, for a guest who reads English and has things to say off: the build's commit and address under the deployment's name 1`] = `
 "queries
   emojiMatch:getEmTraceByRoom skip
   truthOrDare:getTraceByRoom skip
@@ -8516,6 +8893,16 @@ markup
       <button role="radio" aria-checked="false" aria-label="Large" style="font-size:19px">A</button>
      </div>
     </div>
+    <label class="ec-toggle-row">
+     <span style="display:flex;align-items:center;gap:10px">
+      <span class="ec-lang-badge" style="width:26px;height:26px;background:var(--yellow-soft)">
+       <img src="/icons/g-bulb.png" alt="💡" draggable="false" class="ec-icon" style="width:18px;height:18px"/>
+      </span>
+      Things to say
+     </span>
+     <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none"/>
+     <span class="ec-switch" aria-hidden="true"></span>
+    </label>
    </div>
    <div style="display:flex;gap:10px;margin-top:16px">
     <button class="ec-btn red sm" style="flex:1">Leave room</button>

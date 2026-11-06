@@ -30,6 +30,11 @@ struct HostConversationView: View {
     @AppStorage("enchatto_showJapanese") var showJapanese = true
     @AppStorage("enchatto_showRomaji") var showRomaji = true
     @AppStorage(ChatTextSize.storageKey) var chatTextSize: ChatTextSize = .small
+    /// The things to say over the message box, and whether each is in the language practised (SuggestionStrip)
+    @AppStorage("enchatto_showSuggestions") var showSuggestions = true
+    @AppStorage("enchatto_suggestInPractice") var suggestInPractice = true
+    /// The words the strip's last chip put in the field: the strip stays while the field holds them
+    @State var stripFilled = ""
     @State var showHostSettings = false
     @State var showInRoom = false
     @State var fullScreenImage: (url: String, messageId: String)?
@@ -124,6 +129,7 @@ struct HostConversationView: View {
         .onChange(of: viewModel.participants) { participants in
             updateHiddenOfflineIds(participants: participants)
         }
+        .onChange(of: replyToId) { viewModel.considerReplyIdeas(replyingTo: $0) }
         .alert("Error", isPresented: .init(
             get: { viewModel.error != nil },
             set: { if !$0 { viewModel.error = nil } }

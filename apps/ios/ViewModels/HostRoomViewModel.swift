@@ -18,8 +18,19 @@ class HostRoomViewModel: ObservableObject {
         }
     }
     @Published var participants: [Participant] = []
-    @Published var messages: [Message] = []
+    @Published var messages: [Message] = [] {
+        didSet { considerReplyIdeas() }
+    }
     @Published var reactionSummaries: [String: [ReactionSummaryEntry]] = [:]
+
+    // MARK: - Reply ideas (HostRoomViewModel+ReplyIdeas.swift)
+    /// Replies written on this phone by Apple's on-device model, by the id of the message they answer
+    @Published var replyIdeas: [String: [StarterPhrase]] = [:]
+    /// Messages replies have been written for, are being written for, or could not be written for
+    var replyIdeasAsked = Set<String>()
+    /// Messages waiting for replies, the next last
+    var replyIdeasWaiting: [String] = []
+    var replyIdeaTask: Task<Void, Never>?
     @Published var isLoading = true
     @Published var error: String?
     @Published var showParticipantSheet = false
@@ -272,6 +283,15 @@ class HostRoomViewModel: ObservableObject {
 
     var isClosed: Bool {
         room?.status == .closed
+    }
+
+    /// A game is on, its lobby too: the things to say over the message box keep to replies (the web's lib/end-game.ts)
+    var gameOn: Bool {
+        if activeGameSession != nil { return true }
+        if let rush = activeWordRushGame, rush.status == .lobby || rush.status == .active { return true }
+        if let match = activeEmojiMatchGame, match.status != .completed && match.status != .canceled { return true }
+        if let bingo = activeEmojiBingoGame, bingo.status != .completed && bingo.status != .canceled { return true }
+        return activeTruthOrDareGame?.status == .active
     }
 
     var isProcessing: Bool {

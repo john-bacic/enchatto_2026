@@ -139,6 +139,14 @@ enum L {
         "Medium": ["ja": "中"],
         "Large": ["ja": "大"],
 
+        // Things to say (over the message box)
+        "Things to say": ["ja": "おすすめの一言"],
+        "Say it in Japanese": ["ja": "日本語で言う"],
+        "Say it in English": ["ja": "英語で言ってみる"],
+        "Play a game?": ["ja": "ゲームする？"],
+        "Other topics": ["ja": "ほかの話題"],
+        "Hide suggestions": ["ja": "おすすめを隠す"],
+
         // Typing indicator
         "is typing": ["ja": "が入力中"],
         "is drawing": ["ja": "が描画中"],

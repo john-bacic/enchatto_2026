@@ -316,6 +316,13 @@ class RealEnchattoAPI: EnchattoAPI {
         ])
     }
 
+    func setSuggestedReplies(messageId: String, replies: [StarterPhrase]) async throws {
+        try await client.postVoid("/api/messages/suggested-replies", body: [
+            "messageId": messageId,
+            "replies": replies.map { ["en": $0.en, "ja": $0.ja, "romaji": $0.romaji] },
+        ])
+    }
+
     // MARK: - Participants
 
     func kickParticipant(participantId: String, roomId: String) async throws {

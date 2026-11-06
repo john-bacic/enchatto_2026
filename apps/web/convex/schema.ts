@@ -131,6 +131,18 @@ export default defineSchema({
     // A room's reactions without reading its messages (reactions.ts: getRoomReactionSummaries), and the reactions that have no roomId (fillReactionRoomIds)
     .index("by_roomId", ["roomId"]),
 
+  // Replies the iOS host's phone wrote for a message with Apple's on-device model, offered first on the others'
+  // strips of things to say (lib/conversation-starters.ts). A table of its own: written into the message, they
+  // would send the room's whole message list to every subscriber again (messages.ts: getRoomMessages).
+  suggestedReplies: defineTable({
+    roomId: v.id("rooms"),
+    messageId: v.id("messages"),
+    replies: v.array(v.object({ en: v.string(), ja: v.string(), romaji: v.string() })),
+  })
+    // A room's newest (messages.ts: getSuggestedReplies), and all of them when the room is purged
+    .index("by_roomId", ["roomId"])
+    .index("by_messageId", ["messageId"]),
+
   gameSessions: defineTable({
     roomId: v.id("rooms"),
     gameType: v.string(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useState, useRef, useEffect, useCallback, useImperativeHandle } from "react";
+import { forwardRef, useState, useRef, useEffect, useCallback, useImperativeHandle, type ReactNode } from "react";
 import { ReplyPreview } from "@/components/reply-preview";
 import { DrawingModal } from "@/components/drawing-modal";
 import { useSpeechRecognition, ensurePunctuation, isAndroid } from "@/hooks/use-speech-recognition";
@@ -135,6 +135,11 @@ interface MessageInputProps {
   onCancelReply: () => void;
   onTypingChange?: (action: "typing" | "drawing" | "voicing" | null) => void;
   lang?: string;
+  /**
+   * Things to say (suggestion-strip.tsx), over the field. Out of sight while the field holds words of her own,
+   * typed or dictated, that a tap would replace, and while a voice message records, which a tap leaves alone
+   */
+  suggestions?: ReactNode;
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput({
@@ -149,8 +154,11 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   onCancelReply,
   onTypingChange,
   lang,
+  suggestions,
 }, ref) {
   const [text, setText] = useState("");
+  /** The words the last suggestion put in the field */
+  const [filled, setFilled] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
@@ -327,9 +335,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     // confirmed, the word Gboard is composing), as Clear replaces it: the field keeps the focus, and nothing here
     // ends the conversion or waits for it
     setText(suggestion);
+    setFilled(suggestion);
     setToolsOpen(false);
     signalTyping();
-    // A phone's keyboard stays as it is: the chip leaves the focus where it was (suggestion-chips.tsx), and the
+    // A phone's keyboard stays as it is: the chip leaves the focus where it was (suggestion-strip.tsx), and the
     // field is not given it here. On a computer the field takes the focus, so that Enter sends
     if (window.matchMedia("(pointer: coarse)").matches) return;
     if (isListening) focusOnReturnRef.current = true;
@@ -557,6 +566,15 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <button className="ec-chip outline" onClick={onCancelReply} style={{ flex: "none", cursor: "pointer" }}>
               {t("Cancel", lang)}
             </button>
+          </div>
+        )}
+
+        {suggestions && (
+          <div
+            className="ec-suggest-slot"
+            hidden={sendingVoice || (!isListening && text.trim() !== "" && text !== filled)}
+          >
+            {suggestions}
           </div>
         )}
 

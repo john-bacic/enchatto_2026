@@ -65,6 +65,7 @@ const ROUTES = [
   "POST /api/messages/send-image",
   "POST /api/messages/send-text",
   "POST /api/messages/submit-processed",
+  "POST /api/messages/suggested-replies",
   "POST /api/messages/transcribe",
   "POST /api/participants/kick",
   "POST /api/participants/leave",

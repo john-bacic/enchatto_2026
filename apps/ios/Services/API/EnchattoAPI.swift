@@ -95,6 +95,10 @@ protocol EnchattoAPI {
     /// Mark a message as failed
     func markMessageFailed(messageId: String, error: String) async throws
 
+    /// Replies for a message, written on this phone with Apple's on-device model, offered first on everyone else's
+    /// strip of things to say, the web's too. Written again, they replace the first. The host's only
+    func setSuggestedReplies(messageId: String, replies: [StarterPhrase]) async throws
+
     /// Send a text message from this device. A send repeated with the same clientId (here and in the three sends below) returns the first message's id.
     /// `processing` is this device's own translation: the message then arrives translated, and the server does not translate it
     func sendTextMessage(roomId: String, senderId: String, text: String, replyToId: String?, clientId: String?, processing: ProcessingState?) async throws -> String

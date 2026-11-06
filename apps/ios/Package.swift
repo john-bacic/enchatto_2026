@@ -48,17 +48,22 @@ let package = Package(
                 "SuggestionService.swift",
             ],
             sources: [
+                "ConversationDeck.swift",
+                "ConversationStarters.swift",
                 "MeCabCasualizer.swift",
                 "MeCabRomajiService.swift",
                 "RomajiService.swift",
                 "MyMemoryTranslationService.swift",
+                "ReplyIdeas.swift",
                 "TranslationService.swift",
             ]
         ),
         .testTarget(
             name: "EnchattoTextTests",
             dependencies: ["EnchattoText"],
-            path: "Tests/EnchattoTextTests"
+            path: "Tests/EnchattoTextTests",
+            // Read from its path by ConversationStartersTests, written by the web's tests
+            exclude: ["StarterCases.jsonl"]
         ),
     ],
     // The app builds with SWIFT_VERSION 5.9; keep the Swift 5 language mode.

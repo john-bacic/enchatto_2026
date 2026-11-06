@@ -32,6 +32,21 @@ extension HostConversationView {
 
                     chatTextSizePicker
 
+                    settingsToggle(L.t("Things to say", hostLanguage), isOn: $showSuggestions) {
+                        EmojiArt(emoji: "💡", size: 16)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(EC.yellowSoft))
+                            .overlay(Circle().strokeBorder(EC.ink, lineWidth: 2))
+                    }
+                    if showSuggestions {
+                        settingsToggle(
+                            L.t(hostLanguage == "ja" ? "Say it in English" : "Say it in Japanese", hostLanguage),
+                            isOn: $suggestInPractice
+                        ) {
+                            LangBadge(lang: hostLanguage == "ja" ? "en" : "ja", size: 22)
+                        }
+                    }
+
                     DashedRule()
                         .padding(.vertical, 6)
                         .padding(.horizontal, 12)

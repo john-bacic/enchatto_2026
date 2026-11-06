@@ -11,7 +11,6 @@ struct HostMessageRow: View {
     var reactions: [ReactionSummaryEntry] = []
     var preferredLanguage: String = "en"
     var onReply: () -> Void
-    var onSuggestionTap: ((String) -> Void)?
     var onReact: ((String) -> Void)?
     var onLongPress: (() -> Void)?
     var showEnglish: Bool = true
@@ -43,7 +42,6 @@ struct HostMessageRow: View {
                 replyPreview
                 bubbleRow
                 unsentActions
-                suggestionsRow
             }
 
             if !isOwn { Spacer(minLength: 0) }
@@ -515,39 +513,6 @@ struct HostMessageRow: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.5), value: reactions.map { "\($0.emoji)\($0.count)" })
-    }
-
-    // MARK: - Suggestions
-
-    private static let suggestionFills = [EC.pinkSoft, EC.blueSoft, EC.mintSoft, EC.yellowSoft]
-
-    @ViewBuilder
-    private var suggestionsRow: some View {
-        if let suggestions = message.processing?.suggestions, !suggestions.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(Array(suggestions.prefix(4).enumerated()), id: \.element) { i, suggestion in
-                        Button {
-                            Haptics.tap()
-                            onSuggestionTap?(suggestion)
-                        } label: {
-                            Text(suggestion)
-                                .font(.round(12, .black))
-                                .foregroundStyle(EC.ink)
-                                .padding(.horizontal, 11)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(Self.suggestionFills[i % Self.suggestionFills.count]))
-                                .overlay(Capsule().strokeBorder(EC.ink, lineWidth: 2.5))
-                                .background(Capsule().fill(EC.ink).offset(y: 3))
-                                .padding(.bottom, 3)
-                        }
-                        .buttonStyle(.pressable)
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-            .padding(.leading, isOwn ? 0 : avatarSize + 6)
-        }
     }
 }
 

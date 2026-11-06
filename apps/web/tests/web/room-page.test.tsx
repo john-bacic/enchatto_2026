@@ -1142,7 +1142,7 @@ describe("the games together", () => {
 describe("what a first render of the page does not reach, each view component by itself", () => {
   const nothing = () => {};
 
-  test("the display settings sheet of a guest who reads Japanese, with romaji off and medium text: the debug panel closed, asking for nothing", async () => {
+  test("the display settings sheet of a guest who reads Japanese, with romaji off, medium text, and things to say in her own language: the debug panel closed, asking for nothing", async () => {
     const sheet = await render(async () => {
       const { DisplaySettingsSheet } = await import("@/components/room/display-settings-sheet");
       return (
@@ -1156,6 +1156,9 @@ describe("what a first render of the page does not reach, each view component by
           showRomaji={false}
           chatSize="m"
           pickChatSize={nothing}
+          showSuggestions
+          suggestInPractice={false}
+          toggleSuggestPref={nothing}
           setShowLeaveConfirm={nothing}
           convexUrl="https://example.convex.cloud"
           roomId={ROOM}
@@ -1165,7 +1168,7 @@ describe("what a first render of the page does not reach, each view component by
     expect(sheet).toMatchSnapshot();
   });
 
-  test("the same sheet in a deployed build, for a guest who reads English: the build's commit and address under the deployment's name", async () => {
+  test("the same sheet in a deployed build, for a guest who reads English and has things to say off: the build's commit and address under the deployment's name", async () => {
     vi.stubEnv("NEXT_PUBLIC_GIT_SHA", "abc1234");
     vi.stubEnv("NEXT_PUBLIC_VERCEL_URL", "enchatto.vercel.app");
     const sheet = await render(async () => {
@@ -1181,6 +1184,9 @@ describe("what a first render of the page does not reach, each view component by
           showRomaji
           chatSize="s"
           pickChatSize={nothing}
+          showSuggestions={false}
+          suggestInPractice
+          toggleSuggestPref={nothing}
           setShowLeaveConfirm={nothing}
           convexUrl="https://example.convex.cloud"
           roomId={ROOM}
@@ -1419,7 +1425,7 @@ describe("the End Game button's rule", () => {
       if (name === refusing) throw new Error(`${name} refused`);
       return undefined as never;
     };
-    const { isGameActive, onEndGame } = endGameRule({
+    const { gameOn, isGameActive, onEndGame } = endGameRule({
       ...games,
       me: viewer,
       lang: "en",
@@ -1431,7 +1437,7 @@ describe("the End Game button's rule", () => {
       cancelWordRush: mutation("wordRush:cancel"),
       cancelGameMutation: mutation("games:cancelGame"),
     });
-    return { isGameActive, onEndGame, called, asked, logged };
+    return { gameOn, isGameActive, onEndGame, called, asked, logged };
   }
 
   // Each row has one game fewer on than the row above it: the game that row ended
@@ -1462,6 +1468,17 @@ describe("the End Game button's rule", () => {
     expect(called).toEqual([call]);
   });
 
+  test.each<[string, Partial<Games>]>([
+    ["Lost in Translation", { activeGameSession: all.activeGameSession }],
+    ["a Word Rush lobby", { wordRushGame: all.wordRushGame }],
+    ["an Emoji Match lobby", { emojiMatchGame: all.emojiMatchGame }],
+    ["an Emoji Bingo lobby", { emojiBingoGame: all.emojiBingoGame }],
+    ["Truth or Dare", { truthOrDareGame: all.truthOrDareGame }],
+  ])("a room whose only game is %s: a game is on for the host and for a guest", async (_, game) => {
+    expect((await rule(alex, { ...none, ...game })).gameOn).toBe(true);
+    expect((await rule(yuki, { ...none, ...game })).gameOn).toBe(true);
+  });
+
   test("the host answers no: nothing is ended", async () => {
     const { onEndGame, called, asked } = await rule(alex, all, { answer: false });
     await onEndGame?.();
@@ -1469,10 +1486,12 @@ describe("the End Game button's rule", () => {
     expect(called).toEqual([]);
   });
 
-  test("a room with no game, or with games that were all played to the end or called off: the host has no game to end", async () => {
-    expect((await rule(alex, none)).isGameActive).toBe(false);
-    expect((await rule(alex, over)).isGameActive).toBe(false);
-    expect((await rule(alex, calledOff)).isGameActive).toBe(false);
+  test("a room with no game, or with games that were all played to the end or called off: the host has no game to end, and no game is on", async () => {
+    for (const games of [none, over, calledOff]) {
+      const { gameOn, isGameActive } = await rule(alex, games);
+      expect(isGameActive).toBe(false);
+      expect(gameOn).toBe(false);
+    }
   });
 
   test("a guest has no game to end and nothing to tap, whatever is on", async () => {

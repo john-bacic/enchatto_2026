@@ -1127,22 +1127,7 @@
   100% { transform: none; opacity: 1; }
 }
 
-/* Suggestion chips + reply preview */
-.ec-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.ec-chips button {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 11px;
-  border: 2.5px solid var(--ink);
-  border-radius: 999px;
-  background: var(--c);
-  box-shadow: 0 3px 0 var(--ink);
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
-  animation: ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
-}
-.ec-chips button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+/* Reply preview */
 .ec-reply {
   display: flex;
   align-items: center;
@@ -1499,6 +1484,59 @@
 .ec-voice-timer i { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
 .ec-round-btn.mic { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .ec-reply-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; animation: ec-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
+
+/* Things to say: one row over the field that scrolls sideways out of the bar's left edge, its buttons on the right */
+.ec-suggest { display: flex; align-items: center; gap: 6px; margin: -6px 0 4px -10px; }
+.ec-suggest-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 7px;
+  /* Room for the chips' shadows and their pop, which the scroller would clip */
+  padding: 6px 14px 7px 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+.ec-suggest-row::-webkit-scrollbar { display: none; }
+.ec-suggest-chip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1px;
+  max-width: 240px;
+  padding: 5px 12px;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  background: var(--c);
+  box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink);
+  text-align: left;
+  animation: ec-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.ec-suggest-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.ec-suggest-chip :is(.say, .romaji, .sub) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ec-suggest-chip .say { display: flex; align-items: center; font-size: 13px; font-weight: 900; line-height: 1.25; }
+.ec-suggest-chip :is(.romaji, .sub) { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: var(--ink-soft); }
+.ec-suggest-chip .romaji { color: var(--pink); font-style: italic; }
+.ec-suggest-chip.game { flex-direction: row; align-items: center; gap: 6px; background: var(--violet-soft); }
+.ec-suggest-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: #fff;
+}
+.ec-suggest-btn:active { transform: scale(0.92); }
+.ec-suggest-btn svg { width: 10px; height: 10px; fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; }
 
 /* ─── QR scanner ─────────────────────────────────────────────────────────── */
 .ec-qr-frame {

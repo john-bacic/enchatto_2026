@@ -7,7 +7,6 @@ import { api } from "../convex/_generated/api";
 import { Id } from "../convex/_generated/dataModel";
 import { ReplyPreview } from "@/components/reply-preview";
 import { ReactionBar, ReactionBarPills } from "@/components/reaction-bar";
-import { SuggestionChips } from "@/components/suggestion-chips";
 import { MessageImage } from "@/components/message-image";
 import { MessageDrawing } from "@/components/message-drawing";
 import { VoiceMessage } from "@/components/message-voice";
@@ -55,8 +54,6 @@ interface MessageItemProps {
   replyToSender?: ParticipantData;
   onReply: (messageId: string) => void;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
-  /** A tap on one of the suggestions under the message, with the suggestion. Without it a tap does nothing */
-  onSuggestionTap?: (suggestion: string) => void;
   currentParticipantId: string;
   preferredLanguage?: string;
   lang?: string;
@@ -181,7 +178,6 @@ export const MessageItem = memo(function MessageItem({
   replyToSender,
   onReply,
   onToggleReaction,
-  onSuggestionTap,
   currentParticipantId,
   preferredLanguage = "en",
   lang,
@@ -435,17 +431,6 @@ export const MessageItem = memo(function MessageItem({
             </button>
           )}
         </div>
-
-        {/* Suggestions: a tap on one hands it to the page, which puts it in the message box */}
-        {message.processing?.suggestions &&
-          message.processing.suggestions.length > 0 && (
-            <div style={{ marginLeft: isOwn ? 0 : 50 }}>
-              <SuggestionChips
-                suggestions={message.processing.suggestions}
-                onSelect={onSuggestionTap}
-              />
-            </div>
-          )}
       </div>
 
       {/* Long-press reaction picker */}

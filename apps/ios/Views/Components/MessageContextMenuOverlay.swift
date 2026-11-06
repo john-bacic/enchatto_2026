@@ -117,7 +117,6 @@ struct MessageContextMenuOverlay: View {
             reactions: reactions,
             preferredLanguage: preferredLanguage,
             onReply: {},
-            onSuggestionTap: nil,
             onReact: nil,
             onLongPress: nil,
             showEnglish: showEnglish,
