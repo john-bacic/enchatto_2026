@@ -106,9 +106,6 @@ enum ConversationStarters {
     static let welcomeMs: Double = 60_000
     /// This long after the last thing that happened, a silence offers a game as well
     static let gameNudgeMs: Double = 90_000
-    /// Once she has sent this many messages within chattyMs the strip stays away: she has plenty to say
-    static let chattyCount = 3
-    static let chattyMs: Double = 120_000
     /// A phrase said in one of this many newest messages is not offered again
     private static let retireLookback = 12
     private static let maxChips = 6
@@ -174,11 +171,6 @@ enum ConversationStarters {
         }
         let now = max(input.now, newestAt)
 
-        let lately = mine.filter { now - $0.createdAt < chattyMs }
-        if lately.count >= chattyCount {
-            return (nil, lately[lately.count - chattyCount].createdAt + chattyMs)
-        }
-
         if let (message, what) = newest {
             let freshFor = what == .said ? lullMs : welcomeMs
             if now - message.createdAt < freshFor {
@@ -186,7 +178,8 @@ enum ConversationStarters {
                 let mineToo = message.senderId == input.meId
                 switch what {
                 case .said:
-                    // After her own message the others have the floor
+                    // After her own message the others have the floor: the strip is back with anybody else's, however
+                    // much she said
                     if mineToo { return (nil, wakeAt) }
                     let key = "said:\(message.id)"
                     return (Starters(key: key, chips: answers(to: message, key: key)), wakeAt)

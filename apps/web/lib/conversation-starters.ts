@@ -75,9 +75,6 @@ export const LULL_MS = 30_000;
 export const WELCOME_MS = 60_000;
 /** This long after the last thing that happened, a silence offers a game as well */
 export const GAME_NUDGE_MS = 90_000;
-/** Once she has sent this many messages within CHATTY_MS the strip stays away: she has plenty to say */
-export const CHATTY_COUNT = 3;
-export const CHATTY_MS = 120_000;
 /** A phrase said in one of this many newest messages is not offered again, so that nobody echoes a canned line */
 const RETIRE_LOOKBACK = 12;
 /** At most this many chips at once */
@@ -350,11 +347,6 @@ export function startersFor(input: StarterInput): { starters: Starters | null; w
   }
   const now = Math.max(input.now, newestAt);
 
-  const lately = mine.filter((m) => now - m.createdAt < CHATTY_MS);
-  if (lately.length >= CHATTY_COUNT) {
-    return { starters: null, wakeAt: lately[lately.length - CHATTY_COUNT].createdAt + CHATTY_MS };
-  }
-
   if (newest) {
     const { m, what } = newest;
     const freshFor = what === "said" ? LULL_MS : WELCOME_MS;
@@ -362,7 +354,7 @@ export function startersFor(input: StarterInput): { starters: Starters | null; w
       const wakeAt = m.createdAt + freshFor;
       const mineToo = m.senderId === meId;
       if (what === "said") {
-        // After her own message the others have the floor
+        // After her own message the others have the floor: the strip is back with anybody else's, however much she said
         if (mineToo) return { starters: null, wakeAt };
         const key = `said:${m._id}`;
         return { starters: { key, chips: answersTo(m, key) }, wakeAt };

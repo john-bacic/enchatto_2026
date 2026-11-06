@@ -3,7 +3,6 @@ import {
   ANSWER_OPEN,
   ANSWER_YES_NO,
   BACK,
-  CHATTY_MS,
   GAME_NUDGE_MS,
   GG,
   INTRO,
@@ -141,11 +140,13 @@ describe("Yuki's own message", () => {
     expect(strip([msg("sam", MINUTE, "hi"), yuki])).toEqual({ starters: null, wakeAt: yuki.createdAt + LULL_MS });
   });
 
-  test("three of them within two minutes: nothing at all, until the first of the three is two minutes old", () => {
-    const first = msg("yuki", 100 * SECOND, "one");
-    const messages = [first, msg("yuki", 50 * SECOND, "two"), msg("yuki", 10 * SECOND, "three"), msg("sam", 5 * SECOND, "Wow, Yuki!")];
-    expect(strip(messages)).toEqual({ starters: null, wakeAt: first.createdAt + CHATTY_MS });
-    expect(strip(messages, { now: first.createdAt + CHATTY_MS }).starters).not.toBeNull();
+  test("however many in a row, hides it only until somebody else's: the strip answers that", () => {
+    const mine = [msg("yuki", 100 * SECOND, "one"), msg("yuki", 50 * SECOND, "two"), msg("yuki", 10 * SECOND, "three")];
+    const sam = msg("sam", 5 * SECOND, "Wow, Yuki!");
+    expect(strip(mine).starters).toBeNull();
+    const { starters } = strip([...mine, sam]);
+    expect(starters?.key).toBe(`said:${sam._id}`);
+    expect(kinds(starters?.chips)).toEqual(["react", "react", "react", "react"]);
   });
 });
 
