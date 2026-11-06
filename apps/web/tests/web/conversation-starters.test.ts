@@ -113,11 +113,11 @@ describe("someone else's message", () => {
     expect(fit("drawing")).toEqual(expect.arrayContaining(words(drawing?.chips)!));
   });
 
-  test("the suggestions that came with it come first, three at most and none blank, the deck's after them", () => {
+  test("the suggestions that came with it come first, three at most and none blank, each with one of the deck's after it", () => {
     const sam = msg("sam", 2 * SECOND, "I went to Kyoto", { processing: { suggestions: ["Sounds good!", "  ", "👍", "Let's go", "One too many"] } });
     const { starters } = strip([yukiSpoke(), sam]);
-    expect(words(starters?.chips)?.slice(0, 3)).toEqual(["Sounds good!", "👍", "Let's go"]);
-    expect(kinds(starters?.chips)).toEqual(["offered", "offered", "offered", "react", "react", "react"]);
+    expect(kinds(starters?.chips)).toEqual(["offered", "react", "offered", "react", "offered", "react"]);
+    expect(words(starters?.chips.filter((c) => c.kind === "offered"))).toEqual(["Sounds good!", "👍", "Let's go"]);
   });
 
   test("Yuki's introduction comes before the answers, while she has said nothing in the room", () => {
@@ -340,11 +340,28 @@ describe("replies the host's phone wrote for a message", () => {
   const idea = (en: string, ja: string, romaji = ""): Phrase => ({ en, ja, romaji });
   const written = [idea("I love it!", "大好き！", "daisuki!"), idea("What kind?", "どんなの？", "donna no?"), idea("Not really", "あんまり", "anmari"), idea("One too many", "多すぎ", "oosugi")];
 
-  test("come first, three at most, in place of the suggestions that came with it", () => {
+  test("come first, three at most, in place of the suggestions that came with it, each with one of the deck's after it", () => {
     const sam = msg("sam", 2 * SECOND, "Do you like ramen?", { processing: { suggestions: ["Yes!"] } });
     const { starters } = strip([yukiSpoke(), sam], { ideas: { [sam._id]: written } });
-    expect(kinds(starters?.chips)).toEqual(["offered", "offered", "offered", "answer", "answer", "answer"]);
-    expect(starters?.chips.slice(0, 3).map((c) => c.phrase)).toEqual(written.slice(0, 3));
+    expect(kinds(starters?.chips)).toEqual(["offered", "answer", "offered", "answer", "offered", "answer"]);
+    expect(starters?.chips.filter((c) => c.kind === "offered").map((c) => c.phrase)).toEqual(written.slice(0, 3));
+  });
+
+  test("Yuki's introduction is the first of the deck's, while she has said nothing in the room", () => {
+    const sam = msg("sam", 2 * SECOND, "Do you like ramen?");
+    const { starters } = strip([sam], { ideas: { [sam._id]: written } });
+    expect(kinds(starters?.chips)).toEqual(["offered", "intro", "offered", "answer", "offered", "answer"]);
+  });
+
+  test("the deck's do not say one of them again: another of the deck's takes its place", () => {
+    const sam = msg("sam", 2 * SECOND, "I went to Kyoto");
+    const deckAlone = strip([yukiSpoke(), sam]).starters!.chips;
+    const echo = deckAlone[0].phrase!;
+    // "That's amazing" written, "That's amazing!" in the deck: the same words, whatever the Japanese says
+    const { starters } = strip([yukiSpoke(), sam], { ideas: { [sam._id]: [idea(echo.en.replace(/[!?]+$/, ""), "べつの", "betsu no")] } });
+    expect(kinds(starters?.chips)).toEqual(["offered", "react", "react", "react", "react"]);
+    expect(words(starters?.chips.slice(1))).not.toContain(echo.en);
+    expect(words(starters?.chips.slice(1))).toEqual(expect.arrayContaining(words(deckAlone.slice(1))!));
   });
 
   test("answer the message Yuki is replying to as well", () => {
@@ -480,6 +497,12 @@ function moments(): StarterInput[] {
       { en: "Wow", ja: "  ", romaji: "" },
     ],
     [],
+    // The deck's own words, near enough, which none of the deck's chips may say again
+    [
+      { en: "Me too", ja: "私も！", romaji: "watashi mo!" },
+      { en: "That's amazing", ja: "すごいね", romaji: "sugoi ne" },
+      { en: "Good question, let me think", ja: "いい質問、考えさせて", romaji: "ii shitsumon, kangaesasete" },
+    ],
   ];
   const overs = ["game_summary:{}", "emoji_match_summary:{}", "emoji_bingo_summary:{}", "emoji_match_complete:{}", "truth_or_dare_summary:{}"];
   const cases: StarterInput[] = [];

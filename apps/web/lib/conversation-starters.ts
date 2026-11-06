@@ -283,6 +283,16 @@ function pick(pool: readonly Phrase[], count: number, seed: string, said: Readon
 
 const chipsOf = (kind: ChipKind, phrases: Phrase[]): Chip[] => phrases.map((phrase) => ({ key: `${kind}:${phrase.en}`, kind, phrase }));
 
+/** The first of `a`, the first of `b`, the second of `a`, and so on, the rest of the longer one after */
+function alternate<T>(a: readonly T[], b: readonly T[]): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (i < a.length) out.push(a[i]);
+    if (i < b.length) out.push(b[i]);
+  }
+  return out;
+}
+
 // ─── The strip ───────────────────────────────────────────────────────────────
 
 /**
@@ -301,11 +311,13 @@ export function startersFor(input: StarterInput): { starters: Starters | null; w
   );
   const seed = (key: string) => `${meId}|${key}`;
   // Her first words: an introduction if she has said nothing yet in the room
-  const intro = (key: string, count: number) => (mine.length === 0 ? chipsOf("intro", pick(INTRO, count, seed(key), said, { me })) : []);
+  const intro = (key: string, count: number, avoid: ReadonlySet<string> = said) =>
+    mine.length === 0 ? chipsOf("intro", pick(INTRO, count, seed(key), avoid, { me })) : [];
 
   /**
-   * What she might send back to `m`: the replies written for it, or else what came with it, then her introduction if
-   * she owes one, then the deck's
+   * What she might send back to `m`: the replies written for it, or else what came with it, each followed by one of
+   * the deck's (her introduction first if she owes one), so that a phone has both in sight. The deck's do not repeat
+   * them
    */
   const answersTo = (m: StarterMessage, key: string): Chip[] => {
     const ideas = (input.ideas?.[m._id] ?? []).filter(
@@ -318,17 +330,22 @@ export function startersFor(input: StarterInput): { starters: Starters | null; w
             .filter((text) => text.trim() !== "")
             .slice(0, 3)
             .map((text, i) => ({ key: `offered:${i}`, kind: "offered", text }));
+    // An emoji alone is no words to repeat: plain() leaves nothing of it
+    const taken = new Set([
+      ...said,
+      ...offered.flatMap((c) => (c.phrase ? [c.phrase.en, c.phrase.ja] : [c.text ?? ""])).map(plain).filter(Boolean),
+    ]);
     const vars = { name: nameOf(m.senderId), me };
     let replies: Chip[];
     if (m.kind === "image" || m.kind === "drawing") {
-      replies = chipsOf("react", pick(PICTURE.filter((p) => !p.only || p.only === m.kind), 4, seed(key), said, vars));
+      replies = chipsOf("react", pick(PICTURE.filter((p) => !p.only || p.only === m.kind), 4, seed(key), taken, vars));
     } else {
       const question = questionOf(m);
       replies = question
-        ? chipsOf("answer", pick(question === "yesNo" ? ANSWER_YES_NO : ANSWER_OPEN, 3, seed(key), said, vars))
-        : chipsOf("react", pick(REACT, 4, seed(key), said, vars));
+        ? chipsOf("answer", pick(question === "yesNo" ? ANSWER_YES_NO : ANSWER_OPEN, 3, seed(key), taken, vars))
+        : chipsOf("react", pick(REACT, 4, seed(key), taken, vars));
     }
-    return [...offered, ...intro(key, 1), ...replies].slice(0, MAX_CHIPS);
+    return alternate(offered, [...intro(key, 1, taken), ...replies]).slice(0, MAX_CHIPS);
   };
 
   if (replyTo && replyTo.senderId !== meId && isSaid(replyTo)) {

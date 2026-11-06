@@ -126,11 +126,12 @@ enum ConversationStarters {
         }
         func seed(_ key: String) -> String { "\(input.meId)|\(key)" }
         // Her first words: an introduction if she has said nothing yet in the room
-        func intro(_ key: String, _ count: Int) -> [StarterChip] {
-            mine.isEmpty ? chips(.intro, pick(deck.intro, count, seed: seed(key), said: said, vars: Vars(me: me))) : []
+        func intro(_ key: String, _ count: Int, avoid: Set<String>? = nil) -> [StarterChip] {
+            mine.isEmpty ? chips(.intro, pick(deck.intro, count, seed: seed(key), said: avoid ?? said, vars: Vars(me: me))) : []
         }
-        // What she might send back: the replies written for it, or else what came with it, then her introduction if
-        // she owes one, then the deck's
+        // What she might send back: the replies written for it, or else what came with it, each followed by one of
+        // the deck's (her introduction first if she owes one), so that a phone has both in sight. The deck's do not
+        // repeat them
         func answers(to message: StarterMessage, key: String) -> [StarterChip] {
             let ideas = (input.ideas[message.id] ?? []).filter {
                 !isBlank($0.en) && !isBlank($0.ja) && !said.contains(plain($0.en)) && !said.contains(plain($0.ja))
@@ -139,18 +140,22 @@ enum ConversationStarters {
                 ? (message.suggestions ?? []).filter { !isBlank($0) }.prefix(3).enumerated()
                     .map { StarterChip(key: "offered:\($0.offset)", kind: .offered, text: $0.element) }
                 : ideas.prefix(3).enumerated().map { StarterChip(key: "idea:\($0.offset)", kind: .offered, phrase: $0.element) }
+            // An emoji alone is no words to repeat: plain() leaves nothing of it
+            let taken = said.union(
+                offered.flatMap { $0.phrase.map { [$0.en, $0.ja] } ?? [$0.text ?? ""] }.map(plain).filter { !$0.isEmpty }
+            )
             let vars = Vars(name: nameOf(message.senderId), me: me)
             let replies: [StarterChip]
             if message.kind == "image" || message.kind == "drawing" {
                 let fitting = deck.picture.filter { $0.only == nil || $0.only == message.kind }.map(\.phrase)
-                replies = chips(.react, pick(fitting, 4, seed: seed(key), said: said, vars: vars))
+                replies = chips(.react, pick(fitting, 4, seed: seed(key), said: taken, vars: vars))
             } else if let question = questionOf(message) {
                 let pool = question == .yesNo ? deck.answerYesNo : deck.answerOpen
-                replies = chips(.answer, pick(pool, 3, seed: seed(key), said: said, vars: vars))
+                replies = chips(.answer, pick(pool, 3, seed: seed(key), said: taken, vars: vars))
             } else {
-                replies = chips(.react, pick(deck.react, 4, seed: seed(key), said: said, vars: vars))
+                replies = chips(.react, pick(deck.react, 4, seed: seed(key), said: taken, vars: vars))
             }
-            return Array((offered + intro(key, 1) + replies).prefix(maxChips))
+            return Array(alternate(offered, intro(key, 1, avoid: taken) + replies).prefix(maxChips))
         }
 
         if let replyTo = input.replyTo, replyTo.senderId != input.meId, isSaid(replyTo) {
@@ -331,6 +336,16 @@ enum ConversationStarters {
 
     private static func chips(_ kind: StarterChipKind, _ phrases: [StarterPhrase]) -> [StarterChip] {
         phrases.map { StarterChip(key: "\(kind.rawValue):\($0.en)", kind: kind, phrase: $0) }
+    }
+
+    /// The first of `a`, the first of `b`, the second of `a`, and so on, the rest of the longer one after
+    private static func alternate<T>(_ a: [T], _ b: [T]) -> [T] {
+        var out: [T] = []
+        for i in 0..<max(a.count, b.count) {
+            if i < a.count { out.append(a[i]) }
+            if i < b.count { out.append(b[i]) }
+        }
+        return out
     }
 
     // MARK: - Characters, as JavaScript's regular expressions class them
