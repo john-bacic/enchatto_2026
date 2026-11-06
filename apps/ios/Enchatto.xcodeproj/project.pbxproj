@@ -35,7 +35,6 @@
 		4FB2238E8286E511980A0C4E /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048A500F948FBFF3A696F580 /* Localization.swift */; };
 		502560E4361ECD12FB5B8835 /* ZenMaruGothic-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C4C83263DD333D3A24763D95 /* ZenMaruGothic-Bold.ttf */; };
 		511C378D41604751307B254C /* HostQRCodeRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */; };
-		A1B2C3D4E5F60718293A4B5D /* JoinRoomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */; };
 		513047DE7709D9D978CC800E /* EmojiBingoGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E11FCFFF6377C51AD234A05 /* EmojiBingoGameView.swift */; };
 		56CCC1A3A7D321F2405E3107 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4D07C9C52F8ADCC4EDD899 /* Message.swift */; };
 		5718E78DEE601BCE2326427C /* EmojiMatchGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1032DAB6B8616156EB0AA5 /* EmojiMatchGame.swift */; };
@@ -75,6 +74,7 @@
 		9711E732A5357FD6818AB998 /* GameStatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805997E063B44F481ED0804E /* GameStatusBarView.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
 		A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */; };
+		A1B2C3D4E5F60718293A4B5D /* JoinRoomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */; };
 		A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395063 /* GitInfo.swift */; };
 		AEA58AFFB67457EE57CB00A6 /* RoomTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C82A06E68BE52F0761E6F96 /* RoomTexture.swift */; };
 		AEA5BE1A0EDF0DCDDE26DF36 /* AvatarPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */; };
@@ -126,7 +126,6 @@
 		10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStartRoomView.swift; sourceTree = "<group>"; };
 		17AACB3B6A1340D1952C612D /* StubRomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubRomajiService.swift; sourceTree = "<group>"; };
 		190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostQRCodeRoomView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinRoomSheet.swift; sourceTree = "<group>"; };
 		1B9E22737F11C2559A4DF261 /* HostRoomViewModel+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+Sync.swift"; sourceTree = "<group>"; };
 		1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTranslator.swift; sourceTree = "<group>"; };
 		1DC00ADF95392C392B69EB66 /* RomajiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RomajiService.swift; sourceTree = "<group>"; };
@@ -175,6 +174,7 @@
 		9B32D520EA7A655815D6A38C /* ThemeExtras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeExtras.swift; sourceTree = "<group>"; };
 		9C82A06E68BE52F0761E6F96 /* RoomTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomTexture.swift; sourceTree = "<group>"; };
 		A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubSuggestionService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinRoomSheet.swift; sourceTree = "<group>"; };
 		A33DB151FE11D2A253A5C4DB /* Enchatto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchatto.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A3C0A2E1624785B94728152B /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		B1587B8E34623C702F0C36B0 /* MeCabCasualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeCabCasualizer.swift; sourceTree = "<group>"; };
@@ -483,7 +483,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					2A0E7D49294AE6A04C96CDD5 = {
 						ProvisioningStyle = Automatic;
@@ -661,11 +661,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_ENTITLEMENTS = Enchatto.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V823NAB7CT;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto uses the camera to send photos and to scan a room's QR code";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto uses the microphone for voice input and to record your pronunciation in games like Word Rush";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
@@ -691,6 +691,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -722,8 +723,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = V823NAB7CT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -745,6 +748,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -755,11 +759,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_ENTITLEMENTS = Enchatto.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V823NAB7CT;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Enchatto uses the camera to send photos and to scan a room's QR code";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchatto uses the microphone for voice input and to record your pronunciation in games like Word Rush";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Enchatto needs permission to save images to your photo library";
@@ -785,6 +789,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -816,8 +821,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = V823NAB7CT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -832,6 +839,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;

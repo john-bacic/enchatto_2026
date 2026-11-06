@@ -72,3 +72,6 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: Enchatto.entitlements
+        # Inject Git Commit SHA reads the repository's .git and writes into the built Info.plist, which Xcode's
+        # script sandbox refuses. Xcode's "Update to recommended settings" turns the sandbox on for the project
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
