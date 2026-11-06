@@ -434,6 +434,7 @@ extension HostConversationView {
                 replyTo: replyToId.flatMap { viewModel.message(withId: $0) },
                 gameOn: viewModel.gameOn,
                 ideas: viewModel.replyIdeas,
+                waitingFor: viewModel.replyIdeasPending,
                 onPick: fillSuggestion,
                 onGame: viewModel.isHost ? { showGamePicker = true } : nil
             )
@@ -519,14 +520,17 @@ extension HostConversationView {
     }
 
     private var messageField: some View {
-        TextEditor(text: $messageText)
+        // Not a TextEditor, which on iOS 27 is two lines tall with one line in it
+        TextField("", text: $messageText, axis: .vertical)
+            .lineLimit(1...5)
             .focused($isTextEditorFocused)
             .font(.round(16, .bold))
             .foregroundStyle(EC.ink)
             .tint(EC.pink)
-            .frame(minHeight: 40, maxHeight: 120)
-            .fixedSize(horizontal: false, vertical: true)
-            .scrollContentBackground(.hidden)
+            // The placeholder below is lined up with these
+            .padding(.horizontal, 5)
+            .padding(.vertical, 8)
+            .frame(minHeight: 40, alignment: .top)
             .onChange(of: messageText) { text in
                 toolsOpen = false
                 if !speechRecognizer.isRecording {
@@ -555,7 +559,12 @@ extension HostConversationView {
                 }
             }
             .overlay(alignment: .topTrailing) { clearTextButton }
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(EC.paper))
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(EC.paper)
+                    // The whole box focuses the field, not only its lines of text
+                    .onTapGesture { isTextEditorFocused = true }
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(isTextEditorFocused ? EC.blue : EC.ink, lineWidth: 3)

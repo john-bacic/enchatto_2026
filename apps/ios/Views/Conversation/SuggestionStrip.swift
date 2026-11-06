@@ -18,6 +18,8 @@ struct SuggestionStrip: View {
     let gameOn: Bool
     /// Replies written for a message on this phone, by the message's id. They come first
     let ideas: [String: [StarterPhrase]]
+    /// Messages whose replies are still being written on this phone: chips that answer one wait for them
+    var waitingFor: Set<String> = []
     /// A tap on a chip, with its words
     let onPick: (String) -> Void
     /// A tap on the chip that offers a game. Without it there is no such chip
@@ -47,16 +49,23 @@ struct SuggestionStrip: View {
             ideas: ideas
         ))
         let chips = starters?.chips.filter { $0.kind != .game || onGame != nil } ?? []
+        let shown = starters.flatMap { waits($0.key) ? nil : $0 }
         VStack(spacing: 0) {
-            if let starters, !chips.isEmpty, starters.key != dismissed {
-                row(starters, chips)
+            if let shown, !chips.isEmpty, shown.key != dismissed {
+                row(shown, chips)
                     .transition(.opacity)
             }
         }
-        .animation(.easeOut(duration: 0.15), value: starters?.key)
+        .animation(.easeOut(duration: 0.15), value: shown?.key)
         // Draws the strip again when the clock alone changes what it shows. Set again on waking, in case it woke a
         // moment early and nothing changed
         .background { Color.clear.task(id: Wake(at: wakeAt, woken: woken)) { await sleep(until: wakeAt) } }
+    }
+
+    /// Whether the chips under `key` answer a message whose replies are still being written here
+    private func waits(_ key: String) -> Bool {
+        guard let colon = key.firstIndex(of: ":"), ["said", "reply"].contains(key[..<colon]) else { return false }
+        return waitingFor.contains(String(key[key.index(after: colon)...]))
     }
 
     private struct Wake: Equatable {

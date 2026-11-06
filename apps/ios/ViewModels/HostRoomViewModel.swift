@@ -31,6 +31,9 @@ class HostRoomViewModel: ObservableObject {
     /// Messages waiting for replies, the next last
     var replyIdeasWaiting: [String] = []
     var replyIdeaTask: Task<Void, Never>?
+    /// Messages whose replies are queued or being written, each for a few seconds at most. The strip waits for them,
+    /// so the deck's chips aren't pushed aside by the replies a moment after they show
+    @Published var replyIdeasPending = Set<String>()
     @Published var isLoading = true
     @Published var error: String?
     @Published var showParticipantSheet = false

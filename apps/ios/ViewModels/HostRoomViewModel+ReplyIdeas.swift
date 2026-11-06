@@ -5,6 +5,8 @@ extension HostRoomViewModel {
     private static let replyIdeasFreshFor = ConversationStarters.lullMs / 1000
     /// How many messages the model reads, the one it answers the last
     private static let replyContextLines = 8
+    /// How long the strip waits for a message's replies before it offers the deck's alone
+    private static let replyIdeasWaitNs: UInt64 = 10_000_000_000
 
     /// Has replies written on this phone by Apple's on-device model for the newest message someone said, while the
     /// strip still answers it, and for `replyToId`, the message being replied to. The host's are uploaded as well, for
@@ -24,7 +26,16 @@ extension HostRoomViewModel {
         let fresh = wanted.filter { answerable($0) && !replyIdeasAsked.contains($0.id) && !replyIdeasWaiting.contains($0.id) }
         guard !fresh.isEmpty, #available(iOS 26.0, *), ReplyIdeaWriter.isAvailable else { return }
         // A busy room moves on: only the latest two wait
-        replyIdeasWaiting = Array((replyIdeasWaiting + fresh.map(\.id)).suffix(2))
+        let queue = Array((replyIdeasWaiting + fresh.map(\.id)).suffix(2))
+        replyIdeasPending.subtract(replyIdeasWaiting.filter { !queue.contains($0) })
+        replyIdeasWaiting = queue
+        for id in fresh.map(\.id) where queue.contains(id) {
+            replyIdeasPending.insert(id)
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: Self.replyIdeasWaitNs)
+                self?.replyIdeasPending.remove(id)
+            }
+        }
         writeNextReplyIdeas()
     }
 
@@ -38,7 +49,10 @@ extension HostRoomViewModel {
     @available(iOS 26.0, *)
     private func writeNextReplyIdeas() {
         guard replyIdeaTask == nil, let id = replyIdeasWaiting.popLast() else { return }
-        guard let target = message(withId: id) else { return writeNextReplyIdeas() }
+        guard let target = message(withId: id) else {
+            replyIdeasPending.remove(id)
+            return writeNextReplyIdeas()
+        }
         replyIdeasAsked.insert(id)
         let chat = replyContext(endingWith: target)
         let uploads = isHost
@@ -49,9 +63,11 @@ extension HostRoomViewModel {
             if !replies.isEmpty {
                 let recent = Set(self.messages.suffix(30).map(\.id))
                 self.replyIdeas = self.replyIdeas.filter { recent.contains($0.key) }.merging([id: replies]) { $1 }
-                // Nothing to do about a failure: the others' strips offer the deck's replies instead
-                if uploads { try? await self.api.setSuggestedReplies(messageId: id, replies: replies) }
             }
+            // In the same update as the replies, so the strip shows them with its first chips
+            self.replyIdeasPending.remove(id)
+            // Nothing to do about a failure: the others' strips offer the deck's replies instead
+            if !replies.isEmpty, uploads { try? await self.api.setSuggestedReplies(messageId: id, replies: replies) }
             self.writeNextReplyIdeas()
         }
     }
