@@ -30,9 +30,10 @@ struct HostConversationView: View {
     @AppStorage("enchatto_showJapanese") var showJapanese = true
     @AppStorage("enchatto_showRomaji") var showRomaji = true
     @AppStorage(ChatTextSize.storageKey) var chatTextSize: ChatTextSize = .small
-    /// The things to say over the message box, and whether each is in the language practised (SuggestionStrip)
+    /// The things to say over the message box (SuggestionStrip), and whether each has the other language under her
+    /// own. Unset, `suggestUnder` goes by her language
     @AppStorage("enchatto_showSuggestions") var showSuggestions = true
-    @AppStorage("enchatto_suggestInPractice") var suggestInPractice = true
+    @AppStorage("enchatto_suggestUnder") var suggestUnderSaved: Bool?
     /// The words the strip's last chip put in the field: the strip stays while the field holds them
     @State var stripFilled = ""
     @State var showHostSettings = false

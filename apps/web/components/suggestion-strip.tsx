@@ -20,10 +20,10 @@ interface SuggestionStripProps {
   people: readonly StarterPerson[];
   meId: string;
   hostId?: string;
-  /** Her language: "ja", or English for anything else */
+  /** Her language: "ja", or English for anything else. Each chip is in it, and a tap puts it in the box */
   lang: string;
-  /** Each chip in the language she practises, with her own under it. Otherwise in her own alone */
-  practice: boolean;
+  /** The other language under each chip, and its romaji under that for an English reader */
+  under: boolean;
   showRomaji: boolean;
   /** The message she is replying to: the chips answer it */
   replyTo: StarterMessage | null;
@@ -34,14 +34,14 @@ interface SuggestionStripProps {
   onGame?: () => void;
 }
 
-/** What a chip says, in which language, how to read it out, and the line under it */
-function faceOf(chip: Chip, lang: string, practice: boolean, showRomaji: boolean) {
+/** What a chip says, the line under it, each with its language, and how to read that line out */
+function faceOf(chip: Chip, lang: string, under: boolean, showRomaji: boolean) {
   if (chip.kind === "game") return { say: t("Play a game?", lang) };
   if (!chip.phrase) return { say: chip.text ?? "" };
   const { en, ja, romaji } = chip.phrase;
-  if (!practice) return lang === "ja" ? { say: ja, sayLang: "ja" } : { say: en, sayLang: "en" };
-  if (lang === "ja") return { say: en, sayLang: "en", sub: ja };
-  return { say: ja, sayLang: "ja", romaji: showRomaji ? romaji : undefined, sub: en };
+  if (!under) return lang === "ja" ? { say: ja, sayLang: "ja" } : { say: en, sayLang: "en" };
+  if (lang === "ja") return { say: ja, sayLang: "ja", sub: en, subLang: "en" };
+  return { say: en, sayLang: "en", sub: ja, subLang: "ja", romaji: showRomaji ? romaji : undefined };
 }
 
 /**
@@ -57,7 +57,7 @@ export const SuggestionStrip = memo(function SuggestionStrip({
   meId,
   hostId,
   lang,
-  practice,
+  under,
   showRomaji,
   replyTo,
   gameOn,
@@ -99,7 +99,7 @@ export const SuggestionStrip = memo(function SuggestionStrip({
     <div className="ec-suggest">
       <div className="ec-suggest-row" role="group" aria-label={t("Things to say", lang)}>
         {chips.map((chip, i) => {
-          const { say, sayLang, romaji, sub } = faceOf(chip, lang, practice, showRomaji);
+          const { say, sayLang, sub, subLang, romaji } = faceOf(chip, lang, under, showRomaji);
           return (
             <button
               key={chip.key}
@@ -115,8 +115,12 @@ export const SuggestionStrip = memo(function SuggestionStrip({
               <span className="say" lang={sayLang}>
                 {iconForEmoji(say.trim()) ? <EmojiArt emoji={say.trim()} size={22} /> : say}
               </span>
+              {sub && (
+                <span className="sub" lang={subLang}>
+                  {sub}
+                </span>
+              )}
               {romaji && <span className="romaji">{romaji}</span>}
-              {sub && <span className="sub">{sub}</span>}
             </button>
           );
         })}

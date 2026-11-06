@@ -40,8 +40,8 @@ extension HostConversationView {
                     }
                     if showSuggestions {
                         settingsToggle(
-                            L.t(hostLanguage == "ja" ? "Say it in English" : "Say it in Japanese", hostLanguage),
-                            isOn: $suggestInPractice
+                            L.t(hostLanguage == "ja" ? "Show English too" : "Show Japanese too", hostLanguage),
+                            isOn: Binding(get: { suggestUnder }, set: { suggestUnderSaved = $0 })
                         ) {
                             LangBadge(lang: hostLanguage == "ja" ? "en" : "ja", size: 22)
                         }

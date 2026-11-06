@@ -1142,7 +1142,7 @@ describe("the games together", () => {
 describe("what a first render of the page does not reach, each view component by itself", () => {
   const nothing = () => {};
 
-  test("the display settings sheet of a guest who reads Japanese, with romaji off, medium text, and things to say in her own language: the debug panel closed, asking for nothing", async () => {
+  test("the display settings sheet of a guest who reads Japanese, with romaji off, medium text, and things to say without the English under them: the debug panel closed, asking for nothing", async () => {
     const sheet = await render(async () => {
       const { DisplaySettingsSheet } = await import("@/components/room/display-settings-sheet");
       return (
@@ -1157,7 +1157,7 @@ describe("what a first render of the page does not reach, each view component by
           chatSize="m"
           pickChatSize={nothing}
           showSuggestions
-          suggestInPractice={false}
+          suggestUnder={false}
           toggleSuggestPref={nothing}
           setShowLeaveConfirm={nothing}
           convexUrl="https://example.convex.cloud"
@@ -1185,7 +1185,7 @@ describe("what a first render of the page does not reach, each view component by
           chatSize="s"
           pickChatSize={nothing}
           showSuggestions={false}
-          suggestInPractice
+          suggestUnder
           toggleSuggestPref={nothing}
           setShowLeaveConfirm={nothing}
           convexUrl="https://example.convex.cloud"

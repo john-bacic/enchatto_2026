@@ -1,8 +1,8 @@
 /**
  * What the strip above the message box offers a guest to say next (components/suggestion-strip.tsx), worked out on
  * the guest's page from the conversation and the clock, and from the replies the host's phone wrote for a message
- * where it wrote any. Every phrase is written in both languages, so the strip can show it in the language the guest
- * is practising, with their own underneath. The iPhone app follows the same rules (ConversationStarters.swift), and
+ * where it wrote any. Every phrase is written in both languages, so the strip can show it in the guest's own
+ * language, with the other underneath. The iPhone app follows the same rules (ConversationStarters.swift), and
  * tests/web/conversation-starters.test.ts writes it the deck and the cases that hold the two alike.
  *
  * The strip answers the newest thing that happened in the room: someone else's message, a newcomer, the end of a

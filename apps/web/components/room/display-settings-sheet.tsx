@@ -38,7 +38,7 @@ export function DisplaySettingsSheet({
   chatSize,
   pickChatSize,
   showSuggestions,
-  suggestInPractice,
+  suggestUnder,
   toggleSuggestPref,
   setShowLeaveConfirm,
   convexUrl,
@@ -54,7 +54,8 @@ export function DisplaySettingsSheet({
   chatSize: ReturnType<typeof useDisplayPrefs>["chatSize"];
   pickChatSize: ReturnType<typeof useDisplayPrefs>["pickChatSize"];
   showSuggestions: boolean;
-  suggestInPractice: boolean;
+  /** The other language under each thing to say */
+  suggestUnder: boolean;
   toggleSuggestPref: ReturnType<typeof useDisplayPrefs>["toggleSuggestPref"];
   setShowLeaveConfirm: Dispatch<SetStateAction<boolean>>;
   convexUrl: string;
@@ -125,9 +126,9 @@ export function DisplaySettingsSheet({
             {showSuggestions && (
               <ToggleRow
                 badge={<LangBadge lang={lang === "ja" ? "en" : "ja"} />}
-                label={t(lang === "ja" ? "Say it in English" : "Say it in Japanese", lang)}
-                on={suggestInPractice}
-                toggle={() => toggleSuggestPref("practice")}
+                label={t(lang === "ja" ? "Show English too" : "Show Japanese too", lang)}
+                on={suggestUnder}
+                toggle={() => toggleSuggestPref("under")}
               />
             )}
           </div>

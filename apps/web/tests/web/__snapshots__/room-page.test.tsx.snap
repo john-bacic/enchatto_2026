@@ -507,16 +507,16 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">One more round?</span>
-      <span class="sub">もう1回やる？</span>
+      <span class="say" lang="ja">もう1回やる？</span>
+      <span class="sub" lang="en">One more round?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">So close! 😆</span>
-      <span class="sub">惜しかった！😆</span>
+      <span class="say" lang="ja">惜しかった！😆</span>
+      <span class="sub" lang="en">So close! 😆</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">Good game!</span>
-      <span class="sub">おつかれ！</span>
+      <span class="say" lang="ja">おつかれ！</span>
+      <span class="sub" lang="en">Good game!</span>
      </button>
     </div>
     <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
@@ -1370,19 +1370,13 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="Things to say">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="ja">おつかれ！</span>
-      <span class="romaji">otsukare!</span>
-      <span class="sub">Good game!</span>
+      <span class="say" lang="en">Good game!</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="ja">楽しかった！</span>
-      <span class="romaji">tanoshikatta!</span>
-      <span class="sub">That was fun!</span>
+      <span class="say" lang="en">That was fun!</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="ja">もう1回やる？</span>
-      <span class="romaji">mou 1 kai yaru?</span>
-      <span class="sub">One more round?</span>
+      <span class="say" lang="en">One more round?</span>
      </button>
     </div>
     <button type="button" class="ec-suggest-btn" aria-label="Hide suggestions">
@@ -2254,20 +2248,20 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">Nice to meet you all!</span>
-      <span class="sub">みなさん、はじめまして！</span>
+      <span class="say" lang="ja">みなさん、はじめまして！</span>
+      <span class="sub" lang="en">Nice to meet you all!</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">Dressing up for Halloween?</span>
-      <span class="sub">ハロウィン、仮装する？</span>
+      <span class="say" lang="ja">ハロウィン、仮装する？</span>
+      <span class="sub" lang="en">Dressing up for Halloween?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">What&#x27;s your favorite movie?</span>
-      <span class="sub">好きな映画は？</span>
+      <span class="say" lang="ja">好きな映画は？</span>
+      <span class="sub" lang="en">What&#x27;s your favorite movie?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
-      <span class="say" lang="en">What music are you into lately?</span>
-      <span class="sub">最近ハマってる音楽は？</span>
+      <span class="say" lang="ja">最近ハマってる音楽は？</span>
+      <span class="sub" lang="en">What music are you into lately?</span>
      </button>
     </div>
     <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
@@ -2532,20 +2526,20 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">Hi, I&#x27;m Yuki! Nice to meet you</span>
-      <span class="sub">Yukiです！よろしくね</span>
+      <span class="say" lang="ja">Yukiです！よろしくね</span>
+      <span class="sub" lang="en">Hi, I&#x27;m Yuki! Nice to meet you</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">Seen the autumn leaves yet?</span>
-      <span class="sub">紅葉もう見た？</span>
+      <span class="say" lang="ja">紅葉もう見た？</span>
+      <span class="sub" lang="en">Seen the autumn leaves yet?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">What music are you into lately?</span>
-      <span class="sub">最近ハマってる音楽は？</span>
+      <span class="say" lang="ja">最近ハマってる音楽は？</span>
+      <span class="sub" lang="en">What music are you into lately?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
-      <span class="say" lang="en">What&#x27;s your go-to konbini snack?</span>
-      <span class="sub">コンビニでよく買うお菓子は？</span>
+      <span class="say" lang="ja">コンビニでよく買うお菓子は？</span>
+      <span class="sub" lang="en">What&#x27;s your go-to konbini snack?</span>
      </button>
     </div>
     <button type="button" class="ec-suggest-btn" aria-label="ほかの話題">
@@ -3948,16 +3942,16 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">One more round?</span>
-      <span class="sub">もう1回やる？</span>
+      <span class="say" lang="ja">もう1回やる？</span>
+      <span class="sub" lang="en">One more round?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">So close! 😆</span>
-      <span class="sub">惜しかった！😆</span>
+      <span class="say" lang="ja">惜しかった！😆</span>
+      <span class="sub" lang="en">So close! 😆</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">Good game!</span>
-      <span class="sub">おつかれ！</span>
+      <span class="say" lang="ja">おつかれ！</span>
+      <span class="sub" lang="en">Good game!</span>
      </button>
     </div>
     <button type="button" class="ec-suggest-btn" aria-label="おすすめを隠す">
@@ -5633,20 +5627,20 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">Nice to meet you all!</span>
-      <span class="sub">みなさん、はじめまして！</span>
+      <span class="say" lang="ja">みなさん、はじめまして！</span>
+      <span class="sub" lang="en">Nice to meet you all!</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">Seen the autumn leaves yet?</span>
-      <span class="sub">紅葉もう見た？</span>
+      <span class="say" lang="ja">紅葉もう見た？</span>
+      <span class="sub" lang="en">Seen the autumn leaves yet?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">Coffee or tea?</span>
-      <span class="sub">コーヒーとお茶、どっちが好き？</span>
+      <span class="say" lang="ja">コーヒーとお茶、どっちが好き？</span>
+      <span class="sub" lang="en">Coffee or tea?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
-      <span class="say" lang="en">Where do you want to travel next?</span>
-      <span class="sub">次に旅行したい場所は？</span>
+      <span class="say" lang="ja">次に旅行したい場所は？</span>
+      <span class="sub" lang="en">Where do you want to travel next?</span>
      </button>
      <button type="button" class="ec-suggest-chip game" style="--c:var(--pink-soft);animation-delay:200ms">
       <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
@@ -6082,20 +6076,20 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">Nice to meet you all!</span>
-      <span class="sub">みなさん、はじめまして！</span>
+      <span class="say" lang="ja">みなさん、はじめまして！</span>
+      <span class="sub" lang="en">Nice to meet you all!</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">Seen the autumn leaves yet?</span>
-      <span class="sub">紅葉もう見た？</span>
+      <span class="say" lang="ja">紅葉もう見た？</span>
+      <span class="sub" lang="en">Seen the autumn leaves yet?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">Coffee or tea?</span>
-      <span class="sub">コーヒーとお茶、どっちが好き？</span>
+      <span class="say" lang="ja">コーヒーとお茶、どっちが好き？</span>
+      <span class="sub" lang="en">Coffee or tea?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
-      <span class="say" lang="en">Where do you want to travel next?</span>
-      <span class="sub">次に旅行したい場所は？</span>
+      <span class="say" lang="ja">次に旅行したい場所は？</span>
+      <span class="sub" lang="en">Where do you want to travel next?</span>
      </button>
      <button type="button" class="ec-suggest-chip game" style="--c:var(--pink-soft);animation-delay:200ms">
       <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
@@ -6505,16 +6499,16 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="おすすめの一言">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="en">Seen the autumn leaves yet?</span>
-      <span class="sub">紅葉もう見た？</span>
+      <span class="say" lang="ja">紅葉もう見た？</span>
+      <span class="sub" lang="en">Seen the autumn leaves yet?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="en">What do you usually eat for breakfast?</span>
-      <span class="sub">朝ごはんはいつも何食べる？</span>
+      <span class="say" lang="ja">朝ごはんはいつも何食べる？</span>
+      <span class="sub" lang="en">What do you usually eat for breakfast?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="en">If you could live anywhere, where?</span>
-      <span class="sub">どこにでも住めるなら、どこがいい？</span>
+      <span class="say" lang="ja">どこにでも住めるなら、どこがいい？</span>
+      <span class="sub" lang="en">If you could live anywhere, where?</span>
      </button>
      <button type="button" class="ec-suggest-chip game" style="--c:var(--yellow-soft);animation-delay:150ms">
       <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
@@ -7313,19 +7307,13 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="Things to say">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="ja">ハロウィン、仮装する？</span>
-      <span class="romaji">harowin, kasou suru?</span>
-      <span class="sub">Dressing up for Halloween?</span>
+      <span class="say" lang="en">Dressing up for Halloween?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="ja">最近やってるゲームある？</span>
-      <span class="romaji">saikin yatteru geemu aru?</span>
-      <span class="sub">What game are you playing lately?</span>
+      <span class="say" lang="en">What game are you playing lately?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="ja">料理する？得意料理は？</span>
-      <span class="romaji">ryouri suru? tokui ryouri wa?</span>
-      <span class="sub">Do you cook? What&#x27;s your best dish?</span>
+      <span class="say" lang="en">Do you cook? What&#x27;s your best dish?</span>
      </button>
      <button type="button" class="ec-suggest-chip game" style="--c:var(--yellow-soft);animation-delay:150ms">
       <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
@@ -7750,19 +7738,13 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="Things to say">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="ja">紅葉もう見た？</span>
-      <span class="romaji">kouyou mou mita?</span>
-      <span class="sub">Seen the autumn leaves yet?</span>
+      <span class="say" lang="en">Seen the autumn leaves yet?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="ja">料理する？得意料理は？</span>
-      <span class="romaji">ryouri suru? tokui ryouri wa?</span>
-      <span class="sub">Do you cook? What&#x27;s your best dish?</span>
+      <span class="say" lang="en">Do you cook? What&#x27;s your best dish?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="ja">今日ちょっと嬉しかったことは？</span>
-      <span class="romaji">kyou chotto ureshikatta koto wa?</span>
-      <span class="sub">Something that made you happy today?</span>
+      <span class="say" lang="en">Something that made you happy today?</span>
      </button>
      <button type="button" class="ec-suggest-chip game" style="--c:var(--yellow-soft);animation-delay:150ms">
       <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
@@ -7943,24 +7925,16 @@ markup
    <div class="ec-suggest">
     <div class="ec-suggest-row" role="group" aria-label="Things to say">
      <button type="button" class="ec-suggest-chip" style="--c:var(--pink-soft);animation-delay:0ms">
-      <span class="say" lang="ja">みなさん、はじめまして！</span>
-      <span class="romaji">minasan, hajimemashite!</span>
-      <span class="sub">Nice to meet you all!</span>
+      <span class="say" lang="en">Nice to meet you all!</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--blue-soft);animation-delay:50ms">
-      <span class="say" lang="ja">紅葉もう見た？</span>
-      <span class="romaji">kouyou mou mita?</span>
-      <span class="sub">Seen the autumn leaves yet?</span>
+      <span class="say" lang="en">Seen the autumn leaves yet?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--mint-soft);animation-delay:100ms">
-      <span class="say" lang="ja">趣味は何？</span>
-      <span class="romaji">shumi wa nani?</span>
-      <span class="sub">What&#x27;s your hobby?</span>
+      <span class="say" lang="en">What&#x27;s your hobby?</span>
      </button>
      <button type="button" class="ec-suggest-chip" style="--c:var(--yellow-soft);animation-delay:150ms">
-      <span class="say" lang="ja">ペット飼ってる？</span>
-      <span class="romaji">petto katteru?</span>
-      <span class="sub">Do you have any pets?</span>
+      <span class="say" lang="en">Do you have any pets?</span>
      </button>
      <button type="button" class="ec-suggest-chip game" style="--c:var(--pink-soft);animation-delay:200ms">
       <img src="/icons/ui-game.png" alt="" draggable="false" class="ec-icon" style="width:20px;height:20px"/>
@@ -8623,7 +8597,7 @@ markup
 </div>"
 `;
 
-exports[`what a first render of the page does not reach, each view component by itself > the display settings sheet of a guest who reads Japanese, with romaji off, medium text, and things to say in her own language: the debug panel closed, asking for nothing 1`] = `
+exports[`what a first render of the page does not reach, each view component by itself > the display settings sheet of a guest who reads Japanese, with romaji off, medium text, and things to say without the English under them: the debug panel closed, asking for nothing 1`] = `
 "queries
   emojiMatch:getEmTraceByRoom skip
   truthOrDare:getTraceByRoom skip
@@ -8686,7 +8660,7 @@ markup
     <label class="ec-toggle-row">
      <span style="display:flex;align-items:center;gap:10px">
       <span class="ec-lang-badge" style="width:26px;height:26px;font-size:13px">A</span>
-      英語で言ってみる
+      英語も表示
      </span>
      <input type="checkbox" style="position:absolute;opacity:0;pointer-events:none"/>
      <span class="ec-switch" aria-hidden="true"></span>

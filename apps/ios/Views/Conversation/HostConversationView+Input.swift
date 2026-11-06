@@ -420,6 +420,10 @@ extension HostConversationView {
                 && messageText != stripFilled)
     }
 
+    /// The other language under each thing to say. Until she says, a Japanese reader has the English under hers and
+    /// an English reader her English alone
+    var suggestUnder: Bool { suggestUnderSaved ?? (hostLanguage == "ja") }
+
     @ViewBuilder
     private var suggestionSlot: some View {
         if viewModel.room?.settings.suggestionsEnabled == true, showSuggestions {
@@ -429,7 +433,7 @@ extension HostConversationView {
                 meId: viewModel.hostId,
                 hostId: viewModel.room?.hostId,
                 lang: hostLanguage,
-                practice: suggestInPractice,
+                under: suggestUnder,
                 showRomaji: showRomaji,
                 replyTo: replyToId.flatMap { viewModel.message(withId: $0) },
                 gameOn: viewModel.gameOn,

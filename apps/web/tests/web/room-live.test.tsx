@@ -1007,7 +1007,7 @@ describe("a tap on a thing to say, over the message box", () => {
   };
   /** The conversation, then Sam's question */
   const offered = (extra: Answers = {}) => talking({ "messages:getRoomMessages": [...chat, asking()], ...extra });
-  /** The answers to Sam's question from the deck, as Yuki is shown them: the English she practises, her Japanese under it */
+  /** The answers to Sam's question from the deck, in English and in Japanese */
   const ANSWERS = ["Kind of!", "Not really… how about you?", "Yes! How about you?"];
   const ANSWERS_JA = ["あんまり…Samさんは？", "うん！Samさんは？", "まあまあかな！"];
 
@@ -1139,7 +1139,7 @@ describe("a tap on a thing to say, over the message box", () => {
   /** The words dictation shows above its pill while it listens */
   const live = (page: Page) => one(page.body.byClass("ec-voice-live")).textContent;
 
-  test("Sam's question: what came with it first, then the deck's answers in the English Yuki practises, her Japanese under each", async () => {
+  test("Sam's question: what came with it first, then the deck's answers in Yuki's Japanese, the English under each", async () => {
     const page = await open(offered());
     expect(inSight(page)).toBe(true);
     expect(one(page.body.all((n) => n.attributes.role === "group")).attributes["aria-label"]).toBe(t("Things to say", "ja"));
@@ -1147,8 +1147,8 @@ describe("a tap on a thing to say, over the message box", () => {
     expect([hello.textContent, nice.textContent]).toEqual(["こんにちは！", "よろしくね"]);
     expect(one(thumbsUp.all((n) => n.nodeName === "IMG")).attributes.alt).toBe("👍");
     // He asked yes or no: the answers hand the question back to him, by name in Japanese
-    expect(answers.map(sayOf).sort()).toEqual(ANSWERS);
-    expect(answers.map(subOf).sort()).toEqual(ANSWERS_JA);
+    expect(answers.map(sayOf).sort()).toEqual(ANSWERS_JA);
+    expect(answers.map(subOf).sort()).toEqual(ANSWERS);
 
     await press(page, answers[0]);
     expect(held(page)).toBe(sayOf(answers[0]));
@@ -1156,7 +1156,7 @@ describe("a tap on a thing to say, over the message box", () => {
     expect(held(page)).toBe("👍");
   });
 
-  test("replies the host's phone wrote for Sam's question come first, in place of what came with it, in the English Yuki practises", async () => {
+  test("replies the host's phone wrote for Sam's question come first, in place of what came with it, in Yuki's Japanese", async () => {
     const written = [
       { en: "I love ramen!", ja: "ラーメン大好き！", romaji: "raamen daisuki!" },
       { en: "Not so much", ja: "そんなに", romaji: "sonna ni" },
@@ -1166,12 +1166,12 @@ describe("a tap on a thing to say, over the message box", () => {
 
     const [love, notSo, ...answers] = chips(page);
     expect([love, notSo].map((chip) => [sayOf(chip), subOf(chip)])).toEqual([
-      ["I love ramen!", "ラーメン大好き！"],
-      ["Not so much", "そんなに"],
+      ["ラーメン大好き！", "I love ramen!"],
+      ["そんなに", "Not so much"],
     ]);
-    expect(answers.map(sayOf).sort()).toEqual(ANSWERS);
+    expect(answers.map(sayOf).sort()).toEqual(ANSWERS_JA);
     await press(page, love);
-    expect(held(page)).toBe("I love ramen!");
+    expect(held(page)).toBe("ラーメン大好き！");
   });
 
   test("the empty box holds the suggestion, fitted to it, with Send and Clear beside it; the room hears of typing, and nothing is sent", async () => {
@@ -1648,14 +1648,14 @@ describe("a tap on a thing to say, over the message box", () => {
     expect(chips(page)[0].textContent).toBe("こんにちは！");
   });
 
-  test("the display settings: her own language instead, then none at all, and back; kept in her browser", async () => {
+  test("the display settings: her Japanese alone, then none at all, and back; kept in her browser", async () => {
     const page = await open(offered());
     await page.tap(one(labelled(page, t("Display settings", "ja"))));
     const sheetInputs = () => one(page.body.byClass("ec-sheet")).all((n) => n.nodeName === "INPUT");
-    const [, , , show, practice] = sheetInputs();
+    const [, , , show, under] = sheetInputs();
     drawnAgain();
 
-    await page.tap(practice);
+    await page.tap(under);
     const answers = chips(page).slice(3);
     expect(answers.map((chip) => chip.textContent).sort()).toEqual(ANSWERS_JA);
     expect(answers.flatMap((chip) => chip.byClass("sub"))).toEqual([]);
@@ -1663,22 +1663,29 @@ describe("a tap on a thing to say, over the message box", () => {
 
     await page.tap(show);
     expect(page.body.byClass("ec-suggest").length).toBe(0);
-    // Which language they would be in is no question without them
-    expect(one(page.body.byClass("ec-sheet")).textContent).not.toContain(t("Say it in English", "ja"));
+    // What would be under them is no question without them
+    expect(one(page.body.byClass("ec-sheet")).textContent).not.toContain(t("Show English too", "ja"));
     expect(drawnAgain()).toMatchObject({ list: 0, bubbles: [] });
 
     await page.tap(show);
     expect(chips(page).slice(3).map((chip) => chip.textContent).sort()).toEqual(ANSWERS_JA);
-    expect(JSON.parse(localStorage.getItem("enchatto_suggestPrefs")!)).toEqual({ show: true, practice: false });
+    expect(JSON.parse(localStorage.getItem("enchatto_suggestPrefs")!)).toEqual({ show: true, under: false });
   });
 
-  test("a guest who reads English is shown Japanese to practise, its romaji and her English under it, and a tap puts the Japanese in the box", async () => {
+  test("a guest who reads English is shown her English alone until she asks for the Japanese under it, its romaji under that; a tap puts the English in the box", async () => {
     const page = await open(offered());
     await page.answer("rooms:getRoomState", person(YUKI, { preferredLanguage: "en" }));
+    expect(chips(page).slice(3).map((chip) => chip.textContent).sort()).toEqual(ANSWERS);
+
+    await page.tap(one(labelled(page, t("Display settings", "en"))));
+    const sheet = one(page.body.byClass("ec-sheet"));
+    expect(sheet.textContent).toContain("Show Japanese too");
+    await page.tap(sheet.all((n) => n.nodeName === "INPUT")[4]);
     const answers = chips(page).slice(3);
-    expect(answers.map(sayOf).sort()).toEqual(ANSWERS_JA);
+    expect(answers.map(sayOf).sort()).toEqual(ANSWERS);
+    expect(answers.map(subOf).sort()).toEqual(ANSWERS_JA);
     expect(answers.map((chip) => one(chip.byClass("romaji")).textContent).sort()).toEqual(["anmari... Sam san wa?", "maamaa kana!", "un! Sam san wa?"]);
-    expect(answers.map(subOf).sort()).toEqual(ANSWERS);
+    expect(JSON.parse(localStorage.getItem("enchatto_suggestPrefs")!)).toEqual({ show: true, under: true });
     await press(page, answers[0]);
     expect(held(page)).toBe(sayOf(answers[0]));
   });
@@ -1688,7 +1695,7 @@ describe("a tap on a thing to say, over the message box", () => {
     await page.answer("messages:getRoomMessages", (now) => [...now, message("joinedKen", "ken" as PID, 0, { kind: "system", status: "processed", text: "join:Ken" })]);
     const welcomes = chips(page);
     expect(welcomes.length).toBe(3);
-    expect(welcomes.every((chip) => sayOf(chip).includes("Ken") && subOf(chip).includes("Kenさん"))).toBe(true);
+    expect(welcomes.every((chip) => sayOf(chip).includes("Kenさん") && subOf(chip).includes("Ken"))).toBe(true);
   });
 
   test("left unanswered, Sam's question gives way after half a minute to topics for the room, and the clock draws neither the list nor a bubble", async () => {
@@ -1711,7 +1718,7 @@ describe("a tap on a thing to say, over the message box", () => {
     const topics = chips(page).map(sayOf);
     expect(topics.length).toBe(3);
     // October: the season's topic first
-    expect(["Dressing up for Halloween?", "Seen the autumn leaves yet?"]).toContain(topics[0]);
+    expect(["ハロウィン、仮装する？", "紅葉もう見た？"]).toContain(topics[0]);
 
     await press(page, one(labelled(page, t("Other topics", "ja"))));
     const others = chips(page).map(sayOf);

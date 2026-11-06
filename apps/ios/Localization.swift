@@ -143,8 +143,8 @@ enum L {
 
         // Things to say (over the message box)
         "Things to say": ["ja": "おすすめの一言"],
-        "Say it in Japanese": ["ja": "日本語で言う"],
-        "Say it in English": ["ja": "英語で言ってみる"],
+        "Show Japanese too": ["ja": "日本語も表示"],
+        "Show English too": ["ja": "英語も表示"],
         "Play a game?": ["ja": "ゲームする？"],
         "Other topics": ["ja": "ほかの話題"],
         "Hide suggestions": ["ja": "おすすめを隠す"],

@@ -121,13 +121,13 @@ function RoomContent() {
   const addReaction = useAuthedMutation(api.reactions.addReaction);
   const removeReaction = useAuthedMutation(api.reactions.removeReaction);
 
-  const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize, showSuggestions, suggestInPractice, toggleSuggestPref } = useDisplayPrefs(participantId);
-
   const participants = roomState?.participants ?? [];
   const messageList = messages ?? [];
 
   const me = participants.find((p) => p._id === participantId);
   const lang = me?.preferredLanguage ?? "ja";
+
+  const { showEnglish, showJapanese, showRomaji, chatSize, toggleDisplay, pickChatSize, showSuggestions, suggestUnder, toggleSuggestPref } = useDisplayPrefs(participantId, lang);
 
   const { handleTypingChange, handleDrawingStateChange } = useTypingAction({ participantId, myActiveStep, storedAction: me?.typingAction });
 
@@ -344,7 +344,7 @@ function RoomContent() {
                 meId={participantId}
                 hostId={roomHostId}
                 lang={lang}
-                practice={suggestInPractice}
+                under={suggestUnder}
                 showRomaji={showRomaji}
                 replyTo={replyMessage ?? null}
                 gameOn={gameOn}
@@ -362,7 +362,7 @@ function RoomContent() {
 
       {/* Language display settings sheet */}
       {showDisplaySettings && (
-        <DisplaySettingsSheet setShowDisplaySettings={setShowDisplaySettings} me={me} lang={lang} showEnglish={showEnglish} toggleDisplay={toggleDisplay} showJapanese={showJapanese} showRomaji={showRomaji} chatSize={chatSize} pickChatSize={pickChatSize} showSuggestions={showSuggestions} suggestInPractice={suggestInPractice} toggleSuggestPref={toggleSuggestPref} setShowLeaveConfirm={setShowLeaveConfirm} convexUrl={convexUrl} roomId={roomId} />
+        <DisplaySettingsSheet setShowDisplaySettings={setShowDisplaySettings} me={me} lang={lang} showEnglish={showEnglish} toggleDisplay={toggleDisplay} showJapanese={showJapanese} showRomaji={showRomaji} chatSize={chatSize} pickChatSize={pickChatSize} showSuggestions={showSuggestions} suggestUnder={suggestUnder} toggleSuggestPref={toggleSuggestPref} setShowLeaveConfirm={setShowLeaveConfirm} convexUrl={convexUrl} roomId={roomId} />
       )}
 
       {/* Word Rush (lobby, game and results manage their own visibility) */}

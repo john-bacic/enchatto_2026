@@ -8,10 +8,10 @@ struct SuggestionStrip: View {
     let people: [Participant]
     let meId: String
     let hostId: String?
-    /// Her language: "ja", or English for anything else
+    /// Her language: "ja", or English for anything else. Each chip is in it, and a tap puts it in the box
     let lang: String
-    /// Each chip in the language she practises, with her own under it. Otherwise in her own alone
-    let practice: Bool
+    /// The other language under each chip, and its romaji under that for an English reader
+    let under: Bool
     let showRomaji: Bool
     /// The message she is replying to: the chips answer it
     let replyTo: Message?
@@ -137,13 +137,13 @@ struct SuggestionStrip: View {
         .padding(.top, 4)
     }
 
-    /// What a chip says, how to read it out, and the line under it
-    private func face(of chip: StarterChip) -> (say: String, romaji: String?, sub: String?) {
+    /// What a chip says, the line under it, and how to read that line out
+    private func face(of chip: StarterChip) -> (say: String, sub: String?, romaji: String?) {
         if chip.kind == .game { return (L.t("Play a game?", lang), nil, nil) }
         guard let phrase = chip.phrase else { return (chip.text ?? "", nil, nil) }
-        if !practice { return (lang == "ja" ? phrase.ja : phrase.en, nil, nil) }
-        if lang == "ja" { return (phrase.en, nil, phrase.ja) }
-        return (phrase.ja, showRomaji && !phrase.romaji.isEmpty ? phrase.romaji : nil, phrase.en)
+        if !under { return (lang == "ja" ? phrase.ja : phrase.en, nil, nil) }
+        if lang == "ja" { return (phrase.ja, phrase.en, nil) }
+        return (phrase.en, phrase.ja, showRomaji && !phrase.romaji.isEmpty ? phrase.romaji : nil)
     }
 
     private func chipButton(_ chip: StarterChip, tone: Color) -> some View {
@@ -165,16 +165,16 @@ struct SuggestionStrip: View {
                                 .font(.round(13, .black))
                                 .foregroundStyle(EC.ink)
                         }
+                        if let sub = face.sub {
+                            Text(sub)
+                                .font(.round(10.5, .bold))
+                                .foregroundStyle(EC.inkSoft)
+                        }
                         if let romaji = face.romaji {
                             Text(romaji)
                                 .font(.round(10.5, .bold))
                                 .italic()
                                 .foregroundStyle(EC.pink)
-                        }
-                        if let sub = face.sub {
-                            Text(sub)
-                                .font(.round(10.5, .bold))
-                                .foregroundStyle(EC.inkSoft)
                         }
                     }
                     .lineLimit(1)
