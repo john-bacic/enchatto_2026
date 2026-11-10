@@ -51,6 +51,7 @@
 		6A3AF186F02EE9FE0E0AB19E /* WordRushGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532136333239439C36B3487E /* WordRushGameView.swift */; };
 		6FAAFE075261846F33926D60 /* HostRoomViewModel+ReplyIdeas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C2E6F397B4811291E1DAA63 /* HostRoomViewModel+ReplyIdeas.swift */; };
 		7385117BD75BA9926C3619E1 /* EmojiMatchGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */; };
+		74A5946D7BF8E41A2A762AB2 /* OfflineRoomStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 308CD326693843430C3E99EC /* OfflineRoomStore.swift */; };
 		74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */; };
 		759EFB5971CD233657115873 /* ConversationDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72055A90A074C3BCE153D11 /* ConversationDeck.swift */; };
 		75FAFD5B8836E37425055B45 /* HostConversationView+Input.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6259930981CC30D9654C2A6 /* HostConversationView+Input.swift */; };
@@ -76,6 +77,7 @@
 		960FF4E2C06901B18594FA1E /* WordRushAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575FC39C531C3DA8A6BC487F /* WordRushAudio.swift */; };
 		9711E732A5357FD6818AB998 /* GameStatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805997E063B44F481ED0804E /* GameStatusBarView.swift */; };
 		996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */; };
+		99D2DD4DCAEED15798695424 /* OfflineRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0804E7C4DFB7B374ABEA1A6B /* OfflineRoomView.swift */; };
 		A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC9892470BA3DC94D5FD37F /* OfflineTranslator.swift */; };
 		A1B2C3D4E5F60718293A4B5D /* JoinRoomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */; };
 		A85A76F688677B02B54DF363 /* GitInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1D049BC86D95C7FD395063 /* GitInfo.swift */; };
@@ -88,6 +90,7 @@
 		BB0022D246CA87CD4C790052 /* HostConversationView+Party.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5F653B3916CA74B1C4254D /* HostConversationView+Party.swift */; };
 		BD3F8FB2F9E2C27A772FBD88 /* WordRushCluesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498940C98484A76EDF68D44F /* WordRushCluesView.swift */; };
 		BF5A76945EF4EBFF68CE1CE5 /* IPADic in Frameworks */ = {isa = PBXBuildFile; productRef = E3BA5400A395C97C1F8F8E33 /* IPADic */; };
+		C51822A7C3594AB372FD2CCC /* OfflineConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B7876721AA106A298F8009 /* OfflineConversation.swift */; };
 		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
 		C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47566C0B30406CBDDDEAA04F /* Participant.swift */; };
 		C90602A074A2541D78B4D49E /* IconPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF756E413CA17E5688861E0 /* IconPack.swift */; };
@@ -126,6 +129,7 @@
 		048A500F948FBFF3A696F580 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		048E186B7C0C18591A0D86D4 /* GameReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameReplayView.swift; sourceTree = "<group>"; };
 		049FF8FEB6B4E62867681087 /* HostRoomViewModel+EmojiBingo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+EmojiBingo.swift"; sourceTree = "<group>"; };
+		0804E7C4DFB7B374ABEA1A6B /* OfflineRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineRoomView.swift; sourceTree = "<group>"; };
 		0BBDE802999E7A27C600DE9E /* AvatarPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarPickerView.swift; sourceTree = "<group>"; };
 		0C0FD50E314A872854C6D576 /* QRCodeFloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeFloatingPanel.swift; sourceTree = "<group>"; };
 		0D496EE877F3EEE3D55A79BD /* WordRushJudgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushJudgeView.swift; sourceTree = "<group>"; };
@@ -139,6 +143,7 @@
 		20FEB11E5FF91BEBD77A223B /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
 		26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGameView.swift; sourceTree = "<group>"; };
 		2ED4D19D5BAB24799B0DD6A1 /* HostConversationView+Presentations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Presentations.swift"; sourceTree = "<group>"; };
+		308CD326693843430C3E99EC /* OfflineRoomStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineRoomStore.swift; sourceTree = "<group>"; };
 		3739F0B6F971461D3C5ECBCE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3956F8FAEFF1BA88C2B26547 /* Effects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effects.swift; sourceTree = "<group>"; };
 		3C2E6F397B4811291E1DAA63 /* HostRoomViewModel+ReplyIdeas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+ReplyIdeas.swift"; sourceTree = "<group>"; };
@@ -198,6 +203,7 @@
 		C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingComposerView.swift; sourceTree = "<group>"; };
 		C7B1A6A4B92FBB2111452006 /* SuggestionStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionStrip.swift; sourceTree = "<group>"; };
 		CB7F3CC0A7B1B0C03234BA20 /* TruthOrDareGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGame.swift; sourceTree = "<group>"; };
+		D0B7876721AA106A298F8009 /* OfflineConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineConversation.swift; sourceTree = "<group>"; };
 		D174E88994480B9F18A6340C /* DashOffline */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DashOffline; path = Resources/DashOffline; sourceTree = SOURCE_ROOT; };
 		D175FCFF1599BE9CB6EC1DB8 /* WordRushGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushGame.swift; sourceTree = "<group>"; };
 		D48B720FB7353CAAFD592E8E /* ZenMaruGothic-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ZenMaruGothic-Black.ttf"; sourceTree = "<group>"; };
@@ -312,6 +318,7 @@
 				4554BBB4C5A962AE91666D54 /* MeCabRomajiService.swift */,
 				FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */,
 				5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */,
+				D0B7876721AA106A298F8009 /* OfflineConversation.swift */,
 				B16223E135BC983A203C887A /* ReplyIdeas.swift */,
 				1DC00ADF95392C392B69EB66 /* RomajiService.swift */,
 				17AACB3B6A1340D1952C612D /* StubRomajiService.swift */,
@@ -372,6 +379,7 @@
 				E19A7168ABD0DB9C8276A0B3 /* HostRoomViewModel+TruthOrDare.swift */,
 				F4B8055E3AFB13C79A40557E /* HostRoomViewModel+WordRush.swift */,
 				56F82AB0A0C05461DFE61FE9 /* HostStartRoomViewModel.swift */,
+				308CD326693843430C3E99EC /* OfflineRoomStore.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -464,6 +472,7 @@
 				190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */,
 				A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */,
 				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
+				0804E7C4DFB7B374ABEA1A6B /* OfflineRoomView.swift */,
 				26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */,
 				B31B444E0CDA0E640973C616 /* Components */,
 				3D430DA8E7CA760D0850E570 /* Conversation */,
@@ -641,6 +650,9 @@
 				5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */,
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
 				9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */,
+				C51822A7C3594AB372FD2CCC /* OfflineConversation.swift in Sources */,
+				74A5946D7BF8E41A2A762AB2 /* OfflineRoomStore.swift in Sources */,
+				99D2DD4DCAEED15798695424 /* OfflineRoomView.swift in Sources */,
 				A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */,
 				C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */,
 				996A0281D0E525E789C2D48B /* ParticipantAvatarView.swift in Sources */,

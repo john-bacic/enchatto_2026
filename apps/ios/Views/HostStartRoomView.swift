@@ -6,6 +6,7 @@ struct HostStartRoomView: View {
     @FocusState private var nameFocused: Bool
     @State private var showJoin = false
     @State private var showDashPractice = false
+    @State private var showOfflineRoom = false
     #if DEBUG
     private static var openedPractice = false
     #endif
@@ -106,7 +107,18 @@ struct HostStartRoomView: View {
                     .buttonStyle(.chunky(.white, size: .small))
                     .disabled(!viewModel.canJoin)
 
-                    // The one thing here that needs no room and no connection: a course of Chatto Dash, alone
+                    // What needs no connection. A room of one phone, passed back and forth and translated on it
+                    Button {
+                        nameFocused = false
+                        Haptics.tap()
+                        showOfflineRoom = true
+                    } label: {
+                        Label(L.t("Offline room", lang), systemImage: "wifi.slash")
+                            .textCase(.uppercase)
+                    }
+                    .buttonStyle(.chunky(.white, size: .small))
+
+                    // And a course of Chatto Dash, alone
                     if DashPracticeView.isAvailable {
                         Button {
                             nameFocused = false
@@ -158,12 +170,21 @@ struct HostStartRoomView: View {
             // For trying practice out from a script: `-enchatto_dashPractice YES` at launch opens it straight away,
             // once (this screen appears again whenever something over it is put away)
             .onAppear {
-                if UserDefaults.standard.bool(forKey: "enchatto_dashPractice"), !HostStartRoomView.openedPractice {
+                guard !HostStartRoomView.openedPractice else { return }
+                if UserDefaults.standard.bool(forKey: "enchatto_dashPractice") {
                     HostStartRoomView.openedPractice = true
                     showDashPractice = true
+                } else if UserDefaults.standard.bool(forKey: "enchatto_offlineRoom") {
+                    // `-enchatto_offlineRoom YES`: the offline room, the same way
+                    HostStartRoomView.openedPractice = true
+                    showOfflineRoom = true
                 }
             }
             #endif
+            .fullScreenCover(isPresented: $showOfflineRoom) {
+                OfflineRoomView(myLang: lang, avatarId: viewModel.hostAvatarId) { showOfflineRoom = false }
+                    .environment(\.roomTextureIndex, viewModel.textureIndex)
+            }
             .fullScreenCover(isPresented: $showDashPractice) {
                 DashPracticeView(avatarId: viewModel.hostAvatarId, lang: lang) { showDashPractice = false }
                     .environment(\.roomTextureIndex, viewModel.textureIndex)
