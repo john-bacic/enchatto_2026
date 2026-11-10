@@ -3,7 +3,8 @@
 
 let ctx: AudioContext | null = null;
 
-// The sound switch on the race screen, kept for the browser (the iPhone app's web view keeps it too)
+// The music switch on the race screen, kept for the browser (the iPhone app's web view keeps it too). It
+// turns off the music only: the jumps, dives and bumps are still heard
 const MUTED_KEY = "enchatto_dash_muted";
 let muted = (() => {
   try {
@@ -31,7 +32,7 @@ export function unlockSound() {
   if (track?.paused) playTrack();
 }
 
-/** Turns all of the game's sound off or on: the music and the effects */
+/** Turns the race music off or on (the sound effects stay on) */
 export function setMuted(on: boolean) {
   muted = on;
   try {
@@ -109,7 +110,7 @@ export function stopMusic() {
 }
 
 function tone(from: number, to: number, seconds: number, type: OscillatorType, volume: number, delay = 0) {
-  if (!ctx || muted || ctx.state !== "running") return;
+  if (!ctx || ctx.state !== "running") return;
   const at = ctx.currentTime + delay;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();

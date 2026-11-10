@@ -59,12 +59,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* The sound switch: floated right under the top row, so the place and the notices beside it keep the left */
+/* The music switch: floated right under the top row, so the place and the notices beside it keep the left */
 .dash-side {
   float: right;
   margin-top: 8px;
 }
-/* The sound switch's "off": a pink stroke with an ink edge across the music note, like the icon pack's outlines */
+/* The music switch's "off": a pink stroke with an ink edge across the music note, like the icon pack's outlines */
 .dash-mute-slash {
   position: absolute;
   left: 50%;
