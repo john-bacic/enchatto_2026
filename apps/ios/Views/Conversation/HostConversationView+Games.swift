@@ -245,6 +245,7 @@ extension HostConversationView {
             // MARK: - Chatto Dash full-screen game
             .fullScreenCover(isPresented: $showDashGame) {
                 DashGameView(
+                    store: dashWeb,
                     roomId: viewModel.roomId,
                     participantId: viewModel.hostId,
                     lang: hostLanguage,
@@ -259,7 +260,14 @@ extension HostConversationView {
                 )
                 .environment(\.roomTextureIndex, shownTextureIndex)
             }
+            // The race's page is loaded while a game is being chosen, not when the race is started: by then it is up
+            .onChange(of: showGamePicker) { shown in
+                if shown { dashWeb.warm(roomId: viewModel.roomId, participantId: viewModel.hostId, lang: hostLanguage) }
+            }
+            .onDisappear { dashWeb.close() }
             .onChange(of: viewModel.activeDashGame) { game in
+                // A race found on (the app was reopened into one): its page is wanted whether or not it is shown
+                if game?.isOn == true { dashWeb.warm(roomId: viewModel.roomId, participantId: viewModel.hostId, lang: hostLanguage) }
                 if let g = game, g.isOn {
                     if !showDashGame && minimizedDashGameId != g.id {
                         showDashGame = true

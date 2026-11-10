@@ -40,6 +40,8 @@ struct HostConversationView: View {
     @State var showInRoom = false
     @State var fullScreenImage: (url: String, messageId: String)?
     @State var showGamePicker = false
+    /// The web view Chatto Dash is played in: this room's, loaded ahead and kept between showings
+    @StateObject var dashWeb = DashWebStore()
     @State var showGameReplay = false
     @State var showGameTask = false
     @State var showQuitGameConfirm = false

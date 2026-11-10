@@ -172,6 +172,10 @@ export default function DashRace(props: RaceProps) {
       gameRef.current?.press(name, false);
       setPressed((p) => ({ ...p, [name]: false }));
     },
+    onLostPointerCapture: () => {
+      gameRef.current?.press(name, false);
+      setPressed((p) => ({ ...p, [name]: false }));
+    },
   });
 
   const t = hud.t;
@@ -193,6 +197,8 @@ export default function DashRace(props: RaceProps) {
           onPointerMove={onStickMove}
           onPointerUp={onStickUp}
           onPointerCancel={onStickUp}
+          // A touch the system took over (a swipe from the screen's edge) ends without an up: the stick lets go
+          onLostPointerCapture={onStickUp}
         />
       )}
       <div ref={stickRef} className="dash-stick" style={{ display: "none" }}>

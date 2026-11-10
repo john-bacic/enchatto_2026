@@ -40,6 +40,12 @@ export function DashGameView({
 }) {
   const c = dashCopy(lang);
   const convex = useConvex();
+  // The race itself (three.js and the courses) is fetched as soon as there is a game to show, in its lobby, and
+  // not when the first round's countdown has already begun: a slow connection would start that racer late
+  useEffect(() => {
+    void import("./dash/race");
+  }, []);
+
   const joinLobby = useAuthedMutation(api.dash.joinLobby);
   const leaveLobby = useAuthedMutation(api.dash.leaveLobby);
   const startGame = useAuthedMutation(api.dash.startGame);

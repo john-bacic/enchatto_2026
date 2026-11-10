@@ -7,6 +7,11 @@
   background: var(--paper);
   touch-action: none;
   overscroll-behavior: none;
+  /* A thumb held on the screen steers: it never selects text, calls up a menu or flashes a tap */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .dash-stage canvas {
   position: absolute;

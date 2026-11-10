@@ -38,6 +38,9 @@ function Embedded() {
 
   useEffect(() => {
     tellApp({ type: "ready" });
+    // The app loads this page ahead of need, before the room has a race at all: the race's own code is fetched
+    // now too, so that nothing is left to fetch when one is started
+    void import("@/components/dash/race");
   }, []);
 
   // A game that was on and is not any more: the app takes the page down
