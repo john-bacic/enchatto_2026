@@ -98,6 +98,23 @@ let presetAvatars: [PresetAvatar] = [
     PresetAvatar(id: "toast",       label: "Toast",       icon: "av-toast",       emoji: "🍞", color: Color(hex: "fef3c7")),
     PresetAvatar(id: "melon",       label: "Melon",       icon: "av-melon",       emoji: "🍉", color: Color(hex: "dcfce7")),
     PresetAvatar(id: "flower",      label: "Flower",      icon: "av-flower",      emoji: "🌸", color: Color(hex: "fde2ef")),
+    // Sixteen that are a face and nothing else (see apps/web/lib/types.ts)
+    PresetAvatar(id: "floaty", label: "Floaty", icon: "av-floaty", emoji: "🛟", color: Color(hex: "dbeafe")),
+    PresetAvatar(id: "pearl", label: "Pearl", icon: "av-pearl", emoji: "🦪", color: Color(hex: "fef3c7")),
+    PresetAvatar(id: "sunflower", label: "Sunflower", icon: "av-sunflower", emoji: "🌻", color: Color(hex: "dcfce7")),
+    PresetAvatar(id: "muncher", label: "Muncher", icon: "av-muncher", emoji: "🍪", color: Color(hex: "e0f2fe")),
+    PresetAvatar(id: "swimbunny", label: "Swim Bunny", icon: "av-swimbunny", emoji: "🐇", color: Color(hex: "fff4c4")),
+    PresetAvatar(id: "sunny", label: "Sunny Cloud", icon: "av-sunny", emoji: "⛅", color: Color(hex: "fff1c1")),
+    PresetAvatar(id: "smiley", label: "Smiley", icon: "av-smiley", emoji: "🙂", color: Color(hex: "e9d5ff")),
+    PresetAvatar(id: "puff", label: "Puff", icon: "av-puff", emoji: "💭", color: Color(hex: "fecdd3")),
+    PresetAvatar(id: "ribbon", label: "Ribbon", icon: "av-ribbon", emoji: "🎀", color: Color(hex: "fef9c3")),
+    PresetAvatar(id: "computer", label: "Computer", icon: "av-computer", emoji: "💻", color: Color(hex: "ddd6fe")),
+    PresetAvatar(id: "squid", label: "Squid", icon: "av-squid", emoji: "🦑", color: Color(hex: "fbcfe8")),
+    PresetAvatar(id: "boo", label: "Boo", icon: "av-boo", emoji: "👻", color: Color(hex: "c7d2fe")),
+    PresetAvatar(id: "blush", label: "Blush", icon: "av-blush", emoji: "😊", color: Color(hex: "ccfbf1")),
+    PresetAvatar(id: "lovey", label: "Lovey", icon: "av-lovey", emoji: "😍", color: Color(hex: "fef3c7")),
+    PresetAvatar(id: "cheeky", label: "Cheeky", icon: "av-cheeky", emoji: "😜", color: Color(hex: "dbeafe")),
+    PresetAvatar(id: "grumpy", label: "Grumpy", icon: "av-grumpy", emoji: "😠", color: Color(hex: "e2e8f0")),
 ]
 
 func presetAvatar(for id: String) -> PresetAvatar {

@@ -36,6 +36,23 @@ export const PRESET_AVATARS = [
   { id: "toast", label: "Toast", icon: "toast", emoji: "🍞", color: "#fef3c7" },
   { id: "melon", label: "Melon", icon: "melon", emoji: "🍉", color: "#dcfce7" },
   { id: "flower", label: "Flower", icon: "flower", emoji: "🌸", color: "#fde2ef" },
+  // Sixteen that are a face and nothing else, which is what sits best on a racer's hands and shoes in Chatto Dash
+  { id: "floaty", label: "Floaty", icon: "floaty", emoji: "🛟", color: "#dbeafe" },
+  { id: "pearl", label: "Pearl", icon: "pearl", emoji: "🦪", color: "#fef3c7" },
+  { id: "sunflower", label: "Sunflower", icon: "sunflower", emoji: "🌻", color: "#dcfce7" },
+  { id: "muncher", label: "Muncher", icon: "muncher", emoji: "🍪", color: "#e0f2fe" },
+  { id: "swimbunny", label: "Swim Bunny", icon: "swimbunny", emoji: "🐇", color: "#fff4c4" },
+  { id: "sunny", label: "Sunny Cloud", icon: "sunny", emoji: "⛅", color: "#fff1c1" },
+  { id: "smiley", label: "Smiley", icon: "smiley", emoji: "🙂", color: "#e9d5ff" },
+  { id: "puff", label: "Puff", icon: "puff", emoji: "💭", color: "#fecdd3" },
+  { id: "ribbon", label: "Ribbon", icon: "ribbon", emoji: "🎀", color: "#fef9c3" },
+  { id: "computer", label: "Computer", icon: "computer", emoji: "💻", color: "#ddd6fe" },
+  { id: "squid", label: "Squid", icon: "squid", emoji: "🦑", color: "#fbcfe8" },
+  { id: "boo", label: "Boo", icon: "boo", emoji: "👻", color: "#c7d2fe" },
+  { id: "blush", label: "Blush", icon: "blush", emoji: "😊", color: "#ccfbf1" },
+  { id: "lovey", label: "Lovey", icon: "lovey", emoji: "😍", color: "#fef3c7" },
+  { id: "cheeky", label: "Cheeky", icon: "cheeky", emoji: "😜", color: "#dbeafe" },
+  { id: "grumpy", label: "Grumpy", icon: "grumpy", emoji: "😠", color: "#e2e8f0" },
 ] as const;
 
 export const LANGUAGES = [
