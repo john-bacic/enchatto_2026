@@ -286,7 +286,9 @@ export default function DashRace(props: RaceProps) {
             </h2>
             {finishPlace !== null && myFinish !== undefined && (
               <p className="ec-chunky" style={{ fontSize: 18, margin: "2px 0" }}>
-                {ordinal(finishPlace, lang)} · {raceClock(myFinish)}
+                {/* A place means something only with someone to be placed against */}
+                {racers.length > 1 ? `${ordinal(finishPlace, lang)} · ` : ""}
+                {raceClock(myFinish)}
               </p>
             )}
             {hud.racing > 1 && (

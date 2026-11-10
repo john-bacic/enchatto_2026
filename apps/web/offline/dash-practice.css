@@ -1,0 +1,47 @@
+/* The offline practice page's own: the fonts the web app gets from next/font, here from the iPhone app's
+   bundle, and a clear page so that the app's own paper shows behind it */
+@font-face {
+  font-family: "Enchatto Chunky";
+  /* Latin and kana only, as on the web: kanji come from Zen Maru Gothic Black below */
+  src: url("/fonts/DelaGothicOne-Regular.ttf") format("truetype");
+  unicode-range: U+0000-2FFF, U+3000-30FF, U+FF00-FFEF;
+  font-display: block;
+}
+@font-face {
+  font-family: "Enchatto Chunky Kanji";
+  src: url("/fonts/ZenMaruGothic-Black.ttf") format("truetype");
+  font-display: block;
+}
+@font-face {
+  font-family: "Enchatto Round";
+  font-weight: 100 600;
+  src: url("/fonts/ZenMaruGothic-Medium.ttf") format("truetype");
+  font-display: block;
+}
+@font-face {
+  font-family: "Enchatto Round";
+  font-weight: 700 800;
+  src: url("/fonts/ZenMaruGothic-Bold.ttf") format("truetype");
+  font-display: block;
+}
+@font-face {
+  font-family: "Enchatto Round";
+  font-weight: 900;
+  src: url("/fonts/ZenMaruGothic-Black.ttf") format("truetype");
+  font-display: block;
+}
+:root {
+  --font-chunky: "Enchatto Chunky";
+  --font-chunky-kanji: "Enchatto Chunky Kanji";
+  --font-round: "Enchatto Round";
+}
+html,
+body {
+  background: transparent;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}

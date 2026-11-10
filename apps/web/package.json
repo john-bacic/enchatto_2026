@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint --dir app --dir components --dir lib --dir hooks --dir convex --dir tests",
     "typecheck": "tsc --noEmit && tsc --noEmit -p convex/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:dash-offline": "node offline/build.mjs"
   },
   "dependencies": {
     "convex": "^1.34.1",

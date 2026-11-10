@@ -5,6 +5,10 @@ struct HostStartRoomView: View {
     @StateObject private var viewModel = HostStartRoomViewModel()
     @FocusState private var nameFocused: Bool
     @State private var showJoin = false
+    @State private var showDashPractice = false
+    #if DEBUG
+    private static var openedPractice = false
+    #endif
     @State private var joinCode = ""
 
     private var lang: String { viewModel.hostLanguage }
@@ -102,6 +106,22 @@ struct HostStartRoomView: View {
                     .buttonStyle(.chunky(.white, size: .small))
                     .disabled(!viewModel.canJoin)
 
+                    // The one thing here that needs no room and no connection: a course of Chatto Dash, alone
+                    if DashPracticeView.isAvailable {
+                        Button {
+                            nameFocused = false
+                            Haptics.tap()
+                            showDashPractice = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                PackIcon("o-shootingstar", size: 26)
+                                Text(L.t("Practice Chatto Dash", lang))
+                                    .textCase(.uppercase)
+                            }
+                        }
+                        .buttonStyle(.chunky(.white, size: .small))
+                    }
+
                     Text("v\(GitInfo.commitSHA)")
                         .font(.round(9, .medium))
                         .foregroundStyle(EC.inkSoft.opacity(0.6))
@@ -133,6 +153,20 @@ struct HostStartRoomView: View {
             .task { await viewModel.checkSavedRoom(tapped: false) }
             .sheet(isPresented: $showJoin) {
                 JoinRoomSheet(viewModel: viewModel, code: $joinCode)
+            }
+            #if DEBUG
+            // For trying practice out from a script: `-enchatto_dashPractice YES` at launch opens it straight away,
+            // once (this screen appears again whenever something over it is put away)
+            .onAppear {
+                if UserDefaults.standard.bool(forKey: "enchatto_dashPractice"), !HostStartRoomView.openedPractice {
+                    HostStartRoomView.openedPractice = true
+                    showDashPractice = true
+                }
+            }
+            #endif
+            .fullScreenCover(isPresented: $showDashPractice) {
+                DashPracticeView(avatarId: viewModel.hostAvatarId, lang: lang) { showDashPractice = false }
+                    .environment(\.roomTextureIndex, viewModel.textureIndex)
             }
         }
         // A room's join link (its QR code, scanned with the Camera app) opens the app where it is installed. With a

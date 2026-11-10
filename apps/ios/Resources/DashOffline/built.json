@@ -1,0 +1,30 @@
+{
+ "hash": "a4829da0e9bca509ea13b72bd8584cff33039915cf5de8a552226be12e29e90b",
+ "inputs": [
+  "app/globals.css",
+  "components/dash/dash.css",
+  "components/dash/lobby.tsx",
+  "components/dash/practice.tsx",
+  "components/dash/race.tsx",
+  "components/dash/strings.ts",
+  "components/ui/avatar.tsx",
+  "components/ui/icon.tsx",
+  "lib/dash/build.ts",
+  "lib/dash/game.ts",
+  "lib/dash/level-names.ts",
+  "lib/dash/levels/index.ts",
+  "lib/dash/levels/kaiten-rush.ts",
+  "lib/dash/levels/mochi-mountain.ts",
+  "lib/dash/levels/origami-sky.ts",
+  "lib/dash/levels/taiko-bounce.ts",
+  "lib/dash/levels/windy-pinwheels.ts",
+  "lib/dash/scene.ts",
+  "lib/dash/sfx.ts",
+  "lib/dash/sim.ts",
+  "lib/dash/types.ts",
+  "lib/icons.ts",
+  "lib/types.ts",
+  "offline/dash-practice.css",
+  "offline/dash-practice.tsx"
+ ]
+}

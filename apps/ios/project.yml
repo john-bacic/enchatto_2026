@@ -55,6 +55,13 @@ targets:
           - "Package.swift"
           - "Package.resolved"
           - "Tests"
+          # The practice game's page: copied into the app as the folder it is (below), not file by file
+          - "Resources/DashOffline"
+      # Chatto Dash's practice screen, built from apps/web by `npm run build:dash-offline`. A folder reference:
+      # the app serves its files by their paths in it (Views/DashPracticeView.swift)
+      - path: Resources/DashOffline
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.enchatto.app

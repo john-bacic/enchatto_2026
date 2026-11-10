@@ -219,3 +219,27 @@
   display: grid;
   place-items: center;
 }
+
+/* Practice: a course to pick is a row to press, and what comes after a run sits under the race's own card */
+button.dash-course {
+  width: 100%;
+  font: inherit;
+  font-weight: 900;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.dash-course:active { transform: translateY(2px); }
+.dash-course .go { font-size: 11px; opacity: 0.55; }
+.dash-after {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(22px + var(--dash-bottom, env(safe-area-inset-bottom, 0px)));
+  z-index: 96;
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.dash-after .dash-card { pointer-events: auto; text-align: center; }

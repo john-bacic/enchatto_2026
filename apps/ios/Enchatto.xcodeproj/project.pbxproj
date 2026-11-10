@@ -58,6 +58,7 @@
 		78F7CD033287AF598267B026 /* MeCabRomajiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4554BBB4C5A962AE91666D54 /* MeCabRomajiService.swift */; };
 		797CECA3D9D858A14248F705 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C59768529F53DC71560987B /* SpeechRecognizer.swift */; };
 		7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE4519A19CC7233BA03272B /* DrawingCanvasView.swift */; };
+		7BF28745FD20BBD9CF79DBE1 /* DashPracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F16BBFD5482D6E2B50C261 /* DashPracticeView.swift */; };
 		7FE13F88925968A19A8017C6 /* ReplyIdeaWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E786687787CF61DF36820803 /* ReplyIdeaWriter.swift */; };
 		7FFA254ABE4C57A5E42B4D4A /* HostConversationView+Games.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20BA2EEE450CBE0082F402A /* HostConversationView+Games.swift */; };
 		8033E37E91F0B9ED5922B43C /* WordRushRevealView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E05F204D949A288AF065D7A /* WordRushRevealView.swift */; };
@@ -105,6 +106,7 @@
 		E2D67129E1C1D232B7BEE59F /* HostConversationView+MessageList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6773AC8E4BFE2AF15155D119 /* HostConversationView+MessageList.swift */; };
 		E582A5E2B95EACCCA54C192E /* HostRoomViewModel+SendQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9F6B3B23123E999C8550CB /* HostRoomViewModel+SendQueue.swift */; };
 		E7B92C60B218FE9CE5739371 /* StubSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18F33E002C58F30DCC82101 /* StubSuggestionService.swift */; };
+		E839648BE2FB72A5D33C7A86 /* DashOffline in Resources */ = {isa = PBXBuildFile; fileRef = D174E88994480B9F18A6340C /* DashOffline */; };
 		EACC18B87EAC260255161B57 /* EmojiBingoGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D3B3EB6CCEA32C352D4464 /* EmojiBingoGame.swift */; };
 		EBA523A4AFA8DE70996BAB3A /* WordRushVerdictView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C38074846A2F0BE26E5AA8 /* WordRushVerdictView.swift */; };
 		EEC913B0FD6A4A33F0C727D8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 964EF890B347B5E32208D1C0 /* Theme.swift */; };
@@ -196,6 +198,7 @@
 		C733C2D7AAB83E09881F2351 /* DrawingComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingComposerView.swift; sourceTree = "<group>"; };
 		C7B1A6A4B92FBB2111452006 /* SuggestionStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionStrip.swift; sourceTree = "<group>"; };
 		CB7F3CC0A7B1B0C03234BA20 /* TruthOrDareGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGame.swift; sourceTree = "<group>"; };
+		D174E88994480B9F18A6340C /* DashOffline */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DashOffline; path = Resources/DashOffline; sourceTree = SOURCE_ROOT; };
 		D175FCFF1599BE9CB6EC1DB8 /* WordRushGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushGame.swift; sourceTree = "<group>"; };
 		D48B720FB7353CAAFD592E8E /* ZenMaruGothic-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ZenMaruGothic-Black.ttf"; sourceTree = "<group>"; };
 		D4FC9108C84B71431E861972 /* HostMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostMessageRow.swift; sourceTree = "<group>"; };
@@ -209,6 +212,7 @@
 		E72F5694F32D33EE12E8612D /* ParticipantAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantAvatarView.swift; sourceTree = "<group>"; };
 		E786687787CF61DF36820803 /* ReplyIdeaWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyIdeaWriter.swift; sourceTree = "<group>"; };
 		E7CC953DD5D0CCE1335A75F1 /* WordRushMicView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordRushMicView.swift; sourceTree = "<group>"; };
+		E7F16BBFD5482D6E2B50C261 /* DashPracticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashPracticeView.swift; sourceTree = "<group>"; };
 		E8613E8DAB74204DF7411021 /* DelaGothicOne-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DelaGothicOne-Regular.ttf"; sourceTree = "<group>"; };
 		EB8E05A49B6BA14F2CFC1285 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		EE1D049BC86D95C7FD395063 /* GitInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitInfo.swift; sourceTree = "<group>"; };
@@ -251,6 +255,7 @@
 		0CF9C4D2556E0EFA58A1B989 = {
 			isa = PBXGroup;
 			children = (
+				D174E88994480B9F18A6340C /* DashOffline */,
 				1DFD3746F3372B225BD65985 /* ios */,
 				C167CF9D2F2508F01F631F95 /* Models */,
 				05CCED38D03EC14EFB663B18 /* Resources */,
@@ -452,6 +457,7 @@
 			isa = PBXGroup;
 			children = (
 				FBBB0B2932F41232BFC91720 /* DashGameView.swift */,
+				E7F16BBFD5482D6E2B50C261 /* DashPracticeView.swift */,
 				5E11FCFFF6377C51AD234A05 /* EmojiBingoGameView.swift */,
 				5EEA705F485BD12D7F237B14 /* EmojiMatchGameView.swift */,
 				C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */,
@@ -533,6 +539,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */,
+				E839648BE2FB72A5D33C7A86 /* DashOffline in Resources */,
 				93B38FF21A17897E2EB72F8D /* DelaGothicOne-Regular.ttf in Resources */,
 				47B727BA9E193D247B044FCB /* ZenMaruGothic-Black.ttf in Resources */,
 				502560E4361ECD12FB5B8835 /* ZenMaruGothic-Bold.ttf in Resources */,
@@ -578,6 +585,7 @@
 				CF034BFCEE21608FBF861608 /* ConvexHTTPClient.swift in Sources */,
 				FA64BF9D65B44639A617C8E3 /* DashGame.swift in Sources */,
 				3600B31A95290D6987C2F00E /* DashGameView.swift in Sources */,
+				7BF28745FD20BBD9CF79DBE1 /* DashPracticeView.swift in Sources */,
 				D2125475124C862FAF863E64 /* DebugConsoleView.swift in Sources */,
 				7A779C6CED6DB7E10A190101 /* DrawingCanvasView.swift in Sources */,
 				41BBBA186406A50EDF20609E /* DrawingComposerView.swift in Sources */,

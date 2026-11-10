@@ -429,6 +429,7 @@ enum L {
         "Start the race!": ["ja": "レース開始！"],
         "Resume Chatto Dash": ["ja": "チャットダッシュを再開"],
         "Loading the race…": ["ja": "レースを準備中…"],
+        "Practice Chatto Dash": ["ja": "チャットダッシュをれんしゅう"],
         "Couldn't load the race. Check your connection.": ["ja": "レースを読み込めませんでした。通信を確認してください。"],
         "Try again": ["ja": "もう一度"],
         "Emoji drop in — race to pick the word!": ["ja": "絵文字が落ちてくる — 早押しで単語をえらべ！"],
