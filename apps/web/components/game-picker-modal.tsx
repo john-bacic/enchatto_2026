@@ -87,7 +87,7 @@ const PACKS: { id: string; icon: string; en: string; ja: string }[] = [
   { id: "chat", icon: "ui-chat", en: "From this chat", ja: "このチャットから" },
 ];
 
-const TILES: { id: GameTab; icon: string; color: string }[] = [
+export const TILES: { id: GameTab; icon: string; color: string }[] = [
   { id: "word-rush", icon: "o-flower", color: "var(--yellow)" },
   { id: "chatto-dash", icon: "o-shootingstar", color: "#cfe8ff" },
   { id: "lost-in-translation", icon: "g-pencil", color: "var(--blue-soft)" },
@@ -95,6 +95,11 @@ const TILES: { id: GameTab; icon: string; color: string }[] = [
   { id: "emoji-match", icon: "o-cherry", color: "var(--violet-soft)" },
   { id: "truth-or-dare", icon: "g-question", color: "var(--pink-soft)" },
 ];
+
+/** The small screenshot of a game shown on its tile while it is the chosen one: public/picker, cut from the guide's screenshots by scripts/picker-shots.sh */
+export function pickerShotSrc(game: GameTab, lang?: string) {
+  return `/picker/${game}${lang === "ja" ? "-ja" : ""}.jpg`;
+}
 
 const MIN_PLAYERS: Record<GameTab, number> = {
   "word-rush": 2,
@@ -586,6 +591,8 @@ export function GamePickerModal({
                       fontSize: 12,
                       transform: "rotate(10deg)",
                       animation: "ec-kick 0.6s ease-in-out 3",
+                      // Over the chosen game's picture, which sits in the same corner
+                      zIndex: 1,
                     }}
                   >
                     {c.isNew}
@@ -600,6 +607,30 @@ export function GamePickerModal({
                     {subs[tile.id]}
                   </div>
                 </div>
+                {sel && (
+                  // What the game looks like, in the reader's language. The tile names the game: nothing for a
+                  // screen reader to add
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={pickerShotSrc(tile.id, lang)}
+                    alt=""
+                    width={84}
+                    height={84}
+                    draggable={false}
+                    style={{
+                      flex: "none",
+                      width: 84,
+                      height: 84,
+                      marginRight: 2,
+                      border: "2.5px solid var(--ink)",
+                      borderRadius: 14,
+                      background: "#fff",
+                      boxShadow: "0 3px 0 var(--ink)",
+                      transform: "rotate(3deg)",
+                      objectFit: "cover",
+                    }}
+                  />
+                )}
                 {sel && renderDetails()}
               </div>
             );

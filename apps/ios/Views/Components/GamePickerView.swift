@@ -30,6 +30,21 @@ enum GamePickerTab: String, CaseIterable {
         }
     }
 
+    /// The small screenshot of the game shown on its card in the picker, in English or Japanese: the Picker
+    /// images, cut from the guide's screenshots by apps/web/scripts/picker-shots.sh
+    func shot(japanese: Bool) -> String {
+        let game: String
+        switch self {
+        case .wordRush: game = "word-rush"
+        case .chattoDash: game = "chatto-dash"
+        case .lostInTranslation: game = "lost-in-translation"
+        case .emojiBingo: game = "emoji-bingo"
+        case .emojiMatch: game = "emoji-match"
+        case .truthOrDare: game = "truth-or-dare"
+        }
+        return "pick-\(game)" + (japanese ? "-ja" : "")
+    }
+
     var tileFill: Color {
         switch self {
         case .wordRush: return EC.yellow
@@ -351,6 +366,7 @@ struct GamePickerView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
+                gameShot(tab)
             }
 
             switch tab {
@@ -387,6 +403,22 @@ struct GamePickerView: View {
         }
         .rotationEffect(.degrees(-1))
         .padding(.top, 6)
+    }
+
+    /// What the game looks like, in the host's language: a small screenshot in the card's top corner. The card
+    /// names the game, so VoiceOver passes it by
+    private func gameShot(_ tab: GamePickerTab) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return Image(tab.shot(japanese: isJA))
+            .resizable()
+            .scaledToFill()
+            .frame(width: 84, height: 84)
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(EC.ink, lineWidth: 2.5))
+            .background(shape.fill(EC.ink).offset(y: 3))
+            .rotationEffect(.degrees(3))
+            .padding(.trailing, 2)
+            .accessibilityHidden(true)
     }
 
     private func infoChips(_ items: [String]) -> some View {
