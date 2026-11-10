@@ -2,7 +2,20 @@
 // after a tap or a key, so nothing is heard before the player first touches the controls.
 
 let ctx: AudioContext | null = null;
-let muted = false;
+
+// The sound switch on the race screen, kept for the browser (the iPhone app's web view keeps it too)
+const MUTED_KEY = "enchatto_dash_muted";
+let muted = (() => {
+  try {
+    return localStorage.getItem(MUTED_KEY) === "1";
+  } catch {
+    return false;
+  }
+})();
+
+export function isMuted() {
+  return muted;
+}
 
 export function unlockSound() {
   try {
@@ -15,10 +28,84 @@ export function unlockSound() {
   } catch {
     // No sound, then
   }
+  if (track?.paused) playTrack();
 }
 
+/** Turns all of the game's sound off or on: the music and the effects */
 export function setMuted(on: boolean) {
   muted = on;
+  try {
+    localStorage.setItem(MUTED_KEY, on ? "1" : "0");
+  } catch {
+    // For this visit only, then
+  }
+  if (track) track.muted = on;
+  if (!on) playTrack();
+}
+
+// The race music: each course has its own track (public/music/<level id>.mp3), looped from "GO!" until the
+// round is over. It is fetched as data and played from memory, because the iPhone app's offline copy serves its
+// files through the app, which an audio element cannot stream from. A browser that refuses to play before a tap
+// is asked again at the next tap (unlockSound).
+const MUSIC_VOLUME = 0.4;
+let track: HTMLAudioElement | null = null;
+const fetched = new Map<string, Promise<string | null>>();
+let wanted: string | null = null;
+
+const musicPath = (levelId: string) => `/music/${levelId}.mp3`;
+
+function musicUrl(levelId: string) {
+  let url = fetched.get(levelId);
+  if (!url) {
+    url = fetch(musicPath(levelId))
+      .then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => (blob ? URL.createObjectURL(blob) : null))
+      .catch(() => {
+        fetched.delete(levelId); // Try again next round
+        return null;
+      });
+    fetched.set(levelId, url);
+  }
+  return url;
+}
+
+/** Fetches a course's music ahead of the race, so that it starts on the beat of "GO!" */
+export function preloadMusic(levelId: string) {
+  void musicUrl(levelId);
+}
+
+function playTrack() {
+  if (!track || !wanted || muted || document.hidden) return;
+  track.muted = muted;
+  void track.play().catch(() => {
+    // Not before a tap: unlockSound asks again
+  });
+}
+
+export async function startMusic(levelId: string) {
+  if (wanted === levelId) return;
+  wanted = levelId;
+  const url = await musicUrl(levelId);
+  // Another course may have started, or the race been put away, while this one was fetched
+  if (!url || wanted !== levelId) return;
+  if (!track) {
+    track = new Audio();
+    track.loop = true;
+    track.volume = MUSIC_VOLUME;
+    // Not heard from a hidden tab or an app put away, and back where it was when they return
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) track?.pause();
+      else playTrack();
+    });
+  }
+  if (track.src !== url) track.src = url;
+  track.currentTime = 0;
+  playTrack();
+}
+
+export function stopMusic() {
+  wanted = null;
+  track?.pause();
 }
 
 function tone(from: number, to: number, seconds: number, type: OscillatorType, volume: number, delay = 0) {

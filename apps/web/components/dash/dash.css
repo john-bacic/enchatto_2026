@@ -32,14 +32,14 @@
 .dash-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .dash-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  padding: 3px 12px;
+  padding: 3px 11px;
   border: 3px solid var(--ink);
   border-radius: 999px;
   background: #fff;
@@ -54,6 +54,30 @@
 .dash-pill.yellow { background: var(--yellow); }
 .dash-pill.pink { background: var(--pink); color: #fff; }
 .dash-pill.clock { font-size: 15px; font-variant-numeric: tabular-nums; }
+.dash-pill-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The sound switch: floated right under the top row, so the place and the notices beside it keep the left */
+.dash-side {
+  float: right;
+  margin-top: 8px;
+}
+/* The sound switch's "off": a pink stroke with an ink edge across the music note, like the icon pack's outlines */
+.dash-mute-slash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30px;
+  height: 4px;
+  margin: -2px 0 0 -15px;
+  border-radius: 2px;
+  background: var(--pink);
+  box-shadow: 0 0 0 2px var(--ink);
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
 .dash-place {
   margin-top: 8px;
   font-size: 40px;

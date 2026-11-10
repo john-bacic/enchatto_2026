@@ -8,7 +8,7 @@ import { build } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { HTML, hashOf, pictures } from "./built.mjs";
+import { HTML, hashOf, music, pictures } from "./built.mjs";
 
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const out = path.resolve(web, "../ios/Resources/DashOffline");
@@ -26,7 +26,7 @@ const result = await build({
   alias: { "@": web },
   define: { "process.env.NODE_ENV": '"production"' },
   // Served by the app at these addresses, not part of the bundle
-  external: ["/fonts/*", "/icons/*"],
+  external: ["/fonts/*", "/icons/*", "/music/*"],
   outdir: out,
   entryNames: "dash",
   write: false,
@@ -60,6 +60,8 @@ fs.mkdirSync(path.join(out, "icons"), { recursive: true });
 for (const file of result.outputFiles) fs.writeFileSync(path.join(out, path.basename(file.path)), file.contents);
 fs.writeFileSync(path.join(out, "index.html"), HTML);
 for (const f of icons) fs.copyFileSync(path.join(web, "public/icons", f), path.join(out, "icons", f));
+fs.mkdirSync(path.join(out, "music"), { recursive: true });
+for (const f of music(web)) fs.copyFileSync(path.join(web, "public/music", f), path.join(out, "music", f));
 fs.writeFileSync(path.join(out, "built.json"), JSON.stringify(built, null, 1) + "\n");
 const size = (f) => `${Math.round(fs.statSync(path.join(out, f)).size / 1024)} KB`;
 console.log(`DashOffline: dash.js ${size("dash.js")}, dash.css ${size("dash.css")}, ${icons.length} pictures, ${inputs.length} source files`);

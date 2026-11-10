@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AvatarDisc } from "@/components/ui/avatar";
+import { Icon } from "@/components/ui/icon";
 import { DashGame, type Hud, type NetState, type RacerInfo } from "@/lib/dash/game";
 import { LEVEL_NAMES } from "@/lib/dash/level-names";
 import { getLevel } from "@/lib/dash/levels";
-import { unlockSound } from "@/lib/dash/sfx";
+import { isMuted, setMuted, unlockSound } from "@/lib/dash/sfx";
 import { dashCopy, ordinal, raceClock } from "./strings";
 
 export interface RaceProps {
@@ -65,6 +66,16 @@ export default function DashRace(props: RaceProps) {
   const [hud, setHud] = useState<Hud>(() => ({ ...EMPTY_HUD, t: props.raceTime() }));
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<{ jump?: boolean; dive?: boolean }>({});
+  // Read after the first draw: the setting is the browser's, which a server-drawn page cannot know
+  const [soundOff, setSoundOff] = useState(false);
+  useEffect(() => setSoundOff(isMuted()), []);
+  const toggleSound = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const next = !soundOff;
+    setMuted(next);
+    setSoundOff(next);
+    // Space jumps: it must not press this button again
+    e.currentTarget.blur();
+  };
   const racerKey = racers.map((r) => r.id).join(",");
   const level = useMemo(() => getLevel(levelIndex), [levelIndex]);
 
@@ -213,7 +224,10 @@ export default function DashRace(props: RaceProps) {
             </button>
           )}
           <span className="dash-pill" style={{ flexShrink: 1, minWidth: 0 }}>
-            {props.round + 1}/{props.rounds} · {lang === "ja" ? name.ja : name.en}
+            {/* The text in a box of its own: a flex box clips its text, where a block ends it with "…" */}
+            <span className="dash-pill-text">
+              {props.round + 1}/{props.rounds} · {lang === "ja" ? name.ja : name.en}
+            </span>
           </span>
           <span style={{ flex: 1 }} />
           {t > 0 && <span className="dash-pill clock">{raceClock(myFinish ?? t)}</span>}
@@ -222,6 +236,21 @@ export default function DashRace(props: RaceProps) {
               {c.end}
             </button>
           )}
+        </div>
+        {/* Under the top row on the right, where nothing else is drawn: the top row has no room to spare on a phone */}
+        <div className="dash-side">
+          <button
+            className="ec-round-btn"
+            onClick={toggleSound}
+            aria-label={soundOff ? c.soundOn : c.soundOff}
+            aria-pressed={soundOff}
+            title={soundOff ? c.soundOn : c.soundOff}
+            style={{ width: 38, height: 38, padding: 0, position: "relative", boxShadow: "0 3px 0 var(--ink)" }}
+          >
+            {/* The icon pack's music note; with the sound off it fades and is struck through */}
+            <Icon name="g-music" size={28} style={soundOff ? { opacity: 0.6, filter: "grayscale(1)" } : undefined} />
+            {soundOff && <span className="dash-mute-slash" aria-hidden />}
+          </button>
         </div>
         {meId && t > 0 && !hud.finished && hud.racing > 1 && (
           <div className="dash-place ec-outline">

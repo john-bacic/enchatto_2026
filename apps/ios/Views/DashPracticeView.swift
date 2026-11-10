@@ -79,7 +79,7 @@ final class DashOfflineFiles: NSObject, WKURLSchemeHandler {
 
     private static let types = [
         "html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-8", "css": "text/css; charset=utf-8",
-        "png": "image/png", "ttf": "font/ttf", "json": "application/json",
+        "png": "image/png", "ttf": "font/ttf", "json": "application/json", "mp3": "audio/mpeg",
     ]
 
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {

@@ -5,7 +5,7 @@
 
 import { getLevel } from "./levels";
 import { DashScene } from "./scene";
-import { sfx } from "./sfx";
+import { preloadMusic, sfx, startMusic, stopMusic, unlockSound } from "./sfx";
 import { newPlayer, progressOf, spawnPoint, step, STEP } from "./sim";
 import {
   EV_BOUNCE,
@@ -87,6 +87,7 @@ export class DashGame {
   private lastSend = 0;
   private lastHud = 0;
   private lastCount = 99;
+  private musicOn = false;
   private finishedAt = -1;
   private remote = new Map<string, NetState[]>();
   private slots = new Map<string, number>();
@@ -116,6 +117,7 @@ export class DashGame {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("blur", this.onBlur);
+    preloadMusic(this.level.id);
     this.resize();
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
@@ -155,6 +157,8 @@ export class DashGame {
     if (tag === "INPUT" || tag === "TEXTAREA") return;
     this.keys.add(e.code);
     if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault();
+    // A key is a gesture too: sound a browser held back until one may start now
+    unlockSound();
   };
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
   private onBlur = () => {
@@ -196,6 +200,11 @@ export class DashGame {
       if (count >= 1 && count <= 3) sfx.count();
       else if (count === 0 && this.lastCount === 1) sfx.go();
       this.lastCount = count;
+    }
+    // The music from "GO!" (or at once, for a race come back to after it started) until the round is put away
+    if (t >= 0 && !this.musicOn) {
+      this.musicOn = true;
+      void startMusic(this.level.id);
     }
 
     if (me) {
@@ -347,6 +356,7 @@ export class DashGame {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
+    stopMusic();
     this.scene.dispose();
   }
 }

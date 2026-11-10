@@ -20,11 +20,19 @@ export const HTML = `<!doctype html>
 </html>
 `;
 
-/** The pictures the practice screen asks for by address: every avatar, and the game's own icon */
+/** The pictures the practice screen asks for by address: every avatar, the game's own icon and the sound switch's note */
 export function pictures(web) {
   return fs
     .readdirSync(path.join(web, "public/icons"))
-    .filter((f) => /^av-.*\.png$/.test(f) || f === "o-shootingstar.png")
+    .filter((f) => /^av-.*\.png$/.test(f) || f === "o-shootingstar.png" || f === "g-music.png")
+    .sort();
+}
+
+/** The race music the game fetches by address (public/music) */
+export function music(web) {
+  return fs
+    .readdirSync(path.join(web, "public/music"))
+    .filter((f) => f.endsWith(".mp3"))
     .sort();
 }
 
@@ -37,6 +45,7 @@ export function hashOf(web, inputs) {
   for (const f of inputs) hash.update(f).update("\0").update(fs.readFileSync(path.join(web, f))).update("\0");
   hash.update(HTML);
   for (const f of pictures(web)) hash.update(f).update("\0").update(fs.readFileSync(path.join(web, "public/icons", f))).update("\0");
+  for (const f of music(web)) hash.update(f).update("\0").update(fs.readFileSync(path.join(web, "public/music", f))).update("\0");
   for (const dep of ["three", "react", "react-dom"]) {
     const found = [path.join(web, "node_modules", dep), path.join(web, "../../node_modules", dep)].find((d) => fs.existsSync(d));
     hash.update(dep).update(JSON.parse(fs.readFileSync(path.join(found, "package.json"), "utf8")).version);
