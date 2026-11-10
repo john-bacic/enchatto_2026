@@ -14,6 +14,9 @@ class HostStartRoomViewModel: ObservableObject {
     @Published var settings = RoomSettings.defaults
     @Published var isCreating = false
     @Published var error: String?
+    /// Create Room could not reach the server. The start screen opens the offline room in its place, and sets this
+    /// back
+    @Published var createFoundNoConnection = false
 
     // Set after room creation
     @Published var createdRoomId: String? {
@@ -115,10 +118,25 @@ class HostStartRoomViewModel: ObservableObject {
             createdJoinCode = result.joinCode
             createdHostId = result.hostId
         } catch {
-            self.error = error.localizedDescription
+            // No way to the server: no room there, so the room that needs none. Anything the server itself said is shown
+            if Self.neverReachedServer(error) {
+                createFoundNoConnection = true
+            } else {
+                self.error = error.localizedDescription
+            }
         }
 
         isCreating = false
+    }
+
+    /// The request failed on the way, not at the server: no connection, a timeout, a dropped socket
+    private static func neverReachedServer(_ error: Error) -> Bool {
+        if error.isCancellation { return false }
+        if let apiError = error as? APIError {
+            if case .networkError = apiError { return true }
+            return false
+        }
+        return error.isRetryableNetworkFailure
     }
 
     // MARK: - Joining

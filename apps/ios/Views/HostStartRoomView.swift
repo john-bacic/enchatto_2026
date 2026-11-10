@@ -3,6 +3,7 @@ import SwiftUI
 struct HostStartRoomView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = HostStartRoomViewModel()
+    @StateObject private var network = NetworkMonitor()
     @FocusState private var nameFocused: Bool
     @State private var showJoin = false
     @State private var showOfflineRoom = false
@@ -12,6 +13,16 @@ struct HostStartRoomView: View {
     @State private var joinCode = ""
 
     private var lang: String { viewModel.hostLanguage }
+
+    /// The phone has no connection, so there is no server to make a room on: Create Room opens the offline room,
+    /// which is one phone passed back and forth, translated on it and kept on it
+    private var offline: Bool {
+        #if DEBUG
+        // For trying it out where the connection cannot be taken away (the Simulator): `-enchatto_noNetwork YES`
+        if UserDefaults.standard.bool(forKey: "enchatto_noNetwork") { return true }
+        #endif
+        return !network.isConnected
+    }
 
     var body: some View {
         NavigationStack {
@@ -75,12 +86,17 @@ struct HostStartRoomView: View {
                         .disabled(busy)
                         .padding(.top, 4)
                     }
-                    // A room this device is only a guest in does not keep it from making one of its own
-                    if viewModel.rejoinableRoom?.isHost != true {
+                    // A room this device is only a guest in does not keep it from making one of its own. With no
+                    // connection the button is there whatever room is saved, and opens the offline room
+                    if viewModel.rejoinableRoom?.isHost != true || offline {
                         Button {
                             nameFocused = false
                             Haptics.thump()
-                            Task { await viewModel.createRoom() }
+                            if offline {
+                                showOfflineRoom = true
+                            } else {
+                                Task { await viewModel.createRoom() }
+                            }
                         } label: {
                             if viewModel.isCreating {
                                 ProgressView().tint(.white)
@@ -93,8 +109,16 @@ struct HostStartRoomView: View {
                             }
                         }
                         .buttonStyle(.chunky(EC.blue))
-                        .disabled(!viewModel.canCreate)
+                        // The offline room asks for no nickname: nobody else is in it
+                        .disabled(offline ? viewModel.isCreating : !viewModel.canCreate)
                         .padding(.top, 4)
+
+                        if offline {
+                            Label(L.t("No connection. The room stays on this iPhone.", lang), systemImage: "wifi.slash")
+                                .font(.round(12, .bold))
+                                .foregroundStyle(EC.inkSoft)
+                                .multilineTextAlignment(.center)
+                        }
                     }
 
                     Button {
@@ -107,18 +131,6 @@ struct HostStartRoomView: View {
                     }
                     .buttonStyle(.chunky(.white, size: .small))
                     .disabled(!viewModel.canJoin)
-
-                    // What needs no connection. A room of one phone, passed back and forth and translated on it,
-                    // with the games one phone can play (Chatto Dash practice among them)
-                    Button {
-                        nameFocused = false
-                        Haptics.tap()
-                        showOfflineRoom = true
-                    } label: {
-                        Label(L.t("Offline room", lang), systemImage: "wifi.slash")
-                            .textCase(.uppercase)
-                    }
-                    .buttonStyle(.chunky(.white, size: .small))
 
                     Text("v\(GitInfo.commitSHA)")
                         .font(.round(9, .medium))
@@ -186,6 +198,12 @@ struct HostStartRoomView: View {
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
             Task { await viewModel.checkSavedRoom(tapped: false) }
+        }
+        // Create Room found no way to the server, though the phone said it had a connection: the offline room
+        .onChange(of: viewModel.createFoundNoConnection) { found in
+            guard found else { return }
+            viewModel.createFoundNoConnection = false
+            showOfflineRoom = true
         }
         // A room entered without a tap, while the nickname is being typed: the keyboard does not follow into it
         .onChange(of: viewModel.createdRoomId) { roomId in

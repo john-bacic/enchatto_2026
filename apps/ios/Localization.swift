@@ -432,6 +432,7 @@ enum L {
         // Offline room
         "Offline room": ["ja": "オフラインルーム"],
         "Kept on this iPhone only": ["ja": "このiPhoneの中だけに保存"],
+        "No connection. The room stays on this iPhone.": ["ja": "オフラインです。ルームはこのiPhoneの中だけに保存されます。"],
         "Say something in English or Japanese, then pass the phone.": ["ja": "英語か日本語で話して、相手にスマホを渡そう。"],
         "Translating…": ["ja": "翻訳中…"],
         "Couldn't translate. Tap to try again.": ["ja": "翻訳できませんでした。タップでもう一度。"],
