@@ -429,7 +429,6 @@ enum L {
         "Start the race!": ["ja": "レース開始！"],
         "Resume Chatto Dash": ["ja": "チャットダッシュを再開"],
         "Loading the race…": ["ja": "レースを準備中…"],
-        "Practice Chatto Dash": ["ja": "チャットダッシュをれんしゅう"],
         // Offline room
         "Offline room": ["ja": "オフラインルーム"],
         "Kept on this iPhone only": ["ja": "このiPhoneの中だけに保存"],

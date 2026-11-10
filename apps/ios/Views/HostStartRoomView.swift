@@ -5,10 +5,9 @@ struct HostStartRoomView: View {
     @StateObject private var viewModel = HostStartRoomViewModel()
     @FocusState private var nameFocused: Bool
     @State private var showJoin = false
-    @State private var showDashPractice = false
     @State private var showOfflineRoom = false
     #if DEBUG
-    private static var openedPractice = false
+    private static var openedOfflineRoom = false
     #endif
     @State private var joinCode = ""
 
@@ -109,7 +108,8 @@ struct HostStartRoomView: View {
                     .buttonStyle(.chunky(.white, size: .small))
                     .disabled(!viewModel.canJoin)
 
-                    // What needs no connection. A room of one phone, passed back and forth and translated on it
+                    // What needs no connection. A room of one phone, passed back and forth and translated on it,
+                    // with the games one phone can play (Chatto Dash practice among them)
                     Button {
                         nameFocused = false
                         Haptics.tap()
@@ -119,22 +119,6 @@ struct HostStartRoomView: View {
                             .textCase(.uppercase)
                     }
                     .buttonStyle(.chunky(.white, size: .small))
-
-                    // And a course of Chatto Dash, alone
-                    if DashPracticeView.isAvailable {
-                        Button {
-                            nameFocused = false
-                            Haptics.tap()
-                            showDashPractice = true
-                        } label: {
-                            HStack(spacing: 8) {
-                                PackIcon("o-shootingstar", size: 26)
-                                Text(L.t("Practice Chatto Dash", lang))
-                                    .textCase(.uppercase)
-                            }
-                        }
-                        .buttonStyle(.chunky(.white, size: .small))
-                    }
 
                     Text("v\(GitInfo.commitSHA)")
                         .font(.round(9, .medium))
@@ -169,26 +153,17 @@ struct HostStartRoomView: View {
                 JoinRoomSheet(viewModel: viewModel, code: $joinCode)
             }
             #if DEBUG
-            // For trying practice out from a script: `-enchatto_dashPractice YES` at launch opens it straight away,
-            // once (this screen appears again whenever something over it is put away)
+            // For trying the offline room out from a script: `-enchatto_offlineRoom YES` at launch opens it straight
+            // away, once (this screen appears again whenever something over it is put away)
             .onAppear {
-                guard !HostStartRoomView.openedPractice else { return }
-                if UserDefaults.standard.bool(forKey: "enchatto_dashPractice") {
-                    HostStartRoomView.openedPractice = true
-                    showDashPractice = true
-                } else if UserDefaults.standard.bool(forKey: "enchatto_offlineRoom") {
-                    // `-enchatto_offlineRoom YES`: the offline room, the same way
-                    HostStartRoomView.openedPractice = true
+                if UserDefaults.standard.bool(forKey: "enchatto_offlineRoom"), !HostStartRoomView.openedOfflineRoom {
+                    HostStartRoomView.openedOfflineRoom = true
                     showOfflineRoom = true
                 }
             }
             #endif
             .fullScreenCover(isPresented: $showOfflineRoom) {
                 OfflineRoomView(myLang: lang, avatarId: viewModel.hostAvatarId) { showOfflineRoom = false }
-                    .environment(\.roomTextureIndex, viewModel.textureIndex)
-            }
-            .fullScreenCover(isPresented: $showDashPractice) {
-                DashPracticeView(avatarId: viewModel.hostAvatarId, lang: lang) { showDashPractice = false }
                     .environment(\.roomTextureIndex, viewModel.textureIndex)
             }
         }
