@@ -80,7 +80,8 @@ let presetAvatars: [PresetAvatar] = [
     PresetAvatar(id: "butterfly", label: "Bee",       icon: "av-bee",       emoji: "🐝", color: Color(hex: "a5f3fc")),
     PresetAvatar(id: "unicorn",   label: "Sheep",     icon: "av-sheep",     emoji: "🐑", color: Color(hex: "e9d5ff")),
     PresetAvatar(id: "dragon",    label: "Piggy",     icon: "av-pig",       emoji: "🐷", color: Color(hex: "dcfaef")),
-    PresetAvatar(id: "alien",     label: "Chihuahua", icon: "av-chihuahua", emoji: "🐕", color: Color(hex: "fecaca")),
+    // Was the chihuahua, the one avatar with a body and legs (see apps/web/lib/types.ts). Its art is still bingo's 🐕
+    PresetAvatar(id: "alien",     label: "Heart",     icon: "av-heart",     emoji: "💗", color: Color(hex: "d1fae5")),
     PresetAvatar(id: "whale",       label: "Whale",       icon: "av-whale",       emoji: "🐳", color: Color(hex: "cfe8ff")),
     PresetAvatar(id: "crab",        label: "Crab",        icon: "av-crab",        emoji: "🦀", color: Color(hex: "ffe1d6")),
     PresetAvatar(id: "octo",        label: "Octopus",     icon: "av-octo",        emoji: "🐙", color: Color(hex: "ffe4f1")),

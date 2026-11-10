@@ -17,7 +17,9 @@ export const PRESET_AVATARS = [
   { id: "butterfly", label: "Bee", icon: "bee", emoji: "🐝", color: "#a5f3fc" },
   { id: "unicorn", label: "Sheep", icon: "sheep", emoji: "🐑", color: "#e9d5ff" },
   { id: "dragon", label: "Piggy", icon: "pig", emoji: "🐷", color: "#dcfaef" },
-  { id: "alien", label: "Chihuahua", icon: "chihuahua", emoji: "🐕", color: "#fecaca" },
+  // Was the chihuahua: the one avatar drawn with a body and legs, which sat badly on a racer's own hands and
+  // shoes in Chatto Dash. Its art is still Emoji Bingo's 🐕
+  { id: "alien", label: "Heart", icon: "heart", emoji: "💗", color: "#d1fae5" },
   { id: "whale", label: "Whale", icon: "whale", emoji: "🐳", color: "#cfe8ff" },
   { id: "crab", label: "Crab", icon: "crab", emoji: "🦀", color: "#ffe1d6" },
   { id: "octo", label: "Octopus", icon: "octo", emoji: "🐙", color: "#ffe4f1" },
