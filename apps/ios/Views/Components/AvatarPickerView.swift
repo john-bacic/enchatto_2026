@@ -32,7 +32,8 @@ struct AvatarPickerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        // The page dots sit close under the tiles: the pager already keeps `bottomRoom` below them
+        VStack(spacing: 6) {
             if width > 0 {
                 TabView(selection: $page) {
                     ForEach(pages.indices, id: \.self) { index in

@@ -24,7 +24,9 @@ struct HostStartRoomView: View {
                     ChattoGreeting(size: 84)
                         .padding(.top, 10)
 
-                    VStack(alignment: .leading, spacing: 10) {
+                    // The picker keeps room above its tiles for the chosen one to pop into (AvatarPickerView.topRoom).
+                    // The title sits in that room, not above it: the two gaps together pushed the buttons off the screen
+                    VStack(alignment: .leading, spacing: -6) {
                         sectionTitle(L.t("Choose your avatar", lang))
                         AvatarPickerView(selectedAvatarId: $viewModel.hostAvatarId)
                     }
