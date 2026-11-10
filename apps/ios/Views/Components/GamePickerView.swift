@@ -2,6 +2,7 @@ import SwiftUI
 
 enum GamePickerTab: String, CaseIterable {
     case wordRush = "Word Rush"
+    case chattoDash = "Chatto Dash"
     case lostInTranslation = "Lost in Translation"
     case emojiBingo = "Emoji Bingo"
     case emojiMatch = "Emoji Match"
@@ -21,6 +22,7 @@ enum GamePickerTab: String, CaseIterable {
     var icon: String {
         switch self {
         case .wordRush: return "g-bolt"
+        case .chattoDash: return "o-shootingstar"
         case .lostInTranslation: return "g-pencil"
         case .emojiBingo: return "g-clover"
         case .emojiMatch: return "o-cherry"
@@ -31,6 +33,7 @@ enum GamePickerTab: String, CaseIterable {
     var tileFill: Color {
         switch self {
         case .wordRush: return EC.yellow
+        case .chattoDash: return Color(hex: "cfe8ff")
         case .lostInTranslation: return EC.blueSoft
         case .emojiBingo: return EC.mintSoft
         case .emojiMatch: return EC.violetSoft
@@ -41,6 +44,7 @@ enum GamePickerTab: String, CaseIterable {
     var buttonFill: Color {
         switch self {
         case .wordRush: return EC.pink
+        case .chattoDash: return EC.blue
         case .lostInTranslation: return EC.blue
         case .emojiBingo: return EC.mint
         case .emojiMatch: return EC.violet
@@ -51,6 +55,7 @@ enum GamePickerTab: String, CaseIterable {
     var tagline: String {
         switch self {
         case .wordRush: return "Emoji drop in — race to pick the word!"
+        case .chattoDash: return "3D obstacle race"
         case .lostInTranslation: return "draw & guess"
         case .emojiBingo: return "roll & stamp"
         case .emojiMatch: return "flip the pairs"
@@ -177,6 +182,7 @@ struct GamePickerView: View {
     let onStartWordRush: (_ pack: String, _ sayIt: Bool) -> Void
     let onStartEmojiMatch: () -> Void
     let onStartEmojiBingo: () -> Void
+    var onStartDash: () -> Void = {}
     let onStartTruthOrDare: (String) -> Void
     let onDismiss: () -> Void
 
@@ -248,9 +254,17 @@ struct GamePickerView: View {
                         removal: .opacity
                     ))
 
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(GamePickerTab.allCases.filter { $0 != selectedGame }, id: \.self) { tab in
-                        gameTile(tab)
+                // Two to a row. A last tile left without a partner is as wide as the row, not half of it
+                let others = GamePickerTab.allCases.filter { $0 != selectedGame }
+                let paired = others.count.isMultiple(of: 2) ? others : Array(others.dropLast())
+                VStack(spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        ForEach(paired, id: \.self) { tab in
+                            gameTile(tab)
+                        }
+                    }
+                    if paired.count < others.count, let last = others.last {
+                        gameTile(last)
                     }
                 }
             }
@@ -341,6 +355,7 @@ struct GamePickerView: View {
 
             switch tab {
             case .wordRush: wordRushDetails
+            case .chattoDash: chattoDashDetails
             case .lostInTranslation: lostInTranslationDetails
             case .emojiBingo: emojiBingoDetails
             case .emojiMatch: emojiMatchDetails
@@ -357,7 +372,7 @@ struct GamePickerView: View {
         )
         .ecCard(fill: tab.tileFill, radius: 22, border: 3, shadow: 7)
         .overlay(alignment: .topTrailing) {
-            if tab == .wordRush {
+            if tab == .chattoDash {
                 Text(L.t("NEW!", lang))
                     .font(.chunky(12))
                     .foregroundStyle(.white)
@@ -624,6 +639,18 @@ struct GamePickerView: View {
         .accessibilityElement(children: .contain)
     }
 
+    // MARK: Chatto Dash
+
+    private var chattoDashDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L.t("Run, jump and dive through five wild obstacle courses. Everyone races at once as their own avatar!", lang))
+                .font(.round(13, .bold))
+                .foregroundStyle(EC.ink.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+            infoChips(["\(playerCount) \(L.t("players", lang))", "~5–7 min"])
+        }
+    }
+
     // MARK: Emoji Bingo
 
     private var emojiBingoDetails: some View {
@@ -675,13 +702,14 @@ struct GamePickerView: View {
     private var startDisabled: Bool {
         switch selectedGame {
         case .lostInTranslation, .truthOrDare: return needsMorePlayers
-        case .wordRush, .emojiBingo, .emojiMatch: return false
+        case .wordRush, .chattoDash, .emojiBingo, .emojiMatch: return false
         }
     }
 
     private var startLabel: String {
         switch selectedGame {
         case .wordRush: return L.t("Start Word Rush!", lang)
+        case .chattoDash: return L.t("Start the race!", lang)
         case .lostInTranslation: return nextLevel > 1 ? "\(L.t("Level", lang)) \(nextLevel)" : L.t("Start Game", lang)
         case .emojiBingo: return L.t("Start Bingo!", lang)
         case .emojiMatch: return L.t("Start Match!", lang)
@@ -694,6 +722,7 @@ struct GamePickerView: View {
             Haptics.thump()
             switch selectedGame {
             case .wordRush: onStartWordRush(wordRushPack, wordRushSayIt)
+            case .chattoDash: onStartDash()
             case .lostInTranslation: onStartGame("lost-in-translation", nextLevel, timerSeconds, teamOffer.startRequest)
             case .emojiBingo: onStartEmojiBingo()
             case .emojiMatch: onStartEmojiMatch()

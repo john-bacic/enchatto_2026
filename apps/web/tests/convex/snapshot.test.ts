@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { getActiveDash } from "../../convex/dash";
 import { getActiveEmojiBingo } from "../../convex/emojiBingo";
 import { getActiveEmojiMatch } from "../../convex/emojiMatch";
 import { getActiveGameSession, getGameStatus, getLatestGameSession, getMyActiveStep } from "../../convex/games";
@@ -68,6 +69,8 @@ const SOURCES = [
   { sections: ["emojiMatch"], path: "/api/emoji-match/active", by: "roomId", query: getActiveEmojiMatch, core: false },
   { sections: ["emojiBingo"], path: "/api/emoji-bingo/active", by: "roomId", query: getActiveEmojiBingo, core: false },
   { sections: ["truthOrDare"], path: "/api/truth-or-dare/active", by: "roomId", query: getActiveTruthOrDare, core: false },
+  // The app has this one from the snapshot alone: a server without the snapshot has no Chatto Dash
+  { sections: ["dash"], path: "/api/dash/active", by: "roomId", query: getActiveDash, core: false },
 ] as const;
 
 type Source = (typeof SOURCES)[number];
@@ -367,6 +370,7 @@ const NO_GAME = {
   emojiMatch: null,
   emojiBingo: null,
   truthOrDare: null,
+  dash: null,
 };
 
 const STATES: State[] = [
@@ -579,6 +583,34 @@ const STATES: State[] = [
       return room;
     },
     { truthOrDare: { status: "active", currentTurn: { choice: "truth" } } },
+  ],
+  [
+    "a Chatto Dash lobby",
+    async () => {
+      const room = await openRoom();
+      const { t, roomId, hostId, guests, tokenOf } = room;
+      tick();
+      const gameId = await t.mutation(api.dash.createLobby, { roomId, hostParticipantId: hostId, token: tokenOf.get(hostId) });
+      tick();
+      await t.mutation(api.dash.joinLobby, { gameId, participantId: guests[0], token: tokenOf.get(guests[0]) });
+      return room;
+    },
+    { dash: { status: "lobby", players: [{ score: 0 }, { score: 0 }] }, emojiBingo: null },
+  ],
+  [
+    "Chatto Dash, the first course on and a racer placed",
+    async () => {
+      const room = await openRoom();
+      const { t, roomId, hostId, guests, tokenOf } = room;
+      tick();
+      const gameId = await t.mutation(api.dash.createLobby, { roomId, hostParticipantId: hostId, token: tokenOf.get(hostId) });
+      await t.mutation(api.dash.joinLobby, { gameId, participantId: guests[0], token: tokenOf.get(guests[0]) });
+      tick();
+      await t.mutation(api.dash.startGame, { gameId, participantId: hostId, token: tokenOf.get(hostId) });
+      await t.mutation(api.dash.pushState, { gameId, participantId: guests[0], token: tokenOf.get(guests[0]), round: 0, x: 0, y: 0, z: -30, m: 0, g: true, p: 0.2, rt: 5 });
+      return room;
+    },
+    { dash: { status: "racing", round: 0, levels: [0, 1, 2, 3, 4], finishes: [] }, wordRush: null },
   ],
   [
     "a Word Rush lobby",

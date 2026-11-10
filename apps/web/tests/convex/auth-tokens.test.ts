@@ -2476,6 +2476,15 @@ describe("a registered token never comes back", () => {
     await ask(api.wordRush.getState, { roomId });
     await read("/api/word-rush/state", { roomId });
 
+    // ── Chatto Dash, a round on and one racer placed ──
+    const dashId = await t.mutation(api.dash.createLobby, { roomId, hostParticipantId: hostId, token: HOST });
+    await t.mutation(api.dash.joinLobby, { gameId: dashId, participantId: guestId, token: GUEST });
+    await t.mutation(api.dash.startGame, { gameId: dashId, participantId: hostId, token: HOST });
+    await t.mutation(api.dash.pushState, { gameId: dashId, participantId: guestId, token: GUEST, round: 0, x: 1, y: 0, z: -12, m: 0, g: true, p: 0.1, rt: 2 });
+    await ask(api.dash.getActiveDash, { roomId });
+    await ask(api.dash.getRacers, { gameId: dashId });
+    await read("/api/dash/active", { roomId });
+
     // Every public query there is was asked. A new one has to be added above before this passes
     expect([...asked].sort()).toEqual((await publicFunctions("isQuery")).map((f) => f.name));
 

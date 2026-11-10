@@ -112,7 +112,7 @@ class RealEnchattoAPI: EnchattoAPI {
 
             enum CodingKeys: String, CodingKey {
                 case room, participants, messages, reactions
-                case activeSession, gameStatus, myActiveStep, latestSession, wordRush, emojiMatch, emojiBingo, truthOrDare
+                case activeSession, gameStatus, myActiveStep, latestSession, wordRush, emojiMatch, emojiBingo, truthOrDare, dash
             }
 
             init(from decoder: Decoder) throws {
@@ -147,7 +147,8 @@ class RealEnchattoAPI: EnchattoAPI {
                     wordRush: wordRush,
                     emojiMatch: part(.emojiMatch),
                     emojiBingo: part(.emojiBingo),
-                    truthOrDare: part(.truthOrDare)
+                    truthOrDare: part(.truthOrDare),
+                    dash: part(.dash)
                 )
             }
         }
@@ -864,6 +865,29 @@ class RealEnchattoAPI: EnchattoAPI {
             ])
             return game
         } catch is DecodingError {
+            return nil
+        }
+    }
+
+    // MARK: - Chatto Dash
+
+    func createDashLobby(roomId: String, hostParticipantId: String) async throws -> String {
+        struct Response: Decodable { let gameId: String }
+        let response: Response = try await client.post("/api/dash/create-lobby", body: [
+            "roomId": roomId,
+            "hostParticipantId": hostParticipantId,
+        ])
+        return response.gameId
+    }
+
+    func getActiveDash(roomId: String) async throws -> DashGame? {
+        do {
+            let game: DashGame = try await client.post("/api/dash/active", body: [
+                "roomId": roomId,
+            ])
+            return game
+        } catch is DecodingError {
+            // {"ok":true}: the room has none
             return nil
         }
     }

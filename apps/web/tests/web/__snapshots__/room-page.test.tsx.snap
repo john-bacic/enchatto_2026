@@ -2,6 +2,7 @@
 
 exports[`Emoji Bingo > a game in play, for a player who waits for the host to roll: six emojis called 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -16,6 +17,8 @@ exports[`Emoji Bingo > a game in play, for a player who waits for the host to ro
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -351,6 +354,7 @@ markup
 
 exports[`Emoji Bingo > a game that ran out of emojis: unlike Emoji Match, its results are on screen on a first render 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -365,6 +369,8 @@ exports[`Emoji Bingo > a game that ran out of emojis: unlike Emoji Match, its re
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -665,6 +671,7 @@ markup
 
 exports[`Emoji Bingo > after the first bingo, for the host who plays on for second place 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -679,6 +686,8 @@ exports[`Emoji Bingo > after the first bingo, for the host who plays on for seco
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -1031,6 +1040,7 @@ markup
 
 exports[`Emoji Bingo > the lobby, for someone in the room who has not joined it 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -1045,6 +1055,8 @@ exports[`Emoji Bingo > the lobby, for someone in the room who has not joined it 
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -1214,6 +1226,7 @@ markup
 
 exports[`Emoji Match > a finished game the page did not see being played: no results screen on a first render, only its card in the chat 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -1228,6 +1241,8 @@ exports[`Emoji Match > a finished game the page did not see being played: no res
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -1421,6 +1436,7 @@ markup
 
 exports[`Emoji Match > a game in play, for the host whose turn it is: one pair found and one card turned over 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -1435,6 +1451,8 @@ exports[`Emoji Match > a game in play, for the host whose turn it is: one pair f
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -1872,6 +1890,7 @@ markup
 
 exports[`Emoji Match > the lobby, for a player who has joined it 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -1886,6 +1905,8 @@ exports[`Emoji Match > the lobby, for a player who has joined it 1`] = `
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -2057,6 +2078,7 @@ markup
 
 exports[`Lost in Translation > a game the host ended after one round: its summary card and the button to its results, and the replay is asked for 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -2072,6 +2094,8 @@ exports[`Lost in Translation > a game the host ended after one round: its summar
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -2309,6 +2333,7 @@ markup
 
 exports[`Lost in Translation > a game the host ended after one round: its summary card, the button to its results above what was written since, and the replay is asked for 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -2325,6 +2350,8 @@ exports[`Lost in Translation > a game the host ended after one round: its summar
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -2587,6 +2614,7 @@ markup
 
 exports[`Lost in Translation > a guess: Alex's drawing with four answers in the guesser's language, and the status bar 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -2602,6 +2630,8 @@ exports[`Lost in Translation > a guess: Alex's drawing with four answers in the 
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -2879,6 +2909,7 @@ markup
 
 exports[`Lost in Translation > a team game: both teams in the status bar, and the guesser's team on the answer sheet 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -2894,6 +2925,8 @@ exports[`Lost in Translation > a team game: both teams in the status bar, and th
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -3197,6 +3230,7 @@ markup
 
 exports[`Lost in Translation > round 2, which Yuki draws > for Yuki: the word, its hint and the canvas 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -3212,6 +3246,8 @@ exports[`Lost in Translation > round 2, which Yuki draws > for Yuki: the word, i
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -3539,6 +3575,7 @@ markup
 
 exports[`Lost in Translation > round 2, which Yuki draws > for the host, who waits: Yuki is drawing with twenty-two of the game's thirty seconds left, and the game can be ended 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -3554,6 +3591,8 @@ exports[`Lost in Translation > round 2, which Yuki draws > for the host, who wai
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -3780,6 +3819,7 @@ markup
 
 exports[`Truth or Dare > a game the host ended: no screen, and one summary card in the chat, made from the game 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -3794,6 +3834,8 @@ exports[`Truth or Dare > a game the host ended: no screen, and one summary card 
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -3996,6 +4038,7 @@ markup
 
 exports[`Truth or Dare > another player's turn, for the host: Yuki chose truth and is answering 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -4010,6 +4053,8 @@ exports[`Truth or Dare > another player's turn, for the host: Yuki chose truth a
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -4226,6 +4271,7 @@ markup
 
 exports[`Truth or Dare > my turn: truth or dare? 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -4240,6 +4286,8 @@ exports[`Truth or Dare > my turn: truth or dare? 1`] = `
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -4458,6 +4506,7 @@ markup
 
 exports[`Word Rush > a lobby a guest opened, for the room's host: the room's host has the game host's buttons too 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -4472,6 +4521,8 @@ exports[`Word Rush > a lobby a guest opened, for the room's host: the room's hos
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -4719,6 +4770,7 @@ markup
 
 exports[`Word Rush > the first card, a second and a half into its clues, for a player who learns English 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -4733,6 +4785,8 @@ exports[`Word Rush > the first card, a second and a half into its clues, for a p
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -4976,6 +5030,7 @@ markup
 
 exports[`before the room is on screen > a link made for a browser that holds a token, opened in one that does not: join required, and no step is asked for 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -4988,6 +5043,8 @@ exports[`before the room is on screen > a link made for a browser that holds a t
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5044,6 +5101,7 @@ markup
 
 exports[`before the room is on screen > a link that names nobody: join required 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5056,6 +5114,8 @@ exports[`before the room is on screen > a link that names nobody: join required 
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5112,6 +5172,7 @@ markup
 
 exports[`before the room is on screen > a room the host has closed: the closed header and input bar 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5125,6 +5186,8 @@ exports[`before the room is on screen > a room the host has closed: the closed h
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5224,6 +5287,7 @@ markup
 
 exports[`before the room is on screen > nothing has answered yet: the loading screen 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5236,6 +5300,8 @@ exports[`before the room is on screen > nothing has answered yet: the loading sc
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5295,6 +5361,7 @@ markup
 
 exports[`before the room is on screen > the room has answered that it is gone, the messages have not answered: still the loading screen 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5307,6 +5374,8 @@ exports[`before the room is on screen > the room has answered that it is gone, t
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5366,6 +5435,7 @@ markup
 
 exports[`before the room is on screen > the room is gone and the link names nobody: room not found, not join required 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5378,6 +5448,8 @@ exports[`before the room is on screen > the room is gone and the link names nobo
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5434,6 +5506,7 @@ markup
 
 exports[`before the room is on screen > the room is gone: room not found 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5446,6 +5519,8 @@ exports[`before the room is on screen > the room is gone: room not found 1`] = `
   truthOrDare:getActiveTruthOrDare {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5502,6 +5577,7 @@ markup
 
 exports[`before the room is on screen > the same link in the browser that holds the token: the room, and the token goes with the step query 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5516,6 +5592,8 @@ exports[`before the room is on screen > the same link in the browser that holds 
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5692,6 +5770,7 @@ markup
 
 exports[`the chat > a browser that is offline while a game is on: the banner, above the game's status bar 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5707,6 +5786,8 @@ exports[`the chat > a browser that is offline while a game is on: the banner, ab
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -5939,6 +6020,7 @@ markup
 
 exports[`the chat > a browser that is offline: the banner 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -5953,6 +6035,8 @@ exports[`the chat > a browser that is offline: the banner 1`] = `
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -6141,6 +6225,7 @@ markup
 
 exports[`the chat > a guest who reads Japanese, with a message of every kind 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -6162,6 +6247,8 @@ exports[`the chat > a guest who reads Japanese, with a message of every kind 1`]
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -6560,6 +6647,7 @@ markup
 
 exports[`the chat > ten quick messages back and forth between two languages: the hype layer and the combo 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -6584,6 +6672,8 @@ exports[`the chat > ten quick messages back and forth between two languages: the
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -6969,6 +7059,7 @@ markup
 
 exports[`the chat > the same conversation for a guest who reads English 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -6990,6 +7081,8 @@ exports[`the chat > the same conversation for a guest who reads English 1`] = `
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -7365,6 +7458,7 @@ markup
 
 exports[`the chat > the same conversation for the host 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -7386,6 +7480,8 @@ exports[`the chat > the same conversation for the host 1`] = `
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -7796,6 +7892,7 @@ markup
 
 exports[`the games together > a canceled Emoji Match lobby and a canceled Emoji Bingo lobby, for the host: nothing on screen, and no game to end 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -7810,6 +7907,8 @@ exports[`the games together > a canceled Emoji Match lobby and a canceled Emoji 
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby
@@ -7986,6 +8085,7 @@ markup
 
 exports[`the games together > all five open at once, which the server allows: every game's screen, in the page's order 1`] = `
 "queries
+  dash:getActiveDash {roomId: "room1"}
   emojiBingo:getActiveEmojiBingo {roomId: "room1"}
   emojiMatch:getActiveEmojiMatch {roomId: "room1"}
   games:getActiveGameSession {roomId: "room1"}
@@ -8001,6 +8101,8 @@ exports[`the games together > all five open at once, which the server allows: ev
   wordRush:getState {roomId: "room1"}
   wordRush:getState {roomId: "room1"}
 mutations
+  dash:cancelGame
+  dash:createLobby
   emojiBingo:cancelGame
   emojiBingo:claimBingo
   emojiBingo:createLobby

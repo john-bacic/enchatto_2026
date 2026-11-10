@@ -12,6 +12,8 @@ import { newBackend } from "./setup";
 const ROUTES = [
   "OPTIONS /api/messages/send-drawing",
   "OPTIONS /api/truth-or-dare/submit-response",
+  "POST /api/dash/active",
+  "POST /api/dash/create-lobby",
   "POST /api/emoji-bingo/active",
   "POST /api/emoji-bingo/cancel",
   "POST /api/emoji-bingo/claim-bingo",

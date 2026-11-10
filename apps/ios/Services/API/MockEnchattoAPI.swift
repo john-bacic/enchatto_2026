@@ -139,7 +139,8 @@ class MockEnchattoAPI: EnchattoAPI {
             wordRush: try await part(.wordRush) { try await getWordRushState(roomId: roomId) },
             emojiMatch: try await part(.emojiMatch) { try await getActiveEmojiMatch(roomId: roomId) },
             emojiBingo: try await part(.emojiBingo) { try await getActiveEmojiBingo(roomId: roomId) },
-            truthOrDare: try await part(.truthOrDare) { try await getActiveTruthOrDare(roomId: roomId) }
+            truthOrDare: try await part(.truthOrDare) { try await getActiveTruthOrDare(roomId: roomId) },
+            dash: try await part(.dash) { try await getActiveDash(roomId: roomId) }
         )
     }
 
@@ -490,6 +491,14 @@ class MockEnchattoAPI: EnchattoAPI {
     }
 
     func getActiveEmojiBingo(roomId: String) async throws -> EmojiBingoGame? {
+        return nil
+    }
+
+    func createDashLobby(roomId: String, hostParticipantId: String) async throws -> String {
+        return "mock-dash-\(UUID().uuidString.prefix(8))"
+    }
+
+    func getActiveDash(roomId: String) async throws -> DashGame? {
         return nil
     }
 

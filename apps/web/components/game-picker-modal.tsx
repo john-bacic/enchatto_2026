@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import { Chatto } from "@/components/ui/chatto";
 import { Icon } from "@/components/ui/icon";
 
-type GameTab = "word-rush" | "lost-in-translation" | "emoji-bingo" | "emoji-match" | "truth-or-dare";
+type GameTab = "word-rush" | "chatto-dash" | "lost-in-translation" | "emoji-bingo" | "emoji-match" | "truth-or-dare";
 
 interface GamePickerModalProps {
   isOpen: boolean;
@@ -17,6 +17,7 @@ interface GamePickerModalProps {
   onStartWordRush?: (opts: { pack: string; sayIt: boolean }) => void;
   onStartEmojiMatch?: () => void;
   onStartEmojiBingo?: () => void;
+  onStartDash?: () => void;
   onStartTruthOrDare?: (mode: "normal" | "deep") => void;
   onRequestGame: (message: string) => void;
   onClose: () => void;
@@ -30,6 +31,11 @@ const COPY = {
     wordRushSub: "Guess the word from 3 emoji. Learn it. Say it!",
     wordRushDesc:
       "3 emoji drop in — race to pick the word. Faster = more points! Japanese speakers learn English, English speakers learn Japanese.",
+    dash: "Chatto Dash",
+    dashSub: "3D obstacle race",
+    dashDesc: "Run, jump and dive through five wild obstacle courses. Everyone races at once as their own avatar!",
+    dashSteps: ["Five courses, back to back", "Points for every finish", "Most points wins!"],
+    askDash: 'can we play "Chatto Dash"? 🏁',
     litSub: "draw & guess",
     bingoSub: "roll & stamp",
     matchSub: "flip the pairs",
@@ -50,6 +56,11 @@ const COPY = {
     wordRushSub: "3つの絵文字で単語を当てよう。覚えて、言ってみよう！",
     wordRushDesc:
       "絵文字が3つ落ちてくる！いち早く単語を当てよう。早いほど高得点！日本語話者は英語を、英語話者は日本語を学べる。",
+    dash: "チャットダッシュ",
+    dashSub: "3D障害物レース",
+    dashDesc: "5つのハチャメチャ障害物コースを、走って、とんで、ダイブ！みんな自分のアバターでいっせいにレース！",
+    dashSteps: ["5コース連続", "ゴールするたびポイント", "いちばん多い人が優勝！"],
+    askDash: "「チャットダッシュ」やりませんか？🏁",
     litSub: "描いて当てる",
     bingoSub: "回してスタンプ",
     matchSub: "ペアをめくろう",
@@ -78,6 +89,7 @@ const PACKS: { id: string; icon: string; en: string; ja: string }[] = [
 
 const TILES: { id: GameTab; icon: string; color: string }[] = [
   { id: "word-rush", icon: "o-flower", color: "var(--yellow)" },
+  { id: "chatto-dash", icon: "o-shootingstar", color: "#cfe8ff" },
   { id: "lost-in-translation", icon: "g-pencil", color: "var(--blue-soft)" },
   { id: "emoji-bingo", icon: "g-clover", color: "var(--mint-soft)" },
   { id: "emoji-match", icon: "o-cherry", color: "var(--violet-soft)" },
@@ -86,6 +98,7 @@ const TILES: { id: GameTab; icon: string; color: string }[] = [
 
 const MIN_PLAYERS: Record<GameTab, number> = {
   "word-rush": 2,
+  "chatto-dash": 1,
   "lost-in-translation": 2,
   "emoji-bingo": 1,
   "emoji-match": 1,
@@ -132,6 +145,7 @@ export function GamePickerModal({
   onStartWordRush,
   onStartEmojiMatch,
   onStartEmojiBingo,
+  onStartDash,
   onStartTruthOrDare,
   onRequestGame,
   onClose,
@@ -154,6 +168,7 @@ export function GamePickerModal({
 
   const names: Record<GameTab, string> = {
     "word-rush": c.wordRush,
+    "chatto-dash": c.dash,
     "lost-in-translation": t("Lost in Translation", lang),
     "emoji-bingo": t("Emoji Bingo", lang),
     "emoji-match": t("Emoji Match", lang),
@@ -161,6 +176,7 @@ export function GamePickerModal({
   };
   const subs: Record<GameTab, string> = {
     "word-rush": c.wordRushSub,
+    "chatto-dash": c.dashSub,
     "lost-in-translation": c.litSub,
     "emoji-bingo": c.bingoSub,
     "emoji-match": c.matchSub,
@@ -168,6 +184,7 @@ export function GamePickerModal({
   };
   const askMessages: Record<GameTab, string> = {
     "word-rush": c.askWordRush,
+    "chatto-dash": c.askDash,
     "lost-in-translation": t("can we play \"Lost in Translation\"? 🎮", lang),
     "emoji-bingo": t("can we play \"Emoji Bingo\"? 🎰", lang),
     "emoji-match": t("can we play \"Emoji Match\"? 🃏", lang),
@@ -183,6 +200,9 @@ export function GamePickerModal({
         break;
       case "lost-in-translation":
         onStartGame("lost-in-translation", nextLevel, timerSeconds);
+        break;
+      case "chatto-dash":
+        onStartDash?.();
         break;
       case "emoji-bingo":
         onStartEmojiBingo?.();
@@ -418,6 +438,14 @@ export function GamePickerModal({
             {metaRow()}
           </>
         );
+      case "chatto-dash":
+        return (
+          <>
+            {desc(c.dashDesc)}
+            {howItWorks(c.dashSteps)}
+            {metaRow(`~5–7 ${t("min", lang)}`)}
+          </>
+        );
       case "emoji-bingo":
         return (
           <>
@@ -510,6 +538,9 @@ export function GamePickerModal({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {TILES.map((tile) => {
             const sel = tile.id === selectedGame;
+            // Two to a row under the chosen game. A last tile left without a partner is as wide as the row
+            const rest = TILES.filter((other) => other.id !== selectedGame);
+            const oddTile = rest.length % 2 === 1 ? rest[rest.length - 1].id : null;
             return (
               <div
                 key={tile.id}
@@ -523,7 +554,7 @@ export function GamePickerModal({
                 style={{
                   position: "relative",
                   order: sel ? -1 : 0,
-                  gridColumn: sel ? "1 / -1" : undefined,
+                  gridColumn: sel || tile.id === oddTile ? "1 / -1" : undefined,
                   display: "flex",
                   flexWrap: sel ? "wrap" : "nowrap",
                   alignItems: "center",
@@ -540,7 +571,7 @@ export function GamePickerModal({
                   textAlign: "left",
                 }}
               >
-                {tile.id === "word-rush" && (
+                {tile.id === "chatto-dash" && (
                   <span
                     className="ec-chunky"
                     style={{

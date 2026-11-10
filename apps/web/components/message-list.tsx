@@ -548,6 +548,8 @@ export const MessageList = memo(function MessageList({
                   const gameType: string = data.gameType ?? "Match Emoji";
                   const isWordRush = gameType === "Word Rush";
                   const isBingoGame = gameType.includes("Bingo");
+                  // Chatto Dash (convex/dash.ts): a "game" is a whole tournament and its score the points over five courses
+                  const isDash = gameType === "Chatto Dash";
 
                   // Aggregate total scores across all games per player (by name+avatar)
                   const aggregated: Record<string, { name: string; avatar: string; totalScore: number; wins: number }> = {};
@@ -560,7 +562,7 @@ export const MessageList = memo(function MessageList({
                     }
                   }
                   const scoreLabel = (score: number) =>
-                    isWordRush
+                    isWordRush || isDash
                       ? `${score} ${t("pts", lang)}`
                       : isBingoGame
                         ? `${score} ${t("marked", lang)}`
@@ -569,8 +571,8 @@ export const MessageList = memo(function MessageList({
                   elements.push(
                     <SummaryCard
                       key={message._id}
-                      tone={isWordRush ? "var(--yellow)" : isBingoGame ? "var(--mint)" : "var(--violet)"}
-                      icon={isWordRush ? "g-bolt" : isBingoGame ? "g-clover" : "ui-game"}
+                      tone={isWordRush ? "var(--yellow)" : isDash ? "#cfe8ff" : isBingoGame ? "var(--mint)" : "var(--violet)"}
+                      icon={isWordRush ? "g-bolt" : isDash ? "o-shootingstar" : isBingoGame ? "g-clover" : "ui-game"}
                       title={isWordRush ? t("Word Rush", lang) : t(gameType, lang)}
                       subtitle={`${gameCount} ${plural(gameCount, "game", "games", lang)} ${t("played", lang)}`}
                     >
@@ -584,7 +586,7 @@ export const MessageList = memo(function MessageList({
                                 {sorted.map((p, pi) => (
                                   <span key={pi}>
                                     <AvatarDisc id={p.avatar} size={18} border={1.5} shadow={false} />
-                                    {p.name}: <b>{isWordRush ? `${p.score} ${t("pts", lang)}` : p.score}</b>
+                                    {p.name}: <b>{isWordRush || isDash ? `${p.score} ${t("pts", lang)}` : p.score}</b>
                                     {p.isWinner && <Icon name="g-crown" size={14} />}
                                   </span>
                                 ))}

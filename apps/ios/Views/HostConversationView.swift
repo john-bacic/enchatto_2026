@@ -56,6 +56,8 @@ struct HostConversationView: View {
     @State var minimizedEmojiBingoGameId: String? = nil
     @State var minimizedWordRushGameId: String? = nil
     @State var showEmojiBingoGame = false
+    @State var showDashGame = false
+    @State var minimizedDashGameId: String? = nil
     @StateObject var speechRecognizer = SpeechRecognizer()
     /// "text" or "voice": what the send button does while dictating; remembered between dictations
     @AppStorage("enchatto_voiceMode") var voiceMode = "text"

@@ -38,6 +38,13 @@ extension HostConversationView {
                             await viewModel.createEmojiBingoLobby()
                         }
                     },
+                    onStartDash: {
+                        showGamePicker = false
+                        minimizedDashGameId = nil
+                        Task {
+                            if await viewModel.createDashLobby() { showDashGame = true }
+                        }
+                    },
                     onStartTruthOrDare: { mode in
                         showGamePicker = false
                         Task {
@@ -154,7 +161,7 @@ extension HostConversationView {
             }
     }
 
-    /// Word Rush, Emoji Match, Emoji Bingo and Truth or Dare: each one's cover, and the handler that shows and hides it
+    /// Word Rush, Emoji Match, Emoji Bingo, Chatto Dash and Truth or Dare: each one's cover, and the handler that shows and hides it
     func fullScreenGames(_ content: some View) -> some View {
         content
             // MARK: - Word Rush full-screen game
@@ -235,6 +242,33 @@ extension HostConversationView {
                     minimizedEmojiBingoGameId = nil
                 }
             }
+            // MARK: - Chatto Dash full-screen game
+            .fullScreenCover(isPresented: $showDashGame) {
+                DashGameView(
+                    roomId: viewModel.roomId,
+                    participantId: viewModel.hostId,
+                    lang: hostLanguage,
+                    onClose: {
+                        // Put away with the game still on: it can be come back to. A podium that was closed is done with
+                        if let g = viewModel.activeDashGame, g.isOn {
+                            minimizedDashGameId = g.id
+                        }
+                        showDashGame = false
+                    },
+                    onEnded: { showDashGame = false }
+                )
+                .environment(\.roomTextureIndex, shownTextureIndex)
+            }
+            .onChange(of: viewModel.activeDashGame) { game in
+                if let g = game, g.isOn {
+                    if !showDashGame && minimizedDashGameId != g.id {
+                        showDashGame = true
+                    }
+                } else if game == nil || game?.status == .canceled {
+                    showDashGame = false
+                    minimizedDashGameId = nil
+                }
+            }
             // MARK: - Truth or Dare full-screen game
             .fullScreenCover(isPresented: $showTruthOrDareGame) {
                 TruthOrDareGameView(
@@ -307,6 +341,19 @@ extension HostConversationView {
                 ) {
                     minimizedEmojiBingoGameId = nil
                     showEmojiBingoGame = true
+                }
+            }
+            if let game = viewModel.activeDashGame,
+               game.isOn,
+               minimizedDashGameId == game.id,
+               !showDashGame {
+                resumePill(
+                    emoji: "🌠",
+                    colors: [EC.yellow],
+                    accessibility: L.t("Resume Chatto Dash", hostLanguage)
+                ) {
+                    minimizedDashGameId = nil
+                    showDashGame = true
                 }
             }
             if let game = viewModel.presentableWordRushGame,

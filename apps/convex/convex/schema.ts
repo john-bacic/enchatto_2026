@@ -508,6 +508,69 @@ export default defineSchema({
     .index("by_gameId", ["gameId"])
     .index("by_ts", ["ts"]),
 
+  // Chatto Dash (dash.ts): one row per tournament of five obstacle races
+  dashGames: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(
+      v.literal("lobby"),
+      v.literal("racing"),
+      v.literal("results"),
+      v.literal("completed"),
+      v.literal("canceled")
+    ),
+    hostParticipantId: v.id("participants"),
+    players: v.array(v.object({
+      participantId: v.id("participants"),
+      nickname: v.string(),
+      avatarValue: v.string(),
+      joinedAt: v.number(),
+      /** Points over the rounds that have ended */
+      score: v.number(),
+    })),
+    /** The level of each round, by its place in apps/web/lib/dash/levels */
+    levels: v.array(v.number()),
+    round: v.number(),
+    /** The start signal of the round that is on, and when it ends at the latest */
+    roundStartsAt: v.optional(v.number()),
+    roundEndsAt: v.optional(v.number()),
+    /** Who has crossed the line in the round that is on, and how long after its start signal */
+    finishes: v.array(v.object({ participantId: v.id("participants"), ms: v.number() })),
+    /** One entry per round that has ended */
+    results: v.array(v.object({
+      level: v.number(),
+      rows: v.array(v.object({
+        participantId: v.id("participants"),
+        ms: v.optional(v.number()),
+        progress: v.number(),
+        place: v.number(),
+        points: v.number(),
+      })),
+    })),
+    /** While a round's results are up: when the next round is set up */
+    nextAt: v.optional(v.number()),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+  })
+    .index("by_roomId", ["roomId"]),
+
+  // Where each racer of a Chatto Dash game last said they were: one row per racer, written over a few times a second
+  dashRacers: defineTable({
+    gameId: v.id("dashGames"),
+    participantId: v.id("participants"),
+    round: v.number(),
+    x: v.number(),
+    y: v.number(),
+    z: v.number(),
+    m: v.number(),
+    g: v.boolean(),
+    p: v.number(),
+    rt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_game", ["gameId"])
+    .index("by_game_participant", ["gameId", "participantId"]),
+
   // One row per limited thing and subject (participants.ts: takeRateLimit)
   rateLimits: defineTable({
     key: v.string(),

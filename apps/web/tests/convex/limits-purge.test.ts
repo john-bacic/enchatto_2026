@@ -855,6 +855,10 @@ const BELONGS: { [T in TableNames]: (keyof Doc<T> & string) | null } = {
   emojiBingoGames: "roomId",
   // gameId -> emojiBingoGames.roomId
   bingoTrace: "gameId",
+  // roomId: Chatto Dash tournaments
+  dashGames: "roomId",
+  // gameId -> dashGames.roomId
+  dashRacers: "gameId",
   // No room data: a key string that names a participant or a room ("send:<participantId>",
   // "media:<participantId>", "dictation:<participantId>", "wordrush:<roomId>") or everyone
   // ("emojifyr:all", "wordrush:all"). The purge leaves these rows; sweepRateLimits deletes them a day
@@ -1088,6 +1092,12 @@ async function buildRichRoom(t: Backend, seed: number) {
   const bingo = await t.mutation(api.emojiBingo.createLobby, { roomId, hostParticipantId: host.id, token: host.token });
   await t.mutation(api.emojiBingo.joinLobby, { gameId: bingo, participantId: alice.id, token: alice.token });
   await t.mutation(api.emojiBingo.startGame, { gameId: bingo, participantId: host.id, token: host.token });
+
+  // Chatto Dash, its first round on and one racer's place said
+  const dash = await t.mutation(api.dash.createLobby, { roomId, hostParticipantId: host.id, token: host.token });
+  await t.mutation(api.dash.joinLobby, { gameId: dash, participantId: alice.id, token: alice.token });
+  await t.mutation(api.dash.startGame, { gameId: dash, participantId: host.id, token: host.token });
+  await t.mutation(api.dash.pushState, { gameId: dash, participantId: alice.id, token: alice.token, round: 0, x: 0, y: 0, z: -20, m: 0, g: true, p: 0.15, rt: 3 });
 
   // Truth or Dare: a turn answered with a drawing, which the route stores as a file, and trace rows
   const dare = await t.mutation(api.truthOrDare.createGame, { roomId, hostParticipantId: host.id, token: host.token });

@@ -276,13 +276,14 @@ struct GameSummaryBanner: View {
     }
 
     private enum BannerStyle {
-        case lit, match, wordRush, bingo, truthOrDare
+        case lit, match, wordRush, dash, bingo, truthOrDare
 
         var fill: Color {
             switch self {
             case .lit: return EC.blueSoft
             case .match: return EC.violetSoft
             case .wordRush: return EC.yellowSoft
+            case .dash: return Color(hex: "e3f0ff")
             case .bingo: return EC.mintSoft
             case .truthOrDare: return EC.pinkSoft
             }
@@ -293,6 +294,7 @@ struct GameSummaryBanner: View {
             case .lit: return EC.blue
             case .match: return EC.violet
             case .wordRush: return EC.yellow
+            case .dash: return EC.blue
             case .bingo: return EC.mint
             case .truthOrDare: return EC.pink
             }
@@ -303,6 +305,7 @@ struct GameSummaryBanner: View {
             case .lit: return "g-pencil"
             case .match: return "o-diamond"
             case .wordRush: return "g-bolt"
+            case .dash: return "o-shootingstar"
             case .bingo: return "g-clover"
             case .truthOrDare: return "g-question"
             }
@@ -310,12 +313,14 @@ struct GameSummaryBanner: View {
     }
 
     private static func isWordRush(_ title: String) -> Bool { title == "Word Rush" }
+    /// Chatto Dash (convex/dash.ts): a "game" is a whole tournament, and its score the points over five courses
+    private static func isDash(_ title: String) -> Bool { title == "Chatto Dash" }
 
     private var style: BannerStyle {
         switch parsed {
         case .some(.truthOrDare): return .truthOrDare
         case .some(.emojiBingo): return .bingo
-        case .some(.emojiMatch(let title, _, _, _)): return Self.isWordRush(title) ? .wordRush : .match
+        case .some(.emojiMatch(let title, _, _, _)): return Self.isWordRush(title) ? .wordRush : Self.isDash(title) ? .dash : .match
         default: return .lit
         }
     }
@@ -463,7 +468,8 @@ struct GameSummaryBanner: View {
 
     @ViewBuilder
     private func emojiMatchBody(title: String, subtitle: String, games: [GameRoundData], aggregated: [PlayerScore]) -> some View {
-        let wordRush = Self.isWordRush(title)
+        // Both are scored in points, where Emoji Match counts pairs
+        let wordRush = Self.isWordRush(title) || Self.isDash(title)
         header(title: L.t(title, lang), subtitle: subtitle)
 
         if games.count > 1 {

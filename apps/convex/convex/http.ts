@@ -7,6 +7,7 @@ import { registerEmojiMatchRoutes } from "./httpEmojiMatch";
 import { registerTruthOrDareRoutes } from "./httpTruthOrDare";
 import { registerEmojiBingoRoutes } from "./httpEmojiBingo";
 import { registerWordRushRoutes } from "./httpWordRush";
+import { registerDashRoutes } from "./httpDash";
 
 // Each area's routes live in its own http*.ts file; this file only puts them on the one router.
 // Convex takes the router from this file's default export.
@@ -20,5 +21,6 @@ registerEmojiMatchRoutes(http);
 registerTruthOrDareRoutes(http);
 registerEmojiBingoRoutes(http);
 registerWordRushRoutes(http);
+registerDashRoutes(http);
 
 export default http;

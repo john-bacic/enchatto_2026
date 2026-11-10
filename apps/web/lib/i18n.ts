@@ -417,6 +417,7 @@ const translations: Record<string, Record<string, string>> = {
 
   // Word Rush
   "Word Rush": { ja: "ワードラッシュ" },
+  "Chatto Dash": { ja: "チャットダッシュ" },
   "Game Started: Word Rush": { ja: "ゲーム開始：ワードラッシュ" },
   "Game ended: Word Rush": { ja: "ゲーム終了：ワードラッシュ" },
   "Roll!": { ja: "ロール！" },

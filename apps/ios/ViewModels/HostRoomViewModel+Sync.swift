@@ -451,6 +451,10 @@ extension HostRoomViewModel {
         if emojiBingoPollTask == nil {
             take(snapshot.emojiBingo, .emojiBingo) { applyEmojiBingoState($0) }
         }
+        // Chatto Dash has no poll of its own: its web view reads the game for itself, and the room screen only
+        // needs to know that there is one. An answer from a server from before the game has no such section,
+        // which is no word of a game and not an error to log
+        if case .answered(let game) = snapshot.dash { applyDashState(game) }
         // Nor is Truth or Dare when its fast poll ran as the request left or runs now: a finished answer in
         // the game is then sent to be translated, and that is all. Nothing is done with a game that an action
         // is under way for, or has been since the request left

@@ -26,6 +26,7 @@ import { isTransient, jsonAction } from "./httpShared";
  *   emojiMatch           /api/emoji-match/active         emojiMatch.getActiveEmojiMatch
  *   emojiBingo           /api/emoji-bingo/active         emojiBingo.getActiveEmojiBingo
  *   truthOrDare          /api/truth-or-dare/active       truthOrDare.getActiveTruthOrDare
+ *   dash                 /api/dash/active                dash.getActiveDash
  *
  * A section differs from the body of its route in two places. Where the route answers {"ok":true} because
  * there is nothing (no game, no step, no such room), the section is null: for a room that does not exist
@@ -110,6 +111,7 @@ async function roomSnapshot(ctx: ActionCtx, body: any) {
   await read("emojiMatch", () => ctx.runQuery(api.emojiMatch.getActiveEmojiMatch, { roomId }));
   await read("emojiBingo", () => ctx.runQuery(api.emojiBingo.getActiveEmojiBingo, { roomId }));
   await read("truthOrDare", () => ctx.runQuery(api.truthOrDare.getActiveTruthOrDare, { roomId }));
+  await read("dash", () => ctx.runQuery(api.dash.getActiveDash, { roomId }));
 
   snapshot.errors = errors;
   return snapshot;

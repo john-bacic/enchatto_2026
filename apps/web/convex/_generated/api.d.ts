@@ -9,11 +9,13 @@
  */
 
 import type * as crons from "../crons.js";
+import type * as dash from "../dash.js";
 import type * as emojiBingo from "../emojiBingo.js";
 import type * as emojiMatch from "../emojiMatch.js";
 import type * as gameShared from "../gameShared.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
+import type * as httpDash from "../httpDash.js";
 import type * as httpEmojiBingo from "../httpEmojiBingo.js";
 import type * as httpEmojiMatch from "../httpEmojiMatch.js";
 import type * as httpEmojifyr from "../httpEmojifyr.js";
@@ -41,11 +43,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
+  dash: typeof dash;
   emojiBingo: typeof emojiBingo;
   emojiMatch: typeof emojiMatch;
   gameShared: typeof gameShared;
   games: typeof games;
   http: typeof http;
+  httpDash: typeof httpDash;
   httpEmojiBingo: typeof httpEmojiBingo;
   httpEmojiMatch: typeof httpEmojiMatch;
   httpEmojifyr: typeof httpEmojifyr;

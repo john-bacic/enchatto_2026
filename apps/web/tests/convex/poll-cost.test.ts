@@ -13,8 +13,8 @@
 // its row says). A change that makes a poll cheaper lowers the ceilings it has earned, in the same commit.
 //
 // /api/rooms/snapshot answers in one request what a refresh without it asks for in all of its requests but
-// the replay. It is measured beside them at each moment: its answer against theirs put together, and what it
-// reads against what they read.
+// the replay, and the room's Chatto Dash game besides, which only a snapshot carries. It is measured beside
+// them at each moment: its answer against theirs put together, and what it reads against what they read.
 //
 // The last describe is a chat long enough to meet one of the limits Convex puts on a single function, in a
 // room whose reactions carry its id and in one from before they did.
@@ -395,10 +395,19 @@ function total(sizes: Map<string, number>): number {
 const NAMES = 153;
 
 /**
+ * The one section of a snapshot that no request of a one-by-one refresh stands for: Chatto Dash. A server
+ * without the snapshot route has no such game either, so an app that asks one by one does not ask for it.
+ * In a room that has never played it the section is its name and null, 12 bytes, and what it reads is one
+ * empty index range.
+ */
+const DASH = '"dash":null,'.length;
+
+/**
  * The snapshot, asked as the host app would ask it: for the room, and for the host's own step. `extra` is
  * how many bytes longer its answer is than the answers it stands for put together (`sizes`, less the
- * replay): NAMES, less 7 for every {"ok":true} of a route that the snapshot says as null, and 4 more for
- * the null it sends as the status when no game is running, where a refresh sends no request at all.
+ * replay): NAMES, less 7 for every {"ok":true} of a route that the snapshot says as null, 4 more for
+ * the null it sends as the status when no game is running, where a refresh sends no request at all, and
+ * DASH for the section no request stands for.
  */
 async function snapshot(room: Room, sizes: Map<string, number>) {
   const answer = await post(room, "/api/rooms/snapshot", { roomId: room.roomId, participantId: room.hostId });
@@ -490,16 +499,16 @@ describe("an idle room: four people, 300 chat messages, 38 reactions on 25 of th
     const answer = await snapshot(room, sizes);
     expect(answer.bytes).toBeLessThanOrEqual(147_000);
     // The names, the status as null, and null for six of the seven answers with nothing to report
-    expect(answer.extra).toBe(NAMES + 4 - 6 * 7);
+    expect(answer.extra).toBe(NAMES + 4 - 6 * 7 + DASH);
   });
 
   test("the snapshot reads what the ten requests read between them", async () => {
     const apart = await reads(() => refresh(room));
     const together = await reads(() => snapshot(room, sizes));
-    // The same queries, each run once
-    expect(together).toEqual(apart);
+    // The same queries, each run once, and one empty index range for Chatto Dash
+    expect(together).toEqual({ ...apart, databaseQueries: apart.databaseQueries + 1 });
     // Nearly all of it is the chat, read once, for the messages. The reactions are read by the room's id
-    expect(together).toMatchObject({ documentsRead: 348, databaseQueries: 21 });
+    expect(together).toMatchObject({ documentsRead: 348, databaseQueries: 22 });
     expect(together.bytesRead).toBeLessThanOrEqual(137_000);
   });
 
@@ -602,14 +611,14 @@ describe("the same room after a finished game of Lost in Translation", () => {
     // The chat with the game's ten drawings in it. The replay is not part of a snapshot
     expect(answer.bytes).toBeLessThanOrEqual(205_000);
     // As in the idle room, but the latest session is there to send
-    expect(answer.extra).toBe(NAMES + 4 - 5 * 7);
+    expect(answer.extra).toBe(NAMES + 4 - 5 * 7 + DASH);
   });
 
   test("the snapshot reads what the ten requests it stands for read between them", async () => {
     const apart = await reads(() => refresh(room, { replay: false }));
     const together = await reads(() => snapshot(room, sizes));
-    expect(together).toEqual(apart);
-    expect(together).toMatchObject({ documentsRead: 361, databaseQueries: 21 });
+    expect(together).toEqual({ ...apart, databaseQueries: apart.databaseQueries + 1 });
+    expect(together).toMatchObject({ documentsRead: 361, databaseQueries: 22 });
     // The chat once, for the messages, with the guests' seven drawings in it
     expect(together.bytesRead).toBeLessThanOrEqual(194_000);
   });
@@ -703,14 +712,14 @@ describe("the same room in a second game, the sixth round drawn and waiting for 
     const answer = await snapshot(room, sizes);
     expect(answer.bytes).toBeLessThanOrEqual(246_000);
     // The names, and null for the three games that are not being played
-    expect(answer.extra).toBe(NAMES - 3 * 7);
+    expect(answer.extra).toBe(NAMES - 3 * 7 + DASH);
   });
 
   test("the snapshot reads what the eleven requests read between them", async () => {
     const apart = await reads(() => refresh(room));
     const together = await reads(() => snapshot(room, sizes));
-    expect(together).toEqual(apart);
-    expect(together).toMatchObject({ documentsRead: 436, databaseQueries: 31 });
+    expect(together).toEqual({ ...apart, databaseQueries: apart.databaseQueries + 1 });
+    expect(together).toMatchObject({ documentsRead: 436, databaseQueries: 32 });
     // The chat with its sixteen drawings once, and every step of the running game twice: for the host's
     // step, and again for the status. Only a guest's drawing is in those rows
     expect(together.bytesRead).toBeLessThanOrEqual(479_000);

@@ -21,6 +21,7 @@ import { DisplaySettingsSheet } from "@/components/room/display-settings-sheet";
 import { LeaveConfirm } from "@/components/room/leave-confirm";
 import { JoinCutIn } from "@/components/room/join-cut-in";
 import { EmojiMatchLayer } from "@/components/room/emoji-match-layer";
+import { DashLayer } from "@/components/room/dash-layer";
 import { EmojiBingoLayer } from "@/components/room/emoji-bingo-layer";
 import { TruthOrDareLayer } from "@/components/room/truth-or-dare-layer";
 import { ResumeButtons } from "@/components/room/resume-buttons";
@@ -43,6 +44,7 @@ import { useVibe } from "@/hooks/use-vibe";
 import { useLostInTranslation } from "@/hooks/games/use-lost-in-translation";
 import { useWordRushStarter } from "@/hooks/games/use-word-rush-starter";
 import { useEmojiMatch } from "@/hooks/games/use-emoji-match";
+import { useDash } from "@/hooks/games/use-dash";
 import { useEmojiBingo } from "@/hooks/games/use-emoji-bingo";
 import { useTruthOrDare } from "@/hooks/games/use-truth-or-dare";
 import { TOKEN_PARAM, tokenFor, useAuthedMutation, useConvexSiteUrl, useConvexUrl } from "@/lib/convex";
@@ -104,6 +106,7 @@ function RoomContent() {
   const { emojiMatchGame, emojiMatchOnScreen, dismissedEmojiMatchId, setDismissedEmojiMatchId, cancelEmojiMatch, handleCreateEmojiMatchLobby, handleJoinEmojiMatchLobby, handleLeaveEmojiMatchLobby, handleStartEmojiMatch, handleFlipEmojiMatchCard, handleResolveEmojiMatchMismatch, handleCancelEmojiMatch, handleTimeoutEmojiMatchTurn, handlePlayAgainEmojiMatch } = useEmojiMatch({ roomId, participantId, taskOpen, setShowGamePicker });
   const { emojiBingoGame, dismissedEmojiBingoId, setDismissedEmojiBingoId, cancelEmojiBingo, handleCreateEmojiBingoLobby, handleJoinEmojiBingoLobby, handleLeaveEmojiBingoLobby, handleUpdateEmojiBingoSettings, handleStartEmojiBingo, handleRollEmojiBingo, handleMarkEmojiBingoCell, handleClaimEmojiBingo, handleCancelEmojiBingo, handlePlayAgainEmojiBingo } = useEmojiBingo({ roomId, participantId, setShowGamePicker });
   const { truthOrDareGame, truthOrDareFailure, dismissedTruthOrDareId, setDismissedTruthOrDareId, endTruthOrDare, handleCreateTruthOrDare, handleSubmitTruthOrDareChoice, handleSubmitTruthOrDareResponse, handleAdvanceTruthOrDareTurn, handleSkipTruthOrDareTurn, handleEndTruthOrDare, handleSubmitTruthOrDareRating } = useTruthOrDare({ roomId, participantId, convexSiteUrl, setShowGamePicker });
+  const { dashGame, dismissedDashId, setDismissedDashId, cancelDash, handleCreateDashLobby } = useDash({ roomId, participantId, setShowGamePicker });
 
   // Auto-show game replay when a game completes or is cancelled
   const prevActiveGameRef = useRef(activeGameSession);
@@ -253,7 +256,7 @@ function RoomContent() {
   const awayCount = allVisible.filter((p) => (p as any).online && ((p as any).presence ?? "online") === "away").length;
   const crowd = allVisible.filter((p) => (p as any).online).slice(0, 6);
 
-  const { gameOn, isGameActive, onEndGame } = endGameRule({ wordRushGame, activeGameSession, emojiMatchGame, emojiBingoGame, truthOrDareGame, me, lang, endTruthOrDare, participantId, cancelEmojiBingo, cancelEmojiMatch, cancelWordRush, cancelGameMutation, roomId });
+  const { gameOn, isGameActive, onEndGame } = endGameRule({ wordRushGame, activeGameSession, emojiMatchGame, emojiBingoGame, truthOrDareGame, dashGame, me, lang, endTruthOrDare, participantId, cancelEmojiBingo, cancelEmojiMatch, cancelWordRush, cancelDash, cancelGameMutation, roomId });
 
   const chatScale = CHAT_SIZES.find((s) => s.key === chatSize)?.scale ?? 1;
 
@@ -374,11 +377,14 @@ function RoomContent() {
       {/* Emoji Bingo game overlay */}
       <EmojiBingoLayer emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} participantId={participantId} me={me} lang={lang} handleJoinEmojiBingoLobby={handleJoinEmojiBingoLobby} handleLeaveEmojiBingoLobby={handleLeaveEmojiBingoLobby} handleStartEmojiBingo={handleStartEmojiBingo} handleUpdateEmojiBingoSettings={handleUpdateEmojiBingoSettings} handleRollEmojiBingo={handleRollEmojiBingo} handleMarkEmojiBingoCell={handleMarkEmojiBingoCell} handleClaimEmojiBingo={handleClaimEmojiBingo} handleCancelEmojiBingo={handleCancelEmojiBingo} handlePlayAgainEmojiBingo={handlePlayAgainEmojiBingo} setDismissedEmojiBingoId={setDismissedEmojiBingoId} />
 
+      {/* Chatto Dash: lobby, race, results and podium */}
+      <DashLayer dashGame={dashGame} dismissedDashId={dismissedDashId} setDismissedDashId={setDismissedDashId} participantId={participantId} me={me} lang={lang} />
+
       {/* Truth or Dare game overlay — only show for active games. A failed action of the game is told here too */}
       <TruthOrDareLayer truthOrDareGame={truthOrDareGame} truthOrDareFailure={truthOrDareFailure} dismissedTruthOrDareId={dismissedTruthOrDareId} participantId={participantId} me={me} lang={lang} handleSubmitTruthOrDareChoice={handleSubmitTruthOrDareChoice} handleSubmitTruthOrDareResponse={handleSubmitTruthOrDareResponse} handleAdvanceTruthOrDareTurn={handleAdvanceTruthOrDareTurn} handleSkipTruthOrDareTurn={handleSkipTruthOrDareTurn} handleEndTruthOrDare={handleEndTruthOrDare} handleSubmitTruthOrDareRating={handleSubmitTruthOrDareRating} handleDrawingStateChange={handleDrawingStateChange} setDismissedTruthOrDareId={setDismissedTruthOrDareId} />
 
       {/* Floating resume buttons when games are minimized */}
-      <ResumeButtons truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} setDismissedTruthOrDareId={setDismissedTruthOrDareId} lang={lang} emojiMatchGame={emojiMatchGame} emojiMatchOnScreen={emojiMatchOnScreen} dismissedEmojiMatchId={dismissedEmojiMatchId} setDismissedEmojiMatchId={setDismissedEmojiMatchId} emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} setDismissedEmojiBingoId={setDismissedEmojiBingoId} />
+      <ResumeButtons truthOrDareGame={truthOrDareGame} dismissedTruthOrDareId={dismissedTruthOrDareId} setDismissedTruthOrDareId={setDismissedTruthOrDareId} lang={lang} emojiMatchGame={emojiMatchGame} emojiMatchOnScreen={emojiMatchOnScreen} dismissedEmojiMatchId={dismissedEmojiMatchId} setDismissedEmojiMatchId={setDismissedEmojiMatchId} emojiBingoGame={emojiBingoGame} dismissedEmojiBingoId={dismissedEmojiBingoId} setDismissedEmojiBingoId={setDismissedEmojiBingoId} dashGame={dashGame} dismissedDashId={dismissedDashId} setDismissedDashId={setDismissedDashId} />
 
       {/* Game task overlay. Always rendered: it keeps a sent guess on screen until its result has shown */}
       <LostInTranslationTask myActiveStep={myActiveStep} dismissedGameStepId={dismissedGameStepId} handleSubmitGameStep={handleSubmitGameStep} setDismissedGameStepId={setDismissedGameStepId} me={me} cancelGameMutation={cancelGameMutation} roomId={roomId} participantId={participantId} lang={lang} latestGameSession={latestGameSession} />
@@ -394,6 +400,7 @@ function RoomContent() {
         onStartWordRush={handleStartWordRush}
         onStartEmojiMatch={handleCreateEmojiMatchLobby}
         onStartEmojiBingo={handleCreateEmojiBingoLobby}
+        onStartDash={handleCreateDashLobby}
         onStartTruthOrDare={handleCreateTruthOrDare}
         onRequestGame={(msg) => handleSend(msg)}
         onClose={() => setShowGamePicker(false)}

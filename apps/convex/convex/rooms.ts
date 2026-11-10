@@ -306,6 +306,9 @@ async function purgeRoomRows(ctx: MutationCtx, roomId: Id<"rooms">, budget: Purg
       (await where("todTrace", "by_gameId", "gameId", game._id)) &&
       (await where("truthOrDareTurns", "by_gameId", "gameId", game._id, (turn) => file(turn.responseStorageId)))
     )) &&
+    (await where("dashGames", "by_roomId", "roomId", roomId, (game) =>
+      where("dashRacers", "by_game", "gameId", game._id)
+    )) &&
     (await where("wordRushGames", "by_roomId", "roomId", roomId, async (game) => {
       if (!(await where("wordRushAnswers", "by_game_card", "gameId", game._id))) return false;
       if (!(await where("wordRushVotes", "by_game_card", "gameId", game._id))) return false;

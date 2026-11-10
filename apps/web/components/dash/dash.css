@@ -1,0 +1,214 @@
+/* Chatto Dash: the race screen and what is drawn over it */
+.dash-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  overflow: hidden;
+  background: var(--paper);
+  touch-action: none;
+  overscroll-behavior: none;
+}
+.dash-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.dash-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* --dash-top and --dash-bottom: the notch and the home bar, as the iPhone app tells its web view (DashGameView.swift) */
+  padding: max(10px, env(safe-area-inset-top), var(--dash-top, 0px)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom), var(--dash-bottom, 0px)) max(10px, env(safe-area-inset-left));
+}
+.dash-hud > * { pointer-events: auto; }
+.dash-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 3px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: var(--chunky);
+  font-weight: 400;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dash-pill.yellow { background: var(--yellow); }
+.dash-pill.pink { background: var(--pink); color: #fff; }
+.dash-pill.clock { font-size: 15px; font-variant-numeric: tabular-nums; }
+.dash-place {
+  margin-top: 8px;
+  font-size: 40px;
+  line-height: 1;
+  pointer-events: none;
+}
+.dash-place small { font-size: 18px; opacity: 0.9; }
+/* The course as a strip up the right edge, each racer a dot on it */
+.dash-track {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  top: 22%;
+  bottom: 34%;
+  width: 12px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+.dash-track::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  right: -7px;
+  top: -3px;
+  height: 7px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 4px, #fff 4px 8px);
+  border: 1.5px solid var(--ink);
+}
+.dash-track > span {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  transition: bottom 0.25s linear;
+}
+.dash-track > span.me { z-index: 2; }
+.dash-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  text-align: center;
+}
+.dash-count {
+  font-size: 120px;
+  line-height: 1;
+  animation: ec-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.dash-card {
+  width: min(86vw, 340px);
+  padding: 18px 18px 16px;
+  background: var(--paper);
+  animation: ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.dash-stick {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+.dash-stick i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 4px 0 var(--ink);
+}
+.dash-buttons {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(26px, calc(env(safe-area-inset-bottom) + 14px), calc(var(--dash-bottom, 0px) + 14px));
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.dash-button {
+  display: grid;
+  place-items: center;
+  border: 3.5px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 0 6px 0 var(--ink);
+  font-family: var(--chunky);
+  font-weight: 400;
+  color: var(--ink);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dash-button.jump { width: 96px; height: 96px; background: var(--yellow); font-size: 17px; }
+.dash-button.dive { width: 70px; height: 70px; background: var(--pink); color: #fff; font-size: 13px; margin-bottom: 4px; }
+.dash-button.down { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
+.dash-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(18px, env(safe-area-inset-bottom), var(--dash-bottom, 0px));
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 900;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.dash-rows { display: flex; flex-direction: column; gap: 6px; }
+.dash-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: left;
+}
+.dash-row.me { background: var(--yellow-soft); }
+.dash-row .n { width: 34px; text-align: center; font-family: var(--chunky); font-weight: 400; font-size: 14px; }
+.dash-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-row .time { font-variant-numeric: tabular-nums; opacity: 0.7; font-size: 12.5px; }
+.dash-row .pts { font-family: var(--chunky); font-weight: 400; font-size: 14px; min-width: 44px; text-align: right; }
+.dash-row .gain { color: var(--pink); font-family: var(--chunky); font-weight: 400; font-size: 12.5px; }
+/* The five courses, three and then two to a row: five in one row left a tile too narrow for "Pinwheels" */
+.dash-levels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 8px 0 14px; }
+.dash-levels span {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 6px 6px 7px;
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.dash-levels span:nth-child(n + 4) { grid-column: span 3; }
+.dash-levels b { display: block; font-family: var(--chunky); font-weight: 400; font-size: 15px; }
+.dash-podium { display: flex; align-items: flex-end; justify-content: center; gap: 10px; margin: 6px 0 14px; }
+.dash-podium > div { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 900; min-width: 0; max-width: 96px; }
+.dash-podium .step {
+  width: 78px;
+  border: 3px solid var(--ink);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  font-family: var(--chunky);
+  font-weight: 400;
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+}

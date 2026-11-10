@@ -78,6 +78,9 @@ class HostRoomViewModel: ObservableObject {
     @Published var activeEmojiBingoGame: EmojiBingoGame?
     var emojiBingoPollTask: Task<Void, Never>?
 
+    // MARK: - Chatto Dash state
+    @Published var activeDashGame: DashGame?
+
     // MARK: - Truth or Dare state
     @Published var activeTruthOrDareGame: TruthOrDareGame?
     @Published var isTruthOrDareSubmitting = false
@@ -294,6 +297,7 @@ class HostRoomViewModel: ObservableObject {
         if let rush = activeWordRushGame, rush.status == .lobby || rush.status == .active { return true }
         if let match = activeEmojiMatchGame, match.status != .completed && match.status != .canceled { return true }
         if let bingo = activeEmojiBingoGame, bingo.status != .completed && bingo.status != .canceled { return true }
+        if activeDashGame?.isOn == true { return true }
         return activeTruthOrDareGame?.status == .active
     }
 

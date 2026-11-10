@@ -30,7 +30,7 @@ struct JoinRoomResult {
 struct RoomSnapshot {
     /// The game sections, under the names the route has for them
     enum Section: String {
-        case activeSession, gameStatus, myActiveStep, latestSession, wordRush, emojiMatch, emojiBingo, truthOrDare
+        case activeSession, gameStatus, myActiveStep, latestSession, wordRush, emojiMatch, emojiBingo, truthOrDare, dash
     }
 
     /// One game section of an answer
@@ -54,6 +54,8 @@ struct RoomSnapshot {
     let emojiMatch: Part<EmojiMatchGame>
     let emojiBingo: Part<EmojiBingoGame>
     let truthOrDare: Part<TruthOrDareGame>
+    /// Chatto Dash. From a snapshot alone: a server without the snapshot has no such game
+    let dash: Part<DashGame>
 }
 
 /// Protocol defining all backend operations the host app needs
@@ -312,4 +314,12 @@ protocol EnchattoAPI {
 
     /// Get the active Emoji Bingo game for a room
     func getActiveEmojiBingo(roomId: String) async throws -> EmojiBingoGame?
+
+    // MARK: - Chatto Dash
+
+    /// Open a Chatto Dash lobby. The rest of the game is played in its web view, which talks to the server itself
+    func createDashLobby(roomId: String, hostParticipantId: String) async throws -> String
+
+    /// The room's Chatto Dash game: the one under way, else the one that ended last
+    func getActiveDash(roomId: String) async throws -> DashGame?
 }
