@@ -58,6 +58,7 @@ const DEMO = [
 
 const GAMES = [
   { icon: "o-flower", color: "var(--yellow)", min: 2, shot: "word-rush" },
+  { icon: "o-shootingstar", color: "#cfe8ff", min: 1, shot: "chatto-dash" },
   { icon: "g-pencil", color: "var(--blue-soft)", min: 2, shot: "lost-in-translation" },
   { icon: "g-clover", color: "var(--mint-soft)", min: 1, shot: "emoji-bingo" },
   { icon: "o-cherry", color: "var(--violet-soft)", min: 1, shot: "emoji-match" },
@@ -150,6 +151,10 @@ const COPY = {
       {
         name: "Word Rush",
         body: "3 emoji drop in: race to pick the word. Faster = more points! Japanese speakers learn English, English speakers learn Japanese.",
+      },
+      {
+        name: "Chatto Dash",
+        body: "A 3D obstacle race! Run, jump and dive through five wild courses as your avatar. No language needed, so anyone can jump straight in.",
       },
       {
         name: "Lost in Translation",
@@ -267,6 +272,10 @@ const COPY = {
       {
         name: "ワードラッシュ",
         body: "絵文字が3つ落ちてくる！いち早く単語を当てよう。早いほど高得点！日本語話者は英語を、英語話者は日本語を学べる。",
+      },
+      {
+        name: "チャットダッシュ",
+        body: "3Dの障害物レース！自分のアバターで5つのコースを走って、ジャンプして、ダイブ。言葉がいらないので、だれでもすぐに遊べます。",
       },
       {
         name: "ロスト・イン・トランスレーション",
