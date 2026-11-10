@@ -53,12 +53,12 @@ function Lab() {
         onFinish={setDone}
         startCheckpoint={Number(params.get("cp") ?? 0) || 0}
       />
-      <div style={{ position: "fixed", zIndex: 96, left: 10, bottom: 10, display: "flex", gap: 6 }}>
+      <div style={{ position: "fixed", zIndex: 96, left: 8, bottom: 8, display: "flex", gap: 4 }}>
         {LEVEL_NAMES.map((_, i) => (
           <button
             key={i}
             className="dash-pill"
-            style={{ background: i === level ? "var(--yellow)" : "#fff", minHeight: 30, padding: "0 10px" }}
+            style={{ background: i === level ? "var(--yellow)" : "#fff", minHeight: 28, minWidth: 28, padding: "0 6px" }}
             onClick={() => {
               setDone(null);
               setLevel(i);

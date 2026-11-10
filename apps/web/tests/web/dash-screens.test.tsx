@@ -9,7 +9,7 @@ import { DashLobby } from "@/components/dash/lobby";
 import { DashFinal, DashRoundResults, standings } from "@/components/dash/results";
 import { ordinal, raceClock } from "@/components/dash/strings";
 import { ResumeButtons } from "@/components/room/resume-buttons";
-import { DASH_LEVEL_COUNT } from "@/convex/dash";
+import { DASH_COURSE_COUNT, DASH_LEVEL_COUNT } from "@/convex/dash";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { dashLive, dashOn } from "@/lib/dash/on-screen";
 import { LEVEL_NAMES } from "@/lib/dash/level-names";
@@ -31,7 +31,7 @@ function game(over: Partial<Game> = {}): Game {
       { participantId: pid("host"), nickname: "Hana", avatarValue: "rabbit", joinedAt: NOW, score: 0 },
       { participantId: pid("aki"), nickname: "Aki", avatarValue: "fox", joinedAt: NOW, score: 0 },
     ],
-    levels: [],
+    levels: [7, 2, 9, 0, 5],
     round: 0,
     finishes: [],
     results: [],
@@ -45,9 +45,10 @@ const text = (markup: string) =>
 const noop = () => {};
 
 describe("the courses", () => {
-  test("the server counts as many as there are, and each has a name", () => {
-    expect(LEVEL_COUNT).toBe(DASH_LEVEL_COUNT);
-    expect(LEVEL_NAMES).toHaveLength(DASH_LEVEL_COUNT);
+  test("the server counts as many as there are, and each has a name; a tournament runs some of them", () => {
+    expect(LEVEL_COUNT).toBe(DASH_COURSE_COUNT);
+    expect(LEVEL_NAMES).toHaveLength(DASH_COURSE_COUNT);
+    expect(DASH_LEVEL_COUNT).toBeLessThanOrEqual(DASH_COURSE_COUNT);
   });
 });
 
@@ -55,10 +56,14 @@ describe("the lobby", () => {
   const draw = (g: Game, me: string, lang = "en") =>
     text(renderToStaticMarkup(<DashLobby game={g} participantId={me} lang={lang} coarse onJoin={noop} onLeave={noop} onStart={noop} onCancel={noop} onClose={noop} />));
 
-  test("its host is offered Start and Cancel, with the five courses and everyone who is in", () => {
+  test("its host is offered Start and Cancel, with the tournament's five courses in their order and everyone who is in", () => {
     const shown = draw(game(), "host");
     expect(shown).toContain("Chatto Dash");
-    for (const name of LEVEL_NAMES) expect(shown).toContain(name.en);
+    const drawn = [7, 2, 9, 0, 5].map((level) => LEVEL_NAMES[level].en);
+    expect(drawn.map((name) => shown.indexOf(name))).toEqual([...drawn.map((name) => shown.indexOf(name))].sort((a, b) => a - b));
+    LEVEL_NAMES.forEach((name, level) => expect(shown.includes(name.en)).toBe([7, 2, 9, 0, 5].includes(level)));
+    // A lobby from before the courses were drawn names none
+    expect(draw(game({ levels: [] }), "host")).not.toContain("five courses");
     expect(shown).toContain("Hana");
     expect(shown).toContain("Aki");
     expect(shown).toContain("START!");
@@ -78,7 +83,7 @@ describe("the lobby", () => {
     const shown = draw(game(), "host", "ja");
     expect(shown).toContain("チャットダッシュ");
     expect(shown).toContain("スタート！");
-    for (const name of LEVEL_NAMES) expect(shown).toContain(name.ja);
+    for (const level of [7, 2, 9, 0, 5]) expect(shown).toContain(LEVEL_NAMES[level].ja);
   });
 });
 

@@ -527,7 +527,7 @@ export default defineSchema({
       /** Points over the rounds that have ended */
       score: v.number(),
     })),
-    /** The level of each round, by its place in apps/web/lib/dash/levels */
+    /** The course of each round, by its place in apps/web/lib/dash/levels; drawn when the lobby opens */
     levels: v.array(v.number()),
     round: v.number(),
     /** The start signal of the round that is on, and when it ends at the latest */

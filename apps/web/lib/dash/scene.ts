@@ -162,6 +162,8 @@ interface Mover {
   body: THREE.Mesh;
   outline: THREE.Mesh;
   timed: boolean;
+  /** A geyser's jet of water, there only while it blows */
+  plume?: THREE.Mesh;
 }
 
 interface BallView {
@@ -515,6 +517,13 @@ export class DashScene {
         this.decal(tex)
       );
       add(plane, Math.atan2(-cx, -cz));
+      if (s.shape === "ramp") {
+        // A belt on a slope lies along the slope, not flat at the height of its near end
+        const tilt = Math.atan2(s.rise, s.hz * 2);
+        plane.position.y = y + s.hy + s.rise / 2 + 0.02;
+        plane.rotation.x = -Math.PI / 2 + tilt;
+        plane.scale.y = 1 / Math.cos(tilt);
+      }
     } else if (s.look === "drum") {
       const tex = canvasTexture(128, 128, (c) => {
         c.fillStyle = "#fff8ec";
@@ -598,7 +607,16 @@ export class DashScene {
       group.position.set(s.x, s.y, s.z);
       group.rotation.y = s.yaw;
       this.scene.add(group);
-      this.movers.push({ solid: s, group, body, outline, timed });
+      let plume: THREE.Mesh | undefined;
+      if (s.look === "geyser") {
+        plume = new THREE.Mesh(
+          this.keep(new THREE.CylinderGeometry(s.hx * 0.4, s.hx * 0.82, 3.6, 20, 1, true)),
+          this.keep(new THREE.MeshBasicMaterial({ color: WHITE, transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide }))
+        );
+        plume.position.y = s.hy + 1.8;
+        group.add(plume);
+      }
+      this.movers.push({ solid: s, group, body, outline, timed, plume });
     }
   }
 
@@ -1090,11 +1108,20 @@ export class DashScene {
       if (m.timed) {
         const state = s.active!(t);
         const mat = m.body.material as THREE.MeshStandardMaterial;
-        m.outline.visible = state !== 0;
-        m.body.castShadow = state !== 0;
-        mat.opacity = state === 0 ? 0.13 : state === 1 && Math.floor(t * 9) % 2 === 0 ? 0.5 : 1;
-        mat.depthWrite = state !== 0;
-        m.group.position.y = pose.y - (state === 0 ? 0.25 : 0);
+        if (m.plume) {
+          // A geyser at rest is a pool that can be seen and walked over; blowing, it has its jet
+          m.outline.visible = true;
+          mat.opacity = state === 0 ? 0.7 : 1;
+          m.plume.visible = state !== 0;
+          m.plume.scale.set(1, (state === 1 ? 0.6 : 0.92) + 0.08 * Math.sin(t * 23), 1);
+          m.plume.position.y = s.hy + 1.8 * m.plume.scale.y;
+        } else {
+          m.outline.visible = state !== 0;
+          m.body.castShadow = state !== 0;
+          mat.opacity = state === 0 ? 0.13 : state === 1 && Math.floor(t * 9) % 2 === 0 ? 0.5 : 1;
+          mat.depthWrite = state !== 0;
+          m.group.position.y = pose.y - (state === 0 ? 0.25 : 0);
+        }
       }
     }
     for (const v of this.ballViews) {

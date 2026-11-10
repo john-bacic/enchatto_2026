@@ -4,6 +4,7 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import {
   DASH_COUNTDOWN_MS,
   DASH_GRACE_MS,
+  DASH_COURSE_COUNT,
   DASH_LEVEL_COUNT,
   DASH_RESULTS_MS,
   DASH_ROUND_LIMIT_MS,
@@ -70,7 +71,11 @@ describe("the lobby", () => {
     const t = newBackend();
     const { roomId, hostId, guestIds, gameId } = await openLobby(t, ["Aki", "Ben"]);
     let game = await gameOf(t, roomId);
-    expect(game).toMatchObject({ status: "lobby", hostParticipantId: hostId, round: 0, levels: [], finishes: [], results: [] });
+    expect(game).toMatchObject({ status: "lobby", hostParticipantId: hostId, round: 0, finishes: [], results: [] });
+    // The lobby already knows its courses: five different ones of the ten
+    expect(game.levels).toHaveLength(DASH_LEVEL_COUNT);
+    expect(new Set(game.levels).size).toBe(DASH_LEVEL_COUNT);
+    for (const level of game.levels) expect(Number.isInteger(level) && level >= 0 && level < DASH_COURSE_COUNT).toBe(true);
     expect(game.players.map((p) => p.participantId)).toEqual([hostId, ...guestIds]);
     expect(game.players.map((p) => p.score)).toEqual([0, 0, 0]);
 
@@ -116,15 +121,17 @@ describe("the lobby", () => {
 });
 
 describe("a round", () => {
-  test("starting sets up the first of five courses, its start signal a countdown away", async () => {
+  test("starting sets up the first of the lobby's five courses, its start signal a countdown away", async () => {
     const t = newBackend();
-    const { roomId } = await started(t);
+    const { roomId, gameId, hostId } = await openLobby(t);
+    const drawn = (await gameOf(t, roomId)).levels;
+    await t.mutation(api.dash.startGame, { gameId, participantId: hostId });
     const game = await gameOf(t, roomId);
     const now = Date.now();
     expect(game).toMatchObject({
       status: "racing",
       round: 0,
-      levels: Array.from({ length: DASH_LEVEL_COUNT }, (_, i) => i),
+      levels: drawn,
       roundStartsAt: now + DASH_COUNTDOWN_MS,
       roundEndsAt: now + DASH_COUNTDOWN_MS + DASH_ROUND_LIMIT_MS,
       finishes: [],
@@ -243,6 +250,7 @@ describe("the tournament", () => {
     const t = newBackend();
     const { roomId, hostId, guestIds, gameId } = await started(t);
     const guest = guestIds[0];
+    const courses = (await gameOf(t, roomId)).levels;
     for (let round = 0; round < DASH_LEVEL_COUNT; round++) {
       let game = await gameOf(t, roomId);
       expect(game).toMatchObject({ status: "racing", round, finishes: [] });
@@ -250,7 +258,7 @@ describe("the tournament", () => {
       game = await gameOf(t, roomId);
       if (round < DASH_LEVEL_COUNT - 1) {
         expect(game).toMatchObject({ status: "results", round, nextAt: Date.now() + DASH_RESULTS_MS });
-        expect(game.results[round].level).toBe(round);
+        expect(game.results[round].level).toBe(courses[round]);
         await advance(t, DASH_RESULTS_MS);
       }
     }
@@ -290,10 +298,13 @@ describe("the tournament", () => {
       await advance(t, DASH_RESULTS_MS);
     }
     expect((await gameOf(t, roomId)).status).toBe("completed");
+    const first = (await gameOf(t, roomId)).levels;
     const again = await t.mutation(api.dash.playAgain, { gameId, participantId: guestIds[0] });
     const lobby = await gameOf(t, roomId);
     expect(lobby).toMatchObject({ _id: again, status: "lobby", hostParticipantId: guestIds[0] });
     expect(lobby.players[0].participantId).toBe(guestIds[0]);
+    // It runs the five courses the last tournament did not: two in a row are all ten
+    expect([...first, ...lobby.levels].sort((a, b) => a - b)).toEqual(Array.from({ length: DASH_COURSE_COUNT }, (_, i) => i));
     await expect(t.mutation(api.dash.playAgain, { gameId, participantId: hostId })).rejects.toThrow(/already in progress/);
 
     await t.mutation(api.dash.startGame, { gameId: again, participantId: guestIds[0] });
@@ -311,13 +322,16 @@ describe("the tournament", () => {
   test("the game's host or the room's host ends it; a lobby that is ended leaves nothing in the chat", async () => {
     const t = newBackend();
     const { roomId, hostId, guestIds, gameId } = await openLobby(t);
+    const first = (await gameOf(t, roomId)).levels;
     await t.mutation(api.dash.cancelGame, { gameId, participantId: hostId });
     expect((await gameOf(t, roomId)).status).toBe("canceled");
     await expect(t.mutation(api.dash.cancelGame, { gameId, participantId: hostId })).rejects.toThrow(/cannot be canceled/);
     expect((await t.query(api.messages.getRoomMessages, { roomId })).some((m) => m.text?.startsWith("emoji_match_summary:"))).toBe(false);
 
-    // A guest's own game, ended by the room's host
+    // A guest's own game, ended by the room's host. A new lobby in the room draws the courses the last did not
     const guestGame = await t.mutation(api.dash.createLobby, { roomId, hostParticipantId: guestIds[0] });
+    const both = [...first, ...(await gameOf(t, roomId)).levels];
+    expect(new Set(both).size).toBe(DASH_COURSE_COUNT);
     await t.mutation(api.dash.cancelGame, { gameId: guestGame, participantId: hostId });
     expect((await gameOf(t, roomId)).status).toBe("canceled");
   });

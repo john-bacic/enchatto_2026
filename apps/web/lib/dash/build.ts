@@ -84,6 +84,53 @@ export function orbit(s: Solid, radius: number, speed: number, phase = 0, turn =
   return s;
 }
 
+/** Going one way, `dx` sideways, `dy` up and `dd` down the course every `period` seconds, then starting again: a train that comes round */
+export function loop(s: Solid, dx: number, dy: number, dd: number, period: number, phase = 0): Solid {
+  const { x, y, z, yaw } = s;
+  s.motion = (t, out) => {
+    const u = (((t / period + phase) % 1) + 1) % 1;
+    out.x = x + dx * u;
+    out.y = y + dy * u;
+    out.z = z - dd * u;
+    out.yaw = yaw;
+  };
+  return s;
+}
+
+/**
+ * An arm on a hinge: the solid, `len` long, turns about its end at (`px`, `pd`) between lying at `from` and at
+ * `to` radians, there and back every `period` seconds. At 0 it points toward +x; a quarter turn points it down
+ * the course.
+ */
+export function hinge(s: Solid, px: number, pd: number, len: number, from: number, to: number, period: number, phase = 0): Solid {
+  const { y } = s;
+  s.motion = (t, out) => {
+    const u = 0.5 - 0.5 * Math.cos(TAU * (t / period + phase));
+    const a = from + (to - from) * u;
+    out.x = px + (Math.cos(a) * len) / 2;
+    out.y = y;
+    out.z = -pd - (Math.sin(a) * len) / 2;
+    out.yaw = a;
+  };
+  return s;
+}
+
+/**
+ * Round a wheel that stands along the course, keeping level all the way: from the bottom it goes away down the
+ * course, up over the top and back. `s` is placed at the hub
+ */
+export function wheel(s: Solid, radius: number, speed: number, phase = 0): Solid {
+  const { x, y, z, yaw } = s;
+  s.motion = (t, out) => {
+    const a = phase + speed * t;
+    out.x = x;
+    out.y = y + Math.sin(a) * radius;
+    out.z = z - Math.cos(a) * radius;
+    out.yaw = yaw;
+  };
+  return s;
+}
+
 /** On for `on` seconds of every `period`, flashing for the last 0.7 of them */
 export function blink(period: number, on: number, phase = 0): (t: number) => 0 | 1 | 2 {
   return (t) => {
@@ -175,6 +222,25 @@ export class LevelBuilder {
         out.y = y0 + (y1 - y0) * u + r;
         out.z = -(d0 + (d1 - d0) * u);
         out.yaw = (u * Math.hypot(x1 - x0, d1 - d0)) / r;
+      },
+      ...o,
+    };
+    this.balls.push(b);
+    return b;
+  }
+
+  /** A ball that hops across, `hops` bounces `height` high between two points on ground `y`, then starts again */
+  hopper(r: number, from: [number, number], to: [number, number], y: number, height: number, hops: number, period: number, phase: number, o: Partial<Ball> = {}): Ball {
+    const [x0, d0] = from;
+    const [x1, d1] = to;
+    const b: Ball = {
+      r, power: 10, color: WHITE, look: "mochi", zMin: 0, zMax: 0,
+      pos: (t, out) => {
+        const u = (((t / period + phase) % 1) + 1) % 1;
+        out.x = x0 + (x1 - x0) * u;
+        out.y = y + r + height * Math.abs(Math.sin(Math.PI * hops * u));
+        out.z = -(d0 + (d1 - d0) * u);
+        out.yaw = 0;
       },
       ...o,
     };

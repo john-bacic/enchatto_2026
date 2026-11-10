@@ -4,16 +4,18 @@ import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { authFail, isPresent, requireCaller } from "./participants";
 
-// Chatto Dash: an obstacle race through five courses. The server keeps the tournament: who is in, which
-// round is on, when its start signal is, who has crossed the line and the points. It knows nothing of the
-// courses themselves. Every obstacle is a function of the time since the start signal (apps/web/lib/dash),
+// Chatto Dash: an obstacle race through five courses, drawn from the ten there are. The server keeps the
+// tournament: who is in, which courses it runs, which round is on, when its start signal is, who has crossed
+// the line and the points. Of the courses themselves it knows only how many there are. Every obstacle is a function of the time since the start signal (apps/web/lib/dash),
 // so each device works out the same course for itself, and a racer's own device says where that racer is
 // (pushState) and that they have finished (finish). The time on a finish is the server's own clock.
 
 type Game = Doc<"dashGames">;
 
-/** Courses in a tournament: the levels in apps/web/lib/dash/levels, by their place there */
+/** Courses in a tournament */
 export const DASH_LEVEL_COUNT = 5;
+/** Courses there are to draw from: the levels in apps/web/lib/dash/levels, each known here by its place there */
+export const DASH_COURSE_COUNT = 10;
 /**
  * From a round being set up to its start signal: the level's card for a couple of seconds, then 3, 2, 1
  * (components/dash/race.tsx shows the card until 3.2 s before the signal). It was 8 s, which felt slow
@@ -53,6 +55,26 @@ async function latestGame(ctx: QueryCtx | MutationCtx, roomId: Id<"rooms">): Pro
 async function liveGame(ctx: QueryCtx | MutationCtx, roomId: Id<"rooms">): Promise<Game | null> {
   const game = await latestGame(ctx, roomId);
   return game && (LIVE as readonly string[]).includes(game.status) ? game : null;
+}
+
+/**
+ * The courses of a tournament: five of the ten, in an order of their own. The ones in `last` (the courses of
+ * the tournament before) come up only when nothing else is left, so two tournaments in a row run all ten.
+ * Drawn when the lobby opens, so that the lobby can name them.
+ */
+function drawCourses(last: number[] = []): number[] {
+  const shuffled = (list: number[]) => {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
+  const all = Array.from({ length: DASH_COURSE_COUNT }, (_, i) => i);
+  const fresh = all.filter((i) => !last.includes(i));
+  const seen = all.filter((i) => last.includes(i));
+  return [...shuffled(fresh), ...shuffled(seen)].slice(0, DASH_LEVEL_COUNT);
 }
 
 function seat(participant: Doc<"participants">, now: number) {
@@ -127,7 +149,8 @@ export const createLobby = mutation({
     await requireCaller(ctx, args.hostParticipantId, args.token, "dash.createLobby");
     const participant = await ctx.db.get(args.hostParticipantId);
     if (!participant || participant.roomId !== args.roomId) throw new Error("Participant not in this room");
-    if (await liveGame(ctx, args.roomId)) throw new Error("A Chatto Dash game is already in progress");
+    const before = await latestGame(ctx, args.roomId);
+    if (before && (LIVE as readonly string[]).includes(before.status)) throw new Error("A Chatto Dash game is already in progress");
 
     const now = Date.now();
     return await ctx.db.insert("dashGames", {
@@ -135,7 +158,7 @@ export const createLobby = mutation({
       status: "lobby",
       hostParticipantId: args.hostParticipantId,
       players: [seat(participant, now)],
-      levels: [],
+      levels: drawCourses(before?.levels),
       round: 0,
       finishes: [],
       results: [],
@@ -193,7 +216,8 @@ export const startGame = mutation({
     const roundStartsAt = now + DASH_COUNTDOWN_MS;
     await ctx.db.patch(args.gameId, {
       status: "racing",
-      levels: Array.from({ length: DASH_LEVEL_COUNT }, (_, i) => i),
+      // A lobby opened by the functions from before the courses were drawn has none yet
+      levels: game.levels.length > 0 ? game.levels : drawCourses(),
       round: 0,
       roundStartsAt,
       roundEndsAt: roundStartsAt + DASH_ROUND_LIMIT_MS,
@@ -249,7 +273,7 @@ export const playAgain = mutation({
       status: "lobby",
       hostParticipantId: args.participantId,
       players,
-      levels: [],
+      levels: drawCourses(game.levels),
       round: 0,
       finishes: [],
       results: [],

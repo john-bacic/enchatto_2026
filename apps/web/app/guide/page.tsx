@@ -154,7 +154,7 @@ const COPY = {
       },
       {
         name: "Chatto Dash",
-        body: "A 3D obstacle race! Run, jump and dive through five wild courses as your avatar. No language needed, so anyone can jump straight in.",
+        body: "A 3D obstacle race! Run, jump and dive through five wild courses as your avatar, drawn from ten each time. No language needed, so anyone can jump straight in.",
       },
       {
         name: "Lost in Translation",
@@ -275,7 +275,7 @@ const COPY = {
       },
       {
         name: "チャットダッシュ",
-        body: "3Dの障害物レース！自分のアバターで5つのコースを走って、ジャンプして、ダイブ。言葉がいらないので、だれでもすぐに遊べます。",
+        body: "3Dの障害物レース！自分のアバターで5つのコースを走って、ジャンプして、ダイブ。コースは毎回10種類の中から選ばれます。言葉がいらないので、だれでもすぐに遊べます。",
       },
       {
         name: "ロスト・イン・トランスレーション",

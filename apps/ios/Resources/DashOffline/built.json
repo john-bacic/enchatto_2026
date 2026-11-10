@@ -1,5 +1,5 @@
 {
- "hash": "093c2339c7e93c727014b8ba6f7fecaaea9e02c40556461de496b813782b9fb0",
+ "hash": "86ee3c54fd2735648a864bbd5ae412b33d4f9061a492ca3d3bd4753398387fdd",
  "inputs": [
   "app/globals.css",
   "components/dash/dash.css",
@@ -14,8 +14,13 @@
   "lib/dash/level-names.ts",
   "lib/dash/levels/index.ts",
   "lib/dash/levels/kaiten-rush.ts",
+  "lib/dash/levels/matsuri-carousel.ts",
   "lib/dash/levels/mochi-mountain.ts",
+  "lib/dash/levels/ninja-rooftops.ts",
+  "lib/dash/levels/onsen-hop.ts",
   "lib/dash/levels/origami-sky.ts",
+  "lib/dash/levels/ramen-slide.ts",
+  "lib/dash/levels/shinkansen-dash.ts",
   "lib/dash/levels/taiko-bounce.ts",
   "lib/dash/levels/windy-pinwheels.ts",
   "lib/dash/scene.ts",

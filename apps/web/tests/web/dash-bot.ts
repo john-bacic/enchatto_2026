@@ -108,15 +108,16 @@ export function playLevel(level: Level, maxSeconds: number): BotResult {
           const cand: Input = { mx, mz, jump: (buttons & 1) !== 0, dive: (buttons & 2) !== 0 };
           const held = cand.jump || cand.dive ? 12 : DECIDE;
           // A move that is as good as another loses to the one tried first: running at the course ahead
-          const s =
-            Math.max(
-              rollout(level, p, t, cand, held, 0, held),
-              rollout(level, p, t, cand, held, 1, 24),
-              rollout(level, p, t, cand, held, 1, 48),
-              rollout(level, p, t, cand, held, 1, HORIZON),
-              rollout(level, p, t, cand, held, 2, 30),
-              rollout(level, p, t, cand, held, 2, HORIZON)
-            ) - (buttons ? 0.05 : 0);
+          let s = Math.max(
+            rollout(level, p, t, cand, held, 0, held),
+            rollout(level, p, t, cand, held, 2, 30),
+            rollout(level, p, t, cand, held, 2, HORIZON)
+          );
+          // Running on at the course is tried for every length a decision apart. With only a few lengths, an edge
+          // just inside the longest made "stand, then run" (which runs one decision less) score above running
+          // now, and the bot stood at the start line for good
+          for (let total = 24; total <= HORIZON; total += DECIDE) s = Math.max(s, rollout(level, p, t, cand, held, 1, total));
+          s -= buttons ? 0.05 : 0;
           if (s > best + 1e-9) {
             best = s;
             pick = cand;

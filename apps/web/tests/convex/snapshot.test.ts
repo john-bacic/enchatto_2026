@@ -610,7 +610,7 @@ const STATES: State[] = [
       await t.mutation(api.dash.pushState, { gameId, participantId: guests[0], token: tokenOf.get(guests[0]), round: 0, x: 0, y: 0, z: -30, m: 0, g: true, p: 0.2, rt: 5 });
       return room;
     },
-    { dash: { status: "racing", round: 0, levels: [0, 1, 2, 3, 4], finishes: [] }, wordRush: null },
+    { dash: { status: "racing", round: 0, levels: expect.any(Array), finishes: [] }, wordRush: null },
   ],
   [
     "a Word Rush lobby",

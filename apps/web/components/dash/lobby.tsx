@@ -64,17 +64,25 @@ export function DashLobby({
       </h2>
       <p style={{ fontSize: 12.5, fontWeight: 700, opacity: 0.75, marginBottom: 12, lineHeight: 1.45 }}>{c.blurb}</p>
 
-      <div className="ec-label" style={{ justifyContent: "flex-start", marginBottom: 0 }}>
-        {c.courses}
-      </div>
-      <div className="dash-levels">
-        {LEVEL_NAMES.map((name, i) => (
-          <span key={i} style={{ background: LEVEL_TINTS[i % LEVEL_TINTS.length] }}>
-            <b>{i + 1}</b>
-            {lang === "ja" ? name.ja : name.en}
-          </span>
-        ))}
-      </div>
+      {/* The courses this tournament drew from the ten there are, in the order they are run */}
+      {game.levels.length > 0 && (
+        <>
+          <div className="ec-label" style={{ justifyContent: "flex-start", marginBottom: 0 }}>
+            {c.courses}
+          </div>
+          <div className="dash-levels">
+            {game.levels.map((level, i) => {
+              const name = LEVEL_NAMES[level % LEVEL_NAMES.length];
+              return (
+                <span key={i} style={{ background: LEVEL_TINTS[i % LEVEL_TINTS.length] }}>
+                  <b>{i + 1}</b>
+                  {lang === "ja" ? name.ja : name.en}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <div className="ec-label" style={{ justifyContent: "flex-start", marginBottom: 6 }}>
         {c.players} <small>{game.players.length}</small>

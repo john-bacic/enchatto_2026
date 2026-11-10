@@ -40,6 +40,7 @@ export type SolidLook =
   | "pusher"
   | "bumper"
   | "rail"
+  | "geyser"
   | "finish";
 
 export interface Solid {
