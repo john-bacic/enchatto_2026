@@ -94,3 +94,8 @@ export function isQueuedMessageId(id: string) {
 export function avatarIconSrc(id: string) {
   return `/icons/av-${getAvatarById(id).icon}.png`;
 }
+
+/** Public path of the same avatar seen from behind: what a Chatto Dash racer shows running away from the camera */
+export function avatarBackSrc(id: string) {
+  return `/icons/av-${getAvatarById(id).icon}-back.png`;
+}

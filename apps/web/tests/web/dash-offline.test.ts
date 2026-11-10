@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { HTML, hashOf, pictures } from "../../offline/built.mjs";
+import { PRESET_AVATARS, avatarBackSrc, avatarIconSrc } from "@/lib/types";
 
 const web = path.resolve(__dirname, "../..");
 const copy = path.resolve(web, "../ios/Resources/DashOffline");
@@ -32,6 +33,14 @@ describe("the practice screen the iPhone app carries", () => {
     expect(fs.statSync(path.join(copy, "dash.css")).size).toBeGreaterThan(5_000);
     expect(pictures(web).length).toBeGreaterThan(30);
     expect(fs.readdirSync(path.join(copy, "icons")).sort()).toEqual(pictures(web));
+  });
+
+  test("every avatar has its back as well as its face: a racer shows it running away from the camera", () => {
+    const has = pictures(web);
+    for (const avatar of PRESET_AVATARS) {
+      expect(has).toContain(path.basename(avatarIconSrc(avatar.id)));
+      expect(has).toContain(path.basename(avatarBackSrc(avatar.id)));
+    }
   });
 
   test("asks for nothing from outside the app", () => {

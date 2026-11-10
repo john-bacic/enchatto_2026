@@ -1,19 +1,22 @@
 // Chatto Dash: what a level looks like. Builds a three.js scene from a level's plain data and draws it for a
 // given race time: Enchatto's pastel colours as glossy, softly lit blocks that cast shadows on each other, an ink
 // outline round everything, a sky that deepens overhead with clouds above and below the course, and each racer as
-// their avatar itself with gloved hands and shoes (the avatar always faces the camera, so a racer seen from
-// behind is still recognisable; the hands and shoes turn with the way it runs). Nothing here decides anything
-// about the game: where things are comes from lib/dash/sim.ts and the level's own motions.
+// their avatar itself with gloved hands and shoes (the avatar is a flat picture that always faces the camera: its
+// back while the racer runs away from the camera, its face when the racer turns towards it; the hands and shoes
+// turn with the way it runs). Nothing here decides anything about the game: where things are comes from
+// lib/dash/sim.ts and the level's own motions.
 
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { avatarIconSrc, getAvatarById } from "@/lib/types";
+import { avatarBackSrc, avatarIconSrc, getAvatarById } from "@/lib/types";
 import { INK, PINK, WHITE, YELLOW } from "./build";
 import { groundBelow, poseOf } from "./sim";
 import { MODE_DIVE, MODE_RESPAWN, MODE_TUMBLE, type Ball, type Level, type Pose, type Solid, type WindZone } from "./types";
 
 const OUTLINE = 0.055;
+/** Seconds a racer's picture takes to turn over between its face and its back */
+const FLIP_TIME = 0.22;
 /** A racer, measured up from its feet: where it turns about, where the middle of its avatar sits, and how big the avatar is */
 const RACER_MIDDLE = 0.58;
 const RACER_HEAD = 0.74;
@@ -195,6 +198,12 @@ interface RacerView {
   hands: THREE.Mesh[];
   /** The avatar itself: the racer's whole body. Not part of `root`: it faces the camera whichever way the racer runs */
   head: THREE.Sprite;
+  /** The avatar's two pictures: its face, and its back for when it runs away from the camera */
+  front: THREE.Texture;
+  back: THREE.Texture;
+  /** Which picture is showing, and how far through turning over to the other it is (1: done) */
+  showsBack: boolean;
+  flip: number;
   tag: THREE.Sprite;
   shadow: THREE.Mesh;
   me: boolean;
@@ -874,42 +883,49 @@ export class DashScene {
     root.add(lean);
     root.visible = false;
 
-    // The avatar, on a white sticker edge
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 256;
-    const c = canvas.getContext("2d")!;
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    this.keep(tex);
-    const draw = (face?: HTMLImageElement) => {
-      c.clearRect(0, 0, 256, 256);
-      if (face) {
+    // The avatar, on a white sticker edge: its face, and its back. Until a picture arrives (or if the back never
+    // does) a plain disc in the avatar's colour stands in, then the face
+    const sticker = (src: string, instead?: string) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 256;
+      const c = canvas.getContext("2d")!;
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.keep(tex);
+      c.fillStyle = avatar.color;
+      c.strokeStyle = INK;
+      c.lineWidth = 9;
+      c.beginPath();
+      c.arc(128, 128, 100, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      const img = new Image();
+      img.onload = () => {
+        c.clearRect(0, 0, 256, 256);
         c.save();
         c.shadowColor = WHITE;
         c.shadowBlur = 0;
         for (const [ox, oy] of [[-6, 0], [6, 0], [0, -6], [0, 6], [-4, -4], [4, -4], [-4, 4], [4, 4]]) {
           c.shadowOffsetX = ox;
           c.shadowOffsetY = oy;
-          c.drawImage(face, 14, 14, 228, 228);
+          c.drawImage(img, 14, 14, 228, 228);
         }
         c.restore();
-        c.drawImage(face, 14, 14, 228, 228);
-      } else {
-        c.fillStyle = avatar.color;
-        c.strokeStyle = INK;
-        c.lineWidth = 9;
-        c.beginPath();
-        c.arc(128, 128, 100, 0, Math.PI * 2);
-        c.fill();
-        c.stroke();
-      }
-      tex.needsUpdate = true;
+        c.drawImage(img, 14, 14, 228, 228);
+        tex.needsUpdate = true;
+      };
+      let tried = false;
+      img.onerror = () => {
+        if (!instead || tried) return;
+        tried = true;
+        img.src = instead;
+      };
+      img.src = src;
+      return tex;
     };
-    draw();
-    const img = new Image();
-    img.onload = () => draw(img);
-    img.src = avatarIconSrc(avatarId);
-    const head = new THREE.Sprite(this.keep(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.08 })));
+    const front = sticker(avatarIconSrc(avatarId));
+    const back = sticker(avatarBackSrc(avatarId), avatarIconSrc(avatarId));
+    const head = new THREE.Sprite(this.keep(new THREE.SpriteMaterial({ map: back, transparent: true, alphaTest: 0.08 })));
     head.scale.setScalar(RACER_HEAD_SIZE);
     head.visible = false;
 
@@ -953,7 +969,7 @@ export class DashScene {
     shadow.visible = false;
     shadow.renderOrder = 2;
     this.scene.add(root, head, tag, shadow);
-    this.racers.set(id, { root, lean, feet, hands, head, tag, shadow, me, phase: Math.random() * 6, spin: 0, yaw: 0, lastX: 0, lastY: 0, lastZ: 0, seen: false });
+    this.racers.set(id, { root, lean, feet, hands, head, front, back, showsBack: true, flip: 1, tag, shadow, me, phase: Math.random() * 6, spin: 0, yaw: 0, lastX: 0, lastY: 0, lastZ: 0, seen: false });
   }
 
   removeRacer(id: string) {
@@ -1057,7 +1073,23 @@ export class DashScene {
     tmpV.applyMatrix4(r.lean.matrixWorld);
     r.head.position.copy(tmpV);
     r.head.position.y -= (1 - tall) * RACER_HEAD_SIZE * 0.4;
-    r.head.scale.set(RACER_HEAD_SIZE / Math.sqrt(tall), RACER_HEAD_SIZE * tall, 1);
+    // Its back to a camera it runs away from, its face to one it runs towards. Side on it keeps whichever it
+    // showed, and it turns over like a card rather than changing in a blink
+    const away = -Math.sin(r.yaw) * (x - this.camera.position.x) - Math.cos(r.yaw) * (z - this.camera.position.z);
+    const range = Math.hypot(x - this.camera.position.x, z - this.camera.position.z) || 1;
+    const wantsBack = Math.abs(away) < range * 0.2 ? r.showsBack : away > 0;
+    if (first) {
+      r.showsBack = wantsBack;
+      r.flip = 1;
+    } else if (wantsBack !== r.showsBack) {
+      r.showsBack = wantsBack;
+      r.flip = 1 - r.flip;
+    }
+    r.flip = Math.min(1, r.flip + dt / FLIP_TIME);
+    const picture = (r.flip >= 0.5 ? r.showsBack : !r.showsBack) ? r.back : r.front;
+    if (r.head.material.map !== picture) r.head.material.map = picture;
+    const edgeOn = Math.max(0.06, Math.abs(Math.cos(r.flip * Math.PI)));
+    r.head.scale.set((RACER_HEAD_SIZE / Math.sqrt(tall)) * edgeOn, RACER_HEAD_SIZE * tall, 1);
     r.head.material.rotation = mode === MODE_TUMBLE ? r.spin : roll * 0.8;
     r.head.visible = true;
 
