@@ -107,7 +107,7 @@ let presetAvatars: [PresetAvatar] = [
     PresetAvatar(id: "sunny", label: "Sunny Cloud", icon: "av-sunny", emoji: "⛅", color: Color(hex: "fff1c1")),
     PresetAvatar(id: "smiley", label: "Smiley", icon: "av-smiley", emoji: "🙂", color: Color(hex: "e9d5ff")),
     PresetAvatar(id: "puff", label: "Puff", icon: "av-puff", emoji: "💭", color: Color(hex: "fecdd3")),
-    PresetAvatar(id: "ribbon", label: "Ribbon", icon: "av-ribbon", emoji: "🎀", color: Color(hex: "fef9c3")),
+    PresetAvatar(id: "pretzel", label: "Pretzel", icon: "av-pretzel", emoji: "🥨", color: Color(hex: "fef9c3")),
     PresetAvatar(id: "computer", label: "Computer", icon: "av-computer", emoji: "💻", color: Color(hex: "ddd6fe")),
     PresetAvatar(id: "squid", label: "Squid", icon: "av-squid", emoji: "🦑", color: Color(hex: "fbcfe8")),
     PresetAvatar(id: "boo", label: "Boo", icon: "av-boo", emoji: "👻", color: Color(hex: "c7d2fe")),

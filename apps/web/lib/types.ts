@@ -45,7 +45,7 @@ export const PRESET_AVATARS = [
   { id: "sunny", label: "Sunny Cloud", icon: "sunny", emoji: "⛅", color: "#fff1c1" },
   { id: "smiley", label: "Smiley", icon: "smiley", emoji: "🙂", color: "#e9d5ff" },
   { id: "puff", label: "Puff", icon: "puff", emoji: "💭", color: "#fecdd3" },
-  { id: "ribbon", label: "Ribbon", icon: "ribbon", emoji: "🎀", color: "#fef9c3" },
+  { id: "pretzel", label: "Pretzel", icon: "pretzel", emoji: "🥨", color: "#fef9c3" },
   { id: "computer", label: "Computer", icon: "computer", emoji: "💻", color: "#ddd6fe" },
   { id: "squid", label: "Squid", icon: "squid", emoji: "🦑", color: "#fbcfe8" },
   { id: "boo", label: "Boo", icon: "boo", emoji: "👻", color: "#c7d2fe" },
