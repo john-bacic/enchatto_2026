@@ -439,7 +439,8 @@ export default function GuidePage({ searchParams }: { searchParams: { lang?: str
         <GameCarousel labels={c.games.map((game) => game.name)}>
           {c.games.map((game, i) => (
             <article key={game.name} className="gd-game">
-              <Phone shot={GAMES[i].shot} alt={game.name} />
+              {/* Each game is pictured as a guest reading that language sees it */}
+              <Phone shot={lang === "ja" ? `${GAMES[i].shot}-ja` : GAMES[i].shot} alt={game.name} />
               <div className="gd-game-info">
                 <span className="gd-game-tile" style={{ background: GAMES[i].color }}>
                   <img src={icon(GAMES[i].icon)} alt="" />

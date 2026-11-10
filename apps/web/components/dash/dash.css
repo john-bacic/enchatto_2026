@@ -196,6 +196,8 @@
   font-weight: 900;
   line-height: 1.2;
   overflow-wrap: anywhere;
+  /* A name too long for its tile breaks into two even lines, not one line and a single character */
+  text-wrap: balance;
 }
 .dash-levels span:nth-child(n + 4) { grid-column: span 3; }
 .dash-levels b { display: block; font-family: var(--chunky); font-weight: 400; font-size: 15px; }
