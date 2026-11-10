@@ -6,7 +6,8 @@ import Translation
 /// their own language. The phone translates between English and Japanese by itself (Apple's on-device
 /// translation, iOS 18 and its two language packs), reads the Japanese in romaji, and can say a translation
 /// aloud. Nothing leaves the phone and nobody else can join: a room others join needs the server. The
-/// conversation is kept on the phone between visits (OfflineRoomStore).
+/// conversation is kept on the phone between visits (OfflineRoomStore). Its games are the ones one phone can
+/// play by itself (Views/OfflineGamesView.swift).
 struct OfflineRoomView: View {
     /// The language of whoever's phone this is: their lines sit on the right
     let myLang: String
@@ -19,8 +20,13 @@ struct OfflineRoomView: View {
     @State private var draft = ""
     @State private var draftLang = "en"
     @State private var confirmClear = false
-    @State private var showPractice = false
+    @State private var showGames = false
+    @State private var playing: OfflineGame?
     @FocusState private var typing: Bool
+
+    #if DEBUG
+    private static var openedGame = false
+    #endif
 
     /// The language the app's own words are shown in
     private var lang: String { myLang }
@@ -43,9 +49,31 @@ struct OfflineRoomView: View {
             Button(L.t("Clear", lang), role: .destructive) { store.clear() }
             Button(L.t("Cancel", lang), role: .cancel) {}
         }
-        .fullScreenCover(isPresented: $showPractice) {
-            DashPracticeView(avatarId: avatarId, lang: lang) { showPractice = false }
+        .sheet(isPresented: $showGames) {
+            OfflineGamePicker(lang: lang) { game in
+                showGames = false
+                // Once the sheet is away: a cover asked for while it is still up is not shown
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { playing = game }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
+        .fullScreenCover(item: $playing) { game in
+            switch game {
+            case .match: OfflineMatchView(lang: lang) { playing = nil }
+            case .bingo: OfflineBingoView(lang: lang) { playing = nil }
+            case .dash: DashPracticeView(avatarId: avatarId, lang: lang) { playing = nil }
+            }
+        }
+        #if DEBUG
+        // For trying a game out from a script: `-enchatto_offlineGame match` (or bingo, dash) opens it with the room
+        .onAppear {
+            if let wanted = UserDefaults.standard.string(forKey: "enchatto_offlineGame"), !OfflineRoomView.openedGame {
+                OfflineRoomView.openedGame = true
+                playing = OfflineGame(rawValue: wanted)
+            }
+        }
+        #endif
     }
 
     /// The phone's translator, where the system has one. It draws nothing
@@ -81,17 +109,16 @@ struct OfflineRoomView: View {
             }
             Spacer(minLength: 0)
 
-            if DashPracticeView.isAvailable {
-                Button {
-                    Haptics.tap()
-                    typing = false
-                    showPractice = true
-                } label: {
-                    PackIcon("o-shootingstar", size: 24)
-                }
-                .buttonStyle(.roundIcon(EC.blueSoft, diameter: 40))
-                .accessibilityLabel(L.t("Practice Chatto Dash", lang))
+            Button {
+                Haptics.tap()
+                typing = false
+                if speech.isRecording { speech.stopRecording() }
+                showGames = true
+            } label: {
+                PackIcon("g-clover", size: 24)
             }
+            .buttonStyle(.roundIcon(EC.mintSoft, diameter: 40))
+            .accessibilityLabel(L.t("Games", lang))
             if !store.lines.isEmpty {
                 Button {
                     Haptics.tap()

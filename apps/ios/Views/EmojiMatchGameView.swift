@@ -389,7 +389,7 @@ struct EmojiMatchGameView: View {
 
 // MARK: - Flip Card View (separate struct for proper state tracking)
 
-private struct FlipCardView: View {
+struct FlipCardView: View {
     let card: EmojiMatchCard
     let canFlip: Bool
     let onFlip: () -> Void

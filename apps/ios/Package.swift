@@ -55,6 +55,7 @@ let package = Package(
                 "RomajiService.swift",
                 "MyMemoryTranslationService.swift",
                 "OfflineConversation.swift",
+                "OfflineGames.swift",
                 "ReplyIdeas.swift",
                 "TranslationService.swift",
             ]

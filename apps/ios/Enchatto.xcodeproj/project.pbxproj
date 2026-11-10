@@ -43,6 +43,7 @@
 		5A4AE1FEA416E8FAA992D532 /* MockEnchattoAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F0179F5F57061EDA2F2C98 /* MockEnchattoAPI.swift */; };
 		5E0E46B6B4244E7EF1D1C4A1 /* HostConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F80BE72E3DF45CA0E82A4C /* HostConversationView.swift */; };
 		614617BA0E54ABEAB209D3EB /* HostStartRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */; };
+		61F17B8F6A49F0532CB12AE2 /* OfflineGames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35CF90B2A86D3E6E283E0432 /* OfflineGames.swift */; };
 		62AE80F3A2CD3F95BCC78859 /* WordRushLobbyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6C1974F8E10FC018700C386 /* WordRushLobbyView.swift */; };
 		63AD8237908F065BB5486C1C /* HostRoomViewModel+Messages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0481D4AF64097ACC20059FA7 /* HostRoomViewModel+Messages.swift */; };
 		644E8C22DCC00987DBE8282A /* ConversationStarters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E910943BEC88540BCD92B3 /* ConversationStarters.swift */; };
@@ -91,6 +92,7 @@
 		BD3F8FB2F9E2C27A772FBD88 /* WordRushCluesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498940C98484A76EDF68D44F /* WordRushCluesView.swift */; };
 		BF5A76945EF4EBFF68CE1CE5 /* IPADic in Frameworks */ = {isa = PBXBuildFile; productRef = E3BA5400A395C97C1F8F8E33 /* IPADic */; };
 		C51822A7C3594AB372FD2CCC /* OfflineConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B7876721AA106A298F8009 /* OfflineConversation.swift */; };
+		C79D63C185768F701E001FF6 /* OfflineGamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30798020F023B182DA422648 /* OfflineGamesView.swift */; };
 		C8B21E54FACA7CDC5BA28D4B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3739F0B6F971461D3C5ECBCE /* Assets.xcassets */; };
 		C8D5CD9C8C38799DB17A8D6C /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47566C0B30406CBDDDEAA04F /* Participant.swift */; };
 		C90602A074A2541D78B4D49E /* IconPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF756E413CA17E5688861E0 /* IconPack.swift */; };
@@ -143,7 +145,9 @@
 		20FEB11E5FF91BEBD77A223B /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
 		26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TruthOrDareGameView.swift; sourceTree = "<group>"; };
 		2ED4D19D5BAB24799B0DD6A1 /* HostConversationView+Presentations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostConversationView+Presentations.swift"; sourceTree = "<group>"; };
+		30798020F023B182DA422648 /* OfflineGamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineGamesView.swift; sourceTree = "<group>"; };
 		308CD326693843430C3E99EC /* OfflineRoomStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineRoomStore.swift; sourceTree = "<group>"; };
+		35CF90B2A86D3E6E283E0432 /* OfflineGames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineGames.swift; sourceTree = "<group>"; };
 		3739F0B6F971461D3C5ECBCE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3956F8FAEFF1BA88C2B26547 /* Effects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effects.swift; sourceTree = "<group>"; };
 		3C2E6F397B4811291E1DAA63 /* HostRoomViewModel+ReplyIdeas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostRoomViewModel+ReplyIdeas.swift"; sourceTree = "<group>"; };
@@ -319,6 +323,7 @@
 				FEFA111F4E2D2B72F40C2807 /* MessageProcessor.swift */,
 				5895D69FA30344092A59E8B7 /* MyMemoryTranslationService.swift */,
 				D0B7876721AA106A298F8009 /* OfflineConversation.swift */,
+				35CF90B2A86D3E6E283E0432 /* OfflineGames.swift */,
 				B16223E135BC983A203C887A /* ReplyIdeas.swift */,
 				1DC00ADF95392C392B69EB66 /* RomajiService.swift */,
 				17AACB3B6A1340D1952C612D /* StubRomajiService.swift */,
@@ -472,6 +477,7 @@
 				190A8ACDFC0729CF1704A6F1 /* HostQRCodeRoomView.swift */,
 				A1B2C3D4E5F60718293A4B5C /* JoinRoomSheet.swift */,
 				10306F9EEF7AB21A93054647 /* HostStartRoomView.swift */,
+				30798020F023B182DA422648 /* OfflineGamesView.swift */,
 				0804E7C4DFB7B374ABEA1A6B /* OfflineRoomView.swift */,
 				26F41CBF9DC92E54B2F70052 /* TruthOrDareGameView.swift */,
 				B31B444E0CDA0E640973C616 /* Components */,
@@ -651,6 +657,8 @@
 				74BD7C16BC0FD2DA154AA040 /* MyMemoryTranslationService.swift in Sources */,
 				9501073CAE2D5440C9717A5C /* NetworkMonitor.swift in Sources */,
 				C51822A7C3594AB372FD2CCC /* OfflineConversation.swift in Sources */,
+				61F17B8F6A49F0532CB12AE2 /* OfflineGames.swift in Sources */,
+				C79D63C185768F701E001FF6 /* OfflineGamesView.swift in Sources */,
 				74A5946D7BF8E41A2A762AB2 /* OfflineRoomStore.swift in Sources */,
 				99D2DD4DCAEED15798695424 /* OfflineRoomView.swift in Sources */,
 				A08FCDEFCE7A02D20DE33E04 /* OfflineTranslator.swift in Sources */,

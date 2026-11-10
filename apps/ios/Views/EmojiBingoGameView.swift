@@ -517,7 +517,7 @@ struct EmojiBingoGameView: View {
 // MARK: - Ball
 
 /// Yellow ball that rolls in from the left each time a new emoji is called
-private struct BingoBall: View {
+struct BingoBall: View {
     let emoji: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rolled = false
@@ -547,7 +547,7 @@ private struct BingoBall: View {
 
 // MARK: - Cell
 
-private struct BingoCell: View {
+struct BingoCell: View {
     let emoji: String
     let isMarked: Bool
     let isHot: Bool
