@@ -156,21 +156,19 @@
   background: var(--blue);
   box-shadow: 0 4px 0 var(--ink);
 }
-/* The start of each race: a faded Game Boy pad at the lower left, which moves under the thumb that holds it */
+/* The first hold of a race: a faded Game Boy cross in a circle, resting at the lower left, moving under the thumb */
 .dash-pad {
   position: absolute;
   width: 120px;
   height: 120px;
   margin: -60px 0 0 -60px;
-  opacity: 0.65;
-  filter: drop-shadow(0 4px 0 var(--ink));
+  opacity: 0.6;
   pointer-events: none;
 }
-.dash-pad.gone { display: none !important; }
 .dash-pad svg { display: block; }
-.dash-pad .up { animation: dash-nudge 0.8s ease-in-out infinite; transform-box: fill-box; }
-.dash-pad.held { opacity: 0.9; }
-.dash-pad.held .up { animation: none; stroke: var(--ink); }
+.dash-pad.guiding .up { animation: dash-nudge 0.8s ease-in-out infinite; }
+.dash-pad.held { opacity: 0.85; }
+.dash-pad.held .up { animation: none; }
 @keyframes dash-nudge {
   0%, 100% { transform: translateY(2px); }
   50% { transform: translateY(-5px); }

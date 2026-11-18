@@ -67,7 +67,7 @@ export default function DashRace(props: RaceProps) {
   const [hud, setHud] = useState<Hud>(() => ({ ...EMPTY_HUD, t: props.raceTime() }));
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<{ jump?: boolean; dive?: boolean }>({});
-  // Each race starts with a pad that runs straight ahead; after the first hold and release the thumb stick takes over
+  // Each race starts with the cross pad at rest; after the first hold and release the thumb stick takes over
   const [guiding, setGuiding] = useState(!!(coarse && meId));
   const guideRef = useRef(!!(coarse && meId));
   const [padHeld, setPadHeld] = useState(false);
@@ -83,25 +83,26 @@ export default function DashRace(props: RaceProps) {
   };
   const racerKey = racers.map((r) => r.id).join(",");
   const level = useMemo(() => getLevel(levelIndex), [levelIndex]);
-  const placePad = (x: number, y: number, show: boolean) => {
-    const el = padRef.current;
+  const place = (el: HTMLElement | null, x: number, y: number, show: boolean) => {
     if (!el) return;
     el.style.display = show ? "block" : "none";
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
   };
-  /** The pad rests at the lower left until the first thumb lands */
+  const hidePad = () => place(padRef.current, 0, 0, false);
+  /** The pad rests at the lower left until the first thumb lands on it */
   const restPad = () => {
     const r = padRef.current?.parentElement?.getBoundingClientRect();
-    if (r) placePad(r.left + 78, r.bottom - 92, true);
+    if (r) place(padRef.current, r.left + 78, r.bottom - 82, true);
   };
   useEffect(() => {
     const show = !!(coarse && meId);
     guideRef.current = show;
     setGuiding(show);
     setPadHeld(false);
+    // After the stage has laid out
     if (show) requestAnimationFrame(restPad);
-    else placePad(0, 0, false);
+    else hidePad();
   }, [levelIndex, meId, coarse, racerKey]);
 
   useEffect(() => {
@@ -168,27 +169,19 @@ export default function DashRace(props: RaceProps) {
     if (stickId.current !== null || !meId) return;
     stickId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    // The first hold runs straight ahead, the pad under the thumb. Letting go is what makes the stick directional
+    origin.current = { x: e.clientX, y: e.clientY };
+    // The first hold moves the cross pad under the thumb and runs straight ahead
     if (guideRef.current) {
-      placePad(e.clientX, e.clientY, true);
+      place(padRef.current, e.clientX, e.clientY, true);
       setPadHeld(true);
       gameRef.current?.setStick(0, -1);
       return;
     }
-    origin.current = { x: e.clientX, y: e.clientY };
-    if (stickRef.current) {
-      stickRef.current.style.display = "block";
-      stickRef.current.style.left = `${e.clientX}px`;
-      stickRef.current.style.top = `${e.clientY}px`;
-    }
+    place(stickRef.current, e.clientX, e.clientY, true);
     if (knobRef.current) knobRef.current.style.transform = "";
   };
   const onStickMove = (e: React.PointerEvent) => {
-    if (e.pointerId !== stickId.current) return;
-    if (guideRef.current) {
-      placePad(e.clientX, e.clientY, true);
-      return;
-    }
+    if (e.pointerId !== stickId.current || guideRef.current) return;
     const R = 46;
     let dx = (e.clientX - origin.current.x) / R;
     let dy = (e.clientY - origin.current.y) / R;
@@ -206,15 +199,15 @@ export default function DashRace(props: RaceProps) {
     if (e.pointerId !== stickId.current) return;
     stickId.current = null;
     gameRef.current?.setStick(0, 0);
+    setPadHeld(false);
     if (guideRef.current) {
-      setPadHeld(false);
       learnStick();
-      // Let go during the countdown: back to the lower left. After GO! the pad is done for this race
+      // Still guiding (countdown): back to the lower left. Otherwise the thumb stick takes over
       if (guideRef.current) restPad();
-      else placePad(0, 0, false);
+      else hidePad();
       return;
     }
-    if (stickRef.current) stickRef.current.style.display = "none";
+    place(stickRef.current, 0, 0, false);
   };
   const button = (name: "jump" | "dive") => ({
     onPointerDown: (e: React.PointerEvent) => {
@@ -239,8 +232,11 @@ export default function DashRace(props: RaceProps) {
   });
 
   useEffect(() => {
-    if (hud.finished) placePad(0, 0, false);
-  }, [hud.finished]);
+    if (hud.finished || !meId || !coarse) {
+      hidePad();
+      place(stickRef.current, 0, 0, false);
+    }
+  }, [hud.finished, meId, coarse]);
 
   const t = hud.t;
   const name = LEVEL_NAMES[levelIndex % LEVEL_NAMES.length];
@@ -265,33 +261,33 @@ export default function DashRace(props: RaceProps) {
           onLostPointerCapture={onStickUp}
         />
       )}
+      {/* Before the first hold and release: a Game Boy cross in a circle, at the lower left, moving under the thumb */}
+      <div ref={padRef} className={`dash-pad${guiding ? " guiding" : ""}${padHeld ? " held" : ""}`} style={{ display: "none" }} aria-hidden>
+          <svg viewBox="0 0 120 120" width="120" height="120">
+            <circle cx="60" cy="60" r="56" fill="rgba(255,255,255,0.45)" stroke="var(--ink)" strokeWidth="3" />
+            {/* Drawn three times: the edge under, the outline, then the face over the seam where the arms cross */}
+            <g fill="var(--ink)" stroke="var(--ink)" strokeWidth="7" strokeLinejoin="round" transform="translate(0 4)">
+              <rect x="46" y="18" width="28" height="84" rx="6" />
+              <rect x="18" y="46" width="84" height="28" rx="6" />
+            </g>
+            <g fill="#e4e7ef" stroke="var(--ink)" strokeWidth="7" strokeLinejoin="round">
+              <rect x="46" y="18" width="28" height="84" rx="6" />
+              <rect x="18" y="46" width="84" height="28" rx="6" />
+            </g>
+            <g fill="#e4e7ef">
+              <rect x="46" y="18" width="28" height="84" rx="6" />
+              <rect x="18" y="46" width="84" height="28" rx="6" />
+            </g>
+            <g fill="none" stroke="var(--ink)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7">
+              <polyline className="up" points="53,36 60,29 67,36" />
+              <polyline points="53,84 60,91 67,84" />
+              <polyline points="36,53 29,60 36,67" />
+              <polyline points="84,53 91,60 84,67" />
+            </g>
+          </svg>
+        </div>
       <div ref={stickRef} className="dash-stick" style={{ display: "none" }}>
         <i ref={knobRef} />
-      </div>
-      {/* At the start of each race only: a Game Boy pad in a faded circle, which runs straight ahead under the thumb */}
-      <div ref={padRef} className={`dash-pad${guiding ? "" : " gone"}${padHeld ? " held" : ""}`} style={{ display: "none" }} aria-hidden>
-        <svg viewBox="0 0 120 120" width="120" height="120">
-          <defs>
-            <linearGradient id="dash-pad-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#f1f2f7" />
-              <stop offset="1" stopColor="#c9ccda" />
-            </linearGradient>
-          </defs>
-          <circle cx="60" cy="60" r="57" fill="rgba(255,255,255,0.4)" stroke="var(--ink)" strokeWidth="3" />
-          <path
-            d="M51 20 H69 Q77 20 77 28 V43 H92 Q100 43 100 51 V69 Q100 77 92 77 H77 V92 Q77 100 69 100 H51 Q43 100 43 92 V77 H28 Q20 77 20 69 V51 Q20 43 28 43 H43 V28 Q43 20 51 20 Z"
-            fill="url(#dash-pad-fill)"
-            stroke="var(--ink)"
-            strokeWidth="4"
-            strokeLinejoin="round"
-          />
-          <g fill="none" stroke="#7c7f99" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-            <path className="up" d="M53 36 L60 29 L67 36" />
-            <path d="M53 84 L60 91 L67 84" />
-            <path d="M36 53 L29 60 L36 67" />
-            <path d="M84 53 L91 60 L84 67" />
-          </g>
-        </svg>
       </div>
 
       <div className="dash-hud">
