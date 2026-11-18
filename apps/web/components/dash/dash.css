@@ -134,20 +134,43 @@
   background: var(--paper);
   animation: ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
-/* Circle with a simple Game Boy pad. Rests faded at the lower left, then follows the thumb */
+.dash-stick {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+.dash-stick i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 4px 0 var(--ink);
+}
+/* The start of each race: a faded Game Boy pad at the lower left, which moves under the thumb that holds it */
 .dash-pad {
   position: absolute;
   width: 120px;
   height: 120px;
   margin: -60px 0 0 -60px;
-  opacity: 0.55;
-  filter: drop-shadow(0 5px 0 var(--ink));
+  opacity: 0.65;
+  filter: drop-shadow(0 4px 0 var(--ink));
   pointer-events: none;
 }
+.dash-pad.gone { display: none !important; }
 .dash-pad svg { display: block; }
-.dash-pad.guiding .up { animation: dash-nudge 0.8s ease-in-out infinite; }
-.dash-pad.held { opacity: 0.8; }
-.dash-pad.held.guiding .up { animation: none; opacity: 0.9; }
+.dash-pad .up { animation: dash-nudge 0.8s ease-in-out infinite; transform-box: fill-box; }
+.dash-pad.held { opacity: 0.9; }
+.dash-pad.held .up { animation: none; stroke: var(--ink); }
 @keyframes dash-nudge {
   0%, 100% { transform: translateY(2px); }
   50% { transform: translateY(-5px); }
