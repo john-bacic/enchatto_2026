@@ -11,8 +11,6 @@ const EN = {
   waitingHost: "Waiting for the host to start…",
   courses: "This time's five courses",
   howTouch: "Left thumb to run · JUMP · DIVE",
-  /** On a touch screen, over the control shown until she has run once */
-  forward: "Hold to run",
   howKeys: "WASD or arrows to run · Space to jump · Shift to dive",
   round: "Round",
   getReady: "Get ready!",
@@ -64,7 +62,6 @@ const JA: typeof EN = {
   waitingHost: "ホストのスタートを待っています…",
   courses: "今回の5つのコース",
   howTouch: "左の親指で走る · ジャンプ · ダイブ",
-  forward: "押して走る",
   howKeys: "WASD・矢印で走る · スペースでジャンプ · シフトでダイブ",
   round: "ラウンド",
   getReady: "よーい…",

@@ -42,8 +42,6 @@ export interface RaceProps {
 }
 
 const RESUME = "enchatto_dash_cp_";
-/** Set once she has held the forward control and let go: the thumb stick takes over, on this device */
-const FORWARD_KNOWN = "enchatto_dash_forward";
 function reachedBefore(key: string | undefined): number {
   if (!key) return 0;
   try {
@@ -68,22 +66,10 @@ export default function DashRace(props: RaceProps) {
   const [hud, setHud] = useState<Hud>(() => ({ ...EMPTY_HUD, t: props.raceTime() }));
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<{ jump?: boolean; dive?: boolean }>({});
-  // Until her first tap and release, a touch screen shows a forward control instead of the directional stick
-  const [guiding, setGuiding] = useState(false);
-  const guideRef = useRef(false);
+  // Each race starts with a forward control; after the first hold and release the stick is directional
+  const [guiding, setGuiding] = useState(!!(coarse && meId));
+  const guideRef = useRef(!!(coarse && meId));
   const [forwardDown, setForwardDown] = useState(false);
-  useEffect(() => {
-    let known = false;
-    try {
-      known = localStorage.getItem(FORWARD_KNOWN) === "1";
-    } catch {
-      // No store: show it, and it cannot be remembered
-    }
-    if (!known) {
-      guideRef.current = true;
-      setGuiding(true);
-    }
-  }, []);
   // Read after the first draw: the setting is the browser's, which a server-drawn page cannot know
   const [soundOff, setSoundOff] = useState(false);
   useEffect(() => setSoundOff(isMuted()), []);
@@ -96,6 +82,12 @@ export default function DashRace(props: RaceProps) {
   };
   const racerKey = racers.map((r) => r.id).join(",");
   const level = useMemo(() => getLevel(levelIndex), [levelIndex]);
+  useEffect(() => {
+    const show = !!(coarse && meId);
+    guideRef.current = show;
+    setGuiding(show);
+    setForwardDown(false);
+  }, [levelIndex, meId, coarse, racerKey]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -156,11 +148,6 @@ export default function DashRace(props: RaceProps) {
     guideRef.current = false;
     setGuiding(false);
     setForwardDown(false);
-    try {
-      localStorage.setItem(FORWARD_KNOWN, "1");
-    } catch {
-      // This visit only, then
-    }
   };
   const onStickDown = (e: React.PointerEvent) => {
     unlockSound();
@@ -371,8 +358,7 @@ export default function DashRace(props: RaceProps) {
 
       {meId && coarse && guiding && !hud.finished && (
         <div className={`dash-forward${forwardDown ? " down" : ""}`} aria-hidden>
-          <span className="arrow">↑</span>
-          {c.forward}
+          <Icon name="g-arrows" size={64} />
         </div>
       )}
       {meId && coarse && !hud.finished && (
