@@ -134,7 +134,7 @@
   background: var(--paper);
   animation: ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
-/* A faded Game Boy cross in a circle, with a blue knob while held */
+/* A faded Game Boy cross in a circle, with a blue knob */
 .dash-pad {
   position: absolute;
   width: 120px;
@@ -147,8 +147,6 @@
 .dash-pad.guiding .up { animation: dash-nudge 0.8s ease-in-out infinite; }
 .dash-pad.held { opacity: 0.85; }
 .dash-pad.held .up { animation: none; }
-.dash-pad .knob { display: none; }
-.dash-pad.held .knob { display: inline; }
 @keyframes dash-nudge {
   0%, 100% { transform: translateY(2px); }
   50% { transform: translateY(-5px); }
