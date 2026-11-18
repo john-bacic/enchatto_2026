@@ -59,17 +59,16 @@ export default function DashRace(props: RaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<DashGame | null>(null);
   const stickRef = useRef<HTMLDivElement>(null);
-  const knobRef = useRef<HTMLElement>(null);
   const live = useRef(props);
   live.current = props;
   // The clock is known before the game has drawn anything: a race come back to does not flash its opening card
   const [hud, setHud] = useState<Hud>(() => ({ ...EMPTY_HUD, t: props.raceTime() }));
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<{ jump?: boolean; dive?: boolean }>({});
-  // Each race starts with a forward control; after the first hold and release the stick is directional
+  // Each race starts with the pad at rest; after the first hold and release it only appears under the thumb
   const [guiding, setGuiding] = useState(!!(coarse && meId));
   const guideRef = useRef(!!(coarse && meId));
-  const [forwardDown, setForwardDown] = useState(false);
+  const [padHeld, setPadHeld] = useState(false);
   // Read after the first draw: the setting is the browser's, which a server-drawn page cannot know
   const [soundOff, setSoundOff] = useState(false);
   useEffect(() => setSoundOff(isMuted()), []);
@@ -82,11 +81,34 @@ export default function DashRace(props: RaceProps) {
   };
   const racerKey = racers.map((r) => r.id).join(",");
   const level = useMemo(() => getLevel(levelIndex), [levelIndex]);
+  const placePad = (x: number, y: number, show: boolean) => {
+    const el = stickRef.current;
+    if (!el) return;
+    el.style.display = show ? "block" : "none";
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+  };
+  /** The pad rests at the lower left until the first thumb lands on it */
+  const restPad = () => {
+    const el = stickRef.current;
+    if (!el) return;
+    const r = el.parentElement?.getBoundingClientRect();
+    if (!r) return;
+    const x = r.left + Math.max(18, 0) + 60;
+    const y = r.bottom - Math.max(22, 0) - 60;
+    placePad(x, y, true);
+  };
   useEffect(() => {
     const show = !!(coarse && meId);
     guideRef.current = show;
     setGuiding(show);
-    setForwardDown(false);
+    setPadHeld(false);
+    if (show) {
+      // After the stage has laid out
+      requestAnimationFrame(restPad);
+    } else if (stickRef.current) {
+      stickRef.current.style.display = "none";
+    }
   }, [levelIndex, meId, coarse, racerKey]);
 
   useEffect(() => {
@@ -147,26 +169,17 @@ export default function DashRace(props: RaceProps) {
     if (!guideRef.current || live.current.raceTime() < 0) return;
     guideRef.current = false;
     setGuiding(false);
-    setForwardDown(false);
   };
   const onStickDown = (e: React.PointerEvent) => {
     unlockSound();
     if (stickId.current !== null || !meId) return;
     stickId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    // The first hold runs straight ahead. Letting go is what makes the stick directional
-    if (guideRef.current) {
-      gameRef.current?.setStick(0, -1);
-      setForwardDown(true);
-      return;
-    }
     origin.current = { x: e.clientX, y: e.clientY };
-    if (stickRef.current) {
-      stickRef.current.style.display = "block";
-      stickRef.current.style.left = `${e.clientX}px`;
-      stickRef.current.style.top = `${e.clientY}px`;
-    }
-    if (knobRef.current) knobRef.current.style.transform = "";
+    placePad(e.clientX, e.clientY, true);
+    setPadHeld(true);
+    // The first hold runs straight ahead. Letting go is what makes the pad directional
+    if (guideRef.current) gameRef.current?.setStick(0, -1);
   };
   const onStickMove = (e: React.PointerEvent) => {
     if (e.pointerId !== stickId.current || guideRef.current) return;
@@ -181,18 +194,20 @@ export default function DashRace(props: RaceProps) {
     // A thumb resting near the middle is not a walk
     const dead = l < 0.14;
     gameRef.current?.setStick(dead ? 0 : dx, dead ? 0 : dy);
-    if (knobRef.current) knobRef.current.style.transform = `translate(${dx * R}px, ${dy * R}px)`;
   };
   const onStickUp = (e: React.PointerEvent) => {
     if (e.pointerId !== stickId.current) return;
     stickId.current = null;
     gameRef.current?.setStick(0, 0);
+    setPadHeld(false);
     if (guideRef.current) {
-      setForwardDown(false);
       learnStick();
+      // Still guiding (countdown): back to the lower left. Otherwise the pad waits for the next thumb
+      if (guideRef.current) restPad();
+      else placePad(0, 0, false);
       return;
     }
-    if (stickRef.current) stickRef.current.style.display = "none";
+    placePad(0, 0, false);
   };
   const button = (name: "jump" | "dive") => ({
     onPointerDown: (e: React.PointerEvent) => {
@@ -215,6 +230,10 @@ export default function DashRace(props: RaceProps) {
       setPressed((p) => ({ ...p, [name]: false }));
     },
   });
+
+  useEffect(() => {
+    if (hud.finished || !meId || !coarse) placePad(0, 0, false);
+  }, [hud.finished, meId, coarse]);
 
   const t = hud.t;
   const name = LEVEL_NAMES[levelIndex % LEVEL_NAMES.length];
@@ -239,8 +258,25 @@ export default function DashRace(props: RaceProps) {
           onLostPointerCapture={onStickUp}
         />
       )}
-      <div ref={stickRef} className="dash-stick" style={{ display: "none" }}>
-        <i ref={knobRef} />
+      {/* Circle with a simple Game Boy pad: rests at the lower left, then follows the thumb */}
+      <div
+        ref={stickRef}
+        className={`dash-pad${guiding ? " guiding" : ""}${padHeld ? " held" : ""}`}
+        style={{ display: "none" }}
+        aria-hidden
+      >
+        <svg viewBox="0 0 120 120" width="120" height="120">
+          <circle cx="60" cy="60" r="56" fill="rgba(255,255,255,0.5)" stroke="var(--ink)" strokeWidth="3.5" />
+          <g fill="rgba(255,255,255,0.85)" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
+            <rect x="48" y="22" width="24" height="76" rx="7" />
+            <rect x="22" y="48" width="76" height="24" rx="7" />
+          </g>
+          <circle cx="60" cy="60" r="7" fill="rgba(220,224,240,0.95)" stroke="var(--ink)" strokeWidth="2" />
+          <path className="up" d="M60 30 L52 42 H68 Z" fill="var(--ink)" opacity="0.55" />
+          <path d="M60 90 L52 78 H68 Z" fill="var(--ink)" opacity="0.45" />
+          <path d="M30 60 L42 52 V68 Z" fill="var(--ink)" opacity="0.45" />
+          <path d="M90 60 L78 52 V68 Z" fill="var(--ink)" opacity="0.45" />
+        </svg>
       </div>
 
       <div className="dash-hud">
@@ -356,22 +392,6 @@ export default function DashRace(props: RaceProps) {
         ) : null}
       </div>
 
-      {meId && coarse && guiding && !hud.finished && (
-        <div className={`dash-forward${forwardDown ? " down" : ""}`} aria-hidden>
-          {/* A faded Game Boy pad: hold to run straight; after release the stick is directional */}
-          <svg viewBox="0 0 112 112" width="112" height="112">
-            <g fill="rgba(255,255,255,0.72)" stroke="var(--ink)" strokeWidth="3.5" strokeLinejoin="round">
-              <rect x="40" y="10" width="32" height="92" rx="9" />
-              <rect x="10" y="40" width="92" height="32" rx="9" />
-            </g>
-            <circle cx="56" cy="56" r="9" fill="rgba(232,234,248,0.9)" stroke="var(--ink)" strokeWidth="2.5" />
-            <path className="up" d="M56 22 L44 40 H68 Z" fill="var(--ink)" />
-            <path d="M56 90 L44 72 H68 Z" fill="var(--ink)" />
-            <path d="M22 56 L40 44 V68 Z" fill="var(--ink)" />
-            <path d="M90 56 L72 44 V68 Z" fill="var(--ink)" />
-          </svg>
-        </div>
-      )}
       {meId && coarse && !hud.finished && (
         <div className="dash-buttons">
           <div className={`dash-button dive${pressed.dive ? " down" : ""}`} {...button("dive")}>
