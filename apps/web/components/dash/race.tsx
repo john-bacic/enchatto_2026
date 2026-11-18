@@ -42,6 +42,8 @@ export interface RaceProps {
 }
 
 const RESUME = "enchatto_dash_cp_";
+/** Set once she has held the forward control and let go: the thumb stick takes over, on this device */
+const FORWARD_KNOWN = "enchatto_dash_forward";
 function reachedBefore(key: string | undefined): number {
   if (!key) return 0;
   try {
@@ -66,6 +68,22 @@ export default function DashRace(props: RaceProps) {
   const [hud, setHud] = useState<Hud>(() => ({ ...EMPTY_HUD, t: props.raceTime() }));
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<{ jump?: boolean; dive?: boolean }>({});
+  // Until her first tap and release, a touch screen shows a forward control instead of the directional stick
+  const [guiding, setGuiding] = useState(false);
+  const guideRef = useRef(false);
+  const [forwardDown, setForwardDown] = useState(false);
+  useEffect(() => {
+    let known = false;
+    try {
+      known = localStorage.getItem(FORWARD_KNOWN) === "1";
+    } catch {
+      // No store: show it, and it cannot be remembered
+    }
+    if (!known) {
+      guideRef.current = true;
+      setGuiding(true);
+    }
+  }, []);
   // Read after the first draw: the setting is the browser's, which a server-drawn page cannot know
   const [soundOff, setSoundOff] = useState(false);
   useEffect(() => setSoundOff(isMuted()), []);
@@ -133,12 +151,29 @@ export default function DashRace(props: RaceProps) {
   // The thumb stick: wherever the left thumb lands is its centre
   const stickId = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
+  const learnStick = () => {
+    if (!guideRef.current || live.current.raceTime() < 0) return;
+    guideRef.current = false;
+    setGuiding(false);
+    setForwardDown(false);
+    try {
+      localStorage.setItem(FORWARD_KNOWN, "1");
+    } catch {
+      // This visit only, then
+    }
+  };
   const onStickDown = (e: React.PointerEvent) => {
     unlockSound();
     if (stickId.current !== null || !meId) return;
     stickId.current = e.pointerId;
-    origin.current = { x: e.clientX, y: e.clientY };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    // The first hold runs straight ahead. Letting go is what makes the stick directional
+    if (guideRef.current) {
+      gameRef.current?.setStick(0, -1);
+      setForwardDown(true);
+      return;
+    }
+    origin.current = { x: e.clientX, y: e.clientY };
     if (stickRef.current) {
       stickRef.current.style.display = "block";
       stickRef.current.style.left = `${e.clientX}px`;
@@ -147,7 +182,7 @@ export default function DashRace(props: RaceProps) {
     if (knobRef.current) knobRef.current.style.transform = "";
   };
   const onStickMove = (e: React.PointerEvent) => {
-    if (e.pointerId !== stickId.current) return;
+    if (e.pointerId !== stickId.current || guideRef.current) return;
     const R = 46;
     let dx = (e.clientX - origin.current.x) / R;
     let dy = (e.clientY - origin.current.y) / R;
@@ -165,6 +200,11 @@ export default function DashRace(props: RaceProps) {
     if (e.pointerId !== stickId.current) return;
     stickId.current = null;
     gameRef.current?.setStick(0, 0);
+    if (guideRef.current) {
+      setForwardDown(false);
+      learnStick();
+      return;
+    }
     if (stickRef.current) stickRef.current.style.display = "none";
   };
   const button = (name: "jump" | "dive") => ({
@@ -329,6 +369,12 @@ export default function DashRace(props: RaceProps) {
         ) : null}
       </div>
 
+      {meId && coarse && guiding && !hud.finished && (
+        <div className={`dash-forward${forwardDown ? " down" : ""}`} aria-hidden>
+          <span className="arrow">↑</span>
+          {c.forward}
+        </div>
+      )}
       {meId && coarse && !hud.finished && (
         <div className="dash-buttons">
           <div className={`dash-button dive${pressed.dive ? " down" : ""}`} {...button("dive")}>

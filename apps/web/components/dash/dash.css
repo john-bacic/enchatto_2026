@@ -156,6 +156,40 @@
   background: var(--blue);
   box-shadow: 0 4px 0 var(--ink);
 }
+/* Shown until the first hold-and-release: a tap here runs straight ahead (the left of the screen takes the touch) */
+.dash-forward {
+  position: absolute;
+  left: max(22px, env(safe-area-inset-left));
+  bottom: max(26px, calc(env(safe-area-inset-bottom) + 14px), calc(var(--dash-bottom, 0px) + 14px));
+  width: 112px;
+  height: 112px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 3.5px solid var(--ink);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 6px 0 var(--ink);
+  font-family: var(--chunky);
+  font-size: 13px;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--ink);
+  pointer-events: none;
+}
+.dash-forward .arrow {
+  font-size: 40px;
+  line-height: 0.85;
+  animation: dash-nudge 0.8s ease-in-out infinite;
+}
+.dash-forward.down { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
+.dash-forward.down .arrow { animation: none; transform: translateY(-4px); }
+@keyframes dash-nudge {
+  0%, 100% { transform: translateY(3px); }
+  50% { transform: translateY(-8px); }
+}
 .dash-buttons {
   position: absolute;
   right: max(18px, env(safe-area-inset-right));
