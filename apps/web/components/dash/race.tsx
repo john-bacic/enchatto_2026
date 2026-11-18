@@ -358,7 +358,18 @@ export default function DashRace(props: RaceProps) {
 
       {meId && coarse && guiding && !hud.finished && (
         <div className={`dash-forward${forwardDown ? " down" : ""}`} aria-hidden>
-          <Icon name="g-arrows" size={64} />
+          {/* A faded Game Boy pad: hold to run straight; after release the stick is directional */}
+          <svg viewBox="0 0 112 112" width="112" height="112">
+            <g fill="rgba(255,255,255,0.72)" stroke="var(--ink)" strokeWidth="3.5" strokeLinejoin="round">
+              <rect x="40" y="10" width="32" height="92" rx="9" />
+              <rect x="10" y="40" width="92" height="32" rx="9" />
+            </g>
+            <circle cx="56" cy="56" r="9" fill="rgba(232,234,248,0.9)" stroke="var(--ink)" strokeWidth="2.5" />
+            <path className="up" d="M56 22 L44 40 H68 Z" fill="var(--ink)" />
+            <path d="M56 90 L44 72 H68 Z" fill="var(--ink)" />
+            <path d="M22 56 L40 44 V68 Z" fill="var(--ink)" />
+            <path d="M90 56 L72 44 V68 Z" fill="var(--ink)" />
+          </svg>
         </div>
       )}
       {meId && coarse && !hud.finished && (

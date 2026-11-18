@@ -159,26 +159,21 @@
 /* Shown until the first hold-and-release: a tap here runs straight ahead (the left of the screen takes the touch) */
 .dash-forward {
   position: absolute;
-  left: max(22px, env(safe-area-inset-left));
-  bottom: max(26px, calc(env(safe-area-inset-bottom) + 14px), calc(var(--dash-bottom, 0px) + 14px));
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 10px), calc(var(--dash-bottom, 0px) + 10px));
   width: 112px;
   height: 112px;
-  display: grid;
-  place-items: center;
-  border: 3.5px solid var(--ink);
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 6px 0 var(--ink);
+  opacity: 0.55;
+  filter: drop-shadow(0 5px 0 var(--ink));
   pointer-events: none;
 }
-.dash-forward img {
-  animation: dash-nudge 0.8s ease-in-out infinite;
-}
-.dash-forward.down { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
-.dash-forward.down img { animation: none; transform: translateY(-4px); }
+.dash-forward svg { display: block; }
+.dash-forward .up { animation: dash-nudge 0.8s ease-in-out infinite; transform-origin: 56px 40px; transform-box: fill-box; }
+.dash-forward.down { opacity: 0.85; transform: translateY(3px); filter: drop-shadow(0 2px 0 var(--ink)); }
+.dash-forward.down .up { animation: none; }
 @keyframes dash-nudge {
-  0%, 100% { transform: translateY(3px); }
-  50% { transform: translateY(-8px); }
+  0%, 100% { transform: translateY(2px); }
+  50% { transform: translateY(-5px); }
 }
 .dash-buttons {
   position: absolute;
