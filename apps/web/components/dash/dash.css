@@ -134,23 +134,19 @@
   background: var(--paper);
   animation: ec-pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
-/* A faded Game Boy cross in a circle, with a blue knob */
+/* A Game Boy cross in a circle, with a blue knob. At rest its middle is level with the jump button's */
 .dash-pad {
   position: absolute;
+  left: calc(max(18px, env(safe-area-inset-left)) + 60px);
+  bottom: calc(max(26px, calc(env(safe-area-inset-bottom) + 14px), calc(var(--dash-bottom, 0px) + 14px)) - 12px);
   width: 120px;
   height: 120px;
-  margin: -60px 0 0 -60px;
-  opacity: 0.6;
+  margin-left: -60px;
   pointer-events: none;
 }
+/* Pressed: left and top are set where the thumb holds it */
+.dash-pad.held { bottom: auto; margin-top: -60px; }
 .dash-pad svg { display: block; }
-.dash-pad.guiding .up { animation: dash-nudge 0.8s ease-in-out infinite; }
-.dash-pad.held { opacity: 0.85; }
-.dash-pad.held .up { animation: none; }
-@keyframes dash-nudge {
-  0%, 100% { transform: translateY(2px); }
-  50% { transform: translateY(-5px); }
-}
 .dash-buttons {
   position: absolute;
   right: max(18px, env(safe-area-inset-right));

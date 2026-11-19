@@ -66,9 +66,6 @@ export default function DashRace(props: RaceProps) {
   const [hud, setHud] = useState<Hud>(() => ({ ...EMPTY_HUD, t: props.raceTime() }));
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<{ jump?: boolean; dive?: boolean }>({});
-  // Each race starts with the cross pad at rest; after the first hold and release it only appears under the thumb
-  const [guiding, setGuiding] = useState(!!(coarse && meId));
-  const guideRef = useRef(!!(coarse && meId));
   const [padHeld, setPadHeld] = useState(false);
   // Read after the first draw: the setting is the browser's, which a server-drawn page cannot know
   const [soundOff, setSoundOff] = useState(false);
@@ -82,27 +79,7 @@ export default function DashRace(props: RaceProps) {
   };
   const racerKey = racers.map((r) => r.id).join(",");
   const level = useMemo(() => getLevel(levelIndex), [levelIndex]);
-  const place = (el: HTMLElement | null, x: number, y: number, show: boolean) => {
-    if (!el) return;
-    el.style.display = show ? "block" : "none";
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-  };
-  const hidePad = () => place(padRef.current, 0, 0, false);
-  /** The pad rests at the lower left until the first thumb lands on it */
-  const restPad = () => {
-    const r = padRef.current?.parentElement?.getBoundingClientRect();
-    if (r) place(padRef.current, r.left + 78, r.bottom - 82, true);
-  };
-  useEffect(() => {
-    const show = !!(coarse && meId);
-    guideRef.current = show;
-    setGuiding(show);
-    setPadHeld(false);
-    // After the stage has laid out
-    if (show) requestAnimationFrame(restPad);
-    else hidePad();
-  }, [levelIndex, meId, coarse, racerKey]);
+  useEffect(() => setPadHeld(false), [levelIndex, meId, coarse, racerKey]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -155,31 +132,33 @@ export default function DashRace(props: RaceProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelIndex, meId, racerKey]);
 
-  // The thumb stick: wherever the left thumb lands is its centre
+  // The thumb stick: a thumb on the pad steers from the pad's centre; anywhere else on the left, the pad comes to the thumb
   const stickId = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
-  const learnStick = () => {
-    if (!guideRef.current || live.current.raceTime() < 0) return;
-    guideRef.current = false;
-    setGuiding(false);
-  };
   const onStickDown = (e: React.PointerEvent) => {
     unlockSound();
-    if (stickId.current !== null || !meId) return;
+    const pad = padRef.current;
+    if (stickId.current !== null || !meId || !pad) return;
     stickId.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    origin.current = { x: e.clientX, y: e.clientY };
-    place(padRef.current, e.clientX, e.clientY, true);
-    if (knobRef.current) knobRef.current.style.transform = "";
+    const r = pad.getBoundingClientRect();
+    const stage = pad.parentElement?.getBoundingClientRect() ?? { left: 0, top: 0 };
+    const centre = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const onPad = Math.hypot(e.clientX - centre.x, e.clientY - centre.y) <= r.width / 2;
+    origin.current = onPad ? centre : { x: e.clientX, y: e.clientY };
+    // Held where it is drawn: its resting place is the stylesheet's, which a press replaces
+    pad.style.left = `${origin.current.x - stage.left}px`;
+    pad.style.top = `${origin.current.y - stage.top}px`;
     setPadHeld(true);
-    // The first hold runs straight ahead. Letting go is what makes the pad directional
-    if (guideRef.current) gameRef.current?.setStick(0, -1);
+    steer(e.clientX, e.clientY);
   };
   const onStickMove = (e: React.PointerEvent) => {
-    if (e.pointerId !== stickId.current || guideRef.current) return;
+    if (e.pointerId === stickId.current) steer(e.clientX, e.clientY);
+  };
+  const steer = (x: number, y: number) => {
     const R = 46;
-    let dx = (e.clientX - origin.current.x) / R;
-    let dy = (e.clientY - origin.current.y) / R;
+    let dx = (x - origin.current.x) / R;
+    let dy = (y - origin.current.y) / R;
     const l = Math.hypot(dx, dy);
     if (l > 1) {
       dx /= l;
@@ -189,17 +168,16 @@ export default function DashRace(props: RaceProps) {
     const dead = l < 0.14;
     gameRef.current?.setStick(dead ? 0 : dx, dead ? 0 : dy);
     // The knob stays on the cross: its arms end 42px from the middle
-    if (knobRef.current) knobRef.current.style.transform = `translate(${dx * 30}px, ${dy * 30}px)`;
+    knobRef.current?.setAttribute("transform", `translate(${dx * 30} ${dy * 30})`);
   };
   const onStickUp = (e: React.PointerEvent) => {
     if (e.pointerId !== stickId.current) return;
     stickId.current = null;
     gameRef.current?.setStick(0, 0);
     setPadHeld(false);
-    learnStick();
-    // Still guiding (countdown): back to the lower left. Otherwise the pad waits for the next thumb
-    if (guideRef.current) restPad();
-    else hidePad();
+    const pad = padRef.current;
+    if (pad) pad.style.left = pad.style.top = "";
+    knobRef.current?.removeAttribute("transform");
   };
   const button = (name: "jump" | "dive") => ({
     onPointerDown: (e: React.PointerEvent) => {
@@ -222,10 +200,6 @@ export default function DashRace(props: RaceProps) {
       setPressed((p) => ({ ...p, [name]: false }));
     },
   });
-
-  useEffect(() => {
-    if (hud.finished || !meId || !coarse) hidePad();
-  }, [hud.finished, meId, coarse]);
 
   const t = hud.t;
   const name = LEVEL_NAMES[levelIndex % LEVEL_NAMES.length];
@@ -250,35 +224,37 @@ export default function DashRace(props: RaceProps) {
           onLostPointerCapture={onStickUp}
         />
       )}
-      {/* A Game Boy cross in a circle: rests at the lower left until the first hold and release, then appears under each thumb */}
-      <div ref={padRef} className={`dash-pad${guiding ? " guiding" : ""}${padHeld ? " held" : ""}`} style={{ display: "none" }} aria-hidden>
-        <svg viewBox="0 0 120 120" width="120" height="120">
-          <circle cx="60" cy="60" r="56" fill="rgba(255,255,255,0.45)" stroke="var(--ink)" strokeWidth="3" />
-          {/* Drawn three times: the edge under, the outline, then the face over the seam where the arms cross */}
-          <g fill="var(--ink)" stroke="var(--ink)" strokeWidth="7" strokeLinejoin="round" transform="translate(0 4)">
-            <rect x="46" y="18" width="28" height="84" rx="6" />
-            <rect x="18" y="46" width="84" height="28" rx="6" />
-          </g>
-          <g fill="#e4e7ef" stroke="var(--ink)" strokeWidth="7" strokeLinejoin="round">
-            <rect x="46" y="18" width="28" height="84" rx="6" />
-            <rect x="18" y="46" width="84" height="28" rx="6" />
-          </g>
-          <g fill="#e4e7ef">
-            <rect x="46" y="18" width="28" height="84" rx="6" />
-            <rect x="18" y="46" width="84" height="28" rx="6" />
-          </g>
-          <g fill="none" stroke="var(--ink)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7">
-            <polyline className="up" points="53,36 60,29 67,36" />
-            <polyline points="53,84 60,91 67,84" />
-            <polyline points="36,53 29,60 36,67" />
-            <polyline points="84,53 91,60 84,67" />
-          </g>
-          <g ref={knobRef} className="knob" stroke="var(--ink)" strokeWidth="2.5">
-            <circle cx="60" cy="63" r="19" fill="var(--ink)" />
-            <circle cx="60" cy="60" r="19" fill="var(--blue)" />
-          </g>
-        </svg>
-      </div>
+      {/* A Game Boy cross in a circle, at the lower left across from the jump and dive buttons */}
+      {coarse && meId && !hud.finished && (
+        <div ref={padRef} className={`dash-pad${padHeld ? " held" : ""}`} aria-hidden>
+          <svg viewBox="0 0 120 120" width="120" height="120">
+            <circle cx="60" cy="60" r="56" fill="rgba(255,255,255,0.45)" stroke="var(--ink)" strokeWidth="3" />
+            {/* Drawn three times: the edge under, the outline, then the face over the seam where the arms cross */}
+            <g fill="var(--ink)" stroke="var(--ink)" strokeWidth="7" strokeLinejoin="round" transform="translate(0 4)">
+              <rect x="46" y="18" width="28" height="84" rx="6" />
+              <rect x="18" y="46" width="84" height="28" rx="6" />
+            </g>
+            <g fill="#e4e7ef" stroke="var(--ink)" strokeWidth="7" strokeLinejoin="round">
+              <rect x="46" y="18" width="28" height="84" rx="6" />
+              <rect x="18" y="46" width="84" height="28" rx="6" />
+            </g>
+            <g fill="#e4e7ef">
+              <rect x="46" y="18" width="28" height="84" rx="6" />
+              <rect x="18" y="46" width="84" height="28" rx="6" />
+            </g>
+            <g fill="none" stroke="var(--ink)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7">
+              <polyline points="53,36 60,29 67,36" />
+              <polyline points="53,84 60,91 67,84" />
+              <polyline points="36,53 29,60 36,67" />
+              <polyline points="84,53 91,60 84,67" />
+            </g>
+            <g ref={knobRef} className="knob" stroke="var(--ink)" strokeWidth="2.5">
+              <circle cx="60" cy="63" r="19" fill="var(--ink)" />
+              <circle cx="60" cy="60" r="19" fill="var(--blue)" />
+            </g>
+          </svg>
+        </div>
+      )}
 
       <div className="dash-hud">
         <div className="dash-top">
